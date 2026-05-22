@@ -97,6 +97,7 @@ import {
   ParentError as ThreadParentError,
   SeedAgentError,
   ThreadError,
+  ThreadOpenTasksError,
 } from './services/thread-service.js';
 import {
   ScheduleError,
@@ -230,6 +231,28 @@ function threadServiceErrorResponse(c: Context, err: unknown): Response | null {
   if (err instanceof ThreadError) {
     const status = err.code === 'thread_not_found' ? 404 : 409;
     return c.json({ error: err.message, code: err.code }, status);
+  }
+  if (err instanceof ThreadOpenTasksError) {
+    // Nested error shape on purpose: the CLI's stable ERROR_CODES enum
+    // doesn't include silverhand-specific reasons like
+    // `has_open_tasks`, so we surface the top-level `code: 'conflict'`
+    // (which IS in the enum, drives `exitCodeFor` and `retriable`) and
+    // park the silverhand reason in `details.reason`. The structured
+    // `details.blocking_tasks` payload is what the CLI uses to render
+    // the task list in human mode.
+    return c.json(
+      {
+        error: {
+          code: 'conflict',
+          message: err.message,
+          details: {
+            reason: 'has_open_tasks',
+            blocking_tasks: err.blockingTasks,
+          },
+        },
+      },
+      409,
+    );
   }
   if (isRepoError(err)) {
     return c.json(
@@ -3549,6 +3572,7 @@ export function createInternalRouter(ctx: BackendContext): Hono<AppEnv> {
         actor: principal,
         summary: parsed.data.summary,
         postedToParent: parsed.data.posted_to_parent ?? false,
+        allowOpenTasks: parsed.data.allow_open_tasks ?? false,
       });
       return c.json({ thread: result.thread });
     } catch (err) {

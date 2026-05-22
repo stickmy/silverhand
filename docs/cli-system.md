@@ -206,6 +206,55 @@ schedule-visibility implies. Agents reporting schedules back to a user
 should prefer `target_label` over the raw `target_conversation_id` so
 the user sees a meaningful pointer instead of an opaque id.
 
+### 3.4 `silverhand thread close` hard-rejects open tasks
+
+`silverhand thread close` validates that the Thread has no tasks in
+`todo` / `in_progress` / `in_review` before it actually closes. If any
+open task is found, the call fails with HTTP 409 and a structured
+error body:
+
+```
+{
+  "error": {
+    "code": "conflict",
+    "message": "cannot close thread: N open task(s) ...",
+    "details": {
+      "reason": "has_open_tasks",
+      "blocking_tasks": [
+        { "task_number": 521,
+          "status": "in_review",
+          "title": "...",
+          "assignee_name": "Cindy",
+          "assignee_agent_id": "hDl2..." },
+        ...
+      ]
+    }
+  }
+}
+```
+
+The CLI passes `details.blocking_tasks` through to its stderr render:
+JSON mode keeps the single-line `{error:{...,details:{...}}}` shape;
+human mode prints the main line followed by one indented `#task:N
+(status) @assignee — title` line per blocking task so the operator can
+fix the bookkeeping directly.
+
+The guard runs **after** the thread / actor / membership / active-
+children checks. A non-member or unauthorized caller never sees the
+`blocking_tasks` list — those return their normal 403 / 404 / 409
+before the task query happens.
+
+`--allow-open-tasks` is the only escape hatch. It bypasses **just**
+this open-task guard; `already_closed`, `has_active_children`, actor
+existence, and thread membership all still apply. The flag is a
+user-approved override — an agent should not add it as a habit to make
+`thread close` go through. The intended use is "the human has
+consciously decided to leave this residue (e.g. accepting historical
+task rot)"; the default path is "move the tasks to `done` first, then
+close". Any agent or human runbook that auto-appends
+`--allow-open-tasks` defeats the whole point of the guard and should
+be flagged in review.
+
 ## 4. Error Contract
 
 stderr is the primary failure context for agents. It must be concise,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { COMMAND_GROUPS, findCommand, findGroup } from '../src/commands/index.js';
+import type { BackendClient } from '../src/client.js';
 
 describe('command catalogue', () => {
   it('exposes the seven nouns we promised in the prompt', () => {
@@ -98,5 +99,52 @@ describe('command catalogue', () => {
         }
       }
     }
+  });
+});
+
+describe('thread close flag plumbing', () => {
+  it('forwards --allow-open-tasks to the client as allow_open_tasks: true', async () => {
+    const cmd = findCommand('thread', 'close');
+    expect(cmd).toBeDefined();
+    expect(cmd!.booleanFlags).toContain('allow-open-tasks');
+    const calls: Array<Record<string, unknown>> = [];
+    const fakeClient = {
+      closeThread: async (input: Record<string, unknown>) => {
+        calls.push(input);
+        return { thread: { id: 't' } };
+      },
+    } as unknown as BackendClient;
+    await cmd!.run({
+      client: fakeClient,
+      args: {
+        flags: { summary: 'done', 'allow-open-tasks': true },
+        positional: [],
+        rest: [],
+      },
+    } as any);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toEqual({ summary: 'done', allow_open_tasks: true });
+  });
+
+  it('omits allow_open_tasks when the flag is absent (back-compat default)', async () => {
+    const cmd = findCommand('thread', 'close');
+    expect(cmd).toBeDefined();
+    const calls: Array<Record<string, unknown>> = [];
+    const fakeClient = {
+      closeThread: async (input: Record<string, unknown>) => {
+        calls.push(input);
+        return { thread: { id: 't' } };
+      },
+    } as unknown as BackendClient;
+    await cmd!.run({
+      client: fakeClient,
+      args: {
+        flags: { summary: 'done' },
+        positional: [],
+        rest: [],
+      },
+    } as any);
+    expect(calls[0]).toEqual({ summary: 'done' });
+    expect(calls[0]).not.toHaveProperty('allow_open_tasks');
   });
 });

@@ -108,6 +108,7 @@ export class BackendClient {
   closeThread(input: {
     summary: string;
     posted_to_parent?: boolean;
+    allow_open_tasks?: boolean;
   }): Promise<{ thread: unknown }> {
     return this.request(
       'POST',

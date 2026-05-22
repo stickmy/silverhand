@@ -238,6 +238,7 @@ export function buildTestApp(): TestApp {
     logger: silentLogger,
     serverConfig: () => ctx.serverConfig,
     lastSpawnAtByAgent: ctx.lastSpawnAtByAgent,
+    taskService: () => ctx.taskService,
   });
   ctx.taskService = new TaskService({
     db,

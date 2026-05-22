@@ -1143,8 +1143,28 @@ export type AgentCreateChannelInput = z.infer<
 export const AgentCloseThreadInputSchema = z.object({
   summary: z.string().min(1),
   posted_to_parent: z.boolean().optional(),
+  /** Explicit override: bypass the "thread has no open tasks" guard.
+   *  Set ONLY when the caller has consciously decided to leave one or
+   *  more tasks in `todo`/`in_progress`/`in_review` after the thread is
+   *  closed. The server still rejects `already_closed` and
+   *  `has_active_children` regardless of this flag. */
+  allow_open_tasks: z.boolean().optional(),
 });
 export type AgentCloseThreadInput = z.infer<typeof AgentCloseThreadInputSchema>;
+
+/** Structured detail attached to the backend `has_open_tasks` error so
+ *  the CLI can render a list of the offending tasks without re-parsing
+ *  the prose message. */
+export const ThreadCloseOpenTaskDetailSchema = z.object({
+  task_number: z.number().int().positive(),
+  status: z.enum(['todo', 'in_progress', 'in_review']),
+  title: z.string(),
+  assignee_name: z.string().nullable(),
+  assignee_agent_id: z.string().nullable(),
+});
+export type ThreadCloseOpenTaskDetail = z.infer<
+  typeof ThreadCloseOpenTaskDetailSchema
+>;
 
 // ── Agent read_history MCP tool ───────────────────────────────────
 

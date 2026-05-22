@@ -3,6 +3,7 @@ import {
   type AgentRunTerminalReason,
   type MessageDto,
   type ServerConfig,
+  type ThreadCloseOpenTaskDetail,
   type ThreadDto,
   systemSubtype,
 } from '@silverhand/shared';
@@ -12,6 +13,7 @@ import type { AgentRepo } from '../repos/agent-repo.js';
 import type { ConversationRepo } from '../repos/conversation-repo.js';
 import type { MessageRepo } from '../repos/message-repo.js';
 import type { WorkspaceRepo } from '../repos/workspace-repo.js';
+import type { TaskService } from './task-service.js';
 import type { ScopeEventBus } from '../ws/scope-event-bus.js';
 import {
   assertActorConversationMatch,
@@ -119,6 +121,29 @@ export class ThreadError extends Error {
   }
 }
 
+/**
+ * Specialized close-thread failure: the thread still has tasks in
+ * `todo` / `in_progress` / `in_review`. Separate from `ThreadError`
+ * because it carries a structured `blockingTasks` payload that the
+ * route surfaces as `details.blocking_tasks` for the CLI to render,
+ * and because it maps to the top-level `code: 'conflict'` shape
+ * (the silverhand-specific reason lives in `details.reason`) so the
+ * CLI's stable ERROR_CODES enum keeps working.
+ *
+ * Override: callers pass `allowOpenTasks: true` to `closeThread` to
+ * bypass this check after the human has consciously decided to leave
+ * residue. The `already_closed` / `has_active_children` / actor /
+ * membership checks are NOT bypassed.
+ */
+export class ThreadOpenTasksError extends Error {
+  constructor(
+    public readonly blockingTasks: readonly ThreadCloseOpenTaskDetail[],
+  ) {
+    super(formatThreadOpenTasksMessage(blockingTasks));
+    this.name = 'ThreadOpenTasksError';
+  }
+}
+
 export interface ThreadServiceOptions {
   db: Db;
   conversations: ConversationRepo;
@@ -130,6 +155,11 @@ export interface ThreadServiceOptions {
   logger: BackendLogger;
   serverConfig: ServerConfig | (() => ServerConfig);
   lastSpawnAtByAgent: Map<string, number>;
+  /** Late-bound: TaskService is constructed after ThreadService in
+   *  `index.ts`, so we accept a getter and resolve on each call. The
+   *  closeThread guard only needs `list(...)`, so we accept the smaller
+   *  shape rather than the full TaskService type to make tests easier. */
+  taskService: () => Pick<TaskService, 'list'>;
 }
 
 interface CreateThreadCoreInput {
@@ -184,6 +214,7 @@ export class ThreadService {
   private readonly logger: BackendLogger;
   private readonly getServerConfig: () => ServerConfig;
   private readonly lastSpawnAtByAgent: Map<string, number>;
+  private readonly getTaskService: () => Pick<TaskService, 'list'>;
 
   constructor(opts: ThreadServiceOptions) {
     this.db = opts.db;
@@ -200,6 +231,7 @@ export class ThreadService {
         ? serverConfig
         : () => serverConfig;
     this.lastSpawnAtByAgent = opts.lastSpawnAtByAgent;
+    this.getTaskService = opts.taskService;
   }
 
   async createThreadFromMessage(input: {
@@ -389,6 +421,10 @@ export class ThreadService {
     actor: ThreadActor;
     summary: string;
     postedToParent: boolean;
+    /** Explicit escape hatch — bypass the "thread has no open tasks"
+     *  guard only. Other pre-close checks (`already_closed`,
+     *  `has_active_children`, actor / membership) still apply. */
+    allowOpenTasks?: boolean;
   }): Promise<{ thread: ThreadDto }> {
     assertActorConversationMatch(input.actor, input.threadId);
     const thread = this.conversations.getThread(input.threadId);
@@ -412,6 +448,32 @@ export class ThreadService {
         throw new ActorError(
           'agent_not_member_of_thread',
           'agent is not a member of this thread',
+        );
+      }
+    }
+    // Open-task guard. Placed AFTER actor + membership so a non-member
+    // or unauthorized actor never sees a `blocking_tasks` summary
+    // (which is just task titles/assignees, but is still leakage we
+    // don't want gated only by HTTP 409 vs 403 timing). The check
+    // queries the thread by id directly — TaskService.list itself
+    // scopes agent actors by workspace, which is wider than needed
+    // here, so the AND on `conversationId` does the final narrowing.
+    if (!input.allowOpenTasks) {
+      const openTasks = this.getTaskService().list({
+        actor: input.actor,
+        conversationId: thread.id,
+        status: OPEN_TASK_STATUSES,
+      });
+      if (openTasks.length > 0) {
+        throw new ThreadOpenTasksError(
+          openTasks.map(t => ({
+            task_number: t.task_number,
+            status: t.status as ThreadCloseOpenTaskDetail['status'],
+            title: t.title,
+            assignee_name: t.assignee?.name ?? null,
+            assignee_agent_id:
+              t.assignee?.type === 'agent' ? t.assignee.id : null,
+          })),
         );
       }
     }
@@ -675,4 +737,21 @@ function dedupe(ids: Array<string | null | undefined>): string[] {
 
 function userLabel(userId: string | null | undefined): string {
   return userId ?? 'user';
+}
+
+const OPEN_TASK_STATUSES = ['todo', 'in_progress', 'in_review'] as const;
+
+function formatThreadOpenTasksMessage(
+  blocking: readonly ThreadCloseOpenTaskDetail[],
+): string {
+  const n = blocking.length;
+  // Keep the human-readable message terse — the CLI renders the full
+  // task list from `details.blocking_tasks`. This string is the
+  // fallback for tools that ignore details and only show .message.
+  return (
+    `cannot close thread: ${n} open task${n === 1 ? '' : 's'} ` +
+    `(status in todo/in_progress/in_review). ` +
+    `Close or move tasks to done first, ` +
+    `or pass --allow-open-tasks to override.`
+  );
 }

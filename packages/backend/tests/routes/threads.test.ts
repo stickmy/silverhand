@@ -171,4 +171,71 @@ describe('thread routes', () => {
       { conversationId: child.thread_id, reason: 'conversation_closed' },
     ]);
   });
+
+  it('internal close-thread rejects with HTTP 409 + structured blocking_tasks when open tasks remain', async () => {
+    t = buildTestApp();
+    const { channelId, agentIds } = await createWorkspaceChannel(t, ['alice', 'bob']);
+    const child = await (
+      await http(t).post(
+        `/internal/conversations/${channelId}/agents/${agentIds.alice}/create-thread`,
+        {
+          title: 'inv',
+          members: [agentIds.bob],
+          context_summary: 'x',
+          initial_prompt: 'go',
+        },
+        { headers: authHeaders(t.authToken) },
+      )
+    ).json() as any;
+    const threadId = child.thread_id as string;
+
+    // Plant an in_progress task in the thread (created by bob, who is
+    // a member). create → claim → status moves it from todo →
+    // in_progress.
+    const create = await (
+      await http(t).post(
+        `/internal/conversations/${threadId}/agents/${agentIds.bob}/tasks/create`,
+        { tasks: [{ title: 'finish the spike' }] },
+        { headers: authHeaders(t.authToken) },
+      )
+    ).json() as any;
+    const taskNumber = create.tasks[0].task_number as number;
+    await http(t).post(
+      `/internal/conversations/${threadId}/agents/${agentIds.bob}/tasks/claim`,
+      { task_numbers: [taskNumber] },
+      { headers: authHeaders(t.authToken) },
+    );
+    await http(t).post(
+      `/internal/conversations/${threadId}/agents/${agentIds.bob}/tasks/update-status`,
+      { task_number: taskNumber, status: 'in_progress' },
+      { headers: authHeaders(t.authToken) },
+    );
+
+    const rejected = await http(t).post(
+      `/internal/conversations/${threadId}/agents/${agentIds.bob}/close-thread`,
+      { summary: 'done' },
+      { headers: authHeaders(t.authToken) },
+    );
+    expect(rejected.status).toBe(409);
+    const body = await rejected.json() as any;
+    expect(body.error.code).toBe('conflict');
+    expect(body.error.details.reason).toBe('has_open_tasks');
+    expect(Array.isArray(body.error.details.blocking_tasks)).toBe(true);
+    expect(body.error.details.blocking_tasks).toHaveLength(1);
+    expect(body.error.details.blocking_tasks[0]).toMatchObject({
+      task_number: taskNumber,
+      status: 'in_progress',
+      assignee_name: 'bob',
+      assignee_agent_id: agentIds.bob,
+    });
+    // Thread-not-closed is asserted in the service unit test
+    // (`rejects close when thread still has open tasks ...`). Here we
+    // confirm the override path works back through the HTTP boundary.
+    const overridden = await http(t).post(
+      `/internal/conversations/${threadId}/agents/${agentIds.bob}/close-thread`,
+      { summary: 'accepting residue', allow_open_tasks: true },
+      { headers: authHeaders(t.authToken) },
+    );
+    expect(overridden.status).toBe(200);
+  });
 });

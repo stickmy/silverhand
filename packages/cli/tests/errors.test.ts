@@ -195,4 +195,113 @@ describe('writeError', () => {
       'silverhand: validation_error/flag_removed: use stdin\n',
     );
   });
+
+  it('renders blocking_tasks details on indented lines in human mode', () => {
+    const writes: string[] = [];
+    const err = new CliError({
+      code: 'conflict',
+      message: 'cannot close thread: 2 open tasks',
+      retriable: false,
+      details: {
+        reason: 'has_open_tasks',
+        blocking_tasks: [
+          {
+            task_number: 521,
+            status: 'in_review',
+            title: 'protocol handshake',
+            assignee_name: 'Cindy',
+            assignee_agent_id: 'abc',
+          },
+          {
+            task_number: 522,
+            status: 'todo',
+            title: 'orphan reconcile',
+            assignee_name: null,
+            assignee_agent_id: null,
+          },
+        ],
+      },
+    });
+    writeError(err, { json: false, stderr: { write: s => writes.push(s) } });
+    const joined = writes.join('');
+    expect(joined).toContain(
+      'silverhand: conflict: cannot close thread: 2 open tasks\n',
+    );
+    expect(joined).toContain(
+      '  #task:521 (in_review) @Cindy — protocol handshake\n',
+    );
+    expect(joined).toContain('  #task:522 (todo) — orphan reconcile\n');
+  });
+
+  it('JSON mode keeps blocking_tasks inside the single-line payload', () => {
+    const writes: string[] = [];
+    const err = new CliError({
+      code: 'conflict',
+      message: 'cannot close thread: 1 open task',
+      retriable: false,
+      details: {
+        reason: 'has_open_tasks',
+        blocking_tasks: [
+          {
+            task_number: 99,
+            status: 'in_progress',
+            title: 't',
+            assignee_name: 'A',
+            assignee_agent_id: 'x',
+          },
+        ],
+      },
+    });
+    writeError(err, { json: true, stderr: { write: s => writes.push(s) } });
+    expect(writes.length).toBe(1);
+    const parsed = JSON.parse(writes[0]!);
+    expect(parsed.error.code).toBe('conflict');
+    expect(parsed.error.retriable).toBe(false);
+    expect(parsed.error.details.reason).toBe('has_open_tasks');
+    expect(parsed.error.details.blocking_tasks).toHaveLength(1);
+  });
+});
+
+describe('mapHttpError detail propagation', () => {
+  it('lifts nested details.blocking_tasks into CliError.details', () => {
+    const body = JSON.stringify({
+      error: {
+        code: 'conflict',
+        message: 'cannot close thread: 1 open task',
+        details: {
+          reason: 'has_open_tasks',
+          blocking_tasks: [
+            {
+              task_number: 7,
+              status: 'in_review',
+              title: 'x',
+              assignee_name: 'Alice',
+              assignee_agent_id: 'aid',
+            },
+          ],
+        },
+      },
+    });
+    const err = mapHttpError(409, body);
+    expect(err.code).toBe('conflict');
+    expect(err.retriable).toBe(false);
+    const payload = err.toPayload();
+    expect(payload.details).toBeDefined();
+    expect((payload.details as any).reason).toBe('has_open_tasks');
+    expect((payload.details as any).blocking_tasks).toHaveLength(1);
+    expect((payload.details as any).blocking_tasks[0]).toMatchObject({
+      task_number: 7,
+      status: 'in_review',
+      assignee_name: 'Alice',
+    });
+  });
+
+  it('falls through cleanly when body has no details', () => {
+    const err = mapHttpError(
+      409,
+      JSON.stringify({ error: { code: 'conflict', message: 'oops' } }),
+    );
+    expect(err.code).toBe('conflict');
+    expect(err.toPayload().details).toBeUndefined();
+  });
 });

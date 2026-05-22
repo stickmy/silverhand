@@ -18,6 +18,7 @@ import {
   ParentError,
   SeedAgentError,
   ThreadError,
+  ThreadOpenTasksError,
   ThreadService,
 } from '../../src/services/thread-service.js';
 import type { BackendLogger } from '../../src/context.js';
@@ -79,6 +80,37 @@ class FakeConversationManager {
   }
 }
 
+interface FakeTaskInput {
+  task_number: number;
+  status: 'todo' | 'in_progress' | 'in_review';
+  title: string;
+  assigneeName: string | null;
+  assigneeAgentId: string | null;
+}
+
+function makeFakeTaskSummary(
+  i: FakeTaskInput,
+): import('@silverhand/shared').TaskSummaryDto {
+  return {
+    message_id: `msg-${i.task_number}`,
+    task_number: i.task_number,
+    workspace_id: 'w',
+    workspace_name: 'w',
+    channel_id: 'c',
+    channel_name: 'c',
+    thread_id: 't',
+    conversation: { id: 't', title: 't' },
+    status: i.status,
+    title: i.title,
+    assignee:
+      i.assigneeName && i.assigneeAgentId
+        ? { type: 'agent', id: i.assigneeAgentId, name: i.assigneeName }
+        : null,
+    creator: { type: 'agent', id: 'creator', name: 'creator' },
+    created_at: 0,
+  };
+}
+
 function bootstrap() {
   const { db, localHostId } = openTestDb();
   const tmp = makeTempSilverhandDir();
@@ -89,6 +121,15 @@ function bootstrap() {
   const messages = new MessageRepo(db);
   const events = new ScopeEventBus('test-epoch');
   const fake = new FakeConversationManager();
+  // FakeTaskService: by default the close-thread guard sees zero open
+  // tasks. Tests that exercise the guard mutate `fakeTaskService.tasks`
+  // before calling `closeThread`.
+  const fakeTaskService = {
+    tasks: [] as Array<import('@silverhand/shared').TaskSummaryDto>,
+    list(_filters: unknown) {
+      return this.tasks;
+    },
+  };
   const logger: BackendLogger = {
     info: vi.fn(),
     warn: vi.fn(),
@@ -116,6 +157,7 @@ function bootstrap() {
     logger,
     serverConfig,
     lastSpawnAtByAgent: new Map(),
+    taskService: () => fakeTaskService,
   });
   const workspace = workspaces.insert({
     name: 'eng',
@@ -153,6 +195,7 @@ function bootstrap() {
     alice,
     bob,
     carol,
+    fakeTaskService,
     cleanup: tmp.cleanup,
   };
 }
@@ -607,6 +650,174 @@ describe('ThreadService.closeThread', () => {
           postedToParent: true,
         }),
       ).rejects.toBeInstanceOf(ThreadError);
+    } finally {
+      t.cleanup();
+    }
+  });
+
+  it('rejects close when thread still has open tasks and surfaces blocking_tasks detail', async () => {
+    const t = bootstrap();
+    try {
+      const created = await t.service.createThreadFromAgent({
+        parentConversationId: t.channel.id,
+        actor: { kind: 'agent', agentId: t.alice.id, conversationId: t.channel.id },
+        title: 'inv',
+        contextSummary: 'x',
+        initialPrompt: 'go',
+        requestedMembers: [t.bob.id],
+      });
+      t.fakeTaskService.tasks = [
+        makeFakeTaskSummary({
+          task_number: 901,
+          status: 'in_review',
+          title: 'finish review',
+          assigneeName: 'bob',
+          assigneeAgentId: t.bob.id,
+        }),
+        makeFakeTaskSummary({
+          task_number: 902,
+          status: 'todo',
+          title: 'pending work',
+          assigneeName: null,
+          assigneeAgentId: null,
+        }),
+      ];
+
+      let captured: ThreadOpenTasksError | null = null;
+      try {
+        await t.service.closeThread({
+          threadId: created.thread.id,
+          actor: { kind: 'agent', agentId: t.alice.id, conversationId: created.thread.id },
+          summary: 'done',
+          postedToParent: false,
+        });
+      } catch (err) {
+        if (err instanceof ThreadOpenTasksError) captured = err;
+        else throw err;
+      }
+      expect(captured).not.toBeNull();
+      expect(captured!.blockingTasks).toHaveLength(2);
+      expect(captured!.blockingTasks[0]).toMatchObject({
+        task_number: 901,
+        status: 'in_review',
+        assignee_name: 'bob',
+        assignee_agent_id: t.bob.id,
+      });
+      expect(captured!.blockingTasks[1]).toMatchObject({
+        task_number: 902,
+        status: 'todo',
+        assignee_name: null,
+        assignee_agent_id: null,
+      });
+      expect(captured!.message).toContain('2 open tasks');
+      // thread must NOT be closed
+      expect(t.conversations.getThread(created.thread.id)?.closed_at).toBeNull();
+      // no parent summary published; no runs resolved
+      expect(t.fake.resolvedConversations).toEqual([]);
+    } finally {
+      t.cleanup();
+    }
+  });
+
+  it('allowOpenTasks bypasses the open-task guard and closes the thread', async () => {
+    const t = bootstrap();
+    try {
+      const created = await t.service.createThreadFromAgent({
+        parentConversationId: t.channel.id,
+        actor: { kind: 'agent', agentId: t.alice.id, conversationId: t.channel.id },
+        title: 'inv',
+        contextSummary: 'x',
+        initialPrompt: 'go',
+        requestedMembers: [t.bob.id],
+      });
+      t.fakeTaskService.tasks = [
+        makeFakeTaskSummary({
+          task_number: 903,
+          status: 'in_progress',
+          title: 'still going',
+          assigneeName: 'alice',
+          assigneeAgentId: t.alice.id,
+        }),
+      ];
+
+      const closed = await t.service.closeThread({
+        threadId: created.thread.id,
+        actor: { kind: 'agent', agentId: t.alice.id, conversationId: created.thread.id },
+        summary: 'accepting residue',
+        postedToParent: true,
+        allowOpenTasks: true,
+      });
+
+      expect(closed.thread.closed_at).not.toBeNull();
+    } finally {
+      t.cleanup();
+    }
+  });
+
+  it('non-member actor hits ActorError BEFORE the open-task query (no leakage of blocking_tasks)', async () => {
+    const t = bootstrap();
+    try {
+      const created = await t.service.createThreadFromAgent({
+        parentConversationId: t.channel.id,
+        actor: { kind: 'agent', agentId: t.alice.id, conversationId: t.channel.id },
+        title: 'inv',
+        contextSummary: 'x',
+        initialPrompt: 'go',
+        requestedMembers: [t.bob.id],
+      });
+      // Populate the fake task service with tasks. If the guard fired
+      // BEFORE the actor check we'd surface them; the order assertion
+      // below proves we don't.
+      t.fakeTaskService.tasks = [
+        makeFakeTaskSummary({
+          task_number: 904,
+          status: 'in_review',
+          title: 'should not leak',
+          assigneeName: 'bob',
+          assigneeAgentId: t.bob.id,
+        }),
+      ];
+      let saw: unknown = null;
+      const listSpy = vi.spyOn(t.fakeTaskService, 'list');
+      try {
+        await t.service.closeThread({
+          threadId: created.thread.id,
+          // carol is NOT a member of the thread
+          actor: { kind: 'agent', agentId: t.carol.id, conversationId: created.thread.id },
+          summary: 'forged',
+          postedToParent: false,
+        });
+      } catch (err) {
+        saw = err;
+      }
+      expect(saw).toBeInstanceOf(ActorError);
+      expect(listSpy).not.toHaveBeenCalled();
+      listSpy.mockRestore();
+    } finally {
+      t.cleanup();
+    }
+  });
+
+  it('closes cleanly when every task in the thread is done (no open-task block)', async () => {
+    const t = bootstrap();
+    try {
+      const created = await t.service.createThreadFromAgent({
+        parentConversationId: t.channel.id,
+        actor: { kind: 'agent', agentId: t.alice.id, conversationId: t.channel.id },
+        title: 'inv',
+        contextSummary: 'x',
+        initialPrompt: 'go',
+        requestedMembers: [t.bob.id],
+      });
+      // empty fakeTaskService.tasks already; matches "all done / no
+      // active tasks in this thread"
+      const closed = await t.service.closeThread({
+        threadId: created.thread.id,
+        actor: { kind: 'agent', agentId: t.alice.id, conversationId: created.thread.id },
+        summary: 'all done',
+        postedToParent: true,
+      });
+      expect(closed.thread.closed_at).not.toBeNull();
     } finally {
       t.cleanup();
     }

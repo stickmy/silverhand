@@ -433,6 +433,15 @@ explicitly confirms. If you've already sent the conclusion to the parent
 via ${parentConclusionTarget}, pass \`--posted-to-parent\` when calling
 ${closeThread} to avoid duplicate posting.
 
+${closeThread} hard-rejects when the Thread still has tasks in
+\`todo\` / \`in_progress\` / \`in_review\` — error code \`conflict\` with
+\`details.blocking_tasks\` listing each task's number, status, and
+assignee. The fix is almost always to move those tasks to \`done\` (or
+re-claim and finish them) before closing, not to add
+\`--allow-open-tasks\`. \`--allow-open-tasks\` is a user-approved
+escape hatch for accepting residue, not a normal close-path flag —
+do not auto-include it.
+
 Frequent parent ↔ child back-and-forth (5+ rounds) means the Thread
 decision was wrong — close out and continue in the parent.
 

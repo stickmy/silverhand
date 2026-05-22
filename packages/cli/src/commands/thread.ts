@@ -54,6 +54,7 @@ const closeCommand: Command = {
   verb: 'close',
   summary: 'Close the current Thread.',
   help: `silverhand thread close --summary <text> [--posted-to-parent]
+                         [--allow-open-tasks]
 
 Mark the current Thread as closed and (unless --posted-to-parent is set)
 auto-post the summary to the parent channel.
@@ -64,10 +65,20 @@ Flags:
                         to the parent via
                         \`silverhand message send --target parent\`.
                         Avoids duplicate posting.
+  --allow-open-tasks    Escape hatch (user-approved use only). By
+                        default the server refuses to close a Thread
+                        that still has tasks in
+                        todo / in_progress / in_review and lists them
+                        in the error so you can move them to done or
+                        re-claim them. Pass this flag ONLY when the
+                        human has consciously decided to leave that
+                        residue. Do NOT add it as a habit to make
+                        close go through — that's exactly the
+                        bookkeeping rot this guard exists to prevent.
 
 stdout: { "thread": ... }`,
   flags: ['summary'] as const,
-  booleanFlags: ['posted-to-parent'],
+  booleanFlags: ['posted-to-parent', 'allow-open-tasks'],
   async run({ client, args }) {
     const summary = flagString(args, 'summary');
     if (!summary) {
@@ -78,9 +89,11 @@ stdout: { "thread": ... }`,
       });
     }
     const postedToParent = flagBool(args, 'posted-to-parent') ?? false;
+    const allowOpenTasks = flagBool(args, 'allow-open-tasks') ?? false;
     return client.closeThread({
       summary,
       ...(postedToParent ? { posted_to_parent: true } : {}),
+      ...(allowOpenTasks ? { allow_open_tasks: true } : {}),
     });
   },
 };

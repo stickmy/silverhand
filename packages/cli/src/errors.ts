@@ -119,6 +119,7 @@ export function mapHttpError(status: number, bodyText: string): CliError {
       code,
       message: parsed.message ?? defaultMessageForCode(code),
       retriable: isRetriableCode(code),
+      ...(parsed.details ? { details: parsed.details } : {}),
     });
   }
 
@@ -127,6 +128,7 @@ export function mapHttpError(status: number, bodyText: string): CliError {
     code,
     message: parsed?.message ?? defaultMessageForStatus(status, code),
     retriable: isRetriableCode(code),
+    ...(parsed?.details ? { details: parsed.details } : {}),
   });
 }
 
@@ -175,7 +177,9 @@ export function exitCodeFor(code: ErrorCode): 1 | 2 | 3 {
 }
 
 /** Write a `CliError` to stderr per the contract.
- *  - `human` mode: one short line.
+ *  - `human` mode: short tag + message line; if `details.blocking_tasks`
+ *    is present, each task gets its own follow-up line so the agent /
+ *    operator can see exactly which tasks blocked the operation.
  *  - `json` mode (default): one-line JSON `{error:{code,subkind?,message,retriable,details?}}`.
  *  Never logs stack traces. The exit code is the caller's responsibility
  *  (use `exitCodeFor`). */
@@ -186,10 +190,55 @@ export function writeError(
   const out = opts.stderr ?? process.stderr;
   if (opts.json) {
     out.write(JSON.stringify({ error: err.toPayload() }) + '\n');
-  } else {
-    const tag = err.subkind ? `${err.code}/${err.subkind}` : err.code;
-    out.write(`silverhand: ${tag}: ${err.message}\n`);
+    return;
   }
+  const tag = err.subkind ? `${err.code}/${err.subkind}` : err.code;
+  out.write(`silverhand: ${tag}: ${err.message}\n`);
+  const blocking = readBlockingTasks(err.details);
+  if (blocking && blocking.length > 0) {
+    for (const t of blocking) {
+      const assignee = t.assignee_name ? ` @${t.assignee_name}` : '';
+      const title = t.title ? ` — ${t.title}` : '';
+      out.write(`  #task:${t.task_number} (${t.status})${assignee}${title}\n`);
+    }
+  }
+}
+
+/** Best-effort extractor for the structured `blocking_tasks` array the
+ *  backend attaches to `has_open_tasks` conflicts. Returns null when
+ *  the shape doesn't match — `writeError` falls back to the message
+ *  line only. We intentionally don't import the shared zod schema here:
+ *  the CLI's render path must stay tolerant of slightly drifted
+ *  details payloads. */
+interface BlockingTaskRow {
+  task_number: number;
+  status: string;
+  title: string;
+  assignee_name: string | null;
+}
+
+function readBlockingTasks(
+  details: Record<string, unknown> | undefined,
+): BlockingTaskRow[] | null {
+  if (!details) return null;
+  const raw = details['blocking_tasks'];
+  if (!Array.isArray(raw)) return null;
+  const out: BlockingTaskRow[] = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object') continue;
+    const e = entry as Record<string, unknown>;
+    const num = typeof e['task_number'] === 'number' ? e['task_number'] : null;
+    const status = typeof e['status'] === 'string' ? e['status'] : null;
+    if (num === null || status === null) continue;
+    out.push({
+      task_number: num,
+      status,
+      title: typeof e['title'] === 'string' ? e['title'] : '',
+      assignee_name:
+        typeof e['assignee_name'] === 'string' ? e['assignee_name'] : null,
+    });
+  }
+  return out;
 }
 
 // ── internals ────────────────────────────────────────────────────
@@ -240,6 +289,7 @@ function defaultMessageForStatus(status: number, code: ErrorCode): string {
 interface ParsedErrorBody {
   code?: string;
   message?: string;
+  details?: Record<string, unknown>;
 }
 
 function safeParseErrorBody(bodyText: string): ParsedErrorBody | null {
@@ -248,7 +298,8 @@ function safeParseErrorBody(bodyText: string): ParsedErrorBody | null {
     const parsed = JSON.parse(bodyText) as unknown;
     if (parsed && typeof parsed === 'object') {
       const obj = parsed as Record<string, unknown>;
-      // Accept either `{error: {code, message}}` or a flat `{code, message}`.
+      // Accept either `{error: {code, message, details?}}` or a flat
+      // `{code, message, details?}`.
       const inner =
         obj.error && typeof obj.error === 'object'
           ? (obj.error as Record<string, unknown>)
@@ -256,7 +307,11 @@ function safeParseErrorBody(bodyText: string): ParsedErrorBody | null {
       const code = typeof inner.code === 'string' ? inner.code : undefined;
       const message =
         typeof inner.message === 'string' ? inner.message : undefined;
-      if (code || message) return { code, message };
+      const details =
+        inner.details && typeof inner.details === 'object'
+          ? (inner.details as Record<string, unknown>)
+          : undefined;
+      if (code || message || details) return { code, message, details };
     }
   } catch {
     // not JSON; fall through and let the caller use default messages.
