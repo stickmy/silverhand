@@ -5,8 +5,10 @@ import { useSyncExternalStore } from "react";
  *
  * - `'user-right'`: current user's messages flush right, others left
  *   (Slack/iMessage convention).
- * - `'all-left'`: every message left-aligned (Discord / log-style). Default —
- *   the screenshot export also renders all-left, so a shared image reads as a
+ * - `'all-left'`: every message left-aligned (Discord / log-style). Default
+ *   with a fine pointer; touch devices (phone, iPad, Duo) default to
+ *   `'user-right'`, the convention of every messaging app there. The
+ *   screenshot export always renders all-left, so a shared image reads as a
  *   neutral log rather than baking in the exporter's personal alignment.
  *
  * Owned by Settings > Appearance (`MessageAlignmentControl`), persisted to
@@ -30,10 +32,14 @@ export const MESSAGE_LAYOUT_MODES: ReadonlyArray<MessageLayoutMode> = ["all-left
  *  (shiki 2026-08-06 「统一吧,这个只有我在用」; the rename resets the stored
  *  choice once, back to the default). */
 const STORAGE_KEY = "silverhand:layout.message-mode";
-const DEFAULT_MODE: MessageLayoutMode = "all-left";
+function defaultMode(): MessageLayoutMode {
+  return typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches
+    ? "user-right"
+    : "all-left";
+}
 
 function parse(raw: string | null): MessageLayoutMode {
-  return raw === "all-left" || raw === "user-right" ? raw : DEFAULT_MODE;
+  return raw === "all-left" || raw === "user-right" ? raw : defaultMode();
 }
 
 function readStored(): MessageLayoutMode {
@@ -41,7 +47,7 @@ function readStored(): MessageLayoutMode {
     return parse(localStorage.getItem(STORAGE_KEY));
   } catch {
     // private mode / no storage — in-memory state still wins
-    return DEFAULT_MODE;
+    return defaultMode();
   }
 }
 
