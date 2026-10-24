@@ -62,15 +62,15 @@ final class SelectionBarView: UIView {
   }
 
   /// Places the bar where the composer rests.
-  func install(in host: UIView) {
+  func install(in host: UIView, area: UILayoutGuide) {
     guard superview !== host else { return }
     host.addSubview(self)
     translatesAutoresizingMaskIntoConstraints = false
     let pull = bottomAnchor.constraint(equalTo: host.bottomAnchor, constant: -Self.padding)
     pull.priority = .defaultHigh
     NSLayoutConstraint.activate([
-      leadingAnchor.constraint(equalTo: host.safeAreaLayoutGuide.leadingAnchor, constant: 12),
-      trailingAnchor.constraint(equalTo: host.safeAreaLayoutGuide.trailingAnchor, constant: -12),
+      leftAnchor.constraint(equalTo: area.leftAnchor, constant: 12),
+      rightAnchor.constraint(equalTo: area.rightAnchor, constant: -12),
       bottomAnchor.constraint(lessThanOrEqualTo: host.bottomAnchor, constant: -Self.padding),
       bottomAnchor.constraint(
         lessThanOrEqualTo: host.safeAreaLayoutGuide.bottomAnchor, constant: Self.homeOverlap),

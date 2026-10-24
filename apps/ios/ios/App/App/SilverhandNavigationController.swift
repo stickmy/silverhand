@@ -39,6 +39,12 @@ final class SilverhandNavigationController: UITabBarController, UITabBarControll
   let banner = BannerView()
   let selectionBar = SelectionBarView()
   var onIntent: (([String: Any]) -> Void)?
+  /// The selected page's safe area, horizontally: overlays that float over
+  /// the page (composer, selection bar, banner) keep inside it. The root
+  /// view's own safe area misses a vertical bar beside the page, as in Split
+  /// View on iPhone Duo, where the bar stands on the app's outer edge.
+  private let pageArea = UILayoutGuide()
+  private var pageAreaSides: (left: NSLayoutConstraint, right: NSLayoutConstraint)?
 
   // Shared navigation state, as last synced from the page.
   private let names = ["chat", "activity", "tasks", "me"]
@@ -95,6 +101,15 @@ final class SilverhandNavigationController: UITabBarController, UITabBarControll
       return stack
     }
     if let first = page(0) { attachContent(to: first) }
+    view.addLayoutGuide(pageArea)
+    let left = pageArea.leftAnchor.constraint(equalTo: view.leftAnchor)
+    let right = pageArea.rightAnchor.constraint(equalTo: view.rightAnchor)
+    pageAreaSides = (left, right)
+    NSLayoutConstraint.activate([
+      left, right,
+      pageArea.topAnchor.constraint(equalTo: view.topAnchor),
+      pageArea.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+    ])
     hideBar(true, animated: false)
   }
 
@@ -133,7 +148,18 @@ final class SilverhandNavigationController: UITabBarController, UITabBarControll
       if !session.isEmpty { hideBar(!visible || blocked, animated: false) }
     }
     applyBars()
+    trackPageArea()
     for composer in composers.values { composer.publishMetrics() }
+  }
+
+  private func trackPageArea() {
+    guard let sides = pageAreaSides, let pageView = page(selectedIndex)?.view else { return }
+    let area = pageView.convert(pageView.bounds.inset(by: pageView.safeAreaInsets), to: view)
+    let left = max(area.minX, view.safeAreaInsets.left)
+    let right = max(view.bounds.maxX - area.maxX, view.safeAreaInsets.right)
+    guard sides.left.constant != left || sides.right.constant != -right else { return }
+    sides.left.constant = left
+    sides.right.constant = -right
   }
 
   enum Bars: Equatable {
@@ -322,7 +348,12 @@ final class SilverhandNavigationController: UITabBarController, UITabBarControll
       accessory.rebuildGlass()
     }
     let top = verticalBarEdge != nil ? verticalBarTop : stack.navigationBar.frame.maxY
-    accessory.frame = CGRect(x: 0, y: top, width: page.view.bounds.width, height: accessory.height)
+    // Inside the page's side safe area, which holds a vertical bar on either
+    // edge (in Split View, the app's outer one).
+    let sides = page.view.safeAreaInsets
+    accessory.frame = CGRect(
+      x: sides.left, y: top, width: page.view.bounds.width - sides.left - sides.right,
+      height: accessory.height)
   }
 
   // MARK: Pages
@@ -608,7 +639,7 @@ final class SilverhandNavigationController: UITabBarController, UITabBarControll
   }
 
   func showBanner(_ notice: BannerNotice) {
-    banner.show(notice, in: view)
+    banner.show(notice, in: view, area: pageArea)
   }
 
   func showComposer(_ state: ComposerState) {
@@ -625,7 +656,7 @@ final class SilverhandNavigationController: UITabBarController, UITabBarControll
     }
     let composer = composers[state.key] ?? makeComposer()
     composers[state.key] = composer
-    composer.install(in: view)
+    composer.install(in: view, area: pageArea)
     composer.setBlocked(blocked)
     composer.setSteppedAside(selectionBar.state != nil)
     composer.apply(state)
@@ -652,7 +683,7 @@ final class SilverhandNavigationController: UITabBarController, UITabBarControll
   }
 
   func showSelectionBar(_ state: SelectionBarState) {
-    selectionBar.install(in: view)
+    selectionBar.install(in: view, area: pageArea)
     selectionBar.isHidden = blocked
     selectionBar.apply(state)
     for composer in composers.values { composer.setSteppedAside(true) }

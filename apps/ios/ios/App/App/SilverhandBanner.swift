@@ -78,7 +78,7 @@ final class BannerView: UIView {
 
   required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
-  func show(_ next: BannerNotice, in host: UIView) {
+  func show(_ next: BannerNotice, in host: UIView, area: UILayoutGuide) {
     notice = next
     fill(next)
     let arriving = superview !== host || isHidden
@@ -89,8 +89,8 @@ final class BannerView: UIView {
       let top = topAnchor.constraint(equalTo: host.safeAreaLayoutGuide.topAnchor, constant: 4)
       hostTop = top
       NSLayoutConstraint.activate([
-        leadingAnchor.constraint(equalTo: host.safeAreaLayoutGuide.leadingAnchor, constant: 8),
-        trailingAnchor.constraint(equalTo: host.safeAreaLayoutGuide.trailingAnchor, constant: -8),
+        leftAnchor.constraint(equalTo: area.leftAnchor, constant: 8),
+        rightAnchor.constraint(equalTo: area.rightAnchor, constant: -8),
         top,
       ])
     }

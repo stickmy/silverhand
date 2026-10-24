@@ -77,7 +77,7 @@ final class ComposerView: UIView, UITextViewDelegate, UIGestureRecognizerDelegat
   private let addButton = UIButton(configuration: .plain())
   private let sendButton = UIButton(configuration: .filled())
   private var heightConstraint: NSLayoutConstraint?
-  // Sides: the screen's safe area, or the pane's frame (`placeSides`).
+  // Sides: the page's safe area, or the pane's frame (`placeSides`).
   private var screenSides: [NSLayoutConstraint] = []
   private var paneSides: (leading: NSLayoutConstraint, width: NSLayoutConstraint)?
   // Bottom (`placeBottom`): never below rest (`restCap`); above the keyboard
@@ -163,8 +163,9 @@ final class ComposerView: UIView, UITextViewDelegate, UIGestureRecognizerDelegat
 
   required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
-  /// Places the composer in `host`, its bottom above the keyboard.
-  func install(in host: UIView) {
+  /// Places the composer in `host`, its bottom above the keyboard and its
+  /// sides, screen-wide, inside `area`.
+  func install(in host: UIView, area: UILayoutGuide) {
     guard superview !== host else { return }
     host.addSubview(self)
     translatesAutoresizingMaskIntoConstraints = false
@@ -180,10 +181,8 @@ final class ComposerView: UIView, UITextViewDelegate, UIGestureRecognizerDelegat
     pull.priority = .defaultHigh
     heightConstraint = height
     screenSides = [
-      leadingAnchor.constraint(
-        equalTo: host.safeAreaLayoutGuide.leadingAnchor, constant: Self.inset),
-      trailingAnchor.constraint(
-        equalTo: host.safeAreaLayoutGuide.trailingAnchor, constant: -Self.inset),
+      leftAnchor.constraint(equalTo: area.leftAnchor, constant: Self.inset),
+      rightAnchor.constraint(equalTo: area.rightAnchor, constant: -Self.inset),
     ]
     paneSides = (
       leadingAnchor.constraint(equalTo: host.leadingAnchor),
