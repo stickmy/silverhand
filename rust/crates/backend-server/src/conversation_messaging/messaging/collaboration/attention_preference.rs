@@ -1,4 +1,5 @@
 //! Human-session HTTP adapter for viewer-private attention preferences.
+use crate::foundation::http_error::json_error as error;
 
 #[cfg(test)]
 mod tests;
@@ -246,10 +247,6 @@ async fn set_workspace<P: AttentionPreferencePort, A: AttentionPreferenceAfterma
             internal()
         }
     }
-}
-
-fn error(status: StatusCode, message: &'static str) -> Response {
-    (status, Json(json!({"error":message}))).into_response()
 }
 fn internal() -> Response {
     error(StatusCode::INTERNAL_SERVER_ERROR, "internal error")

@@ -30,11 +30,13 @@ use silverhand_backend_core::{
         AddressRefusal, DeliveryIntent, DirectPairAllocation, TargetAddress,
     },
     foundation::identity::WorkspaceId,
-    foundation::persistence::PersistenceFailure,
     host_runtime::runtime_credential::RuntimePrincipal,
     identity_access::agent_peer_profile::{CallerConversationPlacement, WorkspacePlacement},
 };
 
+use crate::foundation::http_error::{
+    coded_error as coded, json_error as error, logged_500 as internal, logged_500 as internal_dyn,
+};
 use crate::foundation::wire_admission::ValidatedJson;
 use crate::host_runtime::runtime_credential::bind_runtime_actor;
 
@@ -226,7 +228,7 @@ fn fork_refusal(refusal: ChannelForkRefusal) -> Response {
         ChannelForkRefusal::CapabilityDenied => capability_denied("create_channels"),
         ChannelForkRefusal::AgentNotWorkspaceMember { agent } => coded(
             StatusCode::BAD_REQUEST,
-            &format!("agent {} is not a member of this workspace", agent.as_str()),
+            format!("agent {} is not a member of this workspace", agent.as_str()),
             "agent_not_workspace_member",
         ),
         ChannelForkRefusal::SourceConversationNotFound => coded(
@@ -247,7 +249,7 @@ fn fork_refusal(refusal: ChannelForkRefusal) -> Response {
         // Exact reference dynamic message: the writer-bound canonical title.
         ChannelForkRefusal::TitleTaken { title } => coded(
             StatusCode::CONFLICT,
-            &format!("a channel titled {title} already exists in this workspace"),
+            format!("a channel titled {title} already exists in this workspace"),
             "conversation_title_taken",
         ),
     }
@@ -327,41 +329,6 @@ fn address_refusal(refusal: AddressRefusal) -> Response {
     coded(status, message, code)
 }
 
-fn coded(status: StatusCode, message: &str, code: &str) -> Response {
-    (
-        status,
-        Json(serde_json::json!({ "error": message, "code": code })),
-    )
-        .into_response()
-}
-
-fn error(status: StatusCode, message: &'static str) -> Response {
-    (status, Json(serde_json::json!({ "error": message }))).into_response()
-}
-
-fn internal(cause: PersistenceFailure, log: &'static str) -> Response {
-    tracing::error!(
-        error_chain = crate::foundation::safe_log_field::safe_display(
-            &(crate::foundation::error::describe(&cause))
-        ),
-        "{log}"
-    );
-    (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response()
-}
-
-fn internal_dyn<E>(cause: E, log: &'static str) -> Response
-where
-    E: std::error::Error + Send + Sync + 'static,
-{
-    tracing::error!(
-        error_chain = crate::foundation::safe_log_field::safe_display(
-            &(crate::foundation::error::describe(&cause))
-        ),
-        "{log}"
-    );
-    (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -380,6 +347,7 @@ mod tests {
     use silverhand_backend_core::foundation::identity::{
         AgentId, ConversationId, DaemonInstanceId,
     };
+    use silverhand_backend_core::foundation::persistence::PersistenceFailure;
     use silverhand_backend_core::host_runtime::runtime_credential::{
         RuntimeCustody, RuntimeGeneration, RuntimeScope,
     };

@@ -22,6 +22,7 @@ use silverhand_backend_core::{
     foundation::identity::{AgentId, ConversationId, UserId},
 };
 
+use crate::foundation::http_error::json_error as error;
 use crate::{
     application_orchestration::daemon_delivery::DaemonDeliveryRuntime,
     host_runtime::runtime_event_settlement::{
@@ -309,10 +310,6 @@ fn success(states: &[BoundAgentRunState]) -> Response {
             .collect::<Vec<_>>()
     }))
     .into_response()
-}
-
-fn error(status: StatusCode, message: &'static str) -> Response {
-    (status, Json(json!({"error": message}))).into_response()
 }
 
 fn internal() -> Response {

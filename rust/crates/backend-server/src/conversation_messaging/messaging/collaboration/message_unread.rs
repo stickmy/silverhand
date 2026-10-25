@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use crate::foundation::http_error::json_error as error;
 use axum::{
     Json, Router,
     extract::{Extension, Path, State},
@@ -270,10 +271,6 @@ fn pointer_wire(value: &LatestUnreadPointer) -> Value {
 
 fn safe_number(value: i64) -> bool {
     silverhand_backend_core::foundation::wire_number::JsSafeInteger::new(value).is_ok()
-}
-
-fn error(status: StatusCode, message: &'static str) -> Response {
-    (status, Json(json!({"error": message}))).into_response()
 }
 
 fn internal() -> Response {

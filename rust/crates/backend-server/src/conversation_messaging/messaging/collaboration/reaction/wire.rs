@@ -1,3 +1,4 @@
+pub(super) use crate::foundation::http_error::plain_500 as internal_error_response;
 use axum::{
     Json,
     http::StatusCode,
@@ -206,10 +207,6 @@ pub(super) fn not_found() -> Response {
 pub(super) fn internal_error(message: &'static str) -> Response {
     tracing::error!("{message}");
     internal_error_response()
-}
-
-pub(super) fn internal_error_response() -> Response {
-    (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response()
 }
 
 fn coded(status: StatusCode, error: &'static str, code: &'static str) -> Response {

@@ -1,4 +1,5 @@
 //! Authenticated HTTP adapter for channel detail and lifecycle operations.
+use crate::foundation::http_error::json_error as error;
 
 mod mutation;
 pub use mutation::mutation_router;
@@ -116,10 +117,6 @@ fn channel(row: &ChannelLifecycleRow) -> serde_json::Value {
         "updated_at": row.updated_at(),
         "visibility": row.visibility().as_str(),
     })
-}
-
-fn error(status: StatusCode, message: &'static str) -> Response {
-    (status, Json(json!({"error": message}))).into_response()
 }
 
 fn internal() -> Response {

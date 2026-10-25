@@ -28,7 +28,7 @@ use std::sync::Arc;
 use axum::{
     Json, Router,
     extract::{Request, State},
-    http::{StatusCode, header},
+    http::StatusCode,
     response::{IntoResponse, Response},
     routing::get,
 };
@@ -48,6 +48,7 @@ use crate::conversation_messaging::messaging::router::address_refusal;
 
 use super::query::{InvalidQuery, parse_list_query};
 use super::wire::{ProjectionCorruption, TaskListDto, project_summary};
+use crate::foundation::http_error::plain_500 as internal;
 
 /// Everything the route needs, supplied by whoever composes it: the store that answers the
 /// board-resolution, capability, and participation authorities, and the candidate fetch.
@@ -316,13 +317,4 @@ fn corrupt_row(corruption: ProjectionCorruption) -> Response {
 fn safe_500(stage: &'static str) -> Response {
     tracing::error!(operation = "task.list", stage, "task read failed");
     internal()
-}
-
-fn internal() -> Response {
-    (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        [(header::CONTENT_TYPE, "text/plain; charset=utf-8")],
-        "Internal Server Error",
-    )
-        .into_response()
 }

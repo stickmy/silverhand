@@ -50,6 +50,7 @@ use crate::conversation_messaging::messaging::{
     references::MarkdownReferencePositions,
     send_request::{envelope_too_large, human_content_too_large},
 };
+use crate::foundation::http_error::{json_error as error, plain_500 as internal};
 
 pub const HUMAN_DIRECT_PAIR_INITIATION_PATH: &str = "/api/users/{id}/direct-messages";
 
@@ -380,10 +381,6 @@ fn created(outcome: &SendMessageOutcome) -> Response {
     (StatusCode::CREATED, Json(send_ack(outcome))).into_response()
 }
 
-fn error(status: StatusCode, message: &'static str) -> Response {
-    (status, Json(json!({"error": message}))).into_response()
-}
-
 /// The two payload stages — refine (shape/says-nothing) and seal (content cap) — refuse
 /// with the same [`PayloadRefusal`], and this door renders each to the identical wire
 /// wherever it was raised. Splitting the stages moved WHEN the cap runs, never WHAT it
@@ -395,18 +392,6 @@ fn refuse_payload(refusal: PayloadRefusal) -> Response {
             human_content_too_large(actual_bytes).into_response()
         }
     }
-}
-
-fn internal() -> Response {
-    (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        [(
-            axum::http::header::CONTENT_TYPE,
-            "text/plain; charset=utf-8",
-        )],
-        "Internal Server Error",
-    )
-        .into_response()
 }
 
 #[cfg(test)]

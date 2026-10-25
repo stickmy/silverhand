@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use crate::foundation::http_error::json_error as error;
 use axum::{
     Json, Router,
     extract::{Extension, Path, State},
@@ -97,10 +98,6 @@ fn success(value: &BoundConversationAgentRuntimeProjection) -> Response {
         })
         .collect();
     Json(json!({"runtime": runtime})).into_response()
-}
-
-fn error(status: StatusCode, message: &'static str) -> Response {
-    (status, Json(json!({"error": message}))).into_response()
 }
 
 fn internal() -> Response {

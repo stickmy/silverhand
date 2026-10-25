@@ -30,6 +30,7 @@ use super::ports::{
     ResolvedScheduleTarget, ScheduleManageCapability, ScheduleTargetAllocation,
     ScheduleTargetIntent, ScheduleTargetRefusal, ScheduleTargetResolver,
 };
+use crate::foundation::http_error::plain_500 as internal_error;
 use crate::foundation::wire_admission::ValidatedJson;
 use crate::scheduling::wire::ScheduleDto;
 use axum::{
@@ -280,10 +281,6 @@ fn invalid_input() -> Response {
 #[derive(Serialize)]
 struct InvalidInputBody {
     error: &'static str,
-}
-
-fn internal_error() -> Response {
-    (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response()
 }
 
 #[cfg(test)]

@@ -43,6 +43,7 @@ use silverhand_backend_core::foundation::persistence::PersistenceFailure;
 use crate::conversation_messaging::messaging::task::aftermath::{
     TaskMutationAftermath, run_human_aftermath,
 };
+use crate::foundation::http_error::{plain_500 as composition_500, plain_500 as safe_500};
 use crate::foundation::wire_admission::{ValidatedJson, ValidatedJsonRejection, invalid_input};
 use crate::foundation::wire_patch::RequiredPatchField;
 
@@ -692,15 +693,6 @@ fn refusal(status: StatusCode, code: &str, reason: &str, extra: Value) -> Respon
         map.extend(extra);
     }
     (status, Json(body)).into_response()
-}
-
-/// The session middleware did not run — a composition fault, not a caller 4xx.
-fn composition_500() -> Response {
-    (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response()
-}
-
-fn safe_500() -> Response {
-    (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response()
 }
 
 #[cfg(test)]

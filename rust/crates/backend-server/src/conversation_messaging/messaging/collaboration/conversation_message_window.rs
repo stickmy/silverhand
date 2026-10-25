@@ -29,6 +29,7 @@ use crate::conversation_messaging::messaging::{
 };
 
 use super::query_number::{CoercedInteger, NumberIssue, coerce_integer};
+use crate::foundation::http_error::{coded_error, json_error as error};
 
 pub const CONVERSATION_MESSAGE_WINDOW_PATH: &str = "/api/channels/{id}/messages";
 
@@ -430,14 +431,6 @@ pub(crate) fn query_refusal_wire(refusal: QueryRefusal) -> Response {
             "invalid_thread_root_id",
         ),
     }
-}
-
-fn error(status: StatusCode, message: &'static str) -> Response {
-    (status, Json(json!({"error": message}))).into_response()
-}
-
-fn coded_error(status: StatusCode, message: &'static str, code: &'static str) -> Response {
-    (status, Json(json!({"error": message, "code": code}))).into_response()
 }
 
 fn internal() -> Response {

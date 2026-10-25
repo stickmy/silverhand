@@ -43,6 +43,7 @@ use super::selector::{
     BoardResolveRefusal, ResolvedBoard, WorkspaceSelector, resolve_write_board_with_source_board,
 };
 use super::update_status::TaskNumberResolver;
+use crate::foundation::http_error::plain_500 as safe_500;
 use crate::foundation::wire_admission::{ValidatedJson, ValidatedJsonRejection, invalid_input};
 use crate::foundation::wire_patch::RequiredPatchField;
 use crate::host_runtime::runtime_credential::bind_runtime_actor;
@@ -399,9 +400,6 @@ fn mutation_failure(code: &str, reason: &str, extra: serde_json::Value) -> Respo
         map.extend(extra);
     }
     (StatusCode::OK, Json(body)).into_response()
-}
-fn safe_500() -> Response {
-    (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response()
 }
 
 #[cfg(test)]

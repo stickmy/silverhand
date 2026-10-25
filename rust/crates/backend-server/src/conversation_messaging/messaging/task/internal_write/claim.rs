@@ -43,6 +43,7 @@ use super::update_status::TaskNumberResolver;
 use crate::conversation_messaging::messaging::task::aftermath::{
     TaskMutationAftermath, TaskSourcePlacementSnapshot,
 };
+use crate::foundation::http_error::plain_500 as safe_500;
 use crate::foundation::wire_admission::{ValidatedJson, ValidatedJsonRejection, invalid_input};
 use crate::foundation::wire_patch::RequiredPatchField;
 use crate::host_runtime::runtime_credential::bind_runtime_actor;
@@ -549,10 +550,6 @@ fn fail_entry(code: &str, reason: &str, correlation: Value, extra: Value) -> Val
         }
     }
     entry
-}
-
-fn safe_500() -> Response {
-    (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response()
 }
 
 #[cfg(test)]

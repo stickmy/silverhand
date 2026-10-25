@@ -20,7 +20,6 @@ use axum::{
 use serde::Serialize;
 use silverhand_backend_core::{
     foundation::identity::UserId,
-    foundation::persistence::PersistenceFailure,
     viewer_read_model::viewer_sort_state::{
         SortGroup, SortListKey, SortMode, SortMutation, SortMutationRefusal, ViewerSidebarRead,
         ViewerSortMutationWriter,
@@ -31,6 +30,7 @@ use crate::foundation::wire_admission::{ValidatedJson, ValidatedJsonRejection};
 use crate::foundation::wire_patch::RequiredPatchField;
 
 use super::wire::ViewerSortStateDto;
+use crate::foundation::http_error::{json_error as error, logged_500 as internal};
 
 pub const SORT_TOUCH_PATH: &str = "/api/sort/touch";
 pub const SORT_MODE_PATH: &str = "/api/sort/mode";
@@ -338,10 +338,6 @@ fn invalid_input() -> Response {
         .into_response()
 }
 
-fn error(status: StatusCode, message: &'static str) -> Response {
-    (status, Json(serde_json::json!({ "error": message }))).into_response()
-}
-
 /// A `group`-scoped 400 refusal. Mirrors the reference `c.json({ error, group }, 400)`
 /// where `group` is a `SortGroup | undefined`: an `undefined` group is DROPPED by
 /// `JSON.stringify`, so a missing group must OMIT the key entirely (not emit
@@ -374,16 +370,6 @@ fn registration_required() -> Response {
         })),
     )
         .into_response()
-}
-
-fn internal(cause: PersistenceFailure, log: &'static str) -> Response {
-    tracing::error!(
-        error_chain = crate::foundation::safe_log_field::safe_display(
-            &(crate::foundation::error::describe(&cause))
-        ),
-        "{log}"
-    );
-    (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response()
 }
 
 async fn sidebar<W>(

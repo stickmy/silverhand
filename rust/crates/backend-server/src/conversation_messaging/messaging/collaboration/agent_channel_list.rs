@@ -26,10 +26,10 @@ use silverhand_backend_core::{
     },
     conversation_messaging::messaging::collaboration::message_target_coordinates::ConversationPlacementKind,
     foundation::identity::WorkspaceId,
-    foundation::persistence::PersistenceFailure,
     host_runtime::runtime_credential::RuntimePrincipal,
 };
 
+use crate::foundation::http_error::{json_error as error, logged_500 as internal};
 use crate::host_runtime::runtime_credential::bind_runtime_actor;
 
 pub const AGENT_LIST_CHANNELS_PATH: &str = "/internal/agents/{aid}/list-channels";
@@ -206,18 +206,4 @@ fn capability_denied(capability: &'static str) -> Response {
         })),
     )
         .into_response()
-}
-
-fn error(status: StatusCode, message: &'static str) -> Response {
-    (status, Json(serde_json::json!({ "error": message }))).into_response()
-}
-
-fn internal(cause: PersistenceFailure, log: &'static str) -> Response {
-    tracing::error!(
-        error_chain = crate::foundation::safe_log_field::safe_display(
-            &(crate::foundation::error::describe(&cause))
-        ),
-        "{log}"
-    );
-    (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response()
 }

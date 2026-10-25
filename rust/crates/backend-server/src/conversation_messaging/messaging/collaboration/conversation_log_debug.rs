@@ -26,6 +26,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use silverhand_backend_core::foundation::identity::{ConversationId, UserId};
 
+use crate::foundation::http_error::json_error as error;
 use crate::foundation::wire_admission::ValidatedJson;
 
 /// `POST` body — the reference `z.object({ enabled: z.boolean() }).strict()`.
@@ -622,10 +623,6 @@ fn status_response(
         value["daemonSynced"] = Value::Bool(true);
     }
     Json(value).into_response()
-}
-
-fn error(status: StatusCode, message: &'static str) -> Response {
-    (status, Json(json!({"error":message}))).into_response()
 }
 
 fn internal() -> Response {

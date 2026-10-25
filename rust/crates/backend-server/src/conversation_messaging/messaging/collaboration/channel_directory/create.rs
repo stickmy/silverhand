@@ -29,6 +29,7 @@ use silverhand_backend_core::{
 };
 
 use super::{ACTIVE_PATH, error, identity_channel, internal};
+use crate::foundation::http_error::coded_error as coded;
 use crate::foundation::wire_admission::ValidatedJson;
 use crate::foundation::wire_patch::RequiredPatchField;
 
@@ -229,10 +230,6 @@ fn refusal(refusal: HumanChannelCreateRefusal, requested_title: &str) -> Respons
             "conversation_title_taken",
         ),
     }
-}
-
-fn coded(status: StatusCode, message: String, code: &'static str) -> Response {
-    (status, Json(json!({"error":message,"code":code}))).into_response()
 }
 
 fn success(value: &BoundHumanChannelCreation) -> Response {

@@ -21,6 +21,7 @@ use silverhand_backend_core::{
 };
 
 use super::query_number::{CoercedInteger, coerce_integer};
+use crate::foundation::http_error::{coded_error, json_error as error};
 
 pub const CONVERSATION_AGENT_ACTIVITY_PATH: &str = "/api/conversations/{id}/agents/{aid}/activity";
 
@@ -233,14 +234,6 @@ fn refusal_wire(refusal: ConversationAgentActivityRefusal) -> Response {
             "agent is not a member of this conversation",
         ),
     }
-}
-
-fn error(status: StatusCode, message: &'static str) -> Response {
-    (status, Json(json!({"error": message}))).into_response()
-}
-
-fn coded_error(status: StatusCode, message: &'static str, code: &'static str) -> Response {
-    (status, Json(json!({"error": message, "code": code}))).into_response()
 }
 
 fn internal() -> Response {

@@ -33,6 +33,7 @@ use silverhand_backend_core::{
 use crate::foundation::cli_invoke_observer::CliInvokeRequestContext;
 
 use super::json_body::{BodyRead, payload_too_large, read_body};
+use crate::foundation::http_error::plain_500 as internal;
 
 pub const STALE_MESSAGE_RESOLUTION_PATH: &str = "/internal/agents/{aid}/stale-message-resolution";
 
@@ -331,18 +332,6 @@ fn forbidden() -> Response {
 
 fn not_found() -> Response {
     (StatusCode::NOT_FOUND, Json(json!({"error":"not found"}))).into_response()
-}
-
-fn internal() -> Response {
-    (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        [(
-            axum::http::header::CONTENT_TYPE,
-            "text/plain; charset=utf-8",
-        )],
-        "Internal Server Error",
-    )
-        .into_response()
 }
 
 #[cfg(test)]

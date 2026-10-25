@@ -26,10 +26,10 @@ use silverhand_backend_core::{
         AgentThreadFollowChange, AgentThreadFollowRefusal, AgentThreadFollowWrite,
         RootMessageLocate,
     },
-    foundation::persistence::PersistenceFailure,
     host_runtime::runtime_credential::RuntimePrincipal,
 };
 
+use crate::foundation::http_error::logged_500 as internal;
 use crate::foundation::wire_admission::ValidatedJson;
 use crate::host_runtime::runtime_credential::bind_runtime_actor;
 
@@ -223,14 +223,4 @@ fn capability_denied(capability: &'static str) -> Response {
         })),
     )
         .into_response()
-}
-
-fn internal(cause: PersistenceFailure, log: &'static str) -> Response {
-    tracing::error!(
-        error_chain = crate::foundation::safe_log_field::safe_display(
-            &(crate::foundation::error::describe(&cause))
-        ),
-        "{log}"
-    );
-    (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response()
 }

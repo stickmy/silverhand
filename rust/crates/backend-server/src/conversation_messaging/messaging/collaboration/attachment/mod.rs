@@ -4,6 +4,7 @@
 //! Blob writes precede the writer-reserved SQLite pointer commit; failures before
 //! commit attempt orphan cleanup, while maintenance and publication after commit
 //! can only be reported and never compensate the committed row.
+use crate::foundation::http_error::{coded_error as coded, json_error as error};
 
 mod agent;
 mod first_send;
@@ -1537,14 +1538,6 @@ fn delete_forbidden() -> Response {
         StatusCode::FORBIDDEN,
         "cannot delete attachment owned by another uploader",
     )
-}
-
-fn coded(status: StatusCode, message: &'static str, code: &'static str) -> Response {
-    (status, Json(json!({"error":message,"code":code}))).into_response()
-}
-
-fn error(status: StatusCode, message: &'static str) -> Response {
-    (status, Json(json!({"error":message}))).into_response()
 }
 
 fn internal() -> Response {

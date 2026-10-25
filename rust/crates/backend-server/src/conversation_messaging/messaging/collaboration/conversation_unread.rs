@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use crate::foundation::http_error::json_error as error;
 use axum::{
     Json, Router,
     extract::{Extension, Path, State},
@@ -103,10 +104,6 @@ fn stream_wire(value: &StreamUnread) -> Value {
         "first_unread_message_id": value.first_message().map(|id| id.as_str()),
         "first_unread_seq": value.first_seq().map(|seq| seq.get()),
     })
-}
-
-fn error(status: StatusCode, message: &'static str) -> Response {
-    (status, Json(json!({"error": message}))).into_response()
 }
 
 fn internal() -> Response {

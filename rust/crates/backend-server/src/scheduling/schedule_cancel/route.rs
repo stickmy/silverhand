@@ -27,6 +27,7 @@ use silverhand_backend_core::conversation_messaging::messaging::schedule::{
 };
 use silverhand_backend_core::host_runtime::runtime_credential::RuntimePrincipal;
 
+use crate::foundation::http_error::coded_error as schedule_error;
 use crate::foundation::wire_admission::{ValidatedJson, ValidatedJsonRejection};
 use crate::scheduling::wire::ScheduleDto;
 
@@ -151,10 +152,6 @@ where
 #[derive(Serialize)]
 struct CancelledBody {
     schedule: ScheduleDto,
-}
-
-fn schedule_error(status: StatusCode, error: String, code: &'static str) -> Response {
-    (status, Json(json!({ "error": error, "code": code }))).into_response()
 }
 
 fn capability_denied(message: String) -> Response {

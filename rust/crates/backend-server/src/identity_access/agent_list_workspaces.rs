@@ -22,11 +22,11 @@ use axum::{
 use serde::Serialize;
 use silverhand_backend_core::{
     foundation::identity::{AgentId, WorkspaceId},
-    foundation::persistence::PersistenceFailure,
     host_runtime::runtime_credential::RuntimePrincipal,
     identity_access::agent_workspace_list::{AgentListedWorkspace, AgentWorkspaceListRead},
 };
 
+use crate::foundation::http_error::logged_500 as internal;
 use crate::host_runtime::runtime_credential::bind_runtime_actor;
 
 pub const AGENT_LIST_WORKSPACES_PATH: &str = "/internal/agents/{aid}/list-workspaces";
@@ -165,14 +165,4 @@ struct AgentListedWorkspaceDto {
     archived: bool,
     updated_at: i64,
     agent_dir: Option<String>,
-}
-
-fn internal(cause: PersistenceFailure, log: &'static str) -> Response {
-    tracing::error!(
-        error_chain = crate::foundation::safe_log_field::safe_display(
-            &(crate::foundation::error::describe(&cause))
-        ),
-        "{log}"
-    );
-    (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response()
 }

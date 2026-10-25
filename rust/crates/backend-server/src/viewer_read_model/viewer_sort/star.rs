@@ -29,6 +29,7 @@ use silverhand_backend_core::{
 };
 
 use super::wire::ViewerSortStateDto;
+use crate::foundation::http_error::logged_500 as internal;
 
 /// The shared mounted path for both star methods.
 pub const CHANNEL_STAR_PATH: &str = "/api/channels/{id}/star";
@@ -167,19 +168,6 @@ fn registration_required() -> Response {
         })),
     )
         .into_response()
-}
-
-fn internal<E>(cause: E, log: &'static str) -> Response
-where
-    E: std::error::Error + Send + Sync + 'static,
-{
-    tracing::error!(
-        error_chain = crate::foundation::safe_log_field::safe_display(
-            &(crate::foundation::error::describe(&cause))
-        ),
-        "{log}"
-    );
-    (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response()
 }
 
 /// A `SetStarred` mutation can only ever yield list-not-found / forbidden /

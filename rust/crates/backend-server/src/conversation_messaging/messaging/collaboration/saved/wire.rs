@@ -14,6 +14,7 @@ use silverhand_backend_core::conversation_messaging::messaging::{
 };
 
 use crate::conversation_messaging::messaging::author_wire::author_dto;
+pub(super) use crate::foundation::http_error::plain_500 as internal_error_response;
 
 pub const SAVED_CHANGED_EVENT: &str = "saved_changed";
 
@@ -193,8 +194,4 @@ pub(super) fn message_not_found() -> Response {
 pub(super) fn internal_error(message: &'static str) -> Response {
     tracing::error!("{message}");
     internal_error_response()
-}
-
-pub(super) fn internal_error_response() -> Response {
-    (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response()
 }

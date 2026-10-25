@@ -15,6 +15,7 @@ use silverhand_backend_core::conversation_messaging::messaging::task::{
 use silverhand_backend_core::foundation::identity::{ConversationId, UserId};
 
 use super::wire::{project_detail, project_summary};
+use crate::foundation::http_error::plain_500 as safe_500;
 
 pub struct HumanTaskPointState<R> {
     pub read: R,
@@ -155,9 +156,6 @@ fn not_found() -> Response {
         Json(serde_json::json!({"error":"task not found","code":"not_found"})),
     )
         .into_response()
-}
-fn safe_500() -> Response {
-    (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response()
 }
 
 #[cfg(test)]

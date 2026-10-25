@@ -26,6 +26,7 @@ use silverhand_backend_core::{
 use crate::conversation_messaging::messaging::author_wire::author_dto;
 
 use super::query_number::{CoercedInteger, coerce_integer};
+use crate::foundation::http_error::{coded_error, json_error as error};
 
 pub const CONVERSATION_THREADS_PATH: &str = "/api/conversations/{id}/threads";
 
@@ -202,14 +203,6 @@ fn refusal_wire(refusal: ConversationThreadsRefusal) -> Response {
         ConversationThreadsRefusal::NotFound => error(StatusCode::NOT_FOUND, "channel not found"),
         ConversationThreadsRefusal::Forbidden => error(StatusCode::FORBIDDEN, "forbidden"),
     }
-}
-
-fn error(status: StatusCode, message: &'static str) -> Response {
-    (status, Json(json!({"error": message}))).into_response()
-}
-
-fn coded_error(status: StatusCode, message: &'static str, code: &'static str) -> Response {
-    (status, Json(json!({"error": message, "code": code}))).into_response()
 }
 
 fn internal() -> Response {

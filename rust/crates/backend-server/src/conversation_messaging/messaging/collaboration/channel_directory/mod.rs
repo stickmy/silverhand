@@ -1,4 +1,5 @@
 //! Human-session HTTP adapters for the channel-directory capability.
+use crate::foundation::http_error::json_error as error;
 
 mod create;
 
@@ -307,10 +308,6 @@ fn invalid() -> Response {
 
 fn internal() -> Response {
     error(StatusCode::INTERNAL_SERVER_ERROR, "internal error")
-}
-
-fn error(status: StatusCode, message: &'static str) -> Response {
-    (status, Json(json!({"error":message}))).into_response()
 }
 
 #[cfg(test)]

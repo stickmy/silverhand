@@ -28,6 +28,7 @@ use super::{
     conversation_message_window::message,
     query_number::{CoercedInteger, NumberIssue, coerce_integer},
 };
+use crate::foundation::http_error::{coded_error, json_error as error};
 
 pub const HUMAN_SEARCH_PATH: &str = "/api/search";
 
@@ -551,14 +552,6 @@ fn refusal_wire(refusal: HumanSearchRefusal) -> Response {
             "thread_root_not_found",
         ),
     }
-}
-
-fn error(status: StatusCode, message: &'static str) -> Response {
-    (status, Json(json!({"error": message}))).into_response()
-}
-
-fn coded_error(status: StatusCode, message: &'static str, code: &'static str) -> Response {
-    (status, Json(json!({"error": message, "code": code}))).into_response()
 }
 
 fn internal() -> Response {

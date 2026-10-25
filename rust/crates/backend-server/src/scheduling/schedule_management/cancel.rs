@@ -29,6 +29,7 @@ use silverhand_backend_core::{
 };
 
 use super::{gate_agent_edit, wire::ScheduleDto};
+use crate::foundation::http_error::coded_error as coded;
 
 /// The product route template, in axum's `{id}`/`{scheduleId}` capture syntax.
 pub const SCHEDULE_CANCEL_PATH: &str = "/api/agents/{id}/schedules/{scheduleId}/cancel";
@@ -144,11 +145,6 @@ fn missing_ids() -> Response {
         Json(json!({ "error": "agent id and schedule id required" })),
     )
         .into_response()
-}
-
-/// The flat coded refusal: `{ "error": <message>, "code": <code> }`.
-fn coded(status: StatusCode, message: String, code: &'static str) -> Response {
-    (status, Json(json!({ "error": message, "code": code }))).into_response()
 }
 
 /// The capability-denied 403, which additionally echoes the capability and a

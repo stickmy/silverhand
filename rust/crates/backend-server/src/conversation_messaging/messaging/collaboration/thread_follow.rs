@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use crate::foundation::http_error::json_error as error;
 use axum::{
     Json, Router,
     extract::{Extension, Path, State},
@@ -269,10 +270,6 @@ fn missing_coordinates() -> Response {
         StatusCode::BAD_REQUEST,
         "channel id and root message id required",
     )
-}
-
-fn error(status: StatusCode, message: &'static str) -> Response {
-    (status, Json(json!({"error":message}))).into_response()
 }
 
 fn internal() -> Response {

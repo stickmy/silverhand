@@ -21,6 +21,7 @@ pub(crate) mod daemon_command;
 pub(crate) mod daemon_transport;
 pub mod deployment_profile;
 pub(crate) mod error;
+pub(crate) mod http_error;
 pub(crate) mod multipart_transport;
 pub mod operator_console;
 pub mod process_health;

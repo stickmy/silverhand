@@ -18,6 +18,7 @@ use silverhand_backend_core::conversation_messaging::messaging::task::{
 use silverhand_backend_core::foundation::identity::{AgentId, ConversationId, UserId, WorkspaceId};
 
 use super::wire::project_summary;
+use crate::foundation::http_error::plain_500 as safe_500;
 
 const DEFAULT_LIMIT: usize = 20;
 const MAX_LIMIT: usize = 200;
@@ -303,10 +304,6 @@ fn invalid_query() -> Response {
         Json(serde_json::json!({"error":"invalid query"})),
     )
         .into_response()
-}
-
-fn safe_500() -> Response {
-    (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response()
 }
 
 #[cfg(test)]

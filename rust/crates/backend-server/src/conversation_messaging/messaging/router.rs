@@ -54,6 +54,7 @@ use super::{
     target_refusal_wire::TargetRefusalWire,
 };
 use crate::foundation::cli_invoke_observer::CliInvokeRequestContext;
+use crate::foundation::http_error::coded_error as gate_code;
 
 /// Everything the doors need, supplied by whoever composes them.
 ///
@@ -266,16 +267,6 @@ pub(crate) fn address_refusal(refusal: AddressRefusal) -> Response {
         AddressRefusal::ThreadNotInTarget => TargetRefusalWire::ThreadNotInTarget,
     };
     refusal.into_response()
-}
-
-/// A gate answer that names its reason with a code, which every agent-door refusal but the
-/// capability denial does.
-fn gate_code(status: StatusCode, error: &'static str, code: &'static str) -> Response {
-    (
-        status,
-        Json(serde_json::json!({ "error": error, "code": code })),
-    )
-        .into_response()
 }
 
 /// The capability this door asks for. Named here rather than carried through the port: which

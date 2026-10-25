@@ -27,6 +27,7 @@ use silverhand_backend_core::{
     },
 };
 
+use crate::foundation::http_error::plain_500 as internal;
 use crate::foundation::{error, wire_admission::ValidatedJson};
 
 pub const MEMBERS_PATH: &str = "/api/workspaces/{id}/members";
@@ -801,9 +802,6 @@ fn response(status: StatusCode, message: &'static str, code: Option<&'static str
 }
 fn invalid() -> Response {
     response(StatusCode::UNPROCESSABLE_ENTITY, "invalid input", None)
-}
-fn internal() -> Response {
-    (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response()
 }
 fn failed(message: &'static str, cause: &(impl std::error::Error + 'static)) -> Response {
     tracing::error!(

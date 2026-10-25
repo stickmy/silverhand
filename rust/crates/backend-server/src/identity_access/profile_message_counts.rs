@@ -1,5 +1,6 @@
 //! Authenticated public counts; source visibility never filters an admitted subject.
 use crate::foundation::clock::ProcessClock;
+use crate::foundation::http_error::json_error as error;
 use axum::{
     Json, Router,
     extract::{Extension, Path, Query, State},
@@ -65,9 +66,6 @@ struct Output {
 struct Subject {
     kind: String,
     id: String,
-}
-fn error(status: StatusCode, message: &str) -> Response {
-    (status, Json(serde_json::json!({"error":message}))).into_response()
 }
 async fn read<R, U, A, C>(
     Path((kind, id)): Path<(String, String)>,

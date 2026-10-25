@@ -24,7 +24,6 @@ use silverhand_backend_core::{
         MessageId, agent_onboarding::WorkspaceOnboardingPeer, environment::SendEntropy,
     },
     foundation::identity::{AgentId, UserId},
-    foundation::persistence::PersistenceFailure,
     identity_access::{
         access::{ViewerWorkspacesChangedSink, WorkspaceRole},
         workspace_creation::{
@@ -37,6 +36,7 @@ use silverhand_backend_core::{
     },
 };
 
+use crate::foundation::http_error::{json_error as error, logged_500 as internal};
 use crate::foundation::wire_admission::{ValidatedJson, ValidatedJsonRejection};
 use crate::foundation::wire_patch::RequiredPatchField;
 
@@ -425,10 +425,6 @@ fn invalid_input() -> Response {
         .into_response()
 }
 
-fn error(status: StatusCode, message: &'static str) -> Response {
-    (status, Json(serde_json::json!({ "error": message }))).into_response()
-}
-
 fn agent_not_owned(agent_ids: &[AgentId]) -> Response {
     (
         StatusCode::FORBIDDEN,
@@ -450,16 +446,6 @@ fn registration_required() -> Response {
         })),
     )
         .into_response()
-}
-
-fn internal(cause: PersistenceFailure, log: &'static str) -> Response {
-    tracing::error!(
-        error_chain = crate::foundation::safe_log_field::safe_display(
-            &(crate::foundation::error::describe(&cause))
-        ),
-        "{log}"
-    );
-    (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response()
 }
 
 #[cfg(test)]

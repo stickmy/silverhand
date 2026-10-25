@@ -1,5 +1,6 @@
 //! Authenticated HTTP adapter for tiered-attention cold projections.
 
+use crate::foundation::http_error::json_error as error;
 use axum::{
     Json, Router,
     extract::{Extension, Query, State},
@@ -132,10 +133,6 @@ fn modes_wire(workspace: &WorkspaceId, value: &WorkspaceAttentionModes) -> Respo
         "channels": channels,
     }))
     .into_response()
-}
-
-fn error(status: StatusCode, message: &'static str) -> Response {
-    (status, Json(json!({"error": message}))).into_response()
 }
 
 fn internal() -> Response {

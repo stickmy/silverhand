@@ -50,6 +50,7 @@ use silverhand_backend_core::host_runtime::runtime_credential::RuntimePrincipal;
 use crate::conversation_messaging::messaging::task::aftermath::{
     TaskMutationAftermath, run_agent_aftermath,
 };
+use crate::foundation::http_error::plain_500 as safe_500;
 use crate::foundation::wire_admission::{ValidatedJson, ValidatedJsonRejection, invalid_input};
 use crate::foundation::wire_patch::RequiredPatchField;
 use crate::host_runtime::runtime_credential::bind_runtime_actor;
@@ -579,10 +580,6 @@ fn cross_conversation_claim() -> Response {
 
 fn capability_denied(capability: &'static str) -> Response {
     crate::conversation_messaging::messaging::agent_capability_wire::capability_denied(capability)
-}
-
-fn safe_500() -> Response {
-    (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response()
 }
 
 #[cfg(test)]

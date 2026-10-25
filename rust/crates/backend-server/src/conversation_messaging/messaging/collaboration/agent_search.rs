@@ -25,11 +25,13 @@ use silverhand_backend_core::{
     },
     foundation::identity::{ConversationId, WorkspaceId},
     foundation::name_canonicalization::is_ecmascript_trim_whitespace,
-    foundation::persistence::PersistenceFailure,
     host_runtime::runtime_credential::RuntimePrincipal,
 };
 
 use crate::conversation_messaging::messaging::author_wire::author_dto;
+use crate::foundation::http_error::{
+    coded_error as coded, json_error as error, logged_500 as internal,
+};
 use crate::foundation::wire_admission::ValidatedJson;
 use crate::foundation::wire_coerce::CoercedNumber;
 use crate::foundation::wire_patch::RequiredPatchField;
@@ -321,28 +323,6 @@ fn capability_denied(capability: &'static str) -> Response {
         .into_response()
 }
 
-fn error(status: StatusCode, message: &'static str) -> Response {
-    (status, Json(serde_json::json!({ "error": message }))).into_response()
-}
-
-fn coded(status: StatusCode, message: &str, code: &str) -> Response {
-    (
-        status,
-        Json(serde_json::json!({ "error": message, "code": code })),
-    )
-        .into_response()
-}
-
-fn internal(cause: PersistenceFailure, log: &'static str) -> Response {
-    tracing::error!(
-        error_chain = crate::foundation::safe_log_field::safe_display(
-            &(crate::foundation::error::describe(&cause))
-        ),
-        "{log}"
-    );
-    (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -355,6 +335,7 @@ mod tests {
     use silverhand_backend_core::foundation::identity::{
         AgentId, ConversationId, DaemonInstanceId,
     };
+    use silverhand_backend_core::foundation::persistence::PersistenceFailure;
     use silverhand_backend_core::host_runtime::runtime_credential::{
         RuntimeCustody, RuntimeGeneration, RuntimeScope,
     };

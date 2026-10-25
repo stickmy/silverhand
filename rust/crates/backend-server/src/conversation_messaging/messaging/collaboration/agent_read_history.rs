@@ -26,11 +26,13 @@ use silverhand_backend_core::{
     conversation_messaging::messaging::{
         AddressRefusal, DeliveryIntent, DirectPairAllocation, TargetAddress,
     },
-    foundation::persistence::PersistenceFailure,
     host_runtime::runtime_credential::RuntimePrincipal,
 };
 
 use crate::conversation_messaging::messaging::author_wire::author_dto;
+use crate::foundation::http_error::{
+    coded_error as coded, json_error as error, logged_500 as internal, logged_500 as internal_dyn,
+};
 use crate::foundation::wire_admission::ValidatedJson;
 use crate::foundation::wire_coerce::CoercedNumber;
 use crate::foundation::wire_patch::RequiredPatchField;
@@ -528,41 +530,6 @@ fn address_refusal(refusal: AddressRefusal) -> Response {
         ),
     };
     coded(status, message, code)
-}
-
-fn coded(status: StatusCode, message: &str, code: &str) -> Response {
-    (
-        status,
-        Json(serde_json::json!({ "error": message, "code": code })),
-    )
-        .into_response()
-}
-
-fn error(status: StatusCode, message: &'static str) -> Response {
-    (status, Json(serde_json::json!({ "error": message }))).into_response()
-}
-
-fn internal(cause: PersistenceFailure, log: &'static str) -> Response {
-    tracing::error!(
-        error_chain = crate::foundation::safe_log_field::safe_display(
-            &(crate::foundation::error::describe(&cause))
-        ),
-        "{log}"
-    );
-    (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response()
-}
-
-fn internal_dyn<E>(cause: E, log: &'static str) -> Response
-where
-    E: std::error::Error + Send + Sync + 'static,
-{
-    tracing::error!(
-        error_chain = crate::foundation::safe_log_field::safe_display(
-            &(crate::foundation::error::describe(&cause))
-        ),
-        "{log}"
-    );
-    (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response()
 }
 
 #[cfg(test)]
