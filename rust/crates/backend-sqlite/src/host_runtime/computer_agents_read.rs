@@ -18,13 +18,9 @@ use silverhand_backend_core::{
     foundation::persistence::PersistenceFailure,
     host_runtime::agent_roster::ComputerAgentsReadPort,
 };
-use sqlx::{
-    Row, SqlitePool,
-    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous},
-};
+use sqlx::{Row, SqlitePool};
 use thiserror::Error;
 
-const POOL_CONNECTIONS: u32 = 4;
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 
 const SELECT_AGENTS_ON_COMPUTER: &str = "\
@@ -51,17 +47,7 @@ pub enum ComputerAgentsReadError {
 
 impl SqliteComputerAgentsRead {
     pub async fn open(path: impl AsRef<Path>) -> Result<Self, ComputerAgentsReadError> {
-        let options = SqliteConnectOptions::new()
-            .filename(path.as_ref())
-            .create_if_missing(false)
-            .foreign_keys(true)
-            .journal_mode(SqliteJournalMode::Wal)
-            .synchronous(SqliteSynchronous::Full)
-            .busy_timeout(BUSY_TIMEOUT);
-        let pool = SqlitePoolOptions::new()
-            .max_connections(POOL_CONNECTIONS)
-            .connect_with(options)
-            .await?;
+        let pool = crate::foundation::database::store_pool(path.as_ref(), BUSY_TIMEOUT).await?;
         Ok(Self { pool })
     }
 
@@ -102,6 +88,7 @@ impl ComputerAgentsReadPort for SqliteComputerAgentsRead {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sqlx::sqlite::SqliteConnectOptions;
     use sqlx::{Connection, Executor, SqliteConnection};
 
     const CURRENT_SCHEMA: &str =

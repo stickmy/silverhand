@@ -24,13 +24,9 @@ use silverhand_backend_core::{
     viewer_read_model::presence::LastSeenAt,
     viewer_read_model::user_presence_last_seen::LastSeenSink,
 };
-use sqlx::{
-    SqlitePool,
-    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous},
-};
+use sqlx::SqlitePool;
 use thiserror::Error;
 
-const POOL_CONNECTIONS: u32 = 4;
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 
 const UPDATE_LAST_SEEN: &str = "UPDATE users SET last_seen_at = ? WHERE id = ?";
@@ -52,18 +48,12 @@ pub enum SqliteLastSeenError {
 }
 
 impl SqliteLastSeenSink {
+    pub fn from_pool(pool: SqlitePool) -> Self {
+        Self { pool }
+    }
+
     pub async fn open(path: impl AsRef<Path>) -> Result<Self, SqliteLastSeenError> {
-        let options = SqliteConnectOptions::new()
-            .filename(path.as_ref())
-            .create_if_missing(false)
-            .foreign_keys(true)
-            .journal_mode(SqliteJournalMode::Wal)
-            .synchronous(SqliteSynchronous::Full)
-            .busy_timeout(BUSY_TIMEOUT);
-        let pool = SqlitePoolOptions::new()
-            .max_connections(POOL_CONNECTIONS)
-            .connect_with(options)
-            .await?;
+        let pool = crate::foundation::database::store_pool(path.as_ref(), BUSY_TIMEOUT).await?;
         Ok(Self { pool })
     }
 
@@ -101,6 +91,7 @@ impl LastSeenSink for SqliteLastSeenSink {
 mod tests {
     use super::*;
     use silverhand_backend_core::viewer_read_model::presence::MAX_SAFE_INTEGER;
+    use sqlx::sqlite::SqliteConnectOptions;
     use sqlx::{Connection, Executor, Row, SqliteConnection};
 
     const CURRENT_SCHEMA: &str =

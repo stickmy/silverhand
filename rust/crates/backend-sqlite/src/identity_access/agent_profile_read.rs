@@ -34,15 +34,9 @@ use silverhand_backend_core::{
     foundation::persistence::PersistenceFailure,
     identity_access::agent_profile_read::{AgentProfileFact, AgentProfileReadModel},
 };
-use sqlx::{
-    Row, SqlitePool,
-    sqlite::{
-        SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow, SqliteSynchronous,
-    },
-};
+use sqlx::{Row, SqlitePool, sqlite::SqliteRow};
 use thiserror::Error;
 
-const POOL_CONNECTIONS: u32 = 4;
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// The narrow profile read: only the columns the internal profile DTO and its
@@ -107,18 +101,12 @@ fn decode_profile_row(row: &SqliteRow) -> Result<AgentProfileFact, AgentProfileR
 }
 
 impl SqliteAgentProfileRead {
+    pub fn from_pool(pool: SqlitePool) -> Self {
+        Self { pool }
+    }
+
     pub async fn open(path: impl AsRef<Path>) -> Result<Self, AgentProfileReadError> {
-        let options = SqliteConnectOptions::new()
-            .filename(path.as_ref())
-            .create_if_missing(false)
-            .foreign_keys(true)
-            .journal_mode(SqliteJournalMode::Wal)
-            .synchronous(SqliteSynchronous::Full)
-            .busy_timeout(BUSY_TIMEOUT);
-        let pool = SqlitePoolOptions::new()
-            .max_connections(POOL_CONNECTIONS)
-            .connect_with(options)
-            .await?;
+        let pool = crate::foundation::database::store_pool(path.as_ref(), BUSY_TIMEOUT).await?;
         Ok(Self { pool })
     }
 

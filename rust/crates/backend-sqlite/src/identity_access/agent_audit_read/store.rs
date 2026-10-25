@@ -54,12 +54,7 @@ use silverhand_backend_core::{
     },
     identity_access::capability::agent_audit::AuditedConversation,
 };
-use sqlx::{
-    QueryBuilder, Row, Sqlite, SqlitePool, Transaction,
-    sqlite::{
-        SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow, SqliteSynchronous,
-    },
-};
+use sqlx::{QueryBuilder, Row, Sqlite, SqlitePool, Transaction, sqlite::SqliteRow};
 use thiserror::Error;
 
 use crate::{
@@ -79,7 +74,6 @@ use crate::{
     identity_access::agent_view_acl::read_agent_audience,
 };
 
-const POOL_CONNECTIONS: u32 = 4;
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 const DEFERRED_READ_BEGIN: &str = "BEGIN DEFERRED";
 
@@ -152,18 +146,12 @@ pub enum AgentAuditReadError {
 }
 
 impl SqliteAgentAuditRead {
+    pub fn from_pool(pool: SqlitePool) -> Self {
+        Self { pool }
+    }
+
     pub async fn open(path: impl AsRef<Path>) -> Result<Self, AgentAuditReadError> {
-        let options = SqliteConnectOptions::new()
-            .filename(path.as_ref())
-            .create_if_missing(false)
-            .foreign_keys(true)
-            .journal_mode(SqliteJournalMode::Wal)
-            .synchronous(SqliteSynchronous::Full)
-            .busy_timeout(BUSY_TIMEOUT);
-        let pool = SqlitePoolOptions::new()
-            .max_connections(POOL_CONNECTIONS)
-            .connect_with(options)
-            .await?;
+        let pool = crate::foundation::database::store_pool(path.as_ref(), BUSY_TIMEOUT).await?;
         Ok(Self { pool })
     }
 

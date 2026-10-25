@@ -12,13 +12,9 @@ use silverhand_backend_core::{
     foundation::persistence::PersistenceFailure,
     identity_access::avatar_design::{AgentAvatarDesignRead, AvatarDesign, UserAvatarDesignRead},
 };
-use sqlx::{
-    Row, SqliteConnection, SqlitePool,
-    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous},
-};
+use sqlx::{Row, SqliteConnection, SqlitePool};
 use thiserror::Error;
 
-const POOL_CONNECTIONS: u32 = 2;
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 const ID_BYTES: usize = 12;
 
@@ -72,17 +68,7 @@ pub struct SqliteAvatarDesignRead {
 
 impl SqliteAvatarDesignRead {
     pub async fn open(path: impl AsRef<Path>) -> Result<Self, sqlx::Error> {
-        let options = SqliteConnectOptions::new()
-            .filename(path.as_ref())
-            .create_if_missing(false)
-            .foreign_keys(true)
-            .journal_mode(SqliteJournalMode::Wal)
-            .synchronous(SqliteSynchronous::Full)
-            .busy_timeout(BUSY_TIMEOUT);
-        let pool = SqlitePoolOptions::new()
-            .max_connections(POOL_CONNECTIONS)
-            .connect_with(options)
-            .await?;
+        let pool = crate::foundation::database::store_pool(path.as_ref(), BUSY_TIMEOUT).await?;
         Ok(Self { pool })
     }
 

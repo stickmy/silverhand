@@ -26,16 +26,12 @@ use silverhand_backend_core::{
     identity_access::human_auth_flows::{HumanRegistration, HumanRegistrationUnitOfWork},
     identity_access::user_identity::{DisplayName, EmailAddress, ParticipantHandle, UserRecord},
 };
-use sqlx::{
-    Row, SqlitePool,
-    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous},
-};
+use sqlx::{Row, SqlitePool};
 use thiserror::Error;
 
 use crate::identity_access::credential::serialize_password_hash_params;
 
 const ROOT_WRITE_BEGIN: &str = "BEGIN IMMEDIATE";
-const POOL_CONNECTIONS: u32 = 4;
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 /// The product's `randomHex(8)`: eight entropy bytes → sixteen lowercase hex digits.
 const USER_ID_BYTES: usize = 8;
@@ -208,17 +204,7 @@ where
         path: impl AsRef<Path>,
         entropy: E,
     ) -> Result<Self, SqliteHumanRegistrationError> {
-        let options = SqliteConnectOptions::new()
-            .filename(path.as_ref())
-            .create_if_missing(false)
-            .foreign_keys(true)
-            .journal_mode(SqliteJournalMode::Wal)
-            .synchronous(SqliteSynchronous::Full)
-            .busy_timeout(BUSY_TIMEOUT);
-        let pool = SqlitePoolOptions::new()
-            .max_connections(POOL_CONNECTIONS)
-            .connect_with(options)
-            .await?;
+        let pool = crate::foundation::database::store_pool(path.as_ref(), BUSY_TIMEOUT).await?;
         Ok(Self { pool, entropy })
     }
 
@@ -299,6 +285,7 @@ mod tests {
     use silverhand_backend_core::identity_access::credential::{
         Argon2idCost, PasswordHashParams, RustCalibration,
     };
+    use sqlx::sqlite::SqliteConnectOptions;
     use sqlx::{Connection, Executor, SqliteConnection};
     use std::sync::Mutex;
 

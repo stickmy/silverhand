@@ -19,10 +19,7 @@ use silverhand_backend_core::{
         revoke::{RevokeComputerAttempt, RevokeComputerUnitOfWork, RevokedComputer},
     },
 };
-use sqlx::{
-    Row, Sqlite, SqlitePool, Transaction,
-    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous},
-};
+use sqlx::{Row, Sqlite, SqlitePool, Transaction};
 use thiserror::Error;
 
 mod management;
@@ -54,6 +51,10 @@ pub enum SqliteHostRuntimeStoreError {
 }
 
 impl SqliteHostRuntimeStore {
+    pub fn from_pool(pool: SqlitePool) -> Self {
+        Self { pool }
+    }
+
     pub async fn open(path: impl AsRef<Path>) -> Result<Self, SqliteHostRuntimeStoreError> {
         Self::open_with_busy_timeout(path, Duration::from_secs(5)).await
     }
@@ -62,17 +63,7 @@ impl SqliteHostRuntimeStore {
         path: impl AsRef<Path>,
         busy_timeout: Duration,
     ) -> Result<Self, SqliteHostRuntimeStoreError> {
-        let options = SqliteConnectOptions::new()
-            .filename(path.as_ref())
-            .create_if_missing(false)
-            .foreign_keys(true)
-            .journal_mode(SqliteJournalMode::Wal)
-            .synchronous(SqliteSynchronous::Full)
-            .busy_timeout(busy_timeout);
-        let pool = SqlitePoolOptions::new()
-            .max_connections(4)
-            .connect_with(options)
-            .await?;
+        let pool = crate::foundation::database::store_pool(path.as_ref(), busy_timeout).await?;
         Ok(Self { pool })
     }
 

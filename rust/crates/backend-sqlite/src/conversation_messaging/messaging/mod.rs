@@ -44,12 +44,7 @@ use silverhand_backend_core::conversation_messaging::messaging::{
 use silverhand_backend_core::foundation::identity::{AgentId, ConversationId, UserId, WorkspaceId};
 use silverhand_backend_core::foundation::persistence::PersistenceFailure;
 use silverhand_backend_core::identity_access::agents::session_scope::AgentSessionScope;
-use sqlx::{
-    Row, Sqlite, SqliteConnection, SqlitePool, Transaction,
-    sqlite::{
-        SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow, SqliteSynchronous,
-    },
-};
+use sqlx::{Row, Sqlite, SqliteConnection, SqlitePool, Transaction, sqlite::SqliteRow};
 use thiserror::Error;
 
 // `pub(crate)`: the author-evidence decode + resolution authority is reused by the
@@ -70,7 +65,8 @@ use author::{AuthorEvidence, resolve_authors};
 pub use authorities::{SqliteTargetAddress, TargetAddressStoreError};
 
 const ROOT_WRITE_BEGIN: &str = "BEGIN IMMEDIATE";
-const POOL_CONNECTIONS: u32 = 4;
+#[cfg(test)]
+use crate::foundation::database::STORE_POOL_CONNECTIONS as POOL_CONNECTIONS;
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 
 const SELECT_CONVERSATION_FACTS: &str = "SELECT closed_at, archived_at, placement_kind, \
@@ -718,6 +714,13 @@ fn driver(error: sqlx::Error) -> PersistenceFailure {
 }
 
 impl MessagingStore<HostEnvironment> {
+    pub fn from_pool(pool: SqlitePool) -> Self {
+        Self {
+            pool,
+            environment: HostEnvironment,
+        }
+    }
+
     pub async fn open(path: impl AsRef<Path>) -> Result<Self, MessagingStoreError> {
         Self::open_with(path, HostEnvironment).await
     }
@@ -805,21 +808,7 @@ impl<E> MessagingStore<E> {
         environment: E,
         busy_timeout: Duration,
     ) -> Result<Self, MessagingStoreError> {
-        let options = SqliteConnectOptions::new()
-            .filename(path.as_ref())
-            .create_if_missing(false)
-            .foreign_keys(true)
-            .journal_mode(SqliteJournalMode::Wal)
-            // An acknowledged send must survive power loss, so WAL runs with
-            // FULL. NORMAL would skip the commit fsync and let an acknowledged
-            // message roll back.
-            .synchronous(SqliteSynchronous::Full)
-            .busy_timeout(busy_timeout);
-
-        let pool = SqlitePoolOptions::new()
-            .max_connections(POOL_CONNECTIONS)
-            .connect_with(options)
-            .await?;
+        let pool = crate::foundation::database::store_pool(path.as_ref(), busy_timeout).await?;
 
         Ok(Self { pool, environment })
     }
@@ -3135,6 +3124,7 @@ fn client_request_json(command: &SendMessage) -> String {
 mod tests {
     use super::*;
     use sqlx::Connection;
+    use sqlx::sqlite::SqliteConnectOptions;
     use std::time::Instant;
 
     /// Opening needs a database file but no product schema, so these two facts

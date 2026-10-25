@@ -30,10 +30,7 @@ use silverhand_backend_core::conversation_messaging::messaging::schedule::{
 };
 use silverhand_backend_core::foundation::identity::{AgentId, ConversationId};
 use silverhand_backend_core::foundation::persistence::PersistenceFailure;
-use sqlx::{
-    Row, SqlitePool,
-    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous},
-};
+use sqlx::{Row, SqlitePool};
 use thiserror::Error;
 
 // The product read/cancel adapters are separate authorities that live beside the
@@ -55,7 +52,6 @@ pub use wake::{
     ScheduleWakeWriteError, SqliteScheduleWakeWrite,
 };
 
-const POOL_CONNECTIONS: u32 = 4;
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 /// The claim's occurrence flip and its `RETURNING` decode run inside ONE
 /// `IMMEDIATE` transaction: reserving the single writer up front (so contention
@@ -234,6 +230,13 @@ pub struct SqliteScheduleStore<K = SystemClock> {
 }
 
 impl SqliteScheduleStore<SystemClock> {
+    pub fn from_pool(pool: SqlitePool) -> Self {
+        Self {
+            pool,
+            clock: SystemClock,
+        }
+    }
+
     /// Opens an existing product database with the real system clock.
     pub async fn open(path: impl AsRef<Path>) -> Result<Self, ScheduleStoreError> {
         Self::open_with_clock(path, SystemClock).await
@@ -248,21 +251,7 @@ impl<K> SqliteScheduleStore<K> {
         path: impl AsRef<Path>,
         clock: K,
     ) -> Result<Self, ScheduleStoreError> {
-        let options = SqliteConnectOptions::new()
-            .filename(path.as_ref())
-            .create_if_missing(false)
-            .foreign_keys(true)
-            .journal_mode(SqliteJournalMode::Wal)
-            // An acknowledged settlement must survive power loss, so WAL runs with
-            // FULL. NORMAL would skip the commit fsync and let a re-armed or
-            // terminal row roll back to `firing`.
-            .synchronous(SqliteSynchronous::Full)
-            .busy_timeout(BUSY_TIMEOUT);
-
-        let pool = SqlitePoolOptions::new()
-            .max_connections(POOL_CONNECTIONS)
-            .connect_with(options)
-            .await?;
+        let pool = crate::foundation::database::store_pool(path.as_ref(), BUSY_TIMEOUT).await?;
 
         Ok(Self { pool, clock })
     }

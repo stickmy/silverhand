@@ -18,13 +18,9 @@ use silverhand_backend_core::{
     foundation::persistence::PersistenceFailure,
     identity_access::access::WorkspaceHumanAudienceReadPort,
 };
-use sqlx::{
-    Row, SqlitePool,
-    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous},
-};
+use sqlx::{Row, SqlitePool};
 use thiserror::Error;
 
-const POOL_CONNECTIONS: u32 = 4;
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 
 const SELECT_HUMAN_MEMBERS: &str = "\
@@ -51,17 +47,7 @@ pub enum WorkspaceAudienceReadError {
 
 impl SqliteWorkspaceAudienceRead {
     pub async fn open(path: impl AsRef<Path>) -> Result<Self, WorkspaceAudienceReadError> {
-        let options = SqliteConnectOptions::new()
-            .filename(path.as_ref())
-            .create_if_missing(false)
-            .foreign_keys(true)
-            .journal_mode(SqliteJournalMode::Wal)
-            .synchronous(SqliteSynchronous::Full)
-            .busy_timeout(BUSY_TIMEOUT);
-        let pool = SqlitePoolOptions::new()
-            .max_connections(POOL_CONNECTIONS)
-            .connect_with(options)
-            .await?;
+        let pool = crate::foundation::database::store_pool(path.as_ref(), BUSY_TIMEOUT).await?;
         Ok(Self { pool })
     }
 
@@ -102,6 +88,7 @@ impl WorkspaceHumanAudienceReadPort for SqliteWorkspaceAudienceRead {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sqlx::sqlite::SqliteConnectOptions;
     use sqlx::{Connection, Executor, SqliteConnection};
 
     const CURRENT_SCHEMA: &str =

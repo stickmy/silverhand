@@ -23,10 +23,7 @@ use silverhand_backend_core::conversation_messaging::messaging::task::{
 };
 use silverhand_backend_core::foundation::identity::ConversationId;
 use silverhand_backend_core::foundation::persistence::PersistenceFailure;
-use sqlx::{
-    QueryBuilder, Row, Sqlite, SqlitePool,
-    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous},
-};
+use sqlx::{QueryBuilder, Row, Sqlite, SqlitePool};
 
 use super::super::{
     FROM_KIND_SYSTEM, INSERT_MESSAGE, MessagingStoreError, ReserveSeqFault, bump_stream_head_on,
@@ -37,7 +34,6 @@ use super::row::{SELECT_TASK_JOINED, agent_event_names, decode_row, decode_sidec
 use super::write_gate::{AgentTaskCapabilityGate, GateVerdict, agent_task_gate, user_gate};
 use super::{SystemTaskWriteClock, TaskStoreError, corrupt, driver};
 
-const POOL_CONNECTIONS: u32 = 4;
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 const WRITE_BEGIN: &str = "BEGIN IMMEDIATE";
 
@@ -77,17 +73,7 @@ impl SqliteTaskEditWrite {
     /// Opens an existing product database. A missing file is a failure, not an
     /// empty database: the schema has an owner, and this writer is not it.
     pub async fn open(path: impl AsRef<Path>) -> Result<Self, TaskStoreError> {
-        let options = SqliteConnectOptions::new()
-            .filename(path.as_ref())
-            .create_if_missing(false)
-            .foreign_keys(true)
-            .journal_mode(SqliteJournalMode::Wal)
-            .synchronous(SqliteSynchronous::Full)
-            .busy_timeout(BUSY_TIMEOUT);
-        let pool = SqlitePoolOptions::new()
-            .max_connections(POOL_CONNECTIONS)
-            .connect_with(options)
-            .await?;
+        let pool = crate::foundation::database::store_pool(path.as_ref(), BUSY_TIMEOUT).await?;
         Ok(Self {
             pool,
             clock: Arc::new(SystemTaskWriteClock),

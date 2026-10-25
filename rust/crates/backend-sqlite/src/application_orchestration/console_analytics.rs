@@ -8,11 +8,8 @@ use silverhand_backend_core::{
     },
     foundation::persistence::PersistenceFailure,
 };
-use sqlx::{
-    Row, SqlitePool,
-    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous},
-};
-use std::{path::Path, str::FromStr, time::Duration};
+use sqlx::{Row, SqlitePool};
+use std::{path::Path, time::Duration};
 use thiserror::Error;
 
 const WINDOW_SESSIONS_SQL: &str = "SELECT COUNT(*) FROM (SELECT user_id FROM auth_sessions \
@@ -42,20 +39,7 @@ pub struct SqliteConsoleAnalyticsRead {
 
 impl SqliteConsoleAnalyticsRead {
     pub async fn open(path: impl AsRef<Path>) -> Result<Self, SqliteConsoleAnalyticsError> {
-        let filename = path
-            .as_ref()
-            .to_str()
-            .ok_or(SqliteConsoleAnalyticsError::InvalidPath)?;
-        let options = SqliteConnectOptions::from_str(filename)?
-            .create_if_missing(false)
-            .foreign_keys(true)
-            .journal_mode(SqliteJournalMode::Wal)
-            .synchronous(SqliteSynchronous::Full)
-            .busy_timeout(BUSY_TIMEOUT);
-        let pool = SqlitePoolOptions::new()
-            .max_connections(2)
-            .connect_with(options)
-            .await?;
+        let pool = crate::foundation::database::store_pool(path.as_ref(), BUSY_TIMEOUT).await?;
 
         Ok(Self { pool })
     }

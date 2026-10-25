@@ -8,16 +8,12 @@
 
 use std::{path::Path, time::Duration};
 
-use sqlx::{
-    Sqlite, SqlitePool, Transaction,
-    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous},
-};
+use sqlx::{Sqlite, SqlitePool, Transaction};
 use thiserror::Error;
 
 pub(crate) mod decode;
 
 pub(crate) const ROOT_WRITE_BEGIN: &str = "BEGIN IMMEDIATE";
-const POOL_CONNECTIONS: u32 = 4;
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(Clone)]
@@ -34,6 +30,10 @@ pub enum SqliteHostAgentStoreError {
 }
 
 impl SqliteHostAgentStore {
+    pub fn from_pool(pool: SqlitePool) -> Self {
+        Self { pool }
+    }
+
     pub async fn open(path: impl AsRef<Path>) -> Result<Self, SqliteHostAgentStoreError> {
         Self::open_with_busy_timeout(path, BUSY_TIMEOUT).await
     }
@@ -42,19 +42,7 @@ impl SqliteHostAgentStore {
         path: impl AsRef<Path>,
         busy_timeout: Duration,
     ) -> Result<Self, SqliteHostAgentStoreError> {
-        let options = SqliteConnectOptions::new()
-            .filename(path.as_ref())
-            .create_if_missing(false)
-            .foreign_keys(true)
-            .journal_mode(SqliteJournalMode::Wal)
-            // An acknowledged write must survive power loss, so WAL runs with
-            // FULL rather than NORMAL.
-            .synchronous(SqliteSynchronous::Full)
-            .busy_timeout(busy_timeout);
-        let pool = SqlitePoolOptions::new()
-            .max_connections(POOL_CONNECTIONS)
-            .connect_with(options)
-            .await?;
+        let pool = crate::foundation::database::store_pool(path.as_ref(), busy_timeout).await?;
         Ok(Self { pool })
     }
 

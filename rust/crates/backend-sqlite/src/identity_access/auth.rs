@@ -25,10 +25,7 @@ use silverhand_backend_core::{
     },
 };
 use silverhand_backend_observability::Observe;
-use sqlx::{
-    Row, SqlitePool,
-    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous},
-};
+use sqlx::{Row, SqlitePool};
 use thiserror::Error;
 
 /// The product's `randomBytes(12)`: twelve entropy bytes → sixteen base64url
@@ -141,17 +138,8 @@ where
         path: impl AsRef<Path>,
         entropy: E,
     ) -> Result<Self, SqliteSessionStoreError> {
-        let options = SqliteConnectOptions::new()
-            .filename(path.as_ref())
-            .create_if_missing(false)
-            .foreign_keys(true)
-            .journal_mode(SqliteJournalMode::Wal)
-            .synchronous(SqliteSynchronous::Full)
-            .busy_timeout(Duration::from_secs(5));
-        let pool = SqlitePoolOptions::new()
-            .max_connections(4)
-            .connect_with(options)
-            .await?;
+        let pool =
+            crate::foundation::database::store_pool(path.as_ref(), Duration::from_secs(5)).await?;
         Ok(Self { pool, entropy })
     }
 
@@ -382,6 +370,7 @@ struct DanglingSessionUser;
 mod tests {
     use super::*;
     use silverhand_backend_core::identity_access::auth::{SessionTokenHash, SessionTtl};
+    use sqlx::sqlite::SqliteConnectOptions;
     use sqlx::{Connection, Executor, SqliteConnection};
     use std::sync::Mutex;
 

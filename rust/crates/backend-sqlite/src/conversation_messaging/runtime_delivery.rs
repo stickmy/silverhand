@@ -38,10 +38,7 @@ use silverhand_backend_core::{
     },
     identity_access::agents::{runtime::RuntimeKind, session_scope::AgentSessionScope},
 };
-use sqlx::{
-    Row, Sqlite, SqliteConnection, SqlitePool, Transaction,
-    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous},
-};
+use sqlx::{Row, Sqlite, SqliteConnection, SqlitePool, Transaction};
 use thiserror::Error;
 
 /// Shared admission rule for automatic inbox writes and pending-batch dispatch.
@@ -73,18 +70,13 @@ pub enum SqliteRuntimeDeliveryStoreError {
 }
 
 impl SqliteRuntimeDeliveryStore {
+    pub fn from_pool(pool: SqlitePool) -> Self {
+        Self { pool }
+    }
+
     pub async fn open(path: impl AsRef<Path>) -> Result<Self, SqliteRuntimeDeliveryStoreError> {
-        let options = SqliteConnectOptions::new()
-            .filename(path.as_ref())
-            .create_if_missing(false)
-            .foreign_keys(true)
-            .journal_mode(SqliteJournalMode::Wal)
-            .synchronous(SqliteSynchronous::Full)
-            .busy_timeout(Duration::from_secs(5));
-        let pool = SqlitePoolOptions::new()
-            .max_connections(4)
-            .connect_with(options)
-            .await?;
+        let pool =
+            crate::foundation::database::store_pool(path.as_ref(), Duration::from_secs(5)).await?;
         Ok(Self { pool })
     }
 

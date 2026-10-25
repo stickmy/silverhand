@@ -108,220 +108,69 @@ impl PassiveResources {
         let boot = BootProgress::new();
         boot.mark_migrations_applied();
 
-        let host_store = open(
-            "host runtime",
-            SqliteHostRuntimeStore::open(&config.database_path),
+        let pool = open(
+            "shared database pool",
+            silverhand_backend_sqlite::foundation::database::open_shared_pool(
+                &config.database_path,
+            ),
         )
         .await?;
-        let host_agent_store = open(
-            "host agent teardown",
-            SqliteHostAgentStore::open(&config.database_path),
-        )
-        .await?;
-        let computer_agents_read = open(
-            "computer agents read",
-            SqliteComputerAgentsRead::open(&config.database_path),
-        )
-        .await?;
-        let session_store = open(
-            "human session",
-            SqliteSessionStore::open(&config.database_path),
-        )
-        .await?;
-        let messaging_store =
-            open("messaging", MessagingStore::open(&config.database_path)).await?;
-        let task_store = open("task board", SqliteTaskStore::open(&config.database_path)).await?;
-        let task_status_write = open(
-            "task status write",
-            SqliteTaskStatusWrite::open(&config.database_path),
-        )
-        .await?;
-        let task_claim_write = open(
-            "task claim write",
-            SqliteTaskClaimWrite::open(&config.database_path),
-        )
-        .await?;
-        let task_edit_write = open(
-            "task edit write",
-            SqliteTaskEditWrite::open(&config.database_path),
-        )
-        .await?;
-        let task_create_write = open(
-            "task create write",
-            SqliteTaskCreateWrite::open(&config.database_path),
-        )
-        .await?;
-        let custody_store = open(
-            "runtime custody",
-            SqliteRuntimeCustodyStore::open(&config.database_path),
-        )
-        .await?;
-        let delivery_store = open(
-            "runtime delivery",
-            SqliteRuntimeDeliveryStore::open(&config.database_path),
-        )
-        .await?;
-        let scope_authority = open(
-            "event scope",
-            SqliteEventScopeAuthority::open(&config.database_path),
-        )
-        .await?;
-        let unread_read_model = open(
-            "unread read model",
-            SqliteUnreadReadModel::open(&config.database_path),
-        )
-        .await?;
-        let direct_pair_read_model = open(
-            "direct-pair read model",
-            SqliteDirectPairReadModel::open(&config.database_path),
-        )
-        .await?;
-        let access_store = open(
-            "workspace access",
-            SqliteAccessStore::open(&config.database_path),
-        )
-        .await?;
-        let workspace_cold_read = open(
-            "workspace cold read",
-            SqliteWorkspaceColdRead::open(&config.database_path),
-        )
-        .await?;
-        let availability_cold_read = open(
-            "agent availability cold read",
-            SqliteAgentAvailabilityColdRead::open(&config.database_path),
-        )
-        .await?;
-        let detail_cold_read = open(
-            "agent detail cold read",
-            SqliteAgentDetailColdRead::open(&config.database_path),
-        )
-        .await?;
-        let list_cold_read = open(
-            "agent list cold read",
-            SqliteAgentListColdRead::open(&config.database_path),
-        )
-        .await?;
-        let agent_presence_cold_read = open(
-            "agent presence cold read",
-            SqliteAgentPresenceColdRead::open(&config.database_path),
-        )
-        .await?;
-        let profile_write = open(
-            "agent profile write",
-            SqliteAgentProfileWrite::open(&config.database_path),
-        )
-        .await?;
-        let avatar_read = open(
-            "agent avatar read",
-            SqliteAgentAvatarRead::open(&config.database_path),
-        )
-        .await?;
-        let avatar_design_read = open(
-            "avatar design read",
-            SqliteAvatarDesignRead::open(&config.database_path),
-        )
-        .await?;
-        let profile_read = open(
-            "agent profile read",
-            SqliteAgentProfileRead::open(&config.database_path),
-        )
-        .await?;
-        let presence_cold_read = open(
-            "presence cold read",
-            SqliteUserPresenceColdRead::open(&config.database_path),
-        )
-        .await?;
-        let last_seen_sink = open(
-            "presence last-seen sink",
-            SqliteLastSeenSink::open(&config.database_path),
-        )
-        .await?;
-        let host_resources_cold_read = open(
-            "host resources cold read",
-            SqliteHostResourcesColdRead::open(&config.database_path),
-        )
-        .await?;
-        let detail_read = open(
-            "workspace detail read",
-            SqliteWorkspaceDetailRead::open(&config.database_path),
-        )
-        .await?;
-        let metadata_writes = open(
-            "workspace metadata write",
-            SqliteWorkspaceMetadataWrite::open(&config.database_path),
-        )
-        .await?;
-        let namespace = open(
-            "workspace name availability",
-            SqliteRegularWorkspaceNamespace::open(&config.database_path),
-        )
-        .await?;
-        let audience_read = open(
-            "workspace human audience read",
-            SqliteWorkspaceAudienceRead::open(&config.database_path),
-        )
-        .await?;
-        let handle_namespace = open(
-            "handle namespace",
-            SqliteHandleNamespace::open(&config.database_path),
-        )
-        .await?;
-        let user_store = open(
-            "user identity",
-            SqliteUserStore::open(&config.database_path),
-        )
-        .await?;
-        let registration = open(
-            "human registration",
-            SqliteHumanRegistration::open(&config.database_path),
-        )
-        .await?;
-        let credential_store = open(
-            "login credential",
-            SqliteCredentialStore::open(&config.database_path),
-        )
-        .await?;
+
+        let host_store = SqliteHostRuntimeStore::from_pool(pool.clone());
+        let host_agent_store = SqliteHostAgentStore::from_pool(pool.clone());
+        let computer_agents_read = SqliteComputerAgentsRead::from_pool(pool.clone());
+        let session_store = SqliteSessionStore::from_pool(pool.clone());
+        let messaging_store = MessagingStore::from_pool(pool.clone());
+        let task_store = SqliteTaskStore::from_pool(pool.clone());
+        let task_status_write = SqliteTaskStatusWrite::from_pool(pool.clone());
+        let task_claim_write = SqliteTaskClaimWrite::from_pool(pool.clone());
+        let task_edit_write = SqliteTaskEditWrite::from_pool(pool.clone());
+        let task_create_write = SqliteTaskCreateWrite::from_pool(pool.clone());
+        let custody_store = SqliteRuntimeCustodyStore::from_pool(pool.clone());
+        let delivery_store = SqliteRuntimeDeliveryStore::from_pool(pool.clone());
+        let scope_authority = SqliteEventScopeAuthority::from_pool(pool.clone());
+        let unread_read_model = SqliteUnreadReadModel::from_pool(pool.clone());
+        let direct_pair_read_model = SqliteDirectPairReadModel::from_pool(pool.clone());
+        let access_store = SqliteAccessStore::from_pool(pool.clone());
+        let workspace_cold_read = SqliteWorkspaceColdRead::from_pool(pool.clone());
+        let availability_cold_read = SqliteAgentAvailabilityColdRead::from_pool(pool.clone());
+        let detail_cold_read = SqliteAgentDetailColdRead::from_pool(pool.clone());
+        let list_cold_read = SqliteAgentListColdRead::from_pool(pool.clone());
+        let agent_presence_cold_read = SqliteAgentPresenceColdRead::from_pool(pool.clone());
+        let profile_write = SqliteAgentProfileWrite::from_pool(pool.clone());
+        let avatar_read = SqliteAgentAvatarRead::from_pool(pool.clone());
+        let avatar_design_read = SqliteAvatarDesignRead::from_pool(pool.clone());
+        let profile_read = SqliteAgentProfileRead::from_pool(pool.clone());
+        let presence_cold_read = SqliteUserPresenceColdRead::from_pool(pool.clone());
+        let last_seen_sink = SqliteLastSeenSink::from_pool(pool.clone());
+        let host_resources_cold_read = SqliteHostResourcesColdRead::from_pool(pool.clone());
+        let detail_read = SqliteWorkspaceDetailRead::from_pool(pool.clone());
+        let metadata_writes = SqliteWorkspaceMetadataWrite::from_pool(pool.clone());
+        let namespace = SqliteRegularWorkspaceNamespace::from_pool(pool.clone());
+        let audience_read = SqliteWorkspaceAudienceRead::from_pool(pool.clone());
+        let handle_namespace = SqliteHandleNamespace::from_pool(pool.clone());
+        let user_store = SqliteUserStore::from_pool(pool.clone());
+        let registration = SqliteHumanRegistration::from_pool_with_entropy(
+            pool.clone(),
+            silverhand_backend_core::host_runtime::environment::OsEntropy,
+        );
+        let credential_store = SqliteCredentialStore::from_pool(pool.clone());
         let blob_store = open("blob store", LocalBlobStore::open(&config.blobs_root)).await?;
-        let agent_runtime_state_cold_read = open(
-            "agent runtime-state cold read",
-            SqliteAgentRuntimeStateColdRead::open(&config.database_path),
-        )
-        .await?;
-        let agent_audit_read = open(
-            "agent-chat audit read",
-            SqliteAgentAuditRead::open(&config.database_path),
-        )
-        .await?;
-        let schedule_create = open(
-            "agent schedule create",
-            SqliteScheduleCreate::open(&config.database_path),
-        )
-        .await?;
-        let schedule_driver = open(
-            "schedule fire driver",
-            SqliteScheduleStore::open(&config.database_path),
-        )
-        .await?;
-        let schedule_list_read = open(
-            "agent schedule list read",
-            SqliteScheduleListRead::open(&config.database_path),
-        )
-        .await?;
-        let schedule_cancel = open(
-            "agent schedule cancel",
-            SqliteScheduleCancel::open(&config.database_path),
-        )
-        .await?;
-        let workspace_scope_store = open(
-            "agent workspace scope read",
-            SqliteWorkspaceScopeStore::open(&config.database_path),
-        )
-        .await?;
-        let embedded_bootstrap_store = open(
-            "embedded bootstrap unit of work",
-            SqliteEmbeddedBootstrap::open(&config.database_path),
-        )
-        .await?;
+        let agent_runtime_state_cold_read =
+            SqliteAgentRuntimeStateColdRead::from_pool(pool.clone());
+        let agent_audit_read = SqliteAgentAuditRead::from_pool(pool.clone());
+        let schedule_create = SqliteScheduleCreate::from_pool(pool.clone());
+        let schedule_driver = SqliteScheduleStore::from_pool(pool.clone());
+        let schedule_list_read = SqliteScheduleListRead::from_pool(pool.clone());
+        let schedule_cancel = SqliteScheduleCancel::from_pool(
+            pool.clone(),
+            silverhand_backend_sqlite::conversation_messaging::messaging::schedule::SystemClock,
+        );
+        let workspace_scope_store = SqliteWorkspaceScopeStore::from_pool(pool.clone());
+        let embedded_bootstrap_store = SqliteEmbeddedBootstrap::from_pool_with_entropy(
+            pool.clone(),
+            silverhand_backend_core::host_runtime::environment::OsEntropy,
+        );
 
         Ok(Self {
             boot,

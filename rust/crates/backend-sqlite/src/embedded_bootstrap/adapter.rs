@@ -28,14 +28,10 @@ use silverhand_backend_core::{
     host_runtime::environment::{EntropySource, OsEntropy},
     identity_access::user_identity::UserRecord,
 };
-use sqlx::{
-    Row, SqlitePool,
-    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous},
-};
+use sqlx::{Row, SqlitePool};
 use thiserror::Error;
 
 const ROOT_WRITE_BEGIN: &str = "BEGIN IMMEDIATE";
-const POOL_CONNECTIONS: u32 = 4;
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 /// The product's `randomHex(8)`: eight entropy bytes → sixteen lowercase hex digits.
 const USER_ID_BYTES: usize = 8;
@@ -234,17 +230,7 @@ where
         path: impl AsRef<Path>,
         entropy: E,
     ) -> Result<Self, SqliteEmbeddedBootstrapError> {
-        let options = SqliteConnectOptions::new()
-            .filename(path.as_ref())
-            .create_if_missing(false)
-            .foreign_keys(true)
-            .journal_mode(SqliteJournalMode::Wal)
-            .synchronous(SqliteSynchronous::Full)
-            .busy_timeout(BUSY_TIMEOUT);
-        let pool = SqlitePoolOptions::new()
-            .max_connections(POOL_CONNECTIONS)
-            .connect_with(options)
-            .await?;
+        let pool = crate::foundation::database::store_pool(path.as_ref(), BUSY_TIMEOUT).await?;
         Ok(Self { pool, entropy })
     }
 
@@ -316,6 +302,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sqlx::sqlite::{
+        SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous,
+    };
     use sqlx::{Connection, Executor, SqliteConnection};
     use std::sync::Mutex;
 

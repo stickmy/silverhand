@@ -58,16 +58,10 @@ use silverhand_backend_core::{
     },
     identity_access::agents::runtime::RuntimeKind,
 };
-use sqlx::{
-    QueryBuilder, Row, Sqlite, SqlitePool,
-    sqlite::{
-        SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow, SqliteSynchronous,
-    },
-};
+use sqlx::{QueryBuilder, Row, Sqlite, SqlitePool, sqlite::SqliteRow};
 use thiserror::Error;
 
 const ROOT_WRITE_BEGIN: &str = "BEGIN IMMEDIATE";
-const POOL_CONNECTIONS: u32 = 4;
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 
 // The committed columns the core seal binds against the request: the id, the touched
@@ -123,19 +117,7 @@ enum ProfileWriteFailure {
 
 impl SqliteAgentProfileWrite {
     pub async fn open(path: impl AsRef<Path>) -> Result<Self, SqliteAgentProfileWriteError> {
-        let options = SqliteConnectOptions::new()
-            .filename(path.as_ref())
-            .create_if_missing(false)
-            .foreign_keys(true)
-            .journal_mode(SqliteJournalMode::Wal)
-            // An acknowledged tuning edit must survive power loss, so WAL runs with
-            // FULL — NORMAL would let a recently acknowledged write roll back.
-            .synchronous(SqliteSynchronous::Full)
-            .busy_timeout(BUSY_TIMEOUT);
-        let pool = SqlitePoolOptions::new()
-            .max_connections(POOL_CONNECTIONS)
-            .connect_with(options)
-            .await?;
+        let pool = crate::foundation::database::store_pool(path.as_ref(), BUSY_TIMEOUT).await?;
         Ok(Self { pool })
     }
 
@@ -407,6 +389,7 @@ mod tests {
         AgentTuningEdit, admit_avatar_assignment, admit_avatar_removal, admit_public_tuning_edit,
     };
     use silverhand_backend_core::identity_access::avatar::AvatarContentType;
+    use sqlx::sqlite::SqliteConnectOptions;
     use sqlx::{Connection, Executor, SqliteConnection};
 
     /// Drive the canonical writer exactly as the production PATCH route does: inject the

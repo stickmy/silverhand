@@ -35,13 +35,9 @@ use silverhand_backend_core::{
     foundation::persistence::PersistenceFailure,
     workspace_data_plane::{AgentWorkspaceScopeFacts, AgentWorkspaceScopeRead},
 };
-use sqlx::{
-    SqlitePool,
-    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous},
-};
+use sqlx::SqlitePool;
 use thiserror::Error;
 
-const POOL_CONNECTIONS: u32 = 4;
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// ONE statement over ONE snapshot: a `request` CTE pins the three requested
@@ -108,18 +104,7 @@ impl SqliteWorkspaceScopeStore {
         path: impl AsRef<Path>,
         busy_timeout: Duration,
     ) -> Result<Self, SqliteWorkspaceScopeStoreError> {
-        let options = SqliteConnectOptions::new()
-            .filename(path.as_ref())
-            .create_if_missing(false)
-            .foreign_keys(true)
-            .journal_mode(SqliteJournalMode::Wal)
-            .synchronous(SqliteSynchronous::Full)
-            .busy_timeout(busy_timeout);
-
-        let pool = SqlitePoolOptions::new()
-            .max_connections(POOL_CONNECTIONS)
-            .connect_with(options)
-            .await?;
+        let pool = crate::foundation::database::store_pool(path.as_ref(), busy_timeout).await?;
 
         Ok(Self { pool })
     }

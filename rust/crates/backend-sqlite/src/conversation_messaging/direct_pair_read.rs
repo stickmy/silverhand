@@ -13,16 +13,12 @@ use silverhand_backend_core::{
     foundation::persistence::PersistenceFailure,
     identity_access::agents::runtime::RuntimeKind,
 };
-use sqlx::{
-    Row, Sqlite, SqlitePool, Transaction,
-    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous},
-};
+use sqlx::{Row, Sqlite, SqlitePool, Transaction};
 use thiserror::Error;
 
 use crate::viewer_read_model::unread_read::{UnreadReadModelError, conversation_unread_counts};
 
 const DEFERRED_READ_BEGIN: &str = "BEGIN DEFERRED";
-const POOL_CONNECTIONS: u32 = 4;
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 
 const SELECT_PAIRS: &str = "SELECT c.id, c.endpoint_a_kind, c.endpoint_a_id, c.endpoint_a_deleted_at, \
@@ -63,18 +59,12 @@ pub enum DirectPairReadError {
 }
 
 impl SqliteDirectPairReadModel {
+    pub fn from_pool(pool: SqlitePool) -> Self {
+        Self { pool }
+    }
+
     pub async fn open(path: impl AsRef<Path>) -> Result<Self, DirectPairReadError> {
-        let options = SqliteConnectOptions::new()
-            .filename(path.as_ref())
-            .create_if_missing(false)
-            .foreign_keys(true)
-            .journal_mode(SqliteJournalMode::Wal)
-            .synchronous(SqliteSynchronous::Full)
-            .busy_timeout(BUSY_TIMEOUT);
-        let pool = SqlitePoolOptions::new()
-            .max_connections(POOL_CONNECTIONS)
-            .connect_with(options)
-            .await?;
+        let pool = crate::foundation::database::store_pool(path.as_ref(), BUSY_TIMEOUT).await?;
         Ok(Self { pool })
     }
 
