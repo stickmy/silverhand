@@ -32,8 +32,9 @@ use silverhand_backend_core::foundation::identity::{AgentId, DaemonInstanceId};
 use silverhand_backend_core::host_runtime::runtime_credential::{
     RuntimeCustody, RuntimeGeneration, RuntimePrincipal,
 };
-use silverhand_backend_server::conversation_messaging::messaging::task::{
-    TaskListState, task_list_router,
+use silverhand_backend_server::conversation_messaging::messaging::{
+    TargetAddressRefusalLog,
+    task::{TaskListState, task_list_router},
 };
 use silverhand_backend_sqlite::conversation_messaging::messaging::{
     MessagingStore, task::SqliteTaskStore,
@@ -97,11 +98,29 @@ async fn seed(directory: &TempDir) -> std::path::PathBuf {
     path
 }
 
+struct NoOpened;
+
+impl silverhand_backend_core::conversation_messaging::messaging::DirectPairOpenedPort for NoOpened {
+    type Error = std::convert::Infallible;
+
+    async fn direct_pair_opened(
+        &self,
+        _fact: &silverhand_backend_core::conversation_messaging::messaging::DirectPairOpenedFact,
+    ) -> Result<(), Self::Error> {
+        Ok(())
+    }
+}
+
 /// The real mounted router over both production adapters against the seeded database.
 async fn app(path: &std::path::Path) -> Router {
     let boards = MessagingStore::open(path).await.unwrap();
     let fetch = SqliteTaskStore::open(path).await.unwrap();
-    task_list_router(TaskListState { boards, fetch })
+    let targets = boards.target_address(NoOpened, TargetAddressRefusalLog);
+    task_list_router(TaskListState {
+        boards,
+        fetch,
+        targets,
+    })
 }
 
 /// A request carrying the authenticated agent principal the runtime-credential middleware
@@ -250,4 +269,96 @@ async fn a_query_outside_its_schema_is_a_specific_bad_request() {
             "message": "query field 'status' must be one of: todo, in_progress, in_review, done, closed",
         })
     );
+}
+
+/// A second channel and task on the same board, so a conversation filter has rows to drop.
+async fn add_second_channel(path: &std::path::Path) {
+    let mut db = sqlx::SqliteConnection::connect(&format!("sqlite://{}", path.display()))
+        .await
+        .unwrap();
+    for statement in [
+        "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
+         title_key, status, visibility, created_at, updated_at, latest_message_seq) \
+         VALUES ('conv000000000002', 'workspace-1', 'workspace', 'open', 'Second', \
+         'second', 'open', 'private', 0, 0, 0)",
+        "INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) \
+         VALUES ('conv000000000002', 'agent-1', 0)",
+        "INSERT INTO tasks (id, workspace_id, task_number, conversation_id, title, status, \
+         creator_kind, created_at, board_key) \
+         VALUES ('task-2', 'workspace-1', 2, 'conv000000000002', 'second', 'todo', 'system', 200, \
+         'ws:workspace-1')",
+    ] {
+        sqlx::query(statement).execute(&mut db).await.unwrap();
+    }
+    db.close().await.unwrap();
+}
+
+fn task_ids(body: &Value) -> Vec<&str> {
+    body["tasks"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|task| task["id"].as_str().unwrap())
+        .collect()
+}
+
+#[tokio::test]
+async fn a_target_lists_only_that_conversation() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = seed(&directory).await;
+    add_second_channel(&path).await;
+
+    let (status, body) = answered(
+        app(&path).await,
+        request("?target=%23conv%3Aconv000000000002"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(task_ids(&body), vec!["task-2"]);
+
+    let (status, body) = answered(
+        app(&path).await,
+        request("?target=%23Product%2520Space%2FGeneral%2520Chat"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(task_ids(&body), vec!["task-1"]);
+}
+
+#[tokio::test]
+async fn an_unusable_target_is_refused_with_its_code() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = seed(&directory).await;
+
+    let (status, body) = answered(
+        app(&path).await,
+        request("?target=%23conv%3Aconv000000000404"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(body["code"], "target_unresolved");
+
+    let (status, body) = answered(app(&path).await, request("?target=general")).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(body["code"], "target_malformed");
+}
+
+#[tokio::test]
+async fn a_workspace_name_selects_that_board() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = seed(&directory).await;
+    add_second_channel(&path).await;
+
+    let (status, body) =
+        answered(app(&path).await, request("?workspace_name=Product%20Space")).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(task_ids(&body), vec!["task-2", "task-1"]);
+
+    let (status, body) = answered(app(&path).await, request("?workspace_name=Nowhere")).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(body["code"], "unknown_workspace");
+
+    let (status, body) = answered(app(&path).await, request("?workspace_name=Other%20Space")).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(body["code"], "workspace_membership_required");
 }

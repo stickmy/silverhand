@@ -205,6 +205,8 @@ export class BackendClient {
   // ── Tasks ────────────────────────────────────────────────────────
   listTasks(filters: {
     workspace_id?: string;
+    workspace_name?: string;
+    target?: string;
     conversation_id?: string;
     /** Multi-value: passed as repeated query keys. */
     status?: readonly TaskStatus[];
@@ -219,6 +221,8 @@ export class BackendClient {
       undefined,
       {
         workspace_id: filters.workspace_id,
+        workspace_name: filters.workspace_name,
+        target: filters.target,
         conversation_id: filters.conversation_id,
         status: filters.status,
         task_number: filters.task_number,

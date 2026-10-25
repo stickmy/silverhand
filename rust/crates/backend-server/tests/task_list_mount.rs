@@ -31,7 +31,10 @@ use silverhand_backend_core::{
     host_runtime::runtime_credential::RuntimeScope,
 };
 use silverhand_backend_server::{
-    conversation_messaging::messaging::task::{TaskListState, task_list_router},
+    conversation_messaging::messaging::{
+        TargetAddressRefusalLog,
+        task::{TaskListState, task_list_router},
+    },
     foundation::clock::ProcessClock,
     host_runtime::runtime_credential::{
         RuntimeCredentialAuthority, RuntimeDispatchFailure, RuntimeEntropy, RuntimeStartHandoff,
@@ -49,6 +52,19 @@ use tower::ServiceExt;
 mod current_schema;
 
 const AGENT: &str = "agent-1";
+
+struct NoOpened;
+
+impl silverhand_backend_core::conversation_messaging::messaging::DirectPairOpenedPort for NoOpened {
+    type Error = std::convert::Infallible;
+
+    async fn direct_pair_opened(
+        &self,
+        _fact: &silverhand_backend_core::conversation_messaging::messaging::DirectPairOpenedFact,
+    ) -> Result<(), Self::Error> {
+        Ok(())
+    }
+}
 
 /// Deterministic bytes so the minted credential is reproducible; the real hashing the
 /// authority applies to the token it hands back is what the perimeter re-derives.
@@ -190,8 +206,10 @@ async fn mounted() -> Mounted {
     let bearer = transport.0.lock().unwrap().clone().unwrap();
 
     let fetches = Arc::new(AtomicUsize::new(0));
+    let boards = MessagingStore::open(&path).await.unwrap();
     let state = TaskListState {
-        boards: MessagingStore::open(&path).await.unwrap(),
+        targets: boards.target_address(NoOpened, TargetAddressRefusalLog),
+        boards,
         fetch: CountingFetch {
             inner: SqliteTaskStore::open(&path).await.unwrap(),
             fetches: fetches.clone(),
@@ -420,6 +438,7 @@ async fn title_read_router(path: &std::path::Path) -> Router {
     let routes = task_list_router(TaskListState {
         boards: boards.clone(),
         fetch: tasks.clone(),
+        targets: boards.target_address(NoOpened, TargetAddressRefusalLog),
     })
     .merge(task_detail_router(TaskDetailState {
         boards,

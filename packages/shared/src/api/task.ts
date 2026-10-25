@@ -223,6 +223,9 @@ export type TaskDetailDto = z.infer<typeof TaskDetailDtoSchema>;
 // face under a new name.
 export const ListTasksQuerySchema = z.object({
   workspace_id: z.string().optional(),
+  workspace_name: z.string().optional(),
+  /** A delivery address naming one conversation; excludes the other scope keys. */
+  target: z.string().optional(),
   conversation_id: z.string().optional(),
   /** Filter by status. Empty / omitted = no filter. Multiple values are
    *  OR-ed (e.g. `?status=in_progress&status=in_review`). */

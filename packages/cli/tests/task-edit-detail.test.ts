@@ -79,7 +79,7 @@ describe('positional <task_number> arity + value laws', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ) as any;
 
-  const pointVerbs = ['detail', 'unclaim', 'status', 'edit'] as const;
+  const pointVerbs = ['detail', 'unclaim', 'edit'] as const;
 
   it.each(pointVerbs)('task %s rejects a second positional token', async (verb) => {
     const cmd = findCommand('task', verb)!;

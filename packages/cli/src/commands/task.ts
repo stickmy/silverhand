@@ -9,7 +9,7 @@ import {
   THREAD_ADDRESS_SEPARATOR,
   TaskBodySchema,
 } from '@silverhand/shared';
-import { CliError } from '../errors.js';
+import { CliError, fromUnknown } from '../errors.js';
 import {
   flagBool,
   flagNumber,
@@ -250,9 +250,9 @@ const TASK_NUMBER_FLAG_REMOVED: RemovedFlagSpec = {
  * missing / mistyped / over-supplied operand costs no round trip and can
  * never be half-applied. Two arities:
  *
- *   'exactly-one'  detail | edit | status | unclaim — a point operation
- *   'one-or-more'  claim — batch by construction (the backend's claim op
- *                  takes a list and reports per-task success/failure)
+ *   'exactly-one'  detail | edit | unclaim — a point operation
+ *   'one-or-more'  claim | status — batch; each task reports its own
+ *                  success/failure
  *
  * A task number is a positive integer: it is a per-workspace counter, so
  * `0`, `-3`, `4.5`, and `4abc` are all impossible values rather than
@@ -404,37 +404,40 @@ function resolveSingleTaskSelector(
 const listCommand: Command = {
   verb: 'list',
   summary: 'View the task board(s) you can read.',
-  help: `silverhand task list [--task-number N [--task-number N ...]]
+  help: `silverhand task list [--target <address> | --workspace <name> | --workspace-id <id>]
+                       [--task-number N [--task-number N ...]]
                        [--status STATUS [--status STATUS ...]]
                        [--assignee <agent_id>] [--mine]
-                       [--workspace-id <id>] [--conversation-id <id>]
-                       [--limit N]
+                       [--conversation-id <id>] [--limit N]
 
 Returns tasks with server-side filtering. The DEFAULT population depends
 on your session's runtime scope:
 
-  conversation-scoped   Your current workspace's board (the legacy
-                        default). Pass --workspace-id <id> to read a
-                        sister workspace's board instead (you must be a
-                        member).
+  conversation-scoped   Your current workspace's board.
   agent-scoped          The UNION of every Board you can read (workspace
                         membership + read_tasks per board), newest first
                         across boards. There is no ambient workspace.
 
---workspace-id / --conversation-id only NARROW the population — they
-never widen it past what you can read. They are FILTERS, not a
-destination: both take a bare id (\`--conversation-id Uz9ma2MQQqJ1savH\`),
-never an address like \`#conv:<id>\` or \`dm:@handle\`. This command reads;
-it posts nothing, so it has nowhere to be sent. Because a union can span
-boards, interpret each row by its own coordinates: the global \`id\` is
-the task's canonical identity, \`board\` + \`task_number\` locate it on its
-numbering namespace, and \`conversation\` is where it lives — do NOT
+Scope flags only NARROW the population — they never widen it past what
+you can read. This command reads; it posts nothing. Because a union can
+span boards, interpret each row by its own coordinates: the global \`id\`
+is the task's canonical identity, \`board\` + \`task_number\` locate it on
+its numbering namespace, and \`conversation\` is where it lives — do NOT
 assume rows belong to the current workspace.
 
 Without filters this can be large — pass --task-number / --status /
 --mine / --limit to narrow.
 
 Flags:
+  --target <address>   List only the tasks of ONE conversation, named by the
+                       same address every other command takes
+                       (\`#conv:<id>\`, \`${NAMED_STREAM_ADDRESS_PREFIX}<workspace>/<title>\`,
+                       \`dm:@handle\`). A /thread: suffix is refused. Excludes
+                       --workspace / --workspace-id / --conversation-id.
+  --workspace <name>   List one workspace's board, by name. Fails if 0 or
+                       >1 workspaces match.
+  --workspace-id <id>  List one workspace's board, by id.
+  --conversation-id <id>  Narrow to one conversation by bare id.
   --task-number N      Repeatable. Filter to specific task numbers.
                        Last-wins is NOT used; values OR together.
   --status STATUS      Repeatable. Filter by status. Canonical values:
@@ -453,13 +456,20 @@ Flags:
   --assignee <id>      Filter by assignee agent id.
   --mine               Shortcut for --assignee=<your agent id>.
                        Resolves locally to this agent.
-  --workspace-id <id>  Narrow to one workspace's board.
-  --conversation-id <id>  Narrow to a specific conversation.
   --limit N            Cap rows returned (max 500). Useful with status
                        filters to peek the board.
 
 stdout: { "tasks": [TaskSummaryDto, ...] }`,
-  flags: ['task-number', 'status', 'assignee', 'workspace-id', 'conversation-id', 'limit'] as const,
+  flags: [
+    'task-number',
+    'status',
+    'assignee',
+    'target',
+    'workspace',
+    'workspace-id',
+    'conversation-id',
+    'limit',
+  ] as const,
   booleanFlags: ['mine'] as const,
   async run({ client, env, args }) {
     const taskNumbers = flagNumberArray(args, 'task-number');
@@ -483,13 +493,26 @@ stdout: { "tasks": [TaskSummaryDto, ...] }`,
         retriable: false,
       });
     }
+    const target = flagString(args, 'target');
+    const conversationId = flagString(args, 'conversation-id');
+    const workspace = resolveWorkspaceSelector(args);
+    if (target && (conversationId || workspace.workspace_id || workspace.workspace_name)) {
+      throw new CliError({
+        code: 'validation_error',
+        subkind: 'mutually_exclusive',
+        message:
+          '--target already names one conversation; drop --workspace / --workspace-id / ' +
+          '--conversation-id.',
+        retriable: false,
+        details: { flags: ['target', 'workspace', 'workspace-id', 'conversation-id'] },
+      });
+    }
     return client.listTasks({
       ...(taskNumbers ? { task_number: taskNumbers } : {}),
       ...(expandedStatuses && expandedStatuses.length > 0 ? { status: expandedStatuses } : {}),
       ...(assigneeId ? { assignee_id: assigneeId } : {}),
-      ...(flagString(args, 'workspace-id')
-        ? { workspace_id: flagString(args, 'workspace-id') }
-        : {}),
+      ...(target ? { target } : {}),
+      ...workspace,
       ...(flagString(args, 'conversation-id')
         ? { conversation_id: flagString(args, 'conversation-id') }
         : {}),
@@ -915,9 +938,15 @@ stdout: TaskMutationResult JSON.`,
 const statusCommand: Command = {
   verb: 'status',
   summary: 'Move a task through its status workflow.',
-  help: `silverhand task status <task_number> --status todo|in_progress|in_review|done|closed
+  help: `silverhand task status <task_number> [<task_number> ...]
+                          --status todo|in_progress|in_review|done|closed
                           [--workspace-id <id> | --workspace <name>]
        silverhand task status --id <task_id> --status <status>
+
+Several task numbers move to the same status one by one, in order. One
+number prints its TaskMutationResult; several print
+{ "results": [{ task_number, ...TaskMutationResult }, ...] } with each
+entry's own success — like \`task claim\`, one failure does not stop the rest.
 
 Allowed transitions (you must be the assignee, or the creator of an
 unassigned task you created yourself):
@@ -944,12 +973,15 @@ workspace selector instead.
 Workspace selector — see \`silverhand task claim --help\`. Cross-workspace
 status updates require you to be a member of the resolved workspace.
 
-stdout: TaskMutationResult JSON.`,
+stdout: TaskMutationResult JSON (or { results } for several numbers).`,
   flags: ['status', 'workspace-id', 'workspace', 'id'] as const,
   removedFlags: { 'task-number': TASK_NUMBER_FLAG_REMOVED },
   allowPositional: true,
   async run({ client, args }) {
-    const selector = resolveSingleTaskSelector(args, 'status');
+    const selector =
+      args.flags['id'] === undefined
+        ? { taskNumbers: parseTaskNumberOperands(args, 'status', 'one-or-more') }
+        : resolveSingleTaskSelector(args, 'status');
     const status = flagString(args, 'status') as TaskStatus | undefined;
     if (!status) {
       throw new CliError({
@@ -997,7 +1029,21 @@ stdout: TaskMutationResult JSON.`,
       return client.updateTaskStatus({ task_id: selector.taskId, status });
     }
     const workspace = resolveWorkspaceSelector(args);
-    return client.updateTaskStatus({ task_number: selector.taskNumber, status, ...workspace });
+    const numbers = 'taskNumbers' in selector ? selector.taskNumbers : [selector.taskNumber];
+    if (numbers.length === 1) {
+      return client.updateTaskStatus({ task_number: numbers[0]!, status, ...workspace });
+    }
+    const results = [];
+    for (const taskNumber of numbers) {
+      const result = await client
+        .updateTaskStatus({ task_number: taskNumber, status, ...workspace })
+        .catch((err: unknown) => {
+          const e = fromUnknown(err);
+          return { success: false, code: e.code, reason: e.message };
+        });
+      results.push({ task_number: taskNumber, ...result });
+    }
+    return { results };
   },
 };
 

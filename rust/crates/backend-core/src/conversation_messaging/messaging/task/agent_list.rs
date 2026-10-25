@@ -122,13 +122,14 @@ pub enum TaskListForbidden {
 /// Resolve the board scope an agent task list is confined to, minting the opaque
 /// [`AuthorizedTaskBoards`] the caller projects the fetch coordinate from.
 ///
-/// `workspace_selector` is the parsed `--workspace-id`; `principal` is the
+/// `selector` is an explicit board source (`--workspace-id/--workspace`, or a
+/// `--target` conversation the caller already resolved); `principal` is the
 /// authenticated runtime. The agent is ALWAYS taken from the principal, never from a
 /// URL or caller-supplied field, so a list cannot be widened to another agent's boards.
 /// See the module docs for the three arms and the union-vs-single refusal semantics.
 pub async fn resolve_task_list_boards<P>(
     principal: &RuntimePrincipal,
-    workspace_selector: Option<&WorkspaceId>,
+    selector: Option<&BoardScopeSource>,
     ports: &mut P,
 ) -> Result<TaskListAccess, PersistenceFailure>
 where
@@ -139,8 +140,8 @@ where
     // An explicit selector is a single validated workspace board for either principal
     // kind; otherwise a conversation frame reads its own board and an agent slot the
     // union — the parity of `resolveAgentQueryWorkspaceId` + the route's three arms.
-    let single_source = match workspace_selector {
-        Some(workspace) => Some(BoardScopeSource::SelectedWorkspace(workspace.clone())),
+    let single_source = match selector {
+        Some(source) => Some(source.clone()),
         None => principal
             .source()
             .map(|frame| BoardScopeSource::FrameConversation(frame.clone())),
@@ -386,7 +387,7 @@ mod tests {
     async fn an_explicit_selector_overrides_the_frame_and_resolves_that_workspace() {
         let mut ports = FakePorts::new();
         ports.resolved_board = Some(ws_board("ws-9"));
-        let selector = WorkspaceId::parse("ws-9").unwrap();
+        let selector = BoardScopeSource::SelectedWorkspace(WorkspaceId::parse("ws-9").unwrap());
         let access = resolve_task_list_boards(
             &conversation_frame("agent-1", "conv-1"),
             Some(&selector),
@@ -396,10 +397,7 @@ mod tests {
         .unwrap();
         assert_eq!(authorized(access), vec![ws_board("ws-9")]);
         // The selector arm resolved the SELECTED workspace, ignoring the frame.
-        assert_eq!(
-            ports.observed_source,
-            Some(BoardScopeSource::SelectedWorkspace(selector))
-        );
+        assert_eq!(ports.observed_source, Some(selector));
     }
 
     #[tokio::test]

@@ -200,3 +200,76 @@ describe('task list help states the scope-branched defaults (B3, #task:2018 revi
     expect(list.help.includes('Returns aggregated tasks across the current workspace')).toBe(false);
   });
 });
+
+describe('task list scope flags', () => {
+  const list = findCommand('task', 'list')!;
+
+  it('passes --target and --workspace through as query fields', async () => {
+    const { client, capture } = capturing('listTasks');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await list.run({ env, client: client as any, args: parsed([], { target: '#conv:abc' }) });
+    expect(capture()).toEqual({ target: '#conv:abc' });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await list.run({ env, client: client as any, args: parsed([], { workspace: 'eng' }) });
+    expect(capture()).toEqual({ workspace_name: 'eng' });
+  });
+
+  it('rejects --target with another scope flag', async () => {
+    const others: Record<string, string>[] = [
+      { workspace: 'eng' },
+      { 'workspace-id': 'w' },
+      { 'conversation-id': 'c' },
+    ];
+    for (const other of others) {
+      await expectCliError(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        list.run({ env, client: {} as any, args: parsed([], { target: '#conv:abc', ...other }) }),
+        'mutually_exclusive',
+      );
+    }
+  });
+});
+
+describe('task status accepts several task numbers', () => {
+  const status = findCommand('task', 'status')!;
+
+  it('keeps the single-number result shape', async () => {
+    const { client, capture } = capturing('updateTaskStatus');
+    const result = await status.run({
+      env,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      client: client as any,
+      args: parsed(['7'], { status: 'done' }),
+    });
+    expect(capture()).toEqual({ task_number: 7, status: 'done' });
+    expect(result).toEqual({ ok: true });
+  });
+
+  it('applies each number in order and reports per-task outcomes', async () => {
+    const calls: number[] = [];
+    const client = {
+      updateTaskStatus: async (input: { task_number: number }) => {
+        calls.push(input.task_number);
+        if (input.task_number === 42)
+          throw new CliError({ code: 'not_found', message: 'gone', retriable: false });
+        return input.task_number === 43
+          ? { success: false, code: 'task_not_found', reason: 'no task' }
+          : { success: true };
+      },
+    };
+    const result = await status.run({
+      env,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      client: client as any,
+      args: parsed(['41', '42', '43'], { status: 'done', workspace: 'eng' }),
+    });
+    expect(calls).toEqual([41, 42, 43]);
+    expect(result).toEqual({
+      results: [
+        { task_number: 41, success: true },
+        { task_number: 42, success: false, code: 'not_found', reason: 'gone' },
+        { task_number: 43, success: false, code: 'task_not_found', reason: 'no task' },
+      ],
+    });
+  });
+});

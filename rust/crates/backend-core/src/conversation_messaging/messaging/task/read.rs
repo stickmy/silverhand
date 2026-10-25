@@ -139,8 +139,8 @@ use super::spec::{TaskId, TaskNumber};
 /// cannot be spliced onto a request that named another.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum BoardScopeSource {
-    /// A conversation-scoped runtime's own conversation — its ambient board (TS
-    /// `boardOfConversation`).
+    /// A conversation's own board (TS `boardOfConversation`): a conversation-scoped
+    /// runtime's frame, or a `--target` the caller already resolved for this agent.
     FrameConversation(ConversationId),
     /// An explicit `--workspace-id/--workspace` selector (a frame or a slot
     /// runtime): a workspace the agent must be a member of.

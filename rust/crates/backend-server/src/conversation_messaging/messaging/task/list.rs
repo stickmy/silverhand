@@ -33,12 +33,18 @@ use axum::{
     routing::get,
 };
 use silverhand_backend_core::conversation_messaging::messaging::task::{
-    AgentBoardResolver, AgentReadableBoards, TaskCandidateFetch, TaskCandidateQuery,
-    TaskListAccess, TaskListForbidden, TaskParticipationReads, TaskReadCapability,
-    list_visible_tasks, resolve_task_list_boards,
+    AgentBoardResolver, AgentReadableBoards, BoardScopeSource, TaskCandidateFetch,
+    TaskCandidateQuery, TaskListAccess, TaskListForbidden, TaskParticipationReads,
+    TaskReadCapability, TaskWriteDoorReads, list_visible_tasks, resolve_task_list_boards,
+};
+use silverhand_backend_core::conversation_messaging::messaging::{
+    DeliveryIntent, DirectPairAllocation, TargetAddress,
 };
 use silverhand_backend_core::foundation::identity::WorkspaceId;
 use silverhand_backend_core::host_runtime::runtime_credential::RuntimePrincipal;
+use silverhand_backend_core::identity_access::workspace_name::CanonicalWorkspaceName;
+
+use crate::conversation_messaging::messaging::router::address_refusal;
 
 use super::query::{InvalidQuery, parse_list_query};
 use super::wire::{ProjectionCorruption, TaskListDto, project_summary};
@@ -53,35 +59,39 @@ use super::wire::{ProjectionCorruption, TaskListDto, project_summary};
 /// send door already holds; the fetch is the SQLite task store.
 ///
 /// [`MessagingStore`]: silverhand_backend_core
-pub struct TaskListState<B, F> {
+pub struct TaskListState<B, F, T> {
     /// The board-resolution, `read_tasks` capability, and per-row participation authority.
     pub boards: B,
     /// The joined candidate fetch the resolved coordinate narrows.
     pub fetch: F,
+    /// The address authority a `target` filter resolves through (read intent).
+    pub targets: T,
 }
 
 /// The board-list route, on the path the reference uses. `B` is cloned once per request so
 /// the core's `&mut self` authority ports have an owned handle; the clone is pool-backed and
 /// cheap (the send door shares one `Arc` state for the same reason this holds one).
-pub fn task_list_router<B, F>(state: TaskListState<B, F>) -> Router
+pub fn task_list_router<B, F, T>(state: TaskListState<B, F, T>) -> Router
 where
     B: AgentBoardResolver
         + AgentReadableBoards
         + TaskReadCapability
         + TaskParticipationReads
+        + TaskWriteDoorReads
         + Clone
         + Send
         + Sync
         + 'static,
     F: TaskCandidateFetch + Send + Sync + 'static,
+    T: TargetAddress + Send + Sync + 'static,
 {
     Router::new()
-        .route("/internal/agents/{aid}/tasks", get(list_route::<B, F>))
+        .route("/internal/agents/{aid}/tasks", get(list_route::<B, F, T>))
         .with_state(Arc::new(state))
 }
 
-async fn list_route<B, F>(
-    State(state): State<Arc<TaskListState<B, F>>>,
+async fn list_route<B, F, T>(
+    State(state): State<Arc<TaskListState<B, F, T>>>,
     request: Request,
 ) -> Response
 where
@@ -89,11 +99,13 @@ where
         + AgentReadableBoards
         + TaskReadCapability
         + TaskParticipationReads
+        + TaskWriteDoorReads
         + Clone
         + Send
         + Sync
         + 'static,
     F: TaskCandidateFetch + Send + Sync + 'static,
+    T: TargetAddress + Send + Sync + 'static,
 {
     // Read, never derived: the agent is the authenticated principal, not the path segment.
     let Some(principal) = request.extensions().get::<RuntimePrincipal>().cloned() else {
@@ -110,9 +122,38 @@ where
     // handle without a second app-wide store.
     let mut boards = state.boards.clone();
 
-    let scope = match resolve_task_list_boards(&principal, query.workspace_id.as_ref(), &mut boards)
-        .await
-    {
+    let mut conversation = query.conversation_id;
+    let selector = if let Some(target) = &query.target {
+        let resolved = match state
+            .targets
+            .resolve(
+                principal.agent(),
+                target,
+                DirectPairAllocation::Forbidden,
+                DeliveryIntent::Read,
+            )
+            .await
+        {
+            Ok(Ok(resolved)) => resolved,
+            Ok(Err(refusal)) => return address_refusal(refusal),
+            Err(_) => return safe_500("resolve_target"),
+        };
+        if resolved.thread_root.is_some() {
+            return thread_suffix_not_supported();
+        }
+        conversation = Some(resolved.conversation.clone());
+        Some(BoardScopeSource::FrameConversation(resolved.conversation))
+    } else if let Some(name) = &query.workspace_name {
+        match workspace_named(&mut boards, name).await {
+            Ok(Ok(workspace)) => Some(BoardScopeSource::SelectedWorkspace(workspace)),
+            Ok(Err(refusal)) => return refusal,
+            Err(_) => return safe_500("resolve_workspace_name"),
+        }
+    } else {
+        query.workspace_id.map(BoardScopeSource::SelectedWorkspace)
+    };
+
+    let scope = match resolve_task_list_boards(&principal, selector.as_ref(), &mut boards).await {
         Ok(TaskListAccess::Authorized(scope)) => scope,
         Ok(TaskListAccess::UnknownWorkspace(workspace)) => return unknown_workspace(&workspace),
         Ok(TaskListAccess::Forbidden(reason)) => return forbidden(reason),
@@ -123,7 +164,7 @@ where
     // `list_visible_tasks` stays the authority, so this `WHERE` carries no trust.
     let candidate_query = TaskCandidateQuery {
         boards: scope.fetch_coordinate(),
-        conversation: query.conversation_id,
+        conversation,
         statuses: query.statuses,
         task_numbers: query.task_numbers,
         assignee_agent: query.assignee_agent,
@@ -162,6 +203,55 @@ fn unknown_workspace(workspace: &WorkspaceId) -> Response {
         })),
     )
         .into_response()
+}
+
+/// Resolve `--workspace <name>` to exactly one workspace; membership stays the board
+/// resolver's. Same refusal codes as the by-number task doors.
+async fn workspace_named<B: TaskWriteDoorReads>(
+    reads: &mut B,
+    raw: &str,
+) -> Result<Result<WorkspaceId, Response>, ()> {
+    let unknown = || {
+        coded(
+            StatusCode::NOT_FOUND,
+            format!("no workspace named \"{raw}\""),
+            "unknown_workspace",
+            serde_json::json!({}),
+        )
+    };
+    let Ok(canonical) = CanonicalWorkspaceName::parse(raw) else {
+        return Ok(Err(unknown()));
+    };
+    let mut candidates = reads.workspaces_named(&canonical).await.map_err(|_| ())?;
+    match candidates.len() {
+        0 => Ok(Err(unknown())),
+        1 => Ok(Ok(candidates.remove(0))),
+        n => Ok(Err(coded(
+            StatusCode::CONFLICT,
+            format!("{n} workspaces named \"{raw}\"; disambiguate with --workspace-id"),
+            "ambiguous_workspace",
+            serde_json::json!({
+                "workspace_candidates": candidates.iter().map(|w| w.as_str()).collect::<Vec<_>>(),
+            }),
+        ))),
+    }
+}
+
+fn thread_suffix_not_supported() -> Response {
+    coded(
+        StatusCode::BAD_REQUEST,
+        "task list filters by conversation, not a reply cluster".to_owned(),
+        "thread_suffix_not_supported",
+        serde_json::json!({}),
+    )
+}
+
+fn coded(status: StatusCode, error: String, code: &str, extra: serde_json::Value) -> Response {
+    let mut body = serde_json::json!({ "error": error, "code": code });
+    if let (Some(map), serde_json::Value::Object(extra)) = (body.as_object_mut(), extra) {
+        map.extend(extra);
+    }
+    (status, Json(body)).into_response()
 }
 
 /// A single named board the agent may not read — a `403` carrying the reason the

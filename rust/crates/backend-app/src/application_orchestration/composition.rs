@@ -159,6 +159,7 @@ pub(super) async fn compose_after_audit(
     // `MessagingStore` the send door holds; captured before `send_routers` consumes it as the
     // send unit-of-work.
     let task_list_boards = messaging_store.clone();
+    let task_list_targets = target_address.clone();
     // The stale-message resolution route rides the SAME post authority (agent
     // participation + placement + half-dead narrowing) and the independent
     // `send_messages` capability the send door holds; both captured before
@@ -1349,6 +1350,7 @@ pub(super) async fn compose_after_audit(
             .merge(task_list_router(TaskListState {
                 boards: task_list_boards,
                 fetch: task_store,
+                targets: task_list_targets,
             }))
             .merge(stale_message_resolution_router(
                 stale_admission,

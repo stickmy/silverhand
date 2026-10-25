@@ -44,6 +44,10 @@ const MAX_LIMIT: i64 = 500;
 pub(crate) struct ListTasksQuery {
     /// The explicit `--workspace-id` selector that pins the single-board lane.
     pub workspace_id: Option<WorkspaceId>,
+    /// The explicit `--workspace <name>` selector; resolved by the route.
+    pub workspace_name: Option<String>,
+    /// A `--target` address naming the one conversation to list; resolved by the route.
+    pub target: Option<String>,
     /// Narrow to one conversation.
     pub conversation_id: Option<ConversationId>,
     /// Narrow to a set of statuses; empty = every status.
@@ -73,6 +77,7 @@ pub(crate) enum QueryField {
     Status,
     TaskNumber,
     Limit,
+    Selector,
 }
 
 /// Why a field's value was rejected — the three schema rules a list query can break.
@@ -88,6 +93,8 @@ pub(crate) enum QueryFieldReason {
     /// field's cap, or too large to represent (a `task_number` above [`TaskNumber::MAX_SAFE`]
     /// or either field's value beyond `i64`).
     OutOfRange,
+    /// `target` with another scope key, or `workspace_id` with `workspace_name`.
+    Conflicting,
 }
 
 impl QueryField {
@@ -97,6 +104,7 @@ impl QueryField {
             QueryField::Status => "status",
             QueryField::TaskNumber => "task_number",
             QueryField::Limit => "limit",
+            QueryField::Selector => "target",
         }
     }
 }
@@ -110,6 +118,11 @@ impl InvalidQuery {
     pub(crate) fn message(&self) -> String {
         let field = self.field.as_str();
         match self.reason {
+            QueryFieldReason::Conflicting => {
+                "target excludes workspace_id, workspace_name and conversation_id; \
+                 workspace_id excludes workspace_name"
+                    .to_owned()
+            }
             QueryFieldReason::NotInClosedSet => {
                 // List the closed set so the agent can correct the value, not just learn it
                 // was wrong. Built from the status enum's own array, so it never drifts.
@@ -136,6 +149,8 @@ impl InvalidQuery {
 /// validated coordinate, or [`InvalidQuery`] for a value outside its schema.
 pub(crate) fn parse_list_query(raw: Option<&str>) -> Result<ListTasksQuery, InvalidQuery> {
     let mut workspace_id: Option<String> = None;
+    let mut workspace_name: Option<String> = None;
+    let mut target: Option<String> = None;
     let mut conversation_id: Option<String> = None;
     let mut assignee_id: Option<String> = None;
     let mut limit: Option<String> = None;
@@ -146,6 +161,8 @@ pub(crate) fn parse_list_query(raw: Option<&str>) -> Result<ListTasksQuery, Inva
         for (key, value) in form_urlencoded::parse(raw.as_bytes()) {
             match key.as_ref() {
                 "workspace_id" => set_first(&mut workspace_id, value.into_owned()),
+                "workspace_name" => set_first(&mut workspace_name, value.into_owned()),
+                "target" => set_first(&mut target, value.into_owned()),
                 "conversation_id" => set_first(&mut conversation_id, value.into_owned()),
                 "assignee_id" => set_first(&mut assignee_id, value.into_owned()),
                 "limit" => set_first(&mut limit, value.into_owned()),
@@ -158,8 +175,23 @@ pub(crate) fn parse_list_query(raw: Option<&str>) -> Result<ListTasksQuery, Inva
         }
     }
 
+    let workspace_name = workspace_name.filter(|value| !value.is_empty());
+    let target = target.filter(|value| !value.is_empty());
+    let workspace_id = workspace_id.filter(|value| !value.is_empty());
+    let conversation_id = conversation_id.filter(|value| !value.is_empty());
+    let target_conflicts = target.is_some()
+        && (workspace_id.is_some() || workspace_name.is_some() || conversation_id.is_some());
+    if target_conflicts || (workspace_id.is_some() && workspace_name.is_some()) {
+        return Err(InvalidQuery::of(
+            QueryField::Selector,
+            QueryFieldReason::Conflicting,
+        ));
+    }
+
     Ok(ListTasksQuery {
         workspace_id: optional_id(workspace_id, WorkspaceId::parse),
+        workspace_name,
+        target,
         conversation_id: optional_id(conversation_id, ConversationId::parse),
         assignee_agent: optional_id(assignee_id, AgentId::parse),
         statuses: parse_statuses(&statuses)?,
@@ -255,6 +287,33 @@ mod tests {
         let query =
             parse_list_query(Some("workspace_id=&conversation_id=&assignee_id=&limit=")).unwrap();
         assert_eq!(query, ListTasksQuery::default());
+    }
+
+    #[test]
+    fn target_and_workspace_name_are_read() {
+        let query = parse_list_query(Some("target=%23conv%3Aabc")).unwrap();
+        assert_eq!(query.target.as_deref(), Some("#conv:abc"));
+        let query = parse_list_query(Some("workspace_name=alpha")).unwrap();
+        assert_eq!(query.workspace_name.as_deref(), Some("alpha"));
+    }
+
+    #[test]
+    fn selectors_are_mutually_exclusive() {
+        for raw in [
+            "target=x&workspace_id=w",
+            "target=x&conversation_id=c",
+            "target=x&workspace_name=n",
+            "workspace_id=w&workspace_name=n",
+        ] {
+            assert_eq!(
+                parse_list_query(Some(raw)),
+                Err(InvalidQuery::of(
+                    QueryField::Selector,
+                    QueryFieldReason::Conflicting
+                )),
+                "{raw}"
+            );
+        }
     }
 
     #[test]
