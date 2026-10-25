@@ -380,19 +380,15 @@ async fn authorize_read_target(
     }
 
     if let Some(workspace) = &workspace_id {
-        let granted: Option<i64> = sqlx::query_scalar(
-            "SELECT CASE WHEN w.owner_agent_id = ? OR EXISTS (SELECT 1 FROM \
-             workspace_agent_capabilities c WHERE c.workspace_id = w.id AND c.agent_id = ? \
-             AND c.capability = 'read_messages') THEN 1 ELSE 0 END \
-             FROM workspaces w WHERE w.id = ?",
+        let granted = crate::foundation::capability::agent_has_workspace_capability(
+            &mut **tx,
+            workspace.as_str(),
+            agent.as_str(),
+            "read_messages",
         )
-        .bind(agent.as_str())
-        .bind(agent.as_str())
-        .bind(workspace.as_str())
-        .fetch_optional(&mut **tx)
         .await
         .map_err(AgentReadHistoryStoreError::from)?;
-        if !granted.is_some_and(|allowed| allowed != 0) {
+        if !granted {
             return Ok(Err(ReadHistoryRefusal::CapabilityDenied));
         }
     }

@@ -135,26 +135,20 @@ const SELECT_TASK_BY_SOURCE: &str =
 const SELECT_DESTINATION_LIFECYCLE: &str =
     "SELECT closed_at, archived_at FROM conversations WHERE id = ?";
 const SELECT_SOURCE_CONVERSATION: &str = "SELECT conversation_id FROM messages WHERE id = ?";
-const RESOLVE_CAPABILITY: &str = "SELECT CASE WHEN w.owner_agent_id = ? OR EXISTS ( \
-     SELECT 1 FROM workspace_agent_capabilities c WHERE c.workspace_id = w.id \
-     AND c.agent_id = ? AND c.capability = ?) THEN 1 ELSE 0 END \
-     FROM workspaces w WHERE w.id = ?";
-
 async fn has_capability(
     tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     workspace: &silverhand_backend_core::foundation::identity::WorkspaceId,
     agent: &silverhand_backend_core::foundation::identity::AgentId,
     capability: &'static str,
 ) -> Result<bool, PersistenceFailure> {
-    let granted: Option<i64> = sqlx::query_scalar(RESOLVE_CAPABILITY)
-        .bind(agent.as_str())
-        .bind(agent.as_str())
-        .bind(capability)
-        .bind(workspace.as_str())
-        .fetch_optional(&mut **tx)
-        .await
-        .map_err(driver)?;
-    Ok(granted.unwrap_or(0) != 0)
+    crate::foundation::capability::agent_has_workspace_capability(
+        &mut **tx,
+        workspace.as_str(),
+        agent.as_str(),
+        capability,
+    )
+    .await
+    .map_err(driver)
 }
 
 impl TaskCreateWrite for SqliteTaskCreateWrite {

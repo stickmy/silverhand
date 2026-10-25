@@ -197,12 +197,14 @@ async fn reaction_access(
                     if participant == 0 {
                         return Ok(ReactionAccess::Forbidden);
                     }
-                    let capability: i64 = sqlx::query_scalar(
-                        "SELECT EXISTS(SELECT 1 FROM workspaces WHERE id = ? AND owner_agent_id = ?) \
-                         OR EXISTS(SELECT 1 FROM workspace_agent_capabilities WHERE workspace_id = ? AND agent_id = ? AND capability = 'send_messages')",
-                    ).bind(workspace).bind(id.as_str()).bind(workspace).bind(id.as_str())
-                    .fetch_one(&mut **tx).await?;
-                    Ok(if capability != 0 {
+                    let capability = crate::foundation::capability::agent_has_workspace_capability(
+                        &mut **tx,
+                        workspace,
+                        id.as_str(),
+                        "send_messages",
+                    )
+                    .await?;
+                    Ok(if capability {
                         ReactionAccess::Allowed
                     } else {
                         ReactionAccess::CapabilityDenied

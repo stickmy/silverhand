@@ -743,15 +743,14 @@ impl<E> MessagingStore<E> {
         agent: &AgentId,
         conversation: &ConversationId,
     ) -> Result<bool, PersistenceFailure> {
-        let value: Option<i64> = sqlx::query_scalar(
+        let value: Option<i64> = sqlx::query_scalar(concat!(
             "SELECT CASE WHEN c.placement_kind='direct_pair' THEN 1 \
              WHEN c.placement_kind='workspace' AND EXISTS(SELECT 1 FROM workspace_members wm \
-             WHERE wm.workspace_id=c.workspace_id AND wm.agent_id=?) AND (EXISTS(SELECT 1 FROM \
-             workspaces w WHERE w.id=c.workspace_id AND w.owner_agent_id=?) OR EXISTS(SELECT 1 \
-             FROM workspace_agent_capabilities cap WHERE cap.workspace_id=c.workspace_id AND \
-             cap.agent_id=? AND cap.capability='manage_schedules')) THEN 1 ELSE 0 END \
-             FROM conversations c WHERE c.id=?",
-        )
+             WHERE wm.workspace_id=c.workspace_id AND wm.agent_id=?) AND EXISTS(SELECT 1 FROM \
+             workspaces w WHERE w.id=c.workspace_id AND ",
+            crate::foundation::capability::capability_predicate!("manage_schedules"),
+            ") THEN 1 ELSE 0 END FROM conversations c WHERE c.id=?"
+        ))
         .bind(agent.as_str())
         .bind(agent.as_str())
         .bind(agent.as_str())

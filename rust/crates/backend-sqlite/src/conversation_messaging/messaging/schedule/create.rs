@@ -63,11 +63,6 @@ const INSERT_SCHEDULE: &str = "INSERT INTO schedules \
 /// the write lock. `LEFT`-JOIN semantics by hand: a missing row is target-not-found.
 const SELECT_TARGET_CONVERSATION: &str =
     "SELECT title, roster_policy, workspace_id, closed_at FROM conversations WHERE id = ?";
-const RESOLVE_MANAGE_SCHEDULES: &str = "SELECT CASE WHEN w.owner_agent_id = ? OR EXISTS ( \
-     SELECT 1 FROM workspace_agent_capabilities c WHERE c.workspace_id = w.id \
-     AND c.agent_id = ? AND c.capability = 'manage_schedules') THEN 1 ELSE 0 END \
-     FROM workspaces w WHERE w.id = ?";
-
 /// Serialize a canonical [`ScheduleSpec`] into the persisted `spec_json` shape,
 /// byte-identical to the TypeScript `JSON.stringify(spec)` and to what
 /// [`super::decode_spec`] reads back: a `{kind, ...}` object with snake_case
@@ -212,14 +207,15 @@ impl<K: Clock + Send + Sync> ScheduleCreateStore for SqliteScheduleCreate<K> {
 
         let workspace_id: Option<String> = target.try_get("workspace_id").map_err(driver)?;
         if let Some(workspace_id) = workspace_id {
-            let granted: Option<i64> = sqlx::query_scalar(RESOLVE_MANAGE_SCHEDULES)
-                .bind(owner.as_str())
-                .bind(owner.as_str())
-                .bind(&workspace_id)
-                .fetch_optional(&mut *tx)
-                .await
-                .map_err(driver)?;
-            if granted.unwrap_or(0) == 0 {
+            let granted = crate::foundation::capability::agent_has_workspace_capability(
+                &mut *tx,
+                &workspace_id,
+                owner.as_str(),
+                "manage_schedules",
+            )
+            .await
+            .map_err(driver)?;
+            if !granted {
                 tx.rollback().await.map_err(driver)?;
                 return Ok(ScheduleCreateOutcome::CapabilityDenied);
             }

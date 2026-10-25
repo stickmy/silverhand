@@ -335,18 +335,18 @@ impl<'connection> TaskWriteAuthorityReader<'connection> {
 
     async fn has_capability(
         &mut self,
-        query: &'static str,
+        capability: &'static str,
         workspace: &WorkspaceId,
         agent: &AgentId,
     ) -> Result<bool, PersistenceFailure> {
-        let granted: Option<i64> = sqlx::query_scalar(query)
-            .bind(agent.as_str())
-            .bind(agent.as_str())
-            .bind(workspace.as_str())
-            .fetch_optional(&mut *self.connection)
-            .await
-            .map_err(driver)?;
-        Ok(matches!(granted, Some(1)))
+        crate::foundation::capability::agent_has_workspace_capability(
+            &mut *self.connection,
+            workspace.as_str(),
+            agent.as_str(),
+            capability,
+        )
+        .await
+        .map_err(driver)
     }
 
     /// `write_tasks` on a workspace board (owner arm ∨ explicit grant).
@@ -355,8 +355,7 @@ impl<'connection> TaskWriteAuthorityReader<'connection> {
         workspace: &WorkspaceId,
         agent: &AgentId,
     ) -> Result<bool, PersistenceFailure> {
-        self.has_capability(WRITE_TASKS_CAPABILITY, workspace, agent)
-            .await
+        self.has_capability("write_tasks", workspace, agent).await
     }
 
     /// `create_tasks` on a workspace board.
@@ -365,8 +364,7 @@ impl<'connection> TaskWriteAuthorityReader<'connection> {
         workspace: &WorkspaceId,
         agent: &AgentId,
     ) -> Result<bool, PersistenceFailure> {
-        self.has_capability(CREATE_TASKS_CAPABILITY, workspace, agent)
-            .await
+        self.has_capability("create_tasks", workspace, agent).await
     }
 
     /// `read_tasks` on a workspace board — the edit door needs it in addition to
@@ -376,8 +374,7 @@ impl<'connection> TaskWriteAuthorityReader<'connection> {
         workspace: &WorkspaceId,
         agent: &AgentId,
     ) -> Result<bool, PersistenceFailure> {
-        self.has_capability(READ_TASKS_CAPABILITY_POINT, workspace, agent)
-            .await
+        self.has_capability("read_tasks", workspace, agent).await
     }
 
     /// The workspaces a canonical name resolves to, in the TS `findAllByName`
@@ -595,18 +592,14 @@ where
                     .workspace
                     .as_ref()
                     .ok_or_else(|| corrupt("conversations.workspace_id"))?;
-                let allowed: Option<i64> = sqlx::query_scalar(
-                    "SELECT 1 FROM workspaces w WHERE w.id = ? AND \
-                     (w.owner_agent_id = ? OR EXISTS (SELECT 1 FROM workspace_agent_capabilities c \
-                     WHERE c.workspace_id = w.id AND c.agent_id = ? AND c.capability = 'send_messages'))",
+                crate::foundation::capability::agent_has_workspace_capability(
+                    &self.pool,
+                    workspace.as_str(),
+                    agent.as_str(),
+                    "send_messages",
                 )
-                .bind(workspace.as_str())
-                .bind(agent.as_str())
-                .bind(agent.as_str())
-                .fetch_optional(&self.pool)
                 .await
-                .map_err(driver)?;
-                allowed.is_some()
+                .map_err(driver)?
             }
             PLACEMENT_DIRECT_PAIR => {
                 self.agent_participates(&place, agent).await? && self.accepts_posts(&place).await?
@@ -1177,24 +1170,7 @@ fn decode_name_segment(segment: &str, max: usize) -> Option<String> {
 // the `tasks` table. Nothing below touches `tasks`: an authorization is a fact
 // about the conversation and the workspace, never about the task row.
 
-/// The workspace agent-capability predicate for a workspace `w`, parameterized by
-/// the capability TOKEN: `(w.owner_agent_id = ? OR EXISTS (a `workspace_agent_capabilities`
-/// grant of that token))`. This is the ONE shape [`SendCapability::may_send_messages`]
-/// answers for `send_messages`; the token is the only capability-specific literal, so
-/// every task capability names its own token rather than borrowing another's. The two
-/// agent binds fill the owner arm and the capability `EXISTS`. Consulted only for a
-/// workspace board — a direct-pair board has no capability axis.
-macro_rules! capability_predicate {
-    ($token:literal) => {
-        concat!(
-            "(w.owner_agent_id = ? OR EXISTS (SELECT 1 FROM workspace_agent_capabilities c \
-             WHERE c.workspace_id = w.id AND c.agent_id = ? AND c.capability = ",
-            "'",
-            $token,
-            "'))"
-        )
-    };
-}
+use crate::foundation::capability::capability_predicate;
 
 /// The `read_tasks` predicate — a named instance of the shared [`capability_predicate`].
 macro_rules! read_tasks_predicate {
@@ -1227,46 +1203,6 @@ const AGENT_WORKSPACE_MEMBERSHIP: &str = "SELECT CASE WHEN w.owner_agent_id = ? 
      (w.owner_agent_id IS NULL AND EXISTS (SELECT 1 FROM workspace_members wm \
      WHERE wm.workspace_id = w.id AND wm.agent_id = ?)) THEN 1 ELSE 0 END \
      FROM workspaces w WHERE w.id = ?";
-
-/// The `read_messages` capability for a workspace `w` — the SAME `owner_agent_id OR
-/// workspace_agent_capabilities` shape [`read_tasks_predicate`] answers for `read_tasks`,
-/// with the capability token HARDCODED to `'read_messages'`. It is never parameterized: a
-/// caller may not name the capability it is probed for. Three-valued in shape but the
-/// caller-side gate ladder has already settled workspace existence (via the horizon), so
-/// here a missing row or `0` both collapse to "may not read". An agent-home workspace grants
-/// its owner through the owner arm; every other member needs the explicit `read_messages`
-/// grant — a `read_tasks`/`send_messages` grant does NOT satisfy it.
-const AGENT_READ_MESSAGES_CAPABILITY: &str = "SELECT CASE WHEN w.owner_agent_id = ? OR \
-     EXISTS (SELECT 1 FROM workspace_agent_capabilities c WHERE c.workspace_id = w.id \
-     AND c.agent_id = ? AND c.capability = 'read_messages') THEN 1 ELSE 0 END \
-     FROM workspaces w WHERE w.id = ?";
-
-const AGENT_CREATE_CHANNELS_CAPABILITY: &str = "SELECT CASE WHEN w.owner_agent_id = ? OR \
-     EXISTS (SELECT 1 FROM workspace_agent_capabilities c WHERE c.workspace_id = w.id \
-     AND c.agent_id = ? AND c.capability = 'create_channels') THEN 1 ELSE 0 END \
-     FROM workspaces w WHERE w.id = ?";
-
-/// The `write_tasks` / `create_tasks` / `read_tasks` capability POINT reads for a
-/// workspace `w`, each built from the shared [`capability_predicate`] with its own
-/// token so no task capability borrows another's name. Shape 1/0 (existence is the
-/// caller's separate membership read); a direct-pair board has no capability axis
-/// and never consults these. The two agent binds fill the owner arm and the grant
-/// `EXISTS`; the third bind is the workspace id.
-const WRITE_TASKS_CAPABILITY: &str = concat!(
-    "SELECT CASE WHEN ",
-    capability_predicate!("write_tasks"),
-    " THEN 1 ELSE 0 END FROM workspaces w WHERE w.id = ?"
-);
-const CREATE_TASKS_CAPABILITY: &str = concat!(
-    "SELECT CASE WHEN ",
-    capability_predicate!("create_tasks"),
-    " THEN 1 ELSE 0 END FROM workspaces w WHERE w.id = ?"
-);
-const READ_TASKS_CAPABILITY_POINT: &str = concat!(
-    "SELECT CASE WHEN ",
-    capability_predicate!("read_tasks"),
-    " THEN 1 ELSE 0 END FROM workspaces w WHERE w.id = ?"
-);
 
 /// Resolve a canonical workspace name to its board candidates, in the TS
 /// `findAllByName` deterministic order: a regular workspace (`owner_agent_id IS
@@ -1799,14 +1735,14 @@ where
         agent: &AgentId,
         workspace: &WorkspaceId,
     ) -> Result<bool, PersistenceFailure> {
-        let granted: Option<i64> = sqlx::query_scalar(AGENT_READ_MESSAGES_CAPABILITY)
-            .bind(agent.as_str())
-            .bind(agent.as_str())
-            .bind(workspace.as_str())
-            .fetch_optional(&self.pool)
-            .await
-            .map_err(driver)?;
-        Ok(granted.is_some_and(|allowed| allowed != 0))
+        crate::foundation::capability::agent_has_workspace_capability(
+            &self.pool,
+            workspace.as_str(),
+            agent.as_str(),
+            "read_messages",
+        )
+        .await
+        .map_err(driver)
     }
 }
 
@@ -1820,14 +1756,9 @@ where
         agent: &AgentId,
         workspace: &WorkspaceId,
     ) -> Result<bool, PersistenceFailure> {
-        let granted: Option<i64> = sqlx::query_scalar(AGENT_CREATE_CHANNELS_CAPABILITY)
-            .bind(agent.as_str())
-            .bind(agent.as_str())
-            .bind(workspace.as_str())
-            .fetch_optional(&self.pool)
+        crate::foundation::capability::agent_has_workspace_capability(&self.pool, workspace.as_str(), agent.as_str(), "create_channels")
             .await
-            .map_err(driver)?;
-        Ok(granted.is_some_and(|allowed| allowed != 0))
+            .map_err(driver)
     }
 }
 
@@ -1864,14 +1795,15 @@ impl<E: Send + Sync> MessagingStore<E> {
             if reachable != Some(1) {
                 continue;
             }
-            let readable: Option<i64> = sqlx::query_scalar(AGENT_READ_MESSAGES_CAPABILITY)
-                .bind(caller.as_str())
-                .bind(caller.as_str())
-                .bind(&workspace)
-                .fetch_optional(&mut *tx)
-                .await
-                .map_err(driver)?;
-            if readable == Some(1) {
+            let readable = crate::foundation::capability::agent_has_workspace_capability(
+                &mut *tx,
+                &workspace,
+                caller.as_str(),
+                "read_messages",
+            )
+            .await
+            .map_err(driver)?;
+            if readable {
                 return Ok(true);
             }
         }
