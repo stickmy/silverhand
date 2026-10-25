@@ -57,6 +57,19 @@ describe('strict flag validation', () => {
     expect(msg).toMatch(/also unrecognized: --bar, --baz/);
   });
 
+  it('suggests a unique flag that extends the input by a dash segment', () => {
+    let caught: unknown;
+    try {
+      assertKnownFlags(
+        { 'source-message': 'x' },
+        { noun: 'task', verb: 'create', flags: ['title', 'source-message-id', 'target'] },
+      );
+    } catch (err) {
+      caught = err;
+    }
+    expect((caught as CliError).message).toContain('did you mean --source-message-id?');
+  });
+
   it('falls back to a generic help hint when no candidate is close enough', () => {
     let caught: unknown;
     try {

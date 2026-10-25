@@ -247,6 +247,9 @@ where
         })?
         .map_err(AgentRefusal::Address)?;
 
+    if let Some(audit) = audit {
+        audit.set_conversation(&stream.conversation);
+    }
     reach(credential, &stream).map_err(|OutOfSessionScope| AgentRefusal::OutOfSessionScope)?;
 
     capability

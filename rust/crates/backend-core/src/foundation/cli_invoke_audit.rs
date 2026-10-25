@@ -4,7 +4,10 @@
 //! the closed, privacy-safe fact it may hand to a sink. In particular, validator reports,
 //! request bodies, raw paths, query values, and arbitrary field names have no type here.
 
-use crate::{foundation::cli_preflight_audit::NonNegativeFiniteF64, foundation::identity::AgentId};
+use crate::{
+    foundation::cli_preflight_audit::NonNegativeFiniteF64,
+    foundation::identity::{AgentId, ConversationId},
+};
 
 /// The only input coordinate the coarse validation taxonomy currently publishes.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -105,6 +108,27 @@ impl CliInvokeErrorCode {
     }
 }
 
+/// A response body's machine `code` (e.g. `target_unresolved`). Only a short
+/// snake_case token is accepted, so free text can never pass as a code.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CliRefusalCode(String);
+
+impl CliRefusalCode {
+    pub const MAX_LEN: usize = 64;
+
+    pub fn parse(raw: &str) -> Option<Self> {
+        let mut chars = raw.chars();
+        let valid = raw.len() <= Self::MAX_LEN
+            && chars.next().is_some_and(|c| c.is_ascii_lowercase())
+            && chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_');
+        valid.then(|| Self(raw.to_owned()))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CliInvokeErrorKind {
     Panic,
@@ -184,7 +208,10 @@ pub struct CliInvoke {
     pub http_status: u16,
     pub duration_ms: NonNegativeFiniteF64,
     pub error_code: Option<CliInvokeErrorCode>,
+    pub refusal_code: Option<CliRefusalCode>,
     pub error_issues: CliInvokeIssues,
+    /// The conversation the request resolved to act on, when the route reports one.
+    pub conversation_id: Option<ConversationId>,
     pub stale_resolution_reason: Option<CliStaleResolutionReason>,
     pub error_kind: Option<CliInvokeErrorKind>,
 }
@@ -197,6 +224,15 @@ pub trait CliInvokeAuditSink: Clone + Send + Sync + 'static {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn refusal_code_accepts_only_snake_case_tokens() {
+        assert!(CliRefusalCode::parse("target_unresolved").is_some());
+        assert!(CliRefusalCode::parse("e2").is_some());
+        for bad in ["", "Target", "_x", "has space", "a-b", &"a".repeat(65)] {
+            assert!(CliRefusalCode::parse(bad).is_none(), "{bad}");
+        }
+    }
 
     #[test]
     fn issue_value_object_deterministically_keeps_only_the_first_sixteen() {

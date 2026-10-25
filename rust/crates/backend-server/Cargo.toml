@@ -12,6 +12,7 @@ metrics.workspace = true
 axum.workspace = true
 base64.workspace = true
 form_urlencoded.workspace = true
+http-body = "=1.0.1"
 futures-util.workspace = true
 garde.workspace = true
 getrandom.workspace = true

@@ -116,8 +116,12 @@ export function assertKnownFlags(observed: Record<string, unknown>, opts: Strict
   });
 }
 
-/** Return the closest known flag name within edit distance ≤ 2, or null. */
+/** Return the closest known flag name within edit distance ≤ 2, or null.
+ *  A unique known flag extending the input by whole `-` segments wins first
+ *  (`--source-message` → `--source-message-id`). */
 function closestFlag(input: string, known: ReadonlySet<string>): string | null {
+  const extensions = [...known].filter((candidate) => candidate.startsWith(`${input}-`));
+  if (extensions.length === 1) return extensions[0]!;
   let best: { name: string; distance: number } | null = null;
   for (const candidate of known) {
     const d = levenshtein(input, candidate);

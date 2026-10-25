@@ -593,6 +593,18 @@ impl<C: AuditClock> CliInvokeFileSink<C> {
                 Value::String(code.as_str().to_owned()),
             );
         }
+        if let Some(code) = &invoke.refusal_code {
+            line.insert(
+                "refusal_code".to_owned(),
+                Value::String(code.as_str().to_owned()),
+            );
+        }
+        if let Some(conversation) = &invoke.conversation_id {
+            line.insert(
+                "conversation_id".to_owned(),
+                Value::String(conversation.as_str().to_owned()),
+            );
+        }
         if !invoke.error_issues.is_empty() {
             line.insert(
                 "error_issues".to_owned(),
@@ -1234,9 +1246,17 @@ mod tests {
             http_status: 422,
             duration_ms: NonNegativeFiniteF64::new(0.5).unwrap(),
             error_code: Some(CliInvokeErrorCode::InvalidInput),
+            refusal_code:
+                silverhand_backend_core::foundation::cli_invoke_audit::CliRefusalCode::parse(
+                    "target_unresolved",
+                ),
             error_issues: CliInvokeIssues::new(vec![CliInvokeIssue::body(
                 CliInvokeIssueCode::InvalidStructure,
             )]),
+            conversation_id: Some(
+                silverhand_backend_core::foundation::identity::ConversationId::parse("conv-7")
+                    .unwrap(),
+            ),
             stale_resolution_reason: None,
             error_kind: None,
         });
@@ -1254,6 +1274,8 @@ mod tests {
         assert_eq!(lines[0]["category"], "cli.preflight_failure");
         assert_eq!(lines[1]["category"], "cli.invoke");
         assert_eq!(lines[1]["duration_ms"], serde_json::json!(0.5));
+        assert_eq!(lines[1]["refusal_code"], "target_unresolved");
+        assert_eq!(lines[1]["conversation_id"], "conv-7");
         assert_eq!(
             lines[1]["error_issues"],
             serde_json::json!([{ "path": "body", "code": "invalid_structure" }])

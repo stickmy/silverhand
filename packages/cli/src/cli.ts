@@ -187,39 +187,24 @@ async function executeCommand(
     removedFlags: cmd.removedFlags,
   });
 
-  // Dispatcher-level hard guard (A1): commands are flag-only unless
-  // they explicitly opt in to a small positional surface. No command
-  // consumes `--`-trailing tokens.
-  // The original product-base bug was a `silverhand message send
-  // --content "..."` where bash word-split on an unescaped `"` and the
-  // tail got dropped silently into `args.positional`. Rejecting both
-  // here turns that into an explicit `unexpected_arguments` failure
-  // every agent can see. Both arrays are surfaced in `details` so the
-  // agent can echo back exactly which token tripped the check.
-  if ((!cmd.allowPositional && args.positional.length > 0) || args.rest.length > 0) {
+  // Dispatcher-level hard guard (A1): commands are flag-only unless they opt in
+  // to a positional surface; there, tokens after `--` are ordinary operands
+  // (POSIX end-of-options). Stray tokens on a flag-only command — typically a
+  // word-split value — are refused rather than silently dropped.
+  if (cmd.allowPositional) {
+    args.positional.push(...args.rest.splice(0));
+  } else if (args.positional.length > 0 || args.rest.length > 0) {
     const parts: string[] = [];
-    if (!cmd.allowPositional && args.positional.length > 0) {
-      parts.push(`positional ${JSON.stringify(args.positional)}`);
-    }
-    if (args.rest.length > 0) {
-      parts.push(`after-\`--\` ${JSON.stringify(args.rest)}`);
-    }
+    if (args.positional.length > 0) parts.push(`positional ${JSON.stringify(args.positional)}`);
+    if (args.rest.length > 0) parts.push(`after-\`--\` ${JSON.stringify(args.rest)}`);
     throw new CliError({
       code: 'validation_error',
       subkind: 'unexpected_arguments',
       message:
-        `silverhand ${noun} ${verb} ${
-          cmd.allowPositional ? 'does not accept tokens after `--`' : 'accepts flags only'
-        }; ` +
-        `got unexpected ${parts.join(' and ')}. ` +
-        (cmd.allowPositional
-          ? 'If the positional value contains spaces, quote it as one shell argument.'
-          : 'If a value contains spaces or quotes, pipe it via stdin or use a quoted heredoc.'),
+        `silverhand ${noun} ${verb} accepts flags only; got unexpected ${parts.join(' and ')}. ` +
+        'If a value contains spaces or quotes, pipe it via stdin or use a quoted heredoc.',
       retriable: false,
-      details: {
-        positional: cmd.allowPositional ? [] : args.positional,
-        rest: args.rest,
-      },
+      details: { positional: args.positional, rest: args.rest },
     });
   }
 

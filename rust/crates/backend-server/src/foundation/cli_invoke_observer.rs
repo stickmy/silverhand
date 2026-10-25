@@ -3,7 +3,7 @@
 use std::{
     panic::{AssertUnwindSafe, resume_unwind},
     sync::{
-        Arc,
+        Arc, OnceLock,
         atomic::{AtomicU8, AtomicU64, Ordering},
     },
     time::Instant,
@@ -11,8 +11,9 @@ use std::{
 
 use axum::{
     Router,
+    body::{Body, to_bytes},
     extract::{MatchedPath, Request, rejection::JsonRejection},
-    http::{Method, StatusCode},
+    http::{Method, StatusCode, header},
     middleware::{self, Next},
     response::Response,
 };
@@ -20,10 +21,11 @@ use futures_util::FutureExt;
 use silverhand_backend_core::{
     foundation::cli_invoke_audit::{
         CliInvoke, CliInvokeAuditSink, CliInvokeErrorCode, CliInvokeErrorKind, CliInvokeIssue,
-        CliInvokeIssueCode, CliInvokeIssues, CliInvokeMethod, CliInvokeRoute,
+        CliInvokeIssueCode, CliInvokeIssues, CliInvokeMethod, CliInvokeRoute, CliRefusalCode,
         CliStaleResolutionReason,
     },
     foundation::cli_preflight_audit::NonNegativeFiniteF64,
+    foundation::identity::ConversationId,
     host_runtime::runtime_credential::RuntimePrincipal,
 };
 use tracing::Instrument;
@@ -475,6 +477,7 @@ where
                 .extensions()
                 .get::<CliInvokeResponseMeta>()
                 .cloned();
+            let (response, refusal_code) = refusal_code(response).await;
             record(
                 &state.sink,
                 request_id,
@@ -485,7 +488,8 @@ where
                 status,
                 started,
                 terminal,
-                context.stale_reason(),
+                refusal_code,
+                &context,
                 None,
             );
             response
@@ -501,7 +505,8 @@ where
                 StatusCode::INTERNAL_SERVER_ERROR,
                 started,
                 None,
-                context.stale_reason(),
+                None,
+                &context,
                 Some(CliInvokeErrorKind::Panic),
             );
             resume_unwind(payload)
@@ -520,7 +525,8 @@ fn record<S: CliInvokeAuditSink>(
     status: StatusCode,
     started: Instant,
     terminal: Option<CliInvokeResponseMeta>,
-    stale_resolution_reason: Option<CliStaleResolutionReason>,
+    refusal_code: Option<CliRefusalCode>,
+    context: &CliInvokeRequestContext,
     error_kind: Option<CliInvokeErrorKind>,
 ) {
     let elapsed = NonNegativeFiniteF64::new(started.elapsed().as_secs_f64() * 1_000.0)
@@ -536,11 +542,43 @@ fn record<S: CliInvokeAuditSink>(
         http_status: status.as_u16(),
         duration_ms: elapsed,
         error_code: typed_code.or_else(|| fallback_error_code(status)),
+        refusal_code,
         error_issues: CliInvokeIssues::new(error_issues),
-        stale_resolution_reason,
+        conversation_id: context.conversation(),
+        stale_resolution_reason: context.stale_reason(),
         error_kind,
     };
     sink.record(invoke);
+}
+
+/// Error bodies are small buffered JSON; anything else is passed through unread.
+const REFUSAL_BODY_LIMIT: usize = 16 * 1024;
+
+/// Read the machine `code` of a JSON error body, then rebuild the response unchanged.
+async fn refusal_code(response: Response) -> (Response, Option<CliRefusalCode>) {
+    let is_json = response
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value.starts_with("application/json"));
+    let bounded = http_body::Body::size_hint(response.body())
+        .exact()
+        .is_some_and(|len| len <= REFUSAL_BODY_LIMIT as u64);
+    if response.status().is_success() || !is_json || !bounded {
+        return (response, None);
+    }
+    let (parts, body) = response.into_parts();
+    // Infallible for a buffered body of exact, bounded length.
+    let bytes = to_bytes(body, REFUSAL_BODY_LIMIT).await.unwrap_or_default();
+    let code = serde_json::from_slice::<serde_json::Value>(&bytes)
+        .ok()
+        .and_then(|value| {
+            value
+                .get("code")
+                .and_then(serde_json::Value::as_str)
+                .and_then(CliRefusalCode::parse)
+        });
+    (Response::from_parts(parts, Body::from(bytes)), code)
 }
 
 fn lookup(method: CliInvokeMethod, path: &str) -> Option<RouteDescriptor> {
@@ -612,9 +650,24 @@ const STALE_UNATTRIBUTED: u8 = 5;
 
 /// One-way request metadata. A later layer cannot replace the first authorized decision.
 #[derive(Clone, Default)]
-pub(crate) struct CliInvokeRequestContext(Arc<AtomicU8>);
+pub(crate) struct CliInvokeRequestContext(Arc<RequestFacts>);
+
+#[derive(Default)]
+struct RequestFacts {
+    stale: AtomicU8,
+    conversation: OnceLock<ConversationId>,
+}
 
 impl CliInvokeRequestContext {
+    /// Record the conversation the request resolved to act on (first write wins).
+    pub(crate) fn set_conversation(&self, conversation: &ConversationId) {
+        let _ = self.0.conversation.set(conversation.clone());
+    }
+
+    fn conversation(&self) -> Option<ConversationId> {
+        self.0.conversation.get().cloned()
+    }
+
     pub(crate) fn set_stale_reason(&self, reason: CliStaleResolutionReason) {
         let encoded = match reason {
             CliStaleResolutionReason::Unaffected => STALE_UNAFFECTED,
@@ -623,13 +676,16 @@ impl CliInvokeRequestContext {
             CliStaleResolutionReason::ForceSend => STALE_FORCE_SEND,
             CliStaleResolutionReason::Unattributed => STALE_UNATTRIBUTED,
         };
-        let _ = self
-            .0
-            .compare_exchange(STALE_UNSET, encoded, Ordering::Release, Ordering::Relaxed);
+        let _ = self.0.stale.compare_exchange(
+            STALE_UNSET,
+            encoded,
+            Ordering::Release,
+            Ordering::Relaxed,
+        );
     }
 
     pub(crate) fn stale_reason(&self) -> Option<CliStaleResolutionReason> {
-        match self.0.load(Ordering::Acquire) {
+        match self.0.stale.load(Ordering::Acquire) {
             STALE_UNAFFECTED => Some(CliStaleResolutionReason::Unaffected),
             STALE_REVISED => Some(CliStaleResolutionReason::Revised),
             STALE_OBSOLETE => Some(CliStaleResolutionReason::Obsolete),
@@ -858,6 +914,67 @@ mod tests {
         assert!(records[0].query_keys.is_empty());
         assert_eq!(records[1].query_keys, vec!["workspace_id"]);
         assert_eq!(records[1].route.unwrap().noun, "channel");
+    }
+
+    #[tokio::test]
+    async fn a_coded_error_body_records_its_code_and_reaches_the_caller_unchanged() {
+        let route = || {
+            Router::new().route(
+                "/internal/agents/{aid}/list-channels",
+                get(|| async {
+                    (
+                        StatusCode::NOT_FOUND,
+                        axum::Json(serde_json::json!({
+                            "error": "target names no stream you can use",
+                            "code": "target_unresolved",
+                        })),
+                    )
+                }),
+            )
+        };
+        let build = || request("GET", "/internal/agents/a1/list-channels", "");
+        let baseline = response_parts(route().oneshot(build()).await.unwrap()).await;
+        let sink = RecordingSink::default();
+        let observed = response_parts(
+            audit_cli_invocations(route(), sink.clone())
+                .oneshot(build())
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(observed, baseline);
+        let records = sink.recorded();
+        assert_eq!(
+            records[0].refusal_code.as_ref().map(CliRefusalCode::as_str),
+            Some("target_unresolved")
+        );
+        assert_eq!(records[0].conversation_id, None);
+    }
+
+    #[tokio::test]
+    async fn a_route_reported_conversation_is_recorded() {
+        let sink = RecordingSink::default();
+        let app = audit_cli_invocations(
+            Router::new().route(
+                "/internal/agents/{aid}/list-channels",
+                get(
+                    |Extension(context): Extension<CliInvokeRequestContext>| async move {
+                        context.set_conversation(&ConversationId::parse("conv-1").unwrap());
+                        StatusCode::OK
+                    },
+                ),
+            ),
+            sink.clone(),
+        );
+        app.oneshot(request("GET", "/internal/agents/a1/list-channels", ""))
+            .await
+            .unwrap();
+        let records = sink.recorded();
+        assert_eq!(
+            records[0].conversation_id,
+            Some(ConversationId::parse("conv-1").unwrap())
+        );
+        assert_eq!(records[0].refusal_code, None);
     }
 
     #[tokio::test]

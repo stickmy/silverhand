@@ -7,15 +7,37 @@ import { basename, join } from 'node:path';
 import { type AttachmentLocateDto } from '@silverhand/shared';
 import { defaultAppRoot, resolveDesktopAppPaths } from '@silverhand/shared/app-data-layout';
 import { CliError } from '../errors.js';
-import { flagString } from '../parse.js';
+import { flagString, type ParsedArgs } from '../parse.js';
 import { requireTargetFlag } from '../target-flag.js';
 import { reachHelpErrorRow } from '../reach-help.js';
 import type { Command } from './index.js';
 
+/** The one positional operand a file verb takes, as an alternative spelling of
+ *  its flag. Both together, or more than one positional, is refused. */
+function operandOrFlag(args: ParsedArgs, verb: string, flag: string): string | undefined {
+  const fromFlag = flagString(args, flag);
+  const tokens = args.positional;
+  if (tokens.length === 0) return fromFlag;
+  if (tokens.length > 1 || fromFlag !== undefined) {
+    throw new CliError({
+      code: 'validation_error',
+      subkind: 'unexpected_arguments',
+      message:
+        `silverhand file ${verb} takes ONE <${flag}>, either as --${flag} or as the ` +
+        `positional operand; got ${JSON.stringify(tokens)}` +
+        (fromFlag !== undefined ? ` and --${flag}` : '') +
+        '.',
+      retriable: false,
+      details: { command: `file ${verb}`, flag, positional: tokens.slice() },
+    });
+  }
+  return tokens[0];
+}
+
 const uploadCommand: Command = {
   verb: 'upload',
   summary: 'Upload a local file as an attachment of an addressed conversation.',
-  help: `silverhand file upload --target <address> --path <abs_path>
+  help: `silverhand file upload --target <address> (--path <abs_path> | <abs_path>)
                         [--filename <name>] [--content-type <mime>]
 
 Reads the file at --path (must be absolute) and uploads it as an
@@ -36,7 +58,8 @@ Flags:
                    \`#<workspace>/<title>\`. Copy the \`target=\` token from a
                    message header when it is the stream you mean. One you cannot post to is refused
                    exactly like one that does not exist.
-  --path           Required. Absolute path on local disk.
+  --path           Required. Absolute path on local disk; may also be
+                   given as the positional operand.
   --filename       Optional display filename. Defaults to basename(path).
                    The backend sanitizes path separators and control chars.
   --content-type   Optional MIME hint. Backend sniffs magic bytes and
@@ -56,6 +79,7 @@ Errors:
 ${reachHelpErrorRow('file_upload', 37)}  capability_denied (403)            you lack \`upload_attachments\` where
                                      --target points`,
   flags: ['target', 'path', 'filename', 'content-type'] as const,
+  allowPositional: true,
   async run({ env, client, args }) {
     const target = requireTargetFlag(flagString(args, 'target'), env, {
       command: 'silverhand file upload',
@@ -64,7 +88,7 @@ ${reachHelpErrorRow('file_upload', 37)}  capability_denied (403)            you 
         'CLI is authenticated in is where your credential lives, not a default ' +
         'destination.',
     });
-    const path = flagString(args, 'path');
+    const path = operandOrFlag(args, 'upload', 'path');
     if (!path) {
       throw new CliError({
         code: 'validation_error',
@@ -86,7 +110,7 @@ ${reachHelpErrorRow('file_upload', 37)}  capability_denied (403)            you 
 const updateCommand: Command = {
   verb: 'update',
   summary: 'Replace the bytes of an attachment you uploaded, keeping its id.',
-  help: `silverhand file update --attachment-id <id> --path <abs_path>
+  help: `silverhand file update (--attachment-id <id> | <id>) --path <abs_path>
 
 Replace the CONTENT of an attachment you previously uploaded, in place.
 The attachment id, filename, and content-type stay fixed — only the bytes
@@ -104,13 +128,15 @@ PNG mockup but not turn it into a PDF. To change type, upload a new
 attachment.
 
 Flags:
-  --attachment-id  Required. The attachment id to update.
+  --attachment-id  Required. The attachment id to update; may also be
+                   given as the positional operand.
   --path           Required. Absolute path to the new local file.
 
 stdout: AttachmentDto JSON (same id, bumped content_revision).`,
   flags: ['attachment-id', 'path'] as const,
+  allowPositional: true,
   async run({ client, args }) {
-    const attachmentId = flagString(args, 'attachment-id');
+    const attachmentId = operandOrFlag(args, 'update', 'attachment-id');
     if (!attachmentId) {
       throw new CliError({
         code: 'validation_error',
@@ -133,7 +159,7 @@ stdout: AttachmentDto JSON (same id, bumped content_revision).`,
 const viewCommand: Command = {
   verb: 'view',
   summary: 'Resolve an attachment id to a readable local path.',
-  help: `silverhand file view --attachment-id <id>
+  help: `silverhand file view (--attachment-id <id> | <id>)
 
 Resolve an attachment id to a local file path readable by this agent.
 Cross-channel ids are rejected.
@@ -141,8 +167,9 @@ Cross-channel ids are rejected.
 stdout: AttachmentLocateDto JSON:
   { storage: "local", local_path, filename, content_type }`,
   flags: ['attachment-id'] as const,
+  allowPositional: true,
   async run({ env, client, args }) {
-    const attachmentId = flagString(args, 'attachment-id');
+    const attachmentId = operandOrFlag(args, 'view', 'attachment-id');
     if (!attachmentId) {
       throw new CliError({
         code: 'validation_error',

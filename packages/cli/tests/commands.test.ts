@@ -69,6 +69,9 @@ describe('command catalogue', () => {
       .map(({ label }) => label)
       .sort();
     expect(positional).toEqual([
+      'file update', // <attachment_id> (alias of --attachment-id)
+      'file upload', // <abs_path> (alias of --path)
+      'file view', // <attachment_id> (alias of --attachment-id)
       'message search', // free-text query
       'task claim', // <task_number> ... (one-or-more)
       'task detail', // <task_number> (exactly-one)
@@ -1311,6 +1314,50 @@ describe('schedule create --target-conversation <address>', () => {
       const cmd = findCommand('schedule', verb)!;
       expect(cmd.flags, verb).not.toContain('target');
       expect(cmd.flags, verb).not.toContain('target-conversation');
+    }
+  });
+});
+
+describe('file verbs take their id/path as a positional operand', () => {
+  const env = {
+    conversationId: 'c',
+    slot: 'conversation',
+    agentId: 'a',
+    serverUrl: 'http://127.0.0.1:1',
+    authToken: 't',
+  };
+
+  it('file update <id> --path p maps the operand to the attachment id', async () => {
+    let seen: unknown;
+    const client = { updateAttachment: async (input: unknown) => ((seen = input), {}) };
+    await findCommand('file', 'update')!.run({
+      env,
+      client,
+      args: { flags: { path: '/tmp/x' }, positional: ['att-1'], rest: [] },
+    } as any);
+    expect(seen).toEqual({ attachmentId: 'att-1', path: '/tmp/x' });
+  });
+
+  it('file upload --target t <path> maps the operand to the path', async () => {
+    let seen: unknown;
+    const client = { uploadAttachment: async (input: unknown) => ((seen = input), {}) };
+    await findCommand('file', 'upload')!.run({
+      env,
+      client,
+      args: { flags: { target: '#conv:c' }, positional: ['/tmp/a.png'], rest: [] },
+    } as any);
+    expect(seen).toEqual({ path: '/tmp/a.png', target: '#conv:c' });
+  });
+
+  it('refuses the operand together with its flag, or two operands', async () => {
+    const view = findCommand('file', 'view')!;
+    for (const args of [
+      { flags: { 'attachment-id': 'a' }, positional: ['b'], rest: [] },
+      { flags: {}, positional: ['a', 'b'], rest: [] },
+    ]) {
+      await expect(view.run({ env, client: {}, args } as any)).rejects.toMatchObject({
+        subkind: 'unexpected_arguments',
+      });
     }
   });
 });

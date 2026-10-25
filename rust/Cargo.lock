@@ -2076,6 +2076,7 @@ dependencies = [
  "futures-util",
  "garde",
  "getrandom 0.4.3",
+ "http-body",
  "metrics",
  "metrics-exporter-prometheus",
  "pulldown-cmark",
