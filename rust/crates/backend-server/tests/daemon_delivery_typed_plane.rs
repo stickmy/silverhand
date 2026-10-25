@@ -244,12 +244,19 @@ fn daemon_event_split_keeps_one_state_and_transport_neutral_typed_boundaries() {
     );
 }
 
+/// Out-of-line `#[cfg(test)]` module files (`tests.rs`, `*_tests.rs`).
+fn is_test_file(path: &Path) -> bool {
+    path.file_stem()
+        .and_then(|stem| stem.to_str())
+        .is_some_and(|stem| stem == "tests" || stem.ends_with("_tests"))
+}
+
 fn rust_files(root: &Path, files: &mut Vec<PathBuf>) {
     for entry in fs::read_dir(root).unwrap() {
         let path = entry.unwrap().path();
         if path.is_dir() {
             rust_files(&path, files);
-        } else if path.extension().is_some_and(|ext| ext == "rs") {
+        } else if path.extension().is_some_and(|ext| ext == "rs") && !is_test_file(&path) {
             files.push(path);
         }
     }
