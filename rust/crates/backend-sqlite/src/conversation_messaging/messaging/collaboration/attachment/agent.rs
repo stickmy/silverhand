@@ -29,7 +29,7 @@ use silverhand_backend_core::{
     foundation::wire_number::JsSafeInteger,
     identity_access::access::Capability,
 };
-use sqlx::{Row, Sqlite, SqlitePool, Transaction};
+use sqlx::{Row, Sqlite, Transaction};
 use thiserror::Error;
 
 use crate::conversation_messaging::messaging::{
@@ -45,7 +45,7 @@ use crate::conversation_messaging::messaging::{
 
 #[derive(Clone)]
 pub struct SqliteAgentAttachment {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 impl<E> MessagingStore<E> {

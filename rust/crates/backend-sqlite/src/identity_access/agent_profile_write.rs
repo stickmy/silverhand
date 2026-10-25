@@ -58,7 +58,7 @@ use silverhand_backend_core::{
     },
     identity_access::agents::runtime::RuntimeKind,
 };
-use sqlx::{QueryBuilder, Row, Sqlite, SqlitePool, sqlite::SqliteRow};
+use sqlx::{QueryBuilder, Row, Sqlite, sqlite::SqliteRow};
 use thiserror::Error;
 
 const ROOT_WRITE_BEGIN: &str = "BEGIN IMMEDIATE";
@@ -75,7 +75,7 @@ const RETURNING_COMMITTED_ROW: &str = " RETURNING id, display_name, description,
 /// agent-tuning write. Holds no clock; `now_ms` is passed in by the application.
 #[derive(Clone)]
 pub struct SqliteAgentProfileWrite {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 /// Startup and driver failures surfaced only to the composition root that opens the
@@ -123,7 +123,8 @@ impl SqliteAgentProfileWrite {
 
     /// Construct over an already-open pool, so a composition root that shares one
     /// pool across adapters need not reopen the file.
-    pub fn from_pool(pool: SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self { pool }
     }
 

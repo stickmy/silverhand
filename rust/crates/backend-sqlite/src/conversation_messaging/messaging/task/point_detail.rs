@@ -334,7 +334,9 @@ mod snapshot_tests {
             .connect("sqlite::memory:")
             .await
             .unwrap();
-        let store = SqliteTaskStore { pool: pool.clone() };
+        let store = SqliteTaskStore {
+            pool: pool.clone().into(),
+        };
         for by_number in [false, true] {
             let entered = Arc::new(tokio::sync::Notify::new());
             let call_store = store.clone();

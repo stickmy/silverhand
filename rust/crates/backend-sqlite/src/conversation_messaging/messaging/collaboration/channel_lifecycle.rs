@@ -19,14 +19,14 @@ use silverhand_backend_core::{
     foundation::persistence::PersistenceFailure,
     identity_access::access::WorkspaceRole,
 };
-use sqlx::{Row, Sqlite, SqlitePool, Transaction, sqlite::SqliteRow};
+use sqlx::{Row, Sqlite, Transaction, sqlite::SqliteRow};
 use thiserror::Error;
 
 use crate::conversation_messaging::messaging::MessagingStore;
 
 #[derive(Clone)]
 pub struct SqliteChannelLifecycleRead {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 impl<E> MessagingStore<E> {

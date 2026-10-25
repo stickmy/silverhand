@@ -13,7 +13,7 @@ use silverhand_backend_core::{
     foundation::persistence::PersistenceFailure,
     identity_access::agents::runtime::RuntimeKind,
 };
-use sqlx::{Row, Sqlite, SqlitePool, Transaction};
+use sqlx::{Row, Sqlite, Transaction};
 use thiserror::Error;
 
 use crate::viewer_read_model::unread_read::{UnreadReadModelError, conversation_unread_counts};
@@ -35,7 +35,7 @@ const SELECT_USERS: &str = "SELECT u.id, u.name, u.display_name, u.avatar_storag
 
 #[derive(Clone)]
 pub struct SqliteDirectPairReadModel {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 #[derive(Debug, Error)]
@@ -59,7 +59,8 @@ pub enum DirectPairReadError {
 }
 
 impl SqliteDirectPairReadModel {
-    pub fn from_pool(pool: SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self { pool }
     }
 

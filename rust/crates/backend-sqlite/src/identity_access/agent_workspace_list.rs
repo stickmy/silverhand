@@ -20,7 +20,7 @@ use crate::conversation_messaging::messaging::MessagingStore;
 /// messaging store pool.
 #[derive(Clone)]
 pub struct SqliteAgentWorkspaceList {
-    pool: sqlx::SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 impl<E> MessagingStore<E> {
@@ -33,7 +33,8 @@ impl<E> MessagingStore<E> {
 }
 
 impl SqliteAgentWorkspaceList {
-    pub fn from_pool(pool: sqlx::SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self { pool }
     }
 }

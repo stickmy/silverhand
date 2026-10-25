@@ -19,7 +19,7 @@ use silverhand_backend_core::{
         revoke::{RevokeComputerAttempt, RevokeComputerUnitOfWork, RevokedComputer},
     },
 };
-use sqlx::{Row, Sqlite, SqlitePool, Transaction};
+use sqlx::{Row, Sqlite, Transaction};
 use thiserror::Error;
 
 mod management;
@@ -41,7 +41,7 @@ const ROOT_WRITE_BEGIN: &str = "BEGIN IMMEDIATE";
 
 #[derive(Clone)]
 pub struct SqliteHostRuntimeStore {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 #[derive(Debug, Error)]
@@ -51,7 +51,8 @@ pub enum SqliteHostRuntimeStoreError {
 }
 
 impl SqliteHostRuntimeStore {
-    pub fn from_pool(pool: SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self { pool }
     }
 

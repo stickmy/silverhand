@@ -39,7 +39,7 @@ use silverhand_backend_core::{
         WorkspaceMetadataWrite, WorkspaceMetadataWriteUnitOfWork,
     },
 };
-use sqlx::{Row, Sqlite, SqlitePool, Transaction};
+use sqlx::{Row, Sqlite, Transaction};
 use thiserror::Error;
 
 const ROOT_WRITE_BEGIN: &str = "BEGIN IMMEDIATE";
@@ -103,7 +103,7 @@ type LockedWorkspaceRowNonHuman = (Option<String>, String, Option<String>);
 /// in by the application, which owns the time source.
 #[derive(Clone)]
 pub struct SqliteWorkspaceMetadataWrite {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 /// Startup and driver failures surfaced only to the composition root that opens
@@ -164,7 +164,8 @@ impl SqliteWorkspaceMetadataWrite {
 
     /// Construct over an already-open pool, so a composition root that shares one
     /// pool across adapters need not reopen the file.
-    pub fn from_pool(pool: SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self { pool }
     }
 

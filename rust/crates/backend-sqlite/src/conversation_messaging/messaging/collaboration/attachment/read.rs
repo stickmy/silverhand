@@ -26,7 +26,7 @@ use silverhand_backend_core::{
     foundation::persistence::PersistenceFailure,
     foundation::wire_number::JsSafeInteger,
 };
-use sqlx::{Row, Sqlite, SqlitePool, Transaction, sqlite::SqliteRow};
+use sqlx::{Row, Sqlite, Transaction, sqlite::SqliteRow};
 use thiserror::Error;
 
 use crate::conversation_messaging::messaging::{
@@ -116,7 +116,7 @@ const CHANNEL_REFERENCES_SQL: &str = r#"SELECT m.conversation_id,
 
 #[derive(Clone)]
 pub struct SqliteAttachmentRead {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 impl<E> MessagingStore<E> {
@@ -735,7 +735,7 @@ mod tests {
         )
         .await
         .unwrap();
-        SqliteAttachmentRead { pool }
+        SqliteAttachmentRead { pool: pool.into() }
     }
 
     async fn workspace_channel(

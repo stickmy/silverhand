@@ -45,7 +45,7 @@ use silverhand_backend_core::{
     host_runtime::runtime_event::RuntimeObservedStatus,
     identity_access::agent_lifecycle::MaterializationStatus,
 };
-use sqlx::{Row, SqlitePool, sqlite::SqliteRow};
+use sqlx::{Row, sqlite::SqliteRow};
 use thiserror::Error;
 
 use crate::{
@@ -137,7 +137,7 @@ const SELECT_CONVERSATION_VIEWER: &str = concat!(
 
 #[derive(Clone)]
 pub struct SqliteAgentRuntimeStateColdRead {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 /// Read failures surfaced only as the source of a [`PersistenceFailure`]. Every variant is
@@ -169,7 +169,8 @@ impl From<AgentViewAclError> for AgentRuntimeStateColdReadError {
 }
 
 impl SqliteAgentRuntimeStateColdRead {
-    pub fn from_pool(pool: SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self { pool }
     }
 

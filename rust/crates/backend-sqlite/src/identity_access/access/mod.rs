@@ -41,7 +41,6 @@ use silverhand_backend_core::identity_access::access::{
     WorkspaceUserMembership, governance_ceiling, human_enrollment_authorized,
 };
 use silverhand_backend_core::identity_access::agent_peer_profile::PeerTargetMembership;
-use sqlx::SqlitePool;
 use thiserror::Error;
 
 mod membership;
@@ -100,7 +99,7 @@ const SELECT_WORKSPACE_CONTAINER: &str = "SELECT owner_agent_id FROM workspaces 
 /// into the unit of work by the application, which owns the time source.
 #[derive(Clone)]
 pub struct SqliteAccessStore {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 /// Startup and driver failures, surfaced only to the composition root that opens
@@ -162,7 +161,8 @@ impl From<sqlx::Error> for HumanEnrollFailure {
 }
 
 impl SqliteAccessStore {
-    pub fn from_pool(pool: SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self { pool }
     }
 

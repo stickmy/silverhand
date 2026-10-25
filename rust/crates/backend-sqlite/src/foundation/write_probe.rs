@@ -29,7 +29,6 @@
 //! store, where the handle is private.
 
 use silverhand_backend_core::foundation::persistence::{PersistenceFailure, WriteProbe};
-use sqlx::SqlitePool;
 use thiserror::Error;
 
 const IMMEDIATE_WRITE_BEGIN: &str = "BEGIN IMMEDIATE";
@@ -38,7 +37,7 @@ const IMMEDIATE_WRITE_BEGIN: &str = "BEGIN IMMEDIATE";
 /// handle.
 #[derive(Clone)]
 pub struct SqliteWriteProbe {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 /// The only way this adapter can fail: the driver refused. There is no corruption
@@ -53,7 +52,7 @@ impl SqliteWriteProbe {
     /// Probe the database behind an existing handle. Not public: a caller outside this
     /// crate must go through the store that owns the handle, which is what keeps the
     /// probe and the writer the same thing.
-    pub(crate) fn sharing(pool: SqlitePool) -> Self {
+    pub(crate) fn sharing(pool: crate::foundation::database::SqliteDatabase) -> Self {
         Self { pool }
     }
 

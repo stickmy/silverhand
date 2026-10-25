@@ -10,14 +10,13 @@ use silverhand_backend_core::{
     },
     foundation::persistence::PersistenceFailure,
 };
-use sqlx::SqlitePool;
 use thiserror::Error;
 
 use crate::conversation_messaging::messaging::{HostEnvironment, MessagingStore};
 
 #[derive(Clone)]
 pub struct SqliteSavedStore<E = HostEnvironment> {
-    pub(super) pool: SqlitePool,
+    pub(super) pool: crate::foundation::database::SqliteDatabase,
     pub(super) environment: E,
 }
 

@@ -29,7 +29,7 @@ const FROM_KIND_AGENT: &str = "agent";
 
 #[derive(Clone)]
 pub struct SqliteChannelFork {
-    pool: sqlx::SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 impl<E> MessagingStore<E> {
@@ -41,7 +41,8 @@ impl<E> MessagingStore<E> {
 }
 
 impl SqliteChannelFork {
-    pub fn from_pool(pool: sqlx::SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self { pool }
     }
 }

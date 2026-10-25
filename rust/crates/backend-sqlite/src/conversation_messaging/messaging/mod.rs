@@ -44,7 +44,7 @@ use silverhand_backend_core::conversation_messaging::messaging::{
 use silverhand_backend_core::foundation::identity::{AgentId, ConversationId, UserId, WorkspaceId};
 use silverhand_backend_core::foundation::persistence::PersistenceFailure;
 use silverhand_backend_core::identity_access::agents::session_scope::AgentSessionScope;
-use sqlx::{Row, Sqlite, SqliteConnection, SqlitePool, Transaction, sqlite::SqliteRow};
+use sqlx::{Row, Sqlite, SqliteConnection, Transaction, sqlite::SqliteRow};
 use thiserror::Error;
 
 // `pub(crate)`: the author-evidence decode + resolution authority is reused by the
@@ -434,7 +434,7 @@ fn unix_ms_since_epoch(moment: SystemTime) -> Result<i64, EnvironmentUnavailable
 
 #[derive(Clone)]
 pub struct MessagingStore<E = HostEnvironment> {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
     environment: E,
 }
 
@@ -442,7 +442,7 @@ impl<E> MessagingStore<E> {
     /// The shared connection pool, for a sibling read-model adapter in another
     /// crate module to derive its own shared-pool clone (never a second
     /// connection authority). Crate-visible: only in-crate adapters may take it.
-    pub(crate) fn pool(&self) -> &SqlitePool {
+    pub(crate) fn pool(&self) -> &crate::foundation::database::SqliteDatabase {
         &self.pool
     }
 }
@@ -454,7 +454,7 @@ impl<E> MessagingStore<E> {
 /// insert — in one transaction, so it never parallel-copies the send path's SQL.
 #[derive(Clone)]
 pub struct SqliteOnboardingInboxEnsure<E = HostEnvironment> {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
     environment: E,
 }
 
@@ -463,7 +463,7 @@ pub struct SqliteOnboardingInboxEnsure<E = HostEnvironment> {
 /// the onboarding-only subtype witness is intentionally absent.
 #[derive(Clone)]
 pub struct SqliteCommittedMessageInboxEnsure<E = HostEnvironment> {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
     environment: E,
 }
 
@@ -593,7 +593,7 @@ enum InboxRecipientAuthority {
 }
 
 async fn ensure_inbox_delivery<E: SendClock>(
-    pool: &SqlitePool,
+    pool: &crate::foundation::database::SqliteDatabase,
     environment: &E,
     conversation: &ConversationId,
     agent: &AgentId,
@@ -714,7 +714,8 @@ fn driver(error: sqlx::Error) -> PersistenceFailure {
 }
 
 impl MessagingStore<HostEnvironment> {
-    pub fn from_pool(pool: SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self {
             pool,
             environment: HostEnvironment,
@@ -3133,7 +3134,7 @@ mod tests {
         let options = SqliteConnectOptions::new()
             .filename(path)
             .create_if_missing(true);
-        SqlitePool::connect_with(options)
+        sqlx::SqlitePool::connect_with(options)
             .await
             .unwrap()
             .close()

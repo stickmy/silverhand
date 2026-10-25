@@ -38,7 +38,7 @@ use silverhand_backend_core::{
     },
     identity_access::agents::{runtime::RuntimeKind, session_scope::AgentSessionScope},
 };
-use sqlx::{Row, Sqlite, SqliteConnection, SqlitePool, Transaction};
+use sqlx::{Row, Sqlite, SqliteConnection, Transaction};
 use thiserror::Error;
 
 /// Shared admission rule for automatic inbox writes and pending-batch dispatch.
@@ -60,7 +60,7 @@ const ROOT_WRITE_BEGIN: &str = "BEGIN IMMEDIATE";
 
 #[derive(Clone)]
 pub struct SqliteRuntimeDeliveryStore {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 #[derive(Debug, Error)]
@@ -70,7 +70,8 @@ pub enum SqliteRuntimeDeliveryStoreError {
 }
 
 impl SqliteRuntimeDeliveryStore {
-    pub fn from_pool(pool: SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self { pool }
     }
 

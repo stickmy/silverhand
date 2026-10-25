@@ -21,7 +21,7 @@ use silverhand_backend_core::{
     },
     identity_access::workspace_face::{WorkspaceFace, WorkspaceFaceReadPort},
 };
-use sqlx::{Row, Sqlite, SqlitePool, Transaction};
+use sqlx::{Row, Sqlite, Transaction};
 use thiserror::Error;
 
 const DEFERRED_READ_BEGIN: &str = "BEGIN DEFERRED";
@@ -82,7 +82,7 @@ SELECT \
 
 #[derive(Clone)]
 pub struct SqliteWorkspaceColdRead {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 /// Read failures surfaced only as the source of a [`PersistenceFailure`]. Every
@@ -99,7 +99,8 @@ pub enum WorkspaceColdReadError {
 }
 
 impl SqliteWorkspaceColdRead {
-    pub fn from_pool(pool: SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self { pool }
     }
 

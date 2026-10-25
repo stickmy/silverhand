@@ -13,7 +13,7 @@ use silverhand_backend_core::{
     foundation::identity::{ConversationId, UserId},
     foundation::persistence::PersistenceFailure,
 };
-use sqlx::{Row, Sqlite, SqlitePool, Transaction, sqlite::SqliteRow};
+use sqlx::{Row, Sqlite, Transaction, sqlite::SqliteRow};
 use thiserror::Error;
 
 use crate::{
@@ -76,7 +76,7 @@ const SELECT_REPLIERS: &str = "SELECT m.conversation_id AS replier_conversation_
 
 #[derive(Clone)]
 pub struct SqliteConversationThreadsRead {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 impl<E> MessagingStore<E> {

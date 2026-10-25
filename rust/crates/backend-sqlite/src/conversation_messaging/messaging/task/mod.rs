@@ -50,7 +50,6 @@ use std::{
 
 use silverhand_backend_core::conversation_messaging::messaging::task::TaskWriteClock;
 use silverhand_backend_core::foundation::persistence::PersistenceFailure;
-use sqlx::SqlitePool;
 use thiserror::Error;
 
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
@@ -114,11 +113,12 @@ fn corrupt(field: &'static str) -> PersistenceFailure {
 /// the schedule store it carries no injected clock.
 #[derive(Clone)]
 pub struct SqliteTaskStore {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 impl SqliteTaskStore {
-    pub fn from_pool(pool: SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self { pool }
     }
 

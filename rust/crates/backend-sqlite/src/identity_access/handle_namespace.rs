@@ -16,7 +16,6 @@ use silverhand_backend_core::{
     identity_access::human_auth_flows::HandleNamespaceRead,
     identity_access::user_identity::ParticipantHandle,
 };
-use sqlx::SqlitePool;
 use thiserror::Error;
 
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
@@ -50,7 +49,7 @@ where
 /// @-handle availability question. Read-only; holds no clock.
 #[derive(Clone)]
 pub struct SqliteHandleNamespace {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 /// Startup/driver failures surfaced only to the composition root that opens the
@@ -69,7 +68,8 @@ impl SqliteHandleNamespace {
 
     /// Construct over an already-open pool so a composition root that shares one
     /// pool across adapters need not reopen the file.
-    pub fn from_pool(pool: SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self { pool }
     }
 }

@@ -11,7 +11,7 @@ use silverhand_backend_core::{
     foundation::identity::{AgentId, ConversationId, UserId, WorkspaceId},
     foundation::persistence::PersistenceFailure,
 };
-use sqlx::{Row, Sqlite, SqlitePool, Transaction, sqlite::SqliteRow};
+use sqlx::{Row, Sqlite, Transaction, sqlite::SqliteRow};
 use thiserror::Error;
 
 use crate::conversation_messaging::messaging::MessagingStore;
@@ -75,7 +75,7 @@ pub(super) const SELECT_CONVERSATION: &str = "SELECT id,workspace_id,placement_k
 
 #[derive(Clone)]
 pub struct SqliteConversationParticipationRead {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 impl<E> MessagingStore<E> {

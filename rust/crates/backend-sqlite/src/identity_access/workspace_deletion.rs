@@ -31,7 +31,7 @@ use crate::conversation_messaging::messaging::MessagingStore;
 /// pool (the single writer). It opens no second connection authority.
 #[derive(Clone)]
 pub struct SqliteWorkspaceDeletion {
-    pool: sqlx::SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 impl<E> MessagingStore<E> {
@@ -46,7 +46,8 @@ impl<E> MessagingStore<E> {
 impl SqliteWorkspaceDeletion {
     /// Construct directly over a pool — for composition tests / integration
     /// harnesses that already hold the shared pool.
-    pub fn from_pool(pool: sqlx::SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self { pool }
     }
 }

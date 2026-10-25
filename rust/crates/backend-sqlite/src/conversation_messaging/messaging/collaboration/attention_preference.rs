@@ -12,12 +12,11 @@ use silverhand_backend_core::{
     foundation::identity::{ConversationId, UserId, WorkspaceId},
     foundation::persistence::PersistenceFailure,
 };
-use sqlx::SqlitePool;
 use thiserror::Error;
 
 #[derive(Clone)]
 pub struct SqliteAttentionPreferenceStore<E = HostEnvironment> {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
     environment: E,
 }
 impl<E: Clone> MessagingStore<E> {

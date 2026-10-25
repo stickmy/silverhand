@@ -14,7 +14,7 @@ use silverhand_backend_core::{
     foundation::identity::{ConversationId, UserId, WorkspaceId},
     foundation::persistence::PersistenceFailure,
 };
-use sqlx::{Row, SqlitePool, sqlite::SqliteRow};
+use sqlx::{Row, sqlite::SqliteRow};
 use thiserror::Error;
 
 use crate::{
@@ -99,7 +99,7 @@ const CONVERSATION_ROLLUP: &str = concat!(
 
 #[derive(Clone)]
 pub struct SqliteMessageUnreadRead {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 impl<E> MessagingStore<E> {
@@ -473,7 +473,9 @@ mod tests {
             .connect_with(SqliteConnectOptions::new().filename(path))
             .await
             .unwrap();
-        let reader = SqliteMessageUnreadRead { pool: pool.clone() };
+        let reader = SqliteMessageUnreadRead {
+            pool: pool.clone().into(),
+        };
         let viewer = UserId::parse("v").unwrap();
         let workspace = WorkspaceId::parse("w").unwrap();
         // Many conversations still produce only aggregate rows on one connection.

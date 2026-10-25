@@ -15,7 +15,7 @@ use silverhand_backend_core::conversation_messaging::messaging::schedule::{
     ScheduleListQuery, ScheduleListReadModel, ScheduleView,
 };
 use silverhand_backend_core::foundation::persistence::PersistenceFailure;
-use sqlx::{QueryBuilder, Sqlite, SqlitePool};
+use sqlx::{QueryBuilder, Sqlite};
 
 use super::product::project_schedule_view;
 use super::{ScheduleStoreError, driver};
@@ -35,7 +35,7 @@ const SELECT_WITH_TARGET: &str = "SELECT s.*, \
 /// authority, never fused with the fire-path store.
 #[derive(Clone)]
 pub struct SqliteScheduleListRead {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 impl SqliteScheduleListRead {
@@ -48,7 +48,8 @@ impl SqliteScheduleListRead {
 
     /// Wraps an already-open pool, so a composition root can share ONE pool per
     /// database across the schedule faces.
-    pub fn from_pool(pool: SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self { pool }
     }
 }

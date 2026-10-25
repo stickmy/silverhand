@@ -18,7 +18,6 @@ use silverhand_backend_core::{
     foundation::identity::{AgentId, ConversationId},
     foundation::persistence::PersistenceFailure,
 };
-use sqlx::SqlitePool;
 
 use crate::conversation_messaging::messaging::{
     MessagingStore, authorities::ConversationAuthorityReader, driver,
@@ -26,7 +25,7 @@ use crate::conversation_messaging::messaging::{
 
 #[derive(Clone)]
 pub struct SqliteStaleMessageResolutionAdmission {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 impl<E> MessagingStore<E> {

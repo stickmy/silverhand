@@ -12,7 +12,7 @@ use silverhand_backend_core::{
     foundation::identity::{AgentId, ConversationId, UserId, WorkspaceId},
     foundation::persistence::PersistenceFailure,
 };
-use sqlx::{QueryBuilder, Row, Sqlite, SqlitePool, Transaction, sqlite::SqliteRow};
+use sqlx::{QueryBuilder, Row, Sqlite, Transaction, sqlite::SqliteRow};
 use thiserror::Error;
 
 use crate::conversation_messaging::messaging::MessagingStore;
@@ -21,7 +21,7 @@ use super::super::activity::valid_title_key_spelling;
 
 #[derive(Clone)]
 pub struct SqliteChannelDirectoryRead {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 impl<E> MessagingStore<E> {

@@ -8,7 +8,7 @@ use silverhand_backend_core::{
     },
     foundation::persistence::PersistenceFailure,
 };
-use sqlx::{Row, SqlitePool};
+use sqlx::Row;
 use std::{path::Path, time::Duration};
 use thiserror::Error;
 
@@ -34,7 +34,7 @@ pub enum SqliteConsoleAnalyticsError {
 
 #[derive(Clone)]
 pub struct SqliteConsoleAnalyticsRead {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 impl SqliteConsoleAnalyticsRead {

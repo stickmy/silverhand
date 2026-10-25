@@ -34,7 +34,7 @@ use silverhand_backend_core::{
     foundation::persistence::PersistenceFailure,
     identity_access::agent_profile_read::{AgentProfileFact, AgentProfileReadModel},
 };
-use sqlx::{Row, SqlitePool, sqlite::SqliteRow};
+use sqlx::{Row, sqlite::SqliteRow};
 use thiserror::Error;
 
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
@@ -62,7 +62,7 @@ const SELECT_AGENT_PROFILE_BY_HANDLE: &str =
 
 #[derive(Clone)]
 pub struct SqliteAgentProfileRead {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 /// Read failures surfaced only as the source of a [`PersistenceFailure`]. Every
@@ -101,7 +101,8 @@ fn decode_profile_row(row: &SqliteRow) -> Result<AgentProfileFact, AgentProfileR
 }
 
 impl SqliteAgentProfileRead {
-    pub fn from_pool(pool: SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self { pool }
     }
 

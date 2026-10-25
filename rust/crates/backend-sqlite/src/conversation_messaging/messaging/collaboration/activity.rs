@@ -30,7 +30,7 @@ use silverhand_backend_core::{
     foundation::identity::{ConversationId, UserId, WorkspaceId},
     foundation::persistence::PersistenceFailure,
 };
-use sqlx::{Row, SqlitePool, sqlite::SqliteRow};
+use sqlx::{Row, sqlite::SqliteRow};
 use thiserror::Error;
 
 pub mod observe;
@@ -109,7 +109,7 @@ const POSITIONAL: &str = concat!(
 
 #[derive(Clone)]
 pub struct SqliteActivityReadModel {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 impl<E> MessagingStore<E> {

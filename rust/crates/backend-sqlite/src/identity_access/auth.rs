@@ -25,7 +25,7 @@ use silverhand_backend_core::{
     },
 };
 use silverhand_backend_observability::Observe;
-use sqlx::{Row, SqlitePool};
+use sqlx::Row;
 use thiserror::Error;
 
 /// The product's `randomBytes(12)`: twelve entropy bytes → sixteen base64url
@@ -73,7 +73,7 @@ async fn read_valid_session<'e>(
 }
 
 async fn read_from_pool(
-    pool: &SqlitePool,
+    pool: &crate::foundation::database::SqliteDatabase,
     token_hash: &SessionTokenHash,
     validation: SessionValidation,
 ) -> Result<Option<(UserId, i64)>, PersistenceFailure> {
@@ -104,7 +104,7 @@ UPDATE auth_sessions SET revoked_at = ? WHERE token_hash = ? AND revoked_at IS N
 /// holds no clock (`now_ms` is passed into the writes by the application).
 #[derive(Clone)]
 pub struct SqliteSessionStore<E = OsEntropy> {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
     entropy: E,
 }
 
@@ -120,7 +120,8 @@ impl SqliteSessionStore<OsEntropy> {
     }
 
     /// Construct over an already-open pool with the OS entropy source.
-    pub fn from_pool(pool: SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self {
             pool,
             entropy: OsEntropy,
@@ -144,7 +145,11 @@ where
     }
 
     /// Construct over an already-open pool with an injected entropy source.
-    pub fn from_pool_with_entropy(pool: SqlitePool, entropy: E) -> Self {
+    pub fn from_pool_with_entropy(
+        pool: impl Into<crate::foundation::database::SqliteDatabase>,
+        entropy: E,
+    ) -> Self {
+        let pool = pool.into();
         Self { pool, entropy }
     }
 

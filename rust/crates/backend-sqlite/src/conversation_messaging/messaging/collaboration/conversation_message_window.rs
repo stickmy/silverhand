@@ -28,7 +28,7 @@ use silverhand_backend_core::{
     foundation::identity::{AgentId, ConversationId, UserId},
     foundation::persistence::PersistenceFailure,
 };
-use sqlx::{QueryBuilder, Row, Sqlite, SqlitePool, Transaction, sqlite::SqliteRow};
+use sqlx::{QueryBuilder, Row, Sqlite, Transaction, sqlite::SqliteRow};
 use thiserror::Error;
 
 use crate::conversation_messaging::messaging::{
@@ -57,7 +57,7 @@ pub(crate) const MESSAGE_JOINS: &str = " LEFT JOIN tasks lt ON lt.source_message
 
 #[derive(Clone)]
 pub struct SqliteConversationMessageWindowRead {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 impl<E> MessagingStore<E> {
@@ -1260,7 +1260,9 @@ mod reply_lookup_tests {
             db.execute(statement).await.unwrap();
         }
         drop(db);
-        let reader = SqliteConversationMessageWindowRead { pool: pool.clone() };
+        let reader = SqliteConversationMessageWindowRead {
+            pool: pool.clone().into(),
+        };
         let viewer = UserId::parse("viewer").unwrap();
         let conversation = ConversationId::parse("c").unwrap();
         let request = ConversationMessageWindowRequest::new(

@@ -8,7 +8,7 @@ use silverhand_backend_core::{
     foundation::identity::{AgentId, ConversationId, UserId},
     foundation::persistence::PersistenceFailure,
 };
-use sqlx::{Row, SqlitePool};
+use sqlx::Row;
 use thiserror::Error;
 
 use crate::conversation_messaging::messaging::MessagingStore;
@@ -19,7 +19,7 @@ use super::conversation_participation::{
 
 #[derive(Clone)]
 pub struct SqliteConversationAgentDirectoryRead {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 impl<E> MessagingStore<E> {

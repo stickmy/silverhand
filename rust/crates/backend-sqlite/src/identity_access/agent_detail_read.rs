@@ -41,7 +41,7 @@ use silverhand_backend_core::{
     identity_access::agent_lifecycle::MaterializationStatus,
     identity_access::agents::runtime::RuntimeKind,
 };
-use sqlx::{Row, SqlitePool, sqlite::SqliteRow};
+use sqlx::{Row, sqlite::SqliteRow};
 use thiserror::Error;
 
 use crate::identity_access::agent_view_acl::{AgentViewAclError, read_agent_audience};
@@ -78,7 +78,7 @@ const SELECT_AGENT_DETAIL_ROW: &str = concat!(agent_detail_select_from!(), " WHE
 
 #[derive(Clone)]
 pub struct SqliteAgentDetailColdRead {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 /// Read failures surfaced only as the source of a [`PersistenceFailure`]. Every
@@ -98,7 +98,8 @@ pub enum AgentDetailColdReadError {
 }
 
 impl SqliteAgentDetailColdRead {
-    pub fn from_pool(pool: SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self { pool }
     }
 

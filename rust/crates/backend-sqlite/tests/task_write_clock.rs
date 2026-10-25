@@ -111,8 +111,10 @@ async fn status_row_and_event_use_the_post_lock_instant() {
     .await
     .unwrap();
     let now = Arc::new(AtomicI64::new(100));
-    let writer =
-        SqliteTaskStatusWrite::from_pool_with_clock(pool(&path).await, MovingClock(now.clone()));
+    let writer = SqliteTaskStatusWrite::from_pool_with_clock(
+        pool(&path).await.into(),
+        MovingClock(now.clone()),
+    );
     let task = task();
     let actor = actor();
     let names = AgentEventNames::new("agent-1", "Agent One");
@@ -139,8 +141,10 @@ async fn status_row_and_event_use_the_post_lock_instant() {
 async fn edit_row_and_event_use_the_post_lock_instant() {
     let (_directory, path, mut lock) = open_db(true).await;
     let now = Arc::new(AtomicI64::new(100));
-    let writer =
-        SqliteTaskEditWrite::from_pool_with_clock(pool(&path).await, MovingClock(now.clone()));
+    let writer = SqliteTaskEditWrite::from_pool_with_clock(
+        pool(&path).await.into(),
+        MovingClock(now.clone()),
+    );
     let task = task();
     let editor = TaskEditor::Agent(actor());
     let names = AgentEventNames::new("agent-1", "Agent One");
@@ -173,8 +177,10 @@ async fn edit_row_and_event_use_the_post_lock_instant() {
 async fn claim_event_uses_the_post_lock_instant() {
     let (_directory, path, mut lock) = open_db(true).await;
     let now = Arc::new(AtomicI64::new(100));
-    let writer =
-        SqliteTaskClaimWrite::from_pool_with_clock(pool(&path).await, MovingClock(now.clone()));
+    let writer = SqliteTaskClaimWrite::from_pool_with_clock(
+        pool(&path).await.into(),
+        MovingClock(now.clone()),
+    );
     let task = task();
     let actor = actor();
     let names = AgentEventNames::new("agent-1", "Agent One");
@@ -193,8 +199,10 @@ async fn claim_event_uses_the_post_lock_instant() {
 async fn create_batch_rows_and_events_share_the_post_lock_instant() {
     let (_directory, path, mut lock) = open_db(false).await;
     let now = Arc::new(AtomicI64::new(100));
-    let writer =
-        SqliteTaskCreateWrite::from_pool_with_clock(pool(&path).await, MovingClock(now.clone()));
+    let writer = SqliteTaskCreateWrite::from_pool_with_clock(
+        pool(&path).await.into(),
+        MovingClock(now.clone()),
+    );
     let plans = vec!["A", "B"]
         .into_iter()
         .map(|title| TaskCreatePlan {

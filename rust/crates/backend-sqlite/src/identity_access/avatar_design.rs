@@ -12,7 +12,7 @@ use silverhand_backend_core::{
     foundation::persistence::PersistenceFailure,
     identity_access::avatar_design::{AgentAvatarDesignRead, AvatarDesign, UserAvatarDesignRead},
 };
-use sqlx::{Row, SqliteConnection, SqlitePool};
+use sqlx::{Row, SqliteConnection};
 use thiserror::Error;
 
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
@@ -63,7 +63,7 @@ pub(crate) async fn insert_design(
 /// Read-only adapter for both principals' current avatar design.
 #[derive(Clone)]
 pub struct SqliteAvatarDesignRead {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 impl SqliteAvatarDesignRead {
@@ -72,7 +72,8 @@ impl SqliteAvatarDesignRead {
         Ok(Self { pool })
     }
 
-    pub fn from_pool(pool: SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self { pool }
     }
 

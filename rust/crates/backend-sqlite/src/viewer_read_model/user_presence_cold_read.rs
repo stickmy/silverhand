@@ -32,7 +32,7 @@ use silverhand_backend_core::{
     viewer_read_model::presence::{LastSeenAt, LastSeenOutOfRange, UserPresenceFacts},
     viewer_read_model::user_presence_cold_read::UserPresenceReadModel,
 };
-use sqlx::{Row, SqlitePool};
+use sqlx::Row;
 use thiserror::Error;
 
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
@@ -42,7 +42,7 @@ const SELECT_USER_PRESENCE_FACTS: &str =
 
 #[derive(Clone)]
 pub struct SqliteUserPresenceColdRead {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 /// Read failures surfaced only as the source of a [`PersistenceFailure`]. Both
@@ -61,7 +61,8 @@ pub enum UserPresenceColdReadError {
 }
 
 impl SqliteUserPresenceColdRead {
-    pub fn from_pool(pool: SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self { pool }
     }
 

@@ -30,7 +30,7 @@ use silverhand_backend_core::conversation_messaging::messaging::schedule::{
 };
 use silverhand_backend_core::foundation::identity::{AgentId, ConversationId};
 use silverhand_backend_core::foundation::persistence::PersistenceFailure;
-use sqlx::{Row, SqlitePool};
+use sqlx::Row;
 use thiserror::Error;
 
 // The product read/cancel adapters are separate authorities that live beside the
@@ -225,12 +225,13 @@ fn decode_spec(spec_json: &str) -> Result<ScheduleSpec, PersistenceFailure> {
 /// `actual_fire_at`, not from here.
 #[derive(Clone)]
 pub struct SqliteScheduleStore<K = SystemClock> {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
     clock: K,
 }
 
 impl SqliteScheduleStore<SystemClock> {
-    pub fn from_pool(pool: SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self {
             pool,
             clock: SystemClock,

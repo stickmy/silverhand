@@ -19,7 +19,7 @@ use silverhand_backend_core::{
     foundation::persistence::PersistenceFailure,
     host_runtime::agent_runtime_switch::SwitchConversationCoordination,
 };
-use sqlx::{Row, SqlitePool, sqlite::SqliteRow};
+use sqlx::{Row, sqlite::SqliteRow};
 
 use crate::conversation_messaging::messaging::{MessagingStore, SELECT_AGENT_PARTICIPATES};
 
@@ -52,7 +52,7 @@ const SELECT_PENDING_FOR_AGENT_SINCE: &str = "SELECT DISTINCT conversation_id \
 /// commits and its lock releases, so it reads outside any write reservation.
 #[derive(Clone)]
 pub struct SqliteSwitchConversationCoordination {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 impl<E> MessagingStore<E> {

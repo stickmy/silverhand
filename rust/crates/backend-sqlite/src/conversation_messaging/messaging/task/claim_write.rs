@@ -23,7 +23,7 @@ use silverhand_backend_core::conversation_messaging::messaging::task::{
 };
 use silverhand_backend_core::foundation::identity::{AgentId, ConversationId, UserId};
 use silverhand_backend_core::foundation::persistence::PersistenceFailure;
-use sqlx::{QueryBuilder, Row, Sqlite, SqlitePool};
+use sqlx::{QueryBuilder, Row, Sqlite};
 
 use super::event_append::append_task_event;
 use super::row::{SELECT_TASK_JOINED, agent_event_names, decode_row, decode_sidecars};
@@ -68,7 +68,7 @@ const CLEAR_ASSIGNEE_ANY: &str = "UPDATE tasks SET assignee_agent_id = NULL, \
 /// The SQLite task claim/unclaim writer. Holds only a pool.
 #[derive(Clone)]
 pub struct SqliteTaskClaimWrite {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
     clock: Arc<dyn TaskWriteClock + Send + Sync>,
 }
 
@@ -83,7 +83,8 @@ impl SqliteTaskClaimWrite {
     }
 
     /// Construct over an already-open pool.
-    pub fn from_pool(pool: SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self {
             pool,
             clock: Arc::new(SystemTaskWriteClock),
@@ -91,7 +92,7 @@ impl SqliteTaskClaimWrite {
     }
 
     pub fn from_pool_with_clock<K: TaskWriteClock + Send + Sync + 'static>(
-        pool: SqlitePool,
+        pool: crate::foundation::database::SqliteDatabase,
         clock: K,
     ) -> Self {
         Self {

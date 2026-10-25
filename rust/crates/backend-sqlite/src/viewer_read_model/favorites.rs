@@ -38,7 +38,7 @@ use crate::viewer_read_model::unread_read::conversation_unread_counts;
 /// pool. It opens no second connection authority.
 #[derive(Clone)]
 pub struct SqliteFavoritesRead {
-    pool: sqlx::SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 impl<E> MessagingStore<E> {
@@ -475,7 +475,7 @@ mod tests {
             )
             .await
             .unwrap();
-        let read = SqliteFavoritesRead { pool };
+        let read = SqliteFavoritesRead { pool: pool.into() };
         let listed = read
             .list_favorites(&UserId::parse("user-1").unwrap())
             .await
@@ -543,7 +543,8 @@ mod tests {
             pool: SqlitePoolOptions::new()
                 .connect_with(SqliteConnectOptions::new().filename(&path))
                 .await
-                .unwrap(),
+                .unwrap()
+                .into(),
         };
 
         let listed = read

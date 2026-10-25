@@ -54,7 +54,7 @@ use silverhand_backend_core::{
     identity_access::agents::runtime::RuntimeKind,
     identity_access::capability::computer_access::ComputerOwnershipFacts,
 };
-use sqlx::{Row, SqlitePool};
+use sqlx::Row;
 use thiserror::Error;
 
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
@@ -81,7 +81,7 @@ const MAX_STORED_EPOCH: i64 = 9_007_199_254_740_991;
 
 #[derive(Clone)]
 pub struct SqliteHostResourcesColdRead {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 /// Read failures surfaced only as the source of a [`PersistenceFailure`]. Every
@@ -100,7 +100,8 @@ pub enum HostResourcesColdReadError {
 }
 
 impl SqliteHostResourcesColdRead {
-    pub fn from_pool(pool: SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self { pool }
     }
 

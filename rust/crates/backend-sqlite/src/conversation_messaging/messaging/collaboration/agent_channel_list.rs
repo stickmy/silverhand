@@ -23,7 +23,7 @@ use crate::conversation_messaging::messaging::MessagingStore;
 /// The agent channel-list read authority — a shared-pool clone of the ONE store.
 #[derive(Clone)]
 pub struct SqliteAgentChannelList {
-    pool: sqlx::SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 impl<E> MessagingStore<E> {
@@ -35,7 +35,8 @@ impl<E> MessagingStore<E> {
 }
 
 impl SqliteAgentChannelList {
-    pub fn from_pool(pool: sqlx::SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self { pool }
     }
 }

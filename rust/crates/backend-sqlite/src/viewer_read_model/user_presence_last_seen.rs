@@ -24,7 +24,6 @@ use silverhand_backend_core::{
     viewer_read_model::presence::LastSeenAt,
     viewer_read_model::user_presence_last_seen::LastSeenSink,
 };
-use sqlx::SqlitePool;
 use thiserror::Error;
 
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
@@ -33,7 +32,7 @@ const UPDATE_LAST_SEEN: &str = "UPDATE users SET last_seen_at = ? WHERE id = ?";
 
 #[derive(Clone)]
 pub struct SqliteLastSeenSink {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 /// Write failures surfaced only as the source of a [`PersistenceFailure`]. Both
@@ -48,7 +47,8 @@ pub enum SqliteLastSeenError {
 }
 
 impl SqliteLastSeenSink {
-    pub fn from_pool(pool: SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self { pool }
     }
 

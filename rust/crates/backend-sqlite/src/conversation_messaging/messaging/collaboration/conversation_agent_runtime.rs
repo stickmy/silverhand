@@ -21,7 +21,7 @@ use silverhand_backend_core::{
     host_runtime::runtime_credential::{RuntimeGeneration, RuntimeScope},
     identity_access::agents::session_scope::AgentSessionScope,
 };
-use sqlx::{Row, Sqlite, SqlitePool, Transaction};
+use sqlx::{Row, Sqlite, Transaction};
 use thiserror::Error;
 
 use crate::conversation_messaging::messaging::MessagingStore;
@@ -32,7 +32,7 @@ use super::channel_lifecycle::{
 
 #[derive(Clone)]
 pub struct SqliteConversationAgentRuntimeRead {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 impl<E> MessagingStore<E> {

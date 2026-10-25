@@ -31,7 +31,7 @@ use silverhand_backend_core::{
         UserProfileRead, UserProfileWrite, UserProfileWriteUnitOfWork, UserRecord,
     },
 };
-use sqlx::{Row, SqlitePool};
+use sqlx::Row;
 use thiserror::Error;
 
 const ROOT_WRITE_BEGIN: &str = "BEGIN IMMEDIATE";
@@ -71,7 +71,7 @@ UPDATE users SET avatar_storage_key = NULL, avatar_content_type = NULL, avatar_d
 /// passed into the write by the application, which owns the time source.
 #[derive(Clone)]
 pub struct SqliteUserStore {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 /// Startup/driver failures surfaced only to the composition root that opens the
@@ -116,11 +116,12 @@ impl SqliteUserStore {
 
     /// Construct over an already-open pool so a composition root that shares one
     /// pool across adapters need not reopen the file.
-    pub fn from_pool(pool: SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self { pool }
     }
 
-    pub(crate) fn pool(&self) -> &SqlitePool {
+    pub(crate) fn pool(&self) -> &crate::foundation::database::SqliteDatabase {
         &self.pool
     }
 

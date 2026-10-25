@@ -28,7 +28,7 @@ use silverhand_backend_core::{
     host_runtime::environment::{EntropySource, OsEntropy},
     identity_access::user_identity::UserRecord,
 };
-use sqlx::{Row, SqlitePool};
+use sqlx::Row;
 use thiserror::Error;
 
 const ROOT_WRITE_BEGIN: &str = "BEGIN IMMEDIATE";
@@ -73,7 +73,7 @@ SELECT id, ?, ? FROM conversations";
 /// allocation; holds no clock (the write stamps `now_ms`, passed in by the flow).
 #[derive(Clone)]
 pub struct SqliteEmbeddedBootstrap<E = OsEntropy> {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
     entropy: E,
 }
 
@@ -235,7 +235,11 @@ where
     }
 
     /// Construct over an already-open pool with an injected entropy source.
-    pub fn from_pool_with_entropy(pool: SqlitePool, entropy: E) -> Self {
+    pub fn from_pool_with_entropy(
+        pool: impl Into<crate::foundation::database::SqliteDatabase>,
+        entropy: E,
+    ) -> Self {
+        let pool = pool.into();
         Self { pool, entropy }
     }
 }

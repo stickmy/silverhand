@@ -26,7 +26,7 @@ use silverhand_backend_core::{
         AgentAvatarServeRef, AgentAvatarServeRefRead, decode_agent_avatar_row,
     },
 };
-use sqlx::{Row, SqlitePool};
+use sqlx::Row;
 
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -39,7 +39,7 @@ const SELECT_AGENT_AVATAR_REF: &str =
 
 #[derive(Clone)]
 pub struct SqliteAgentAvatarRead {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 impl SqliteAgentAvatarRead {
@@ -48,7 +48,8 @@ impl SqliteAgentAvatarRead {
         Ok(Self { pool })
     }
 
-    pub fn from_pool(pool: SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self { pool }
     }
 }

@@ -35,7 +35,7 @@ use crate::conversation_messaging::messaging::collaboration::reaction::aggregate
 /// The read-history read authority — a shared-pool clone of the ONE store.
 #[derive(Clone)]
 pub struct SqliteAgentReadHistory {
-    pool: sqlx::SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 impl<E> MessagingStore<E> {
@@ -47,7 +47,8 @@ impl<E> MessagingStore<E> {
 }
 
 impl SqliteAgentReadHistory {
-    pub fn from_pool(pool: sqlx::SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self { pool }
     }
 }

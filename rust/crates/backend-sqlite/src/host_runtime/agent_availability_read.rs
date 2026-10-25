@@ -44,7 +44,7 @@ use silverhand_backend_core::{
     identity_access::agent_lifecycle::MaterializationStatus,
     identity_access::capability::agent_view::{AgentViewerArms, AgentVisibility},
 };
-use sqlx::{Row, SqlitePool};
+use sqlx::Row;
 use thiserror::Error;
 
 use crate::identity_access::agent_view_acl::{AgentViewAclError, read_agent_audience};
@@ -59,7 +59,7 @@ const SELECT_HOST_ROW: &str = "SELECT revoked_at FROM hosts WHERE id = ?";
 
 #[derive(Clone)]
 pub struct SqliteAgentAvailabilityColdRead {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 /// Read failures surfaced only as the source of a [`PersistenceFailure`]. Every
@@ -77,7 +77,8 @@ pub enum AgentAvailabilityColdReadError {
 }
 
 impl SqliteAgentAvailabilityColdRead {
-    pub fn from_pool(pool: SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self { pool }
     }
 

@@ -26,7 +26,7 @@ use silverhand_backend_core::{
     foundation::persistence::PersistenceFailure,
     foundation::wire_number::JsSafeInteger,
 };
-use sqlx::{Row, Sqlite, SqlitePool, Transaction};
+use sqlx::{Row, Sqlite, Transaction};
 use thiserror::Error;
 
 use crate::conversation_messaging::messaging::{
@@ -68,7 +68,7 @@ const UPLOAD_PLACEMENT_LIVENESS: &str = r#"SELECT id,placement_kind,
 
 #[derive(Clone)]
 pub struct SqliteAttachmentWrite {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 impl<E> MessagingStore<E> {

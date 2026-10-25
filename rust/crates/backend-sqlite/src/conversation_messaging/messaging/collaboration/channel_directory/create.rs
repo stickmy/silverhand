@@ -21,7 +21,7 @@ use silverhand_backend_core::{
     foundation::persistence::PersistenceFailure,
     identity_access::access::{WorkspaceRole, role_governs_workspace},
 };
-use sqlx::{Row, Sqlite, SqlitePool, Transaction, sqlite::SqliteRow};
+use sqlx::{Row, Sqlite, Transaction, sqlite::SqliteRow};
 use thiserror::Error;
 
 use crate::conversation_messaging::messaging::MessagingStore;
@@ -30,7 +30,7 @@ use super::super::activity::valid_title_key_spelling;
 
 #[derive(Clone)]
 pub struct SqliteChannelDirectoryCreate<E> {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
     environment: E,
 }
 

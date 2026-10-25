@@ -8,10 +8,11 @@ use std::{future::Future, time::Instant};
 /// Same SQLx transaction ownership/rollback semantics, with acquisition measured
 /// separately from BEGIN (which may wait for SQLite's writer lock).
 pub(crate) async fn begin(
-    pool: &sqlx::SqlitePool,
+    database: &crate::foundation::database::SqliteDatabase,
     sql: Option<&'static str>,
 ) -> Result<sqlx::Transaction<'static, sqlx::Sqlite>, sqlx::Error> {
-    let connection = pool
+    let connection = database
+        .pool_for(sql)
         .acquire()
         .observe(silverhand_backend_observability::operation_span!(
             "db.pool.acquire"

@@ -20,7 +20,7 @@ use silverhand_backend_core::{
     foundation::persistence::PersistenceFailure,
 };
 use silverhand_backend_observability::Observe;
-use sqlx::{Row, SqlitePool};
+use sqlx::Row;
 use thiserror::Error;
 
 // Composes the same crate-private directed-claim/count fragments and default tier
@@ -53,7 +53,7 @@ SELECT p.workspace_id
 
 #[derive(Clone)]
 pub struct SqliteAttentionProjection {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 impl<E> MessagingStore<E> {

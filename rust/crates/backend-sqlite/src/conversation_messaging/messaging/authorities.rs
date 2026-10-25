@@ -71,7 +71,7 @@ pub(crate) struct DirectPairInitiationCandidate {
 }
 
 pub(crate) async fn direct_pair_initiation_candidate(
-    pool: &sqlx::SqlitePool,
+    pool: &crate::foundation::database::SqliteDatabase,
     viewer: &UserId,
     target: DirectPairInitiationTarget<'_>,
 ) -> Result<Option<DirectPairInitiationCandidate>, PersistenceFailure> {

@@ -16,7 +16,7 @@ use silverhand_backend_core::{
     foundation::identity::{AgentId, ConversationId, UserId},
     foundation::persistence::PersistenceFailure,
 };
-use sqlx::{Row, Sqlite, SqlitePool, Transaction, sqlite::SqliteRow};
+use sqlx::{Row, Sqlite, Transaction, sqlite::SqliteRow};
 use thiserror::Error;
 
 use crate::conversation_messaging::messaging::MessagingStore;
@@ -27,7 +27,7 @@ use super::conversation_participation::{
 
 #[derive(Clone)]
 pub struct SqliteThreadFollow<E> {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
     environment: E,
 }
 

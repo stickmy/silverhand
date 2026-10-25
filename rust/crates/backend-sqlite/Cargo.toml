@@ -9,6 +9,7 @@ license.workspace = true
 [dependencies]
 silverhand-backend-observability.workspace = true
 metrics.workspace = true
+either = "=1.18.0"
 futures-util.workspace = true
 base64.workspace = true
 chrono.workspace = true

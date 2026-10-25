@@ -26,7 +26,7 @@ use silverhand_backend_core::{
     identity_access::human_auth_flows::{HumanRegistration, HumanRegistrationUnitOfWork},
     identity_access::user_identity::{DisplayName, EmailAddress, ParticipantHandle, UserRecord},
 };
-use sqlx::{Row, SqlitePool};
+use sqlx::Row;
 use thiserror::Error;
 
 use crate::identity_access::credential::serialize_password_hash_params;
@@ -55,7 +55,7 @@ ON CONFLICT(user_id) DO UPDATE SET \
 /// clock (the write stamps `now_ms`, passed in by the application).
 #[derive(Clone)]
 pub struct SqliteHumanRegistration<E = OsEntropy> {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
     entropy: E,
 }
 
@@ -209,7 +209,11 @@ where
     }
 
     /// Construct over an already-open pool with an injected entropy source.
-    pub fn from_pool_with_entropy(pool: SqlitePool, entropy: E) -> Self {
+    pub fn from_pool_with_entropy(
+        pool: impl Into<crate::foundation::database::SqliteDatabase>,
+        entropy: E,
+    ) -> Self {
+        let pool = pool.into();
         Self { pool, entropy }
     }
 }

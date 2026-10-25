@@ -7,7 +7,7 @@ use silverhand_backend_core::{
     foundation::identity::{AgentId, ConversationId, UserId},
     identity_access::agents::session_scope::AgentSessionScope,
 };
-use sqlx::{Row, Sqlite, SqlitePool, Transaction};
+use sqlx::{Row, Sqlite, Transaction};
 use thiserror::Error;
 
 use super::super::MessagingStore;
@@ -38,7 +38,7 @@ const SELECT_USER_EXISTS: &str = "SELECT 1 FROM users WHERE id = ?";
 
 #[derive(Clone)]
 pub struct SqliteRuntimeControlAdmission {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 #[derive(Debug, Error)]
@@ -384,7 +384,7 @@ mod tests {
     }
 
     struct AcquiringProvider {
-        pool: SqlitePool,
+        pool: sqlx::SqlitePool,
         calls: Arc<Mutex<usize>>,
     }
 
@@ -454,7 +454,9 @@ mod tests {
             .connect_with(options)
             .await
             .unwrap();
-        let admission = SqliteRuntimeControlAdmission { pool: pool.clone() };
+        let admission = SqliteRuntimeControlAdmission {
+            pool: pool.clone().into(),
+        };
         let calls = Arc::new(Mutex::new(0));
         let provider = AcquiringProvider {
             pool,

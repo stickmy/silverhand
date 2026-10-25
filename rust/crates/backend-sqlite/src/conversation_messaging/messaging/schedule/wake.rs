@@ -16,7 +16,7 @@ use silverhand_backend_core::{
         persistence::PersistenceFailure,
     },
 };
-use sqlx::{Row, SqlitePool};
+use sqlx::Row;
 use thiserror::Error;
 
 use super::super::{MessagingStore, bump_stream_head_on};
@@ -76,7 +76,7 @@ fn failure(error: impl std::error::Error + Send + Sync + 'static) -> ScheduleWak
 
 #[derive(Clone)]
 pub struct SqliteScheduleWakeWrite<E> {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
     environment: E,
 }
 

@@ -11,7 +11,7 @@ use silverhand_backend_core::{
     foundation::identity::{ConversationId, UserId},
     foundation::persistence::PersistenceFailure,
 };
-use sqlx::{Row, SqlitePool};
+use sqlx::Row;
 use thiserror::Error;
 
 use crate::conversation_messaging::messaging::{
@@ -49,7 +49,7 @@ const LIST_LATEST: &str = concat!(
 
 #[derive(Clone)]
 pub struct SqliteConversationLatestRead {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 impl<E> MessagingStore<E> {

@@ -35,7 +35,7 @@ use silverhand_backend_core::{
 };
 use silverhand_backend_observability::Observe;
 use sqlx::{
-    Row, SqlSafeStr, Sqlite, SqlitePool, Transaction,
+    Row, SqlSafeStr, Sqlite, Transaction,
     sqlite::{SqliteArguments, SqliteRow},
 };
 use thiserror::Error;
@@ -125,7 +125,7 @@ const SELECT_THREAD_ANCHOR: &str =
 
 #[derive(Clone)]
 pub struct SqliteHumanSearchRead {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 impl<E> MessagingStore<E> {
@@ -175,7 +175,8 @@ impl HumanSearchReadPort for SqliteHumanSearchRead {
 }
 
 impl SqliteHumanSearchRead {
-    pub fn from_pool(pool: SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self { pool }
     }
 

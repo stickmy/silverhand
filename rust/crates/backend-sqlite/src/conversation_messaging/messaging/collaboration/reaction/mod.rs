@@ -8,14 +8,14 @@ use silverhand_backend_core::{
     conversation_messaging::messaging::{MessageId, PrincipalIdentity},
     foundation::identity::{AgentId, ConversationId, UserId},
 };
-use sqlx::{Row, SqlitePool, Transaction};
+use sqlx::{Row, Transaction};
 use thiserror::Error;
 
 use crate::conversation_messaging::messaging::MessagingStore;
 
 #[derive(Clone)]
 pub struct SqliteReactionStore {
-    pub(super) pool: SqlitePool,
+    pub(super) pool: crate::foundation::database::SqliteDatabase,
 }
 
 #[derive(Debug, Error)]

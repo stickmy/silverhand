@@ -13,14 +13,14 @@ use silverhand_backend_core::{
         RuntimeCustodyPort, RuntimeFinalStatus, RuntimeGeneration, RuntimePrincipal, RuntimeScope,
     },
 };
-use sqlx::{Row, SqliteConnection, SqlitePool};
+use sqlx::{Row, SqliteConnection};
 use thiserror::Error;
 
 const ROOT_WRITE_BEGIN: &str = "BEGIN IMMEDIATE";
 
 #[derive(Clone)]
 pub struct SqliteRuntimeCustodyStore {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 #[derive(Debug, Error)]
@@ -30,7 +30,8 @@ pub enum SqliteRuntimeCustodyStoreError {
 }
 
 impl SqliteRuntimeCustodyStore {
-    pub fn from_pool(pool: SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self { pool }
     }
 

@@ -8,7 +8,7 @@
 
 use std::{path::Path, time::Duration};
 
-use sqlx::{Sqlite, SqlitePool, Transaction};
+use sqlx::{Sqlite, Transaction};
 use thiserror::Error;
 
 pub(crate) mod decode;
@@ -18,7 +18,7 @@ const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(Clone)]
 pub struct SqliteHostAgentStore {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 /// Startup and driver failures, surfaced only to the composition root that opens
@@ -30,7 +30,8 @@ pub enum SqliteHostAgentStoreError {
 }
 
 impl SqliteHostAgentStore {
-    pub fn from_pool(pool: SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self { pool }
     }
 
@@ -48,7 +49,7 @@ impl SqliteHostAgentStore {
 
     /// The connection for single-statement reads that need no multi-statement
     /// snapshot.
-    pub(crate) fn pool(&self) -> &SqlitePool {
+    pub(crate) fn pool(&self) -> &crate::foundation::database::SqliteDatabase {
         &self.pool
     }
 

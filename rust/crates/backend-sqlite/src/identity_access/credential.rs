@@ -29,7 +29,7 @@ use silverhand_backend_core::{
         RECOVERY_WINDOW_MAX_ATTEMPTS, RECOVERY_WINDOW_MAX_SENDS, RECOVERY_WINDOW_MS, RUST_PRODUCER,
     },
 };
-use sqlx::{Row, SqlitePool};
+use sqlx::Row;
 use thiserror::Error;
 
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
@@ -48,7 +48,7 @@ SELECT u.id AS user_id, c.password_hash AS password_hash \
 /// read. Holds no clock: the login flow spends no write here.
 #[derive(Clone)]
 pub struct SqliteCredentialStore {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 /// Startup/driver failures surfaced only to the composition root that opens the
@@ -74,7 +74,8 @@ impl SqliteCredentialStore {
 
     /// Construct over an already-open pool so a composition root that shares one
     /// pool across adapters need not reopen the file.
-    pub fn from_pool(pool: SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self { pool }
     }
 }

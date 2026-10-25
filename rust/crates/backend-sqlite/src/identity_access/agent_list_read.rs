@@ -41,7 +41,6 @@ use silverhand_backend_core::{
     identity_access::agent_detail_read::AgentDetailFacts,
     identity_access::agent_list_read::AgentListReadModel,
 };
-use sqlx::SqlitePool;
 
 use crate::{
     identity_access::agent_detail_read::{
@@ -68,11 +67,12 @@ const SELECT_VISIBLE_AGENT_ROWS: &str = concat!(
 
 #[derive(Clone)]
 pub struct SqliteAgentListColdRead {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 impl SqliteAgentListColdRead {
-    pub fn from_pool(pool: SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self { pool }
     }
 

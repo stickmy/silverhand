@@ -23,7 +23,7 @@ use silverhand_backend_core::conversation_messaging::messaging::task::{
 };
 use silverhand_backend_core::foundation::identity::ConversationId;
 use silverhand_backend_core::foundation::persistence::PersistenceFailure;
-use sqlx::{QueryBuilder, Row, Sqlite, SqlitePool};
+use sqlx::{QueryBuilder, Row, Sqlite};
 
 use super::super::{
     FROM_KIND_SYSTEM, INSERT_MESSAGE, MessagingStoreError, ReserveSeqFault, bump_stream_head_on,
@@ -65,7 +65,7 @@ const APPLY_EDIT: &str = "UPDATE tasks SET \
 /// The SQLite task edit writer. Holds only a pool.
 #[derive(Clone)]
 pub struct SqliteTaskEditWrite {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
     clock: Arc<dyn TaskWriteClock + Send + Sync>,
 }
 
@@ -82,7 +82,8 @@ impl SqliteTaskEditWrite {
 
     /// Construct over an already-open pool (composition / tests sharing one product
     /// database across the task authorities).
-    pub fn from_pool(pool: SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self {
             pool,
             clock: Arc::new(SystemTaskWriteClock),
@@ -90,7 +91,7 @@ impl SqliteTaskEditWrite {
     }
 
     pub fn from_pool_with_clock<K: TaskWriteClock + Send + Sync + 'static>(
-        pool: SqlitePool,
+        pool: crate::foundation::database::SqliteDatabase,
         clock: K,
     ) -> Self {
         Self {

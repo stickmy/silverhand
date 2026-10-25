@@ -28,7 +28,7 @@ use silverhand_backend_core::conversation_messaging::messaging::schedule::{
 };
 use silverhand_backend_core::foundation::identity::{AgentId, WorkspaceId};
 use silverhand_backend_core::foundation::persistence::PersistenceFailure;
-use sqlx::{Row, SqlitePool};
+use sqlx::Row;
 
 use super::product::project_schedule_view;
 use super::{ScheduleStoreError, SystemClock, corrupt, driver};
@@ -72,7 +72,7 @@ const CANCEL_CAS: &str = "UPDATE schedules \
 /// The cancel write authority. Its clock stamps `cancelled_at`/`updated_at`.
 #[derive(Clone)]
 pub struct SqliteScheduleCancel<K = SystemClock> {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
     clock: K,
 }
 
@@ -96,7 +96,11 @@ impl<K> SqliteScheduleCancel<K> {
 
     /// Wraps an already-open pool with an injected clock, for a shared-pool
     /// composition root or a deterministic test clock.
-    pub fn from_pool(pool: SqlitePool, clock: K) -> Self {
+    pub fn from_pool(
+        pool: impl Into<crate::foundation::database::SqliteDatabase>,
+        clock: K,
+    ) -> Self {
+        let pool = pool.into();
         Self { pool, clock }
     }
 }

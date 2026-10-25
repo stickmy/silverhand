@@ -25,7 +25,7 @@ use silverhand_backend_core::{
     foundation::persistence::PersistenceFailure,
     identity_access::access::role_governs_workspace,
 };
-use sqlx::{Row, Sqlite, SqlitePool, Transaction};
+use sqlx::{Row, Sqlite, Transaction};
 use thiserror::Error;
 
 use crate::conversation_messaging::messaging::{
@@ -36,7 +36,7 @@ use super::{ChannelLifecycleStoreError, load_channel_row, load_workspace_role};
 
 #[derive(Clone)]
 pub struct SqliteChannelLifecycleMutation<E> {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
     environment: E,
 }
 

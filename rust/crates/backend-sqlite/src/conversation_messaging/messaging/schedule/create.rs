@@ -27,7 +27,7 @@ use silverhand_backend_core::conversation_messaging::messaging::schedule::{
     ScheduleCreateRequest, ScheduleCreateStore, ScheduleSpec,
 };
 use silverhand_backend_core::foundation::persistence::PersistenceFailure;
-use sqlx::{Row, SqlitePool};
+use sqlx::Row;
 
 use super::super::SELECT_AGENT_PARTICIPATES;
 use super::product::project_schedule_view;
@@ -110,7 +110,7 @@ fn new_schedule_id() -> Result<String, PersistenceFailure> {
 /// authority, never fused with the fire-path store or the list/cancel readers.
 #[derive(Clone)]
 pub struct SqliteScheduleCreate<K = SystemClock> {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
     clock: K,
 }
 
@@ -124,7 +124,8 @@ impl SqliteScheduleCreate<SystemClock> {
     }
 
     /// Construct over an already-open pool with the real system clock.
-    pub fn from_pool(pool: SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self {
             pool,
             clock: SystemClock,
@@ -141,7 +142,11 @@ impl<K> SqliteScheduleCreate<K> {
         Ok(Self { pool, clock })
     }
 
-    pub fn from_pool_with_clock(pool: SqlitePool, clock: K) -> Self {
+    pub fn from_pool_with_clock(
+        pool: impl Into<crate::foundation::database::SqliteDatabase>,
+        clock: K,
+    ) -> Self {
+        let pool = pool.into();
         Self { pool, clock }
     }
 }

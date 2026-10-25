@@ -9,7 +9,7 @@ use silverhand_backend_core::{
     foundation::identity::{ConversationId, UserId},
     foundation::persistence::PersistenceFailure,
 };
-use sqlx::{Row, Sqlite, SqlitePool, Transaction};
+use sqlx::{Row, Sqlite, Transaction};
 use thiserror::Error;
 
 use crate::{
@@ -55,7 +55,7 @@ const FOLLOWED_THREAD_UNREAD: &str = concat!(
 
 #[derive(Clone)]
 pub struct SqliteConversationUnreadRead {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 impl<E> MessagingStore<E> {

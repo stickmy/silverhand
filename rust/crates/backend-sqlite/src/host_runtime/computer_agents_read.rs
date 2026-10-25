@@ -18,7 +18,7 @@ use silverhand_backend_core::{
     foundation::persistence::PersistenceFailure,
     host_runtime::agent_roster::ComputerAgentsReadPort,
 };
-use sqlx::{Row, SqlitePool};
+use sqlx::Row;
 use thiserror::Error;
 
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
@@ -31,7 +31,7 @@ SELECT a.id \
 
 #[derive(Clone)]
 pub struct SqliteComputerAgentsRead {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 /// Read failures surfaced only as the source of a [`PersistenceFailure`]. A
@@ -53,7 +53,8 @@ impl SqliteComputerAgentsRead {
 
     /// Construct over an already-open pool, so a composition root that shares one
     /// pool across adapters need not reopen the file.
-    pub fn from_pool(pool: SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self { pool }
     }
 }

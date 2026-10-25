@@ -54,7 +54,7 @@ use silverhand_backend_core::{
     },
     identity_access::capability::agent_audit::AuditedConversation,
 };
-use sqlx::{QueryBuilder, Row, Sqlite, SqlitePool, Transaction, sqlite::SqliteRow};
+use sqlx::{QueryBuilder, Row, Sqlite, Transaction, sqlite::SqliteRow};
 use thiserror::Error;
 
 use crate::{
@@ -115,7 +115,7 @@ const SELECT_CONVERSATION_FACTS: &str = "SELECT c.id, c.placement_kind, \
 
 #[derive(Clone)]
 pub struct SqliteAgentAuditRead {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 /// Read failures surfaced only as the source of a [`PersistenceFailure`]. Every variant
@@ -146,7 +146,8 @@ pub enum AgentAuditReadError {
 }
 
 impl SqliteAgentAuditRead {
-    pub fn from_pool(pool: SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self { pool }
     }
 

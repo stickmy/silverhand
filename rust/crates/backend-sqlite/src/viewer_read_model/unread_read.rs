@@ -30,7 +30,7 @@ use silverhand_backend_core::{
     foundation::identity::{ConversationId, UserId, WorkspaceId},
     foundation::persistence::PersistenceFailure,
 };
-use sqlx::{Row, Sqlite, SqlitePool, Transaction};
+use sqlx::{Row, Sqlite, Transaction};
 use thiserror::Error;
 
 const DEFERRED_READ_BEGIN: &str = "BEGIN DEFERRED";
@@ -298,7 +298,7 @@ const LIVE_PARTICIPANT_USER_IDS: &str = concat!(
 /// Reads the committed database to decide who is owed an unread update for a conversation.
 #[derive(Clone)]
 pub struct SqliteUnreadReadModel {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 /// Startup and driver failures, surfaced only to the composition root that opens the
@@ -421,7 +421,8 @@ const PLACEMENT_WORKSPACE: &str = "workspace";
 const PLACEMENT_DIRECT_PAIR: &str = "direct_pair";
 
 impl SqliteUnreadReadModel {
-    pub fn from_pool(pool: SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self { pool }
     }
 

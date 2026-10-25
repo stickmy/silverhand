@@ -18,7 +18,7 @@ use silverhand_backend_core::{
     foundation::identity::{AgentId, ConversationId, UserId},
     foundation::persistence::PersistenceFailure,
 };
-use sqlx::{Row, Sqlite, SqlitePool, Transaction};
+use sqlx::{Row, Sqlite, Transaction};
 use thiserror::Error;
 
 use crate::conversation_messaging::messaging::{MessagingStore, SELECT_AGENT_PARTICIPATES};
@@ -29,7 +29,7 @@ use super::channel_lifecycle::{
 
 #[derive(Clone)]
 pub struct SqliteConversationAgentActivityRead {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 impl<E> MessagingStore<E> {

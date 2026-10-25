@@ -110,9 +110,7 @@ impl PassiveResources {
 
         let pool = open(
             "shared database pool",
-            silverhand_backend_sqlite::foundation::database::open_shared_pool(
-                &config.database_path,
-            ),
+            silverhand_backend_sqlite::foundation::database::open_shared(&config.database_path),
         )
         .await?;
 

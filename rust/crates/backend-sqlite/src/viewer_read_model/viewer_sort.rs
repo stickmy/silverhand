@@ -32,7 +32,7 @@ use crate::conversation_messaging::messaging::collaboration::channel_directory::
 /// entropy nor a domain clock beyond the wall-clock stamp the writes carry.
 #[derive(Clone)]
 pub struct SqliteViewerSort {
-    pool: sqlx::SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
     clock: SortClock,
 }
 
@@ -766,7 +766,7 @@ INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, titl
         (
             dir,
             SqliteViewerSort {
-                pool: pool.clone(),
+                pool: pool.clone().into(),
                 clock: SortClock::System,
             },
             pool,

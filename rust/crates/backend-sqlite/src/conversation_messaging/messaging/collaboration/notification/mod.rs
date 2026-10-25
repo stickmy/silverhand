@@ -10,13 +10,13 @@ use silverhand_backend_core::{
     foundation::identity::{AgentId, ConversationId, UserId, WorkspaceId},
     foundation::persistence::PersistenceFailure,
 };
-use sqlx::{Row, SqlitePool, sqlite::SqliteRow};
+use sqlx::{Row, sqlite::SqliteRow};
 use std::num::NonZeroU64;
 use thiserror::Error;
 
 #[derive(Clone)]
 pub struct SqliteNotificationStore<E = HostEnvironment> {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
     environment: E,
 }
 impl<E: Clone> MessagingStore<E> {

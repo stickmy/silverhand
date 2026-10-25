@@ -35,7 +35,6 @@ use silverhand_backend_core::{
     foundation::persistence::PersistenceFailure,
     workspace_data_plane::{AgentWorkspaceScopeFacts, AgentWorkspaceScopeRead},
 };
-use sqlx::SqlitePool;
 use thiserror::Error;
 
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
@@ -74,7 +73,7 @@ type ScopeRow = (String, String, String, i64, Option<String>, i64, i64);
 /// pool; every read is one statement over the current schema.
 #[derive(Clone)]
 pub struct SqliteWorkspaceScopeStore {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
 }
 
 /// A pool that could not be opened as a consumer of an already-migrated database.
@@ -111,7 +110,8 @@ impl SqliteWorkspaceScopeStore {
 
     /// Share an already-open pool, for a composition root that keeps one pool per
     /// database rather than opening a second for this reader.
-    pub fn from_pool(pool: SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self { pool }
     }
 }

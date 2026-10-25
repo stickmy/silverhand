@@ -26,7 +26,7 @@ use silverhand_backend_core::conversation_messaging::messaging::task::{
     TaskWriteCapability, TaskWriteClock, compose_create_event,
 };
 use silverhand_backend_core::foundation::persistence::PersistenceFailure;
-use sqlx::{Row, SqlitePool};
+use sqlx::Row;
 
 use super::super::{
     FROM_KIND_SYSTEM, INSERT_MESSAGE, MessagingStoreError, ReserveSeqFault, bump_stream_head_on,
@@ -70,7 +70,7 @@ fn new_id() -> Result<String, PersistenceFailure> {
 /// The SQLite task create writer.
 #[derive(Clone)]
 pub struct SqliteTaskCreateWrite {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
     clock: Arc<dyn TaskWriteClock + Send + Sync>,
 }
 
@@ -85,7 +85,8 @@ impl SqliteTaskCreateWrite {
     }
 
     /// Construct over an already-open pool.
-    pub fn from_pool(pool: SqlitePool) -> Self {
+    pub fn from_pool(pool: impl Into<crate::foundation::database::SqliteDatabase>) -> Self {
+        let pool = pool.into();
         Self {
             pool,
             clock: Arc::new(SystemTaskWriteClock),
@@ -93,7 +94,7 @@ impl SqliteTaskCreateWrite {
     }
 
     pub fn from_pool_with_clock<K: TaskWriteClock + Send + Sync + 'static>(
-        pool: SqlitePool,
+        pool: crate::foundation::database::SqliteDatabase,
         clock: K,
     ) -> Self {
         Self {

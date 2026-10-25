@@ -16,7 +16,7 @@ use silverhand_backend_core::{
     },
     foundation::identity::{ConversationId, UserId, WorkspaceId},
 };
-use sqlx::{Row, Sqlite, SqlitePool, Transaction};
+use sqlx::{Row, Sqlite, Transaction};
 use thiserror::Error;
 
 use super::valid_title_key_spelling;
@@ -24,7 +24,7 @@ use crate::conversation_messaging::messaging::{HostEnvironment, MessagingStore, 
 
 #[derive(Clone)]
 pub struct SqliteObservationStore<E = HostEnvironment> {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
     environment: E,
 }
 

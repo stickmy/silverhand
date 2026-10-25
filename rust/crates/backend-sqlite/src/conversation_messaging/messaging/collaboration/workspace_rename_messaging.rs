@@ -19,7 +19,7 @@ use silverhand_backend_core::{
     foundation::identity::{AgentId, ConversationId, WorkspaceId},
     foundation::persistence::PersistenceFailure,
 };
-use sqlx::{Row, Sqlite, SqlitePool, Transaction};
+use sqlx::{Row, Sqlite, Transaction};
 use thiserror::Error;
 
 use crate::conversation_messaging::messaging::{
@@ -28,7 +28,7 @@ use crate::conversation_messaging::messaging::{
 
 #[derive(Clone)]
 pub struct SqliteWorkspaceRenameMessaging<E> {
-    pool: SqlitePool,
+    pool: crate::foundation::database::SqliteDatabase,
     environment: E,
 }
 
