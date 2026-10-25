@@ -49,6 +49,7 @@ use super::{
     mint_attachment_id, multipart_file, payload_matches_locked_type, record_json,
     sanitize_filename,
 };
+use crate::conversation_messaging::messaging::agent_capability_wire::capability_denied;
 
 pub const INTERNAL_AGENT_ATTACHMENTS_PATH: &str = "/internal/agents/{aid}/attachments";
 pub const INTERNAL_AGENT_ATTACHMENT_PATH: &str =
@@ -783,19 +784,6 @@ fn target_refusal(refusal: AgentAttachmentTargetRefusal) -> Response {
             "slot_out_of_scope",
         ),
     }
-}
-
-fn capability_denied(capability: &'static str) -> Response {
-    (
-        StatusCode::FORBIDDEN,
-        Json(json!({
-            "code": "capability_denied",
-            "capability": capability,
-            "message": format!("missing '{capability}' capability in this workspace"),
-            "details": { "capability": capability },
-        })),
-    )
-        .into_response()
 }
 
 fn upload_refusal(refusal: AgentAttachmentUploadRefusal) -> Response {

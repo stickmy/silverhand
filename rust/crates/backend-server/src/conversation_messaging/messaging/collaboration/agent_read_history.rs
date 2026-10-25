@@ -29,6 +29,7 @@ use silverhand_backend_core::{
     host_runtime::runtime_credential::RuntimePrincipal,
 };
 
+use crate::conversation_messaging::messaging::agent_capability_wire::capability_denied;
 use crate::conversation_messaging::messaging::author_wire::author_dto;
 use crate::foundation::http_error::{
     coded_error as coded, json_error as error, logged_500 as internal, logged_500 as internal_dyn,
@@ -484,19 +485,6 @@ fn invalid_input() -> Response {
     (
         StatusCode::UNPROCESSABLE_ENTITY,
         Json(serde_json::json!({ "error": "invalid input" })),
-    )
-        .into_response()
-}
-
-fn capability_denied(capability: &'static str) -> Response {
-    (
-        StatusCode::FORBIDDEN,
-        Json(serde_json::json!({
-            "code": "capability_denied",
-            "capability": capability,
-            "message": format!("missing '{capability}' capability in this workspace"),
-            "details": { "capability": capability },
-        })),
     )
         .into_response()
 }

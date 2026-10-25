@@ -29,6 +29,7 @@ use silverhand_backend_core::{
     host_runtime::runtime_credential::RuntimePrincipal,
 };
 
+use crate::conversation_messaging::messaging::agent_capability_wire::capability_denied;
 use crate::foundation::http_error::{json_error as error, logged_500 as internal};
 use crate::host_runtime::runtime_credential::bind_runtime_actor;
 
@@ -190,19 +191,6 @@ fn workspace_scope_required(source_placement_kind: Option<ConversationPlacementK
         Json(serde_json::json!({
             "error": error,
             "code": "workspace_scope_required"
-        })),
-    )
-        .into_response()
-}
-
-fn capability_denied(capability: &'static str) -> Response {
-    (
-        StatusCode::FORBIDDEN,
-        Json(serde_json::json!({
-            "code": "capability_denied",
-            "capability": capability,
-            "message": format!("missing '{capability}' capability in this workspace"),
-            "details": { "capability": capability },
         })),
     )
         .into_response()
