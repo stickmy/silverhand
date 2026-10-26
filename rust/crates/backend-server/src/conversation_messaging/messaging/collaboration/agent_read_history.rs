@@ -111,9 +111,7 @@ where
     if body.target.is_empty() {
         return invalid_input();
     }
-    // Numeric admission: `before_seq`/`after_seq`/`limit` coerce
-    // per `z.coerce.number()` (numeric string/null/bool/singleton-array accepted) then
-    // gate JS-safe int + domain. A present-but-uncoercible value is `invalid input`.
+    // A present non-integer `before_seq`/`after_seq`/`limit` is `invalid input`.
     if body.before_seq.is_invalid() || body.after_seq.is_invalid() || body.limit.is_invalid() {
         return invalid_input();
     }
@@ -127,7 +125,7 @@ where
     if anchor_count > 1 {
         return invalid_input();
     }
-    // Non-negative seqs (`z.coerce.number().int().nonnegative()`).
+    // Non-negative seqs.
     if before_seq.is_some_and(|v| v < 0) || after_seq.is_some_and(|v| v < 0) {
         return invalid_input();
     }
@@ -136,7 +134,7 @@ where
     }
     let include_content = body.include_content.into_option().unwrap_or(false);
     let include_system = body.include_system.into_option().unwrap_or(true);
-    // `z.coerce.number().int().positive().max(100).default(50)`.
+    // 1..=100, default 50.
     let limit = match body.limit.value() {
         None => 50,
         Some(value) if (1..=100).contains(&value) => value,

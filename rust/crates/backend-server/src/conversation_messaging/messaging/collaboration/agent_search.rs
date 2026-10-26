@@ -119,8 +119,7 @@ where
     if !(1..=200).contains(&q_units) {
         return invalid_input();
     }
-    // include_system defaults true; limit `z.coerce.number().int().positive().max(100)
-    // .default(50)`.
+    // include_system defaults true; limit 1..=100, default 50.
     let include_system = body.include_system.into_option().unwrap_or(true);
     if body.limit.is_invalid() {
         return invalid_input();
