@@ -1,11 +1,11 @@
+#[path = "support/current_schema_snapshot.rs"]
+mod current_schema;
 use silverhand_backend_core::identity_access::auth::{
     HumanSessionAuthenticator, SessionBearer, SessionClock, SessionTokenHash, SessionTtl,
 };
 use silverhand_backend_sqlite::identity_access::auth::SqliteSessionStore;
 use sqlx::{Connection, sqlite::SqliteConnectOptions};
 use std::time::Duration;
-#[path = "support/current_schema_snapshot.rs"]
-mod current_schema;
 const NOW: i64 = 1_000_000;
 #[derive(Clone)]
 struct Clock;

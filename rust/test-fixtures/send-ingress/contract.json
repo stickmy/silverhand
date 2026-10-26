@@ -1,6 +1,6 @@
 {
   "oracle": "packages/backend/tests/send-ingress-contract.test.ts",
-  "consumer": "rust/crates/backend-server/tests/send_ingress_contract.rs",
+  "consumer": "rust/crates/backend-server/tests/it/send_ingress_contract.rs",
   "command": "scripts/parity-send-ingress.sh",
   "ruler": "The approved Error parity policy measures status, `error`, and each issue's code, path and contract-defined message. Zod's extra issue metadata (`expected`/`received`/`options`/bounds/`inclusive`) is deliberately NOT part of the contract, so the oracle projects real issues onto that ruler before comparing. A difference the ruler does not measure is not a divergence.",
   "cases": [

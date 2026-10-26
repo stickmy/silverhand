@@ -1,0 +1,65 @@
+//! The crate's integration tests, linked as one binary. Suites that install a global
+//! tracing subscriber or depend on span callsite interest stay as their own binaries.
+
+#[path = "../support/current_schema_snapshot.rs"]
+mod current_schema;
+
+mod access_sqlite_enrollment;
+mod access_sqlite_governance;
+mod access_sqlite_human_enrollment;
+mod access_sqlite_peer_membership;
+mod activity_observation_store;
+mod activity_read_model;
+mod agent_attachment;
+mod agent_audit_read;
+mod agent_availability_read;
+mod agent_detail_read;
+mod agent_list_read;
+mod agent_list_visibility_parity;
+mod agent_presence_read;
+mod agent_profile_read;
+mod attachment_write;
+mod attention_preference_store;
+mod attention_projection_store;
+mod auth_session;
+mod channel_directory_create_store;
+mod channel_directory_store;
+mod channel_lifecycle_mutation_store;
+mod channel_lifecycle_store;
+mod conversation_agent_activity_store;
+mod conversation_agent_runtime_store;
+mod conversation_latest_store;
+mod conversation_message_window_store;
+mod conversation_participation_store;
+mod conversation_ref_store;
+mod conversation_threads_store;
+mod current_schema_snapshot;
+mod direct_pair_read;
+mod human_search_store;
+mod inbox_contention;
+mod mention_cc_contract;
+mod messaging_authorities;
+mod messaging_create_message;
+mod messaging_peer_profile_gates;
+mod notification_store;
+mod runtime_credential;
+mod runtime_delivery;
+mod runtime_transition_fence;
+mod saved_store;
+mod schedule_cancel_uow;
+mod schedule_create;
+mod schedule_list_read;
+mod schedule_store;
+mod scope_event;
+mod stale_message_resolution_admission;
+mod task_claim_write;
+mod task_create_write;
+mod task_edit_write;
+mod task_human_board_read;
+mod task_point_snapshot;
+mod task_status_write;
+mod task_write_clock;
+mod workspace_cold_read;
+mod workspace_data_plane_scope;
+mod workspace_ownership_transfer;
+mod workspace_rename_messaging_store;
