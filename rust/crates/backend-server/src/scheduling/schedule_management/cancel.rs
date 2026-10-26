@@ -3,8 +3,7 @@
 //! The shared creator-or-system floor ([`gate_agent_edit`]) runs first; the
 //! atomic cancel unit of work then re-binds the schedule's OWN owner and grades
 //! `manage_schedules` (a gate pass is not carried as proof of owning THIS
-//! schedule). The outcome maps 1:1 to the wire contract in
-//! `packages/backend/src/routes/responses.ts::scheduleErrorStatusMap`.
+//! schedule). The outcome maps 1:1 to the schedule error wire contract.
 //!
 //! The success audit line — `agent schedule cancelled by user` with the viewer,
 //! agent, and schedule — is emitted EXACTLY ONCE, after the unit of work reports

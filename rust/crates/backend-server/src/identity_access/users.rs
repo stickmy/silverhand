@@ -1,5 +1,4 @@
-//! The human-directory and avatar HTTP surface — the four routes ported from
-//! `packages/backend/src/routes/users.ts` (`createUsersApp`) that are NOT the
+//! The human-directory and avatar HTTP surface — the four routes that are NOT the
 //! `me` profile pair (those live in [`crate::identity_access::human_auth`]):
 //!
 //! * `GET    /api/users`             — the global human directory.

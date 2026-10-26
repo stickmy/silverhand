@@ -4,9 +4,7 @@
 //! atomic-insert port that enforces the active-count cap WITHOUT a
 //! check-then-act race.
 //!
-//! Mirrors the TypeScript `ScheduleService.create`
-//! (`packages/backend/src/services/schedule-service.ts`), split along the fixed
-//! layering:
+//! Split along the fixed layering:
 //!
 //! - **This core module** owns everything that is a function of the REQUEST and
 //!   the clock alone: the once/interval/cron canonicalization, the initial

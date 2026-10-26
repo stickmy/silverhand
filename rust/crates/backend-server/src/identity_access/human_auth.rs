@@ -1,7 +1,5 @@
 //! The human credentialed-session HTTP surface — the #2192 "closed set" of five
-//! routes, ported one-to-one from `packages/backend/src/routes/auth.ts`
-//! (`createAuthApp`) and `packages/backend/src/routes/users.ts`
-//! (`createUsersApp`, the `me` pair):
+//! routes:
 //!
 //! * `POST /auth/signup`  — public creator of an email+password identity.
 //! * `POST /auth/login`   — public credential verification.

@@ -35,8 +35,7 @@ use crate::{
     foundation::persistence::PersistenceFailure,
 };
 
-/// The name an unclaimed placeholder carries, pinned to `LOCAL_HOST_NAME`
-/// (`packages/backend/src/repos/host-repo.ts`). Also the fallback for a computer whose
+/// The name an unclaimed placeholder carries. Also the fallback for a computer whose
 /// label normalizes to nothing.
 pub const LOCAL_COMPUTER_NAME: &str = "local";
 
@@ -493,8 +492,7 @@ fn installation_prefix(installation_id: &str) -> String {
 /// lowercase, `[a-z0-9_-]` only, no leading or trailing dash, at most
 /// [`COMPUTER_NAME_MAX_CHARS`], and never empty.
 ///
-/// Byte-identical to `normalizeHostName` (`packages/backend/src/repos/host-repo.ts`),
-/// including the part that reads like a bug: the length cap is applied AFTER the dash
+/// Includes the part that reads like a bug: the length cap is applied AFTER the dash
 /// strip, so truncation can leave a trailing dash that the strip would have removed.
 /// It is a stored coordinate — changing where the cap lands renames existing
 /// computers.

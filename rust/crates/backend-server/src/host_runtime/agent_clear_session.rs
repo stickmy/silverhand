@@ -3,7 +3,7 @@
 //!
 //! The route's authority is the Agent aggregate, NOT any conversation currently used
 //! as presentation focus, so it carries no conversation coordinate and writes no
-//! conversation audit message (mirrors `packages/backend/src/routes/agents.ts`). The
+//! conversation audit message. The
 //! ladder composes two authorities:
 //!
 //!  1. VISIBILITY ([`can_view_agent`], active-only) — absence, a caller outside the

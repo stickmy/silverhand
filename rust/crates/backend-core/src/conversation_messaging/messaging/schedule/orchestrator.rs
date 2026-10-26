@@ -9,9 +9,7 @@
 //! timer driver and the periodic sweep that call [`process_one`] are a separate
 //! seam; product create/list/cancel never depend on them.
 //!
-//! It mirrors the TypeScript `ScheduleService.processOne`
-//! (packages/backend/src/services/schedule-service.ts) exactly, because the
-//! ordering IS the contract:
+//! The ordering IS the contract:
 //!
 //! 1. **Claim the EXACT occurrence first.** A single `pending → firing` CAS
 //!    bound to the [`DueCandidate`]'s `(id, fired_count, next_fire_at)`, whose
@@ -507,9 +505,7 @@ mod tests {
         },
     }
 
-    /// The FULL set of fields the TS wake metadata + `renderWakeBody` consume
-    /// (packages/backend/src/services/schedule-service.ts `deliverWake`),
-    /// extracted from a single [`WakeContext`]. Capturing every one of them and
+    /// The FULL set of fields the wake metadata and body consume, extracted from a single [`WakeContext`]. Capturing every one of them and
     /// asserting the whole struct is the guard that the wake fact is the complete
     /// claimed occurrence — not a subset that silently drops `spec`, the planned
     /// instant, or the occurrence-label inputs.

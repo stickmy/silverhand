@@ -29,8 +29,6 @@ impl ServerMode {
 /// expected to have. A standalone backend is control-plane only: it has no
 /// co-located daemon host, so the machine it runs on is not a machine any agent runs
 /// on.
-///
-/// Pinned to `BackendDeploymentMode` (`packages/backend/src/context.ts`).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DeploymentMode {
     Embedded,

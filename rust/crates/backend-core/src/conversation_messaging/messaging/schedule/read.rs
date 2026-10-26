@@ -4,8 +4,7 @@
 //!
 //! This is the projection contract, not a driver. [`ScheduleView`] is exactly the
 //! 20-field DTO shape (`packages/shared/src/api/schedule.ts::ScheduleDtoSchema`);
-//! [`target_label`] is the pure label rule from
-//! `packages/backend/src/repos/schedule-repo.ts::buildTargetLabel`. The status
+//! [`target_label`] is the pure label rule. The status
 //! family and the `1..=200` limit are the closed query grammar the deferred
 //! parse validates AFTER the route's visibility/authority floor — never before,
 //! so an invalid query never becomes an existence oracle.

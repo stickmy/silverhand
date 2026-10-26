@@ -41,8 +41,7 @@ use crate::{
 const CREDENTIAL_ID_BYTES: usize = 12;
 const CONNECT_TOKEN_BYTES: usize = 32;
 
-/// How long a rotated-away token keeps working, pinned to
-/// `HOST_TOKEN_ROTATION_GRACE_MS` (`packages/backend/src/auth/host-token.ts`).
+/// How long a rotated-away token keeps working.
 ///
 /// The window exists because the daemon holding the old token has to be told about
 /// the new one over a live connection and then write it down. Revoking the old token
@@ -419,9 +418,7 @@ pub fn judge_credential_eligibility(
 /// a past `revoked_at` with a `consumed_at` is one it treats as expired — so those
 /// combinations are not offered.
 ///
-/// There is no "only sweep the unexpired ones" option, unlike
-/// `revokeOtherLongLivedForHost` in `packages/backend/src/repos/host-credentials-repo.ts`.
-/// Its guard can only change the outcome for a long-lived credential that carries an
+/// There is no "only sweep the unexpired ones" option. Such a guard could only change the outcome for a long-lived credential that carries an
 /// expiry, and [`mint_credential`] is the only source of long-lived credentials and
 /// takes no expiry — the state the guard protects against is unreachable here.
 /// Falsifier: give long-lived credentials an expiry and the guard has to come back.
@@ -527,8 +524,7 @@ pub trait HostCredentialInventory: Clone + Send + Sync + 'static {
     ) -> impl Future<Output = Result<bool, PersistenceFailure>> + Send;
 }
 
-/// SHA-256, base64url without padding — byte-identical to `hashHostToken`
-/// (`packages/backend/src/auth/host-token.ts`).
+/// SHA-256, base64url without padding. Stored verifiers depend on this exact encoding.
 ///
 /// Private on purpose. A caller able to hash could compare a presented token itself
 /// and skip the verdict above, or persist a verifier for a token it chose.

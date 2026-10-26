@@ -341,8 +341,7 @@ where
     ///
     /// [`admit_host_token_rotation`] runs here as a PRE-lock refusal — the same fast
     /// answer the route already gave — never as the in-lock authority. Beyond it, no
-    /// fuller eligibility is pre-checked, unlike `prepareHostTokenRotation` in
-    /// `packages/backend/src/auth/host-token.ts`: the computer arrived owned, so it is
+    /// fuller eligibility is pre-checked: the computer arrived owned, so it is
     /// bound to a user, and a second pre-lock copy of the eligibility rule would be one
     /// more place that could disagree with the write. The authority is the host re-read
     /// under the lock and judged by `judge_credential_eligibility` when `complete` issues

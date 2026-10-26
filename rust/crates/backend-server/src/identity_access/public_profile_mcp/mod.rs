@@ -16,7 +16,7 @@
 //! The read is edit-gated too, not merely visibility-gated: a raw `mcp.json` can carry
 //! secrets (env tokens, HTTP auth headers) and a probe connects to the owner's endpoint
 //! WITH those secrets, so a co-workspace teammate who is not the creator must be refused
-//! both — matching the TS handlers (`packages/backend/src/routes/agents.ts`).
+//! both.
 //!
 //! ## Transport is borrowed, never owned
 //!

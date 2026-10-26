@@ -15,7 +15,7 @@
 //!     never re-derived here), and aggregates per the TS `Promise.allSettled`
 //!     contract.
 //!
-//! The aggregation is reproduced exactly (see `packages/backend/src/routes/agents.ts`):
+//! The aggregation:
 //!   - no running seats → `200 {"stopped":0}` without touching the transport;
 //!   - at least one FULFILLED (even mixed with failures) → `200 {"stopped":N}`, and
 //!     every failure is logged in input order (residue accounting, never swallowed);

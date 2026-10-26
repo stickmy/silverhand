@@ -487,7 +487,7 @@ fn parse_schema_upgrade(
 /// different contracts for `SILVERHAND_DISABLE_SIGNUP` and a generic truthy helper
 /// would invent a silent third one that neither honours.
 ///
-/// - `Embedded` (`packages/backend/src/auth/config.ts`: `signupEnabled = env !== '1'`):
+/// - `Embedded`:
 ///   no trim, case-sensitive, ONLY the exact string `"1"` disables signup. Every other
 ///   value — unset, `"0"`, `"true"`, `" 1 "`, garbage, empty — enables it, and nothing
 ///   fails to start.

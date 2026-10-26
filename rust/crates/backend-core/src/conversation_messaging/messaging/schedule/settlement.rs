@@ -20,10 +20,7 @@
 //!     ([`SettlementAction::MarkFireFailed`]). `max_occurrences` is NOT
 //!     consulted for a failed fire — the failed fire consumed no occurrence.
 //!
-//! The Rust port mirrors the TS production decision `planSettlement`
-//! (packages/backend/src/services/schedule-settlement.ts); the two are kept in
-//! lockstep by the checked-in `settlement_ts_fixture.rs`, signed by the TS
-//! gate and consumed here.
+//! The checked-in `settlement_ts_fixture.rs` pins these decisions.
 
 use super::recurrence::{
     Advancement, CronNextOccurrence, FailureRearm, FailureRearmError, plan_failure_rearm,

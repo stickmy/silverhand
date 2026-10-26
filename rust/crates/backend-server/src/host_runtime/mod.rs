@@ -99,8 +99,7 @@ where
 }
 
 /// Resolve the daemon package spec the connect-command card shows: a configured value,
-/// trimmed, or the default when it is absent or blank. Pinned to `daemonNpmSpec()` in
-/// `packages/backend/src/routes/hosts.ts`, and shared by the create-invite response and
+/// trimmed, or the default when it is absent or blank. Shared by the create-invite response and
 /// the connect-token rotation response so the two can never show a different spec.
 pub(super) fn resolve_daemon_npm_spec(configured: Option<String>) -> String {
     configured
