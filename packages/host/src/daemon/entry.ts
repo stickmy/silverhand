@@ -9,7 +9,7 @@
  *
  *   --socket-path <abs>   (required) where to bind the Unix socket
  *   --pid-file   <abs>    (required) where to write the pid lock file
- *   --log-dir    <abs>    (required) where to write daemon-*.log
+ *   --log-dir    <abs>    (required) where to write daemon.YYYY-MM-DD.log
  *   --host-config <abs>   optional daemon outbound WS config
  *   --local-outbound-socket-path <abs>
  *                         optional; where to bind the local outbound

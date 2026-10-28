@@ -70,7 +70,7 @@ const FORBIDDEN_LOG_KEYS = [
 
 function readDaemonLogs(logDir: string): string {
   if (!existsSync(logDir)) return '';
-  const files = readdirSync(logDir).filter((f) => f.startsWith('daemon-'));
+  const files = readdirSync(logDir).filter((f) => /^daemon\.\d{4}-\d{2}-\d{2}\.log$/.test(f));
   return files.map((f) => readFileSync(join(logDir, f), 'utf-8')).join('\n');
 }
 

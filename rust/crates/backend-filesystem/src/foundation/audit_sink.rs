@@ -11,10 +11,10 @@
 //!
 //! # What it preserves
 //!
-//! The TypeScript product writes each preflight failure as one JSON object per line to
-//! `<log-dir>/cli-<utc>.log`, one file per process boot, and an operator queries those
-//! files with `tail`/`jq`/`grep`. There is no programmatic reader, so the compatibility
-//! contract is exactly that on-disk shape: the same filename grammar, the same set of
+//! The CLI audit sink writes each preflight failure as one JSON object per line to
+//! `<log-dir>/cli.YYYY-MM-DD.log`, rotating daily in UTC with 14-file retention.
+//! Historical `cli-<utc>.log` files expire after 14 days without writes. Operators
+//! query these files with `tail`/`jq`/`grep`. The record contract preserves the same set of
 //! independently-addressable top-level keys with the same casing, absent optionals as
 //! explicit `null`, an absent flag list as `[]`, and a line that persists regardless of
 //! any configured log level (the product force-writes this category past its threshold).
@@ -28,7 +28,7 @@
 //! typed facade over one such writer that projects a [`CliPreflightFailure`] into the
 //! exact wire line. A second audit surface reuses the SAME primitive with its own prefix
 //! and facade — never a second file/lifecycle implementation, and never this file's
-//! `cli-*.log`.
+//! `cli.*.log`.
 //!
 //! # Failure policy
 //!
@@ -44,7 +44,7 @@
 //! The diagnostic warnings go to the ordinary process `tracing` subscriber (stdout),
 //! never back through this sink — there is no recursion path.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, AtomicU64, Ordering};
 
@@ -61,16 +61,16 @@ use tokio::task::JoinHandle;
 /// so an operator (and a test subscriber) can isolate categorized-audit health from
 /// application logs. It is category-neutral on purpose: this primitive is shared by more
 /// than one audit surface (CLI preflight today, agent-audit next), and each diagnostic
-/// already carries the concrete `file` (its `<prefix>-<stamp>.log`), so a failing writer
+/// already carries the concrete `file` (its `<prefix>.*.log`), so a failing writer
 /// is attributed to the right category by its filename rather than by a target hard-wired
 /// to one caller.
 const DIAGNOSTIC_TARGET: &str = "silverhand::categorized_audit";
 
-/// The categorized-log filename prefix for CLI audit lines: `cli-<utc>.log`.
+/// The categorized-log filename prefix for CLI audit lines: `cli.YYYY-MM-DD.log`.
 const CLI_PREFIX: &str = "cli";
 
 /// The categorized-log filename prefix for agent owner-audit evidence lines:
-/// `agent-audit-<utc>.log`. A DISTINCT file from `cli-*.log` — the two audit surfaces
+/// `agent-audit.YYYY-MM-DD.log`. A DISTINCT file from `cli.*.log` — the two audit surfaces
 /// reuse the same [`CategorizedJsonlWriter`] primitive but never the same file.
 const AGENT_AUDIT_PREFIX: &str = "agent-audit";
 
@@ -143,26 +143,42 @@ pub struct CategorizedJsonlWriter {
 }
 
 impl CategorizedJsonlWriter {
-    /// Opens `<dir>/<prefix>-<stamp>.log` for append (creating `dir` if missing) and
-    /// spawns its writer task. A file/directory open failure is returned as an error so
-    /// the composition root can fail startup — a configured sink that cannot open its
-    /// file is a startup fault, never a silently degraded no-op.
-    pub async fn open(dir: &Path, prefix: &str, stamp: &str) -> std::io::Result<Self> {
-        tokio::fs::create_dir_all(dir).await?;
-        let filename = format!("{prefix}-{stamp}.log");
-        let path = dir.join(&filename);
-        let file = tokio::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&path)
-            .await?;
-        Ok(Self::spawn(file, filename, QUEUE_CAPACITY))
+    /// Opens the current UTC daily file and owns rotation and retention thereafter.
+    pub async fn open<C: AuditClock>(
+        dir: PathBuf,
+        prefix: &'static str,
+        clock: C,
+    ) -> std::io::Result<Self> {
+        let now = clock.now_unix_millis();
+        let mut rotation = DailyAuditRotation {
+            dir,
+            prefix,
+            clock: Box::new(move || clock.now_unix_millis()),
+            next_day: 0,
+        };
+        let file = rotation.open_day(now).await?;
+        Ok(Self::spawn_output(
+            Box::new(file),
+            format!("{prefix}.*.log"),
+            QUEUE_CAPACITY,
+            Some(rotation),
+        ))
     }
 
+    #[cfg(test)]
     fn spawn<W>(writer: W, filename: String, capacity: usize) -> Self
     where
         W: AsyncWrite + Unpin + Send + 'static,
     {
+        Self::spawn_output(Box::new(writer), filename, capacity, None)
+    }
+
+    fn spawn_output(
+        writer: Box<dyn AsyncWrite + Unpin + Send>,
+        filename: String,
+        capacity: usize,
+        rotation: Option<DailyAuditRotation>,
+    ) -> Self {
         let (tx, rx) = mpsc::channel::<Vec<u8>>(capacity);
         let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
         let health = Arc::new(AtomicU8::new(HEALTHY));
@@ -173,6 +189,7 @@ impl CategorizedJsonlWriter {
             shutdown_rx,
             filename.clone(),
             health.clone(),
+            rotation,
         ));
         Self {
             tx,
@@ -253,15 +270,14 @@ impl CategorizedJsonlWriter {
     }
 }
 
-async fn drive_writer<W>(
-    mut writer: W,
+async fn drive_writer(
+    mut writer: Box<dyn AsyncWrite + Unpin + Send>,
     mut rx: mpsc::Receiver<Vec<u8>>,
     mut shutdown_rx: oneshot::Receiver<()>,
     filename: Arc<str>,
     health: Arc<AtomicU8>,
-) where
-    W: AsyncWrite + Unpin,
-{
+    mut rotation: Option<DailyAuditRotation>,
+) {
     loop {
         tokio::select! {
             biased;
@@ -277,7 +293,7 @@ async fn drive_writer<W>(
                 // flush+close.
                 rx.close();
                 while let Some(line) = rx.recv().await {
-                    if let Err(error) = write_line(&mut writer, &line).await {
+                    if let Err(error) = write_line(&mut writer, &line, &mut rotation).await {
                         report_durable_failure(&filename, &health, &error);
                         return;
                     }
@@ -287,7 +303,7 @@ async fn drive_writer<W>(
             }
             received = rx.recv() => match received {
                 Some(line) => {
-                    if let Err(error) = write_line(&mut writer, &line).await {
+                    if let Err(error) = write_line(&mut writer, &line, &mut rotation).await {
                         report_durable_failure(&filename, &health, &error);
                         return;
                     }
@@ -302,16 +318,105 @@ async fn drive_writer<W>(
     }
 }
 
-async fn write_line<W>(writer: &mut W, line: &[u8]) -> std::io::Result<()>
-where
-    W: AsyncWrite + Unpin,
-{
+async fn write_line(
+    writer: &mut Box<dyn AsyncWrite + Unpin + Send>,
+    line: &[u8],
+    rotation: &mut Option<DailyAuditRotation>,
+) -> std::io::Result<()> {
+    if let Some(rotation) = rotation {
+        let now = (rotation.clock)();
+        if now >= rotation.next_day {
+            let next = rotation.open_day(now).await?;
+            writer.flush().await?;
+            writer.shutdown().await?;
+            *writer = Box::new(next);
+        }
+    }
     writer.write_all(line).await?;
     writer.write_all(b"\n").await?;
     // Flush per line: preflight failures are infrequent and each line must be durable
     // the instant it is recorded, so an operator tailing the file sees it without
     // waiting for a buffer to fill or the process to exit.
     writer.flush().await
+}
+
+const DAY_MILLIS: i64 = 86_400_000;
+const AUDIT_RETAIN_FILES: usize = 14;
+
+struct DailyAuditRotation {
+    dir: PathBuf,
+    prefix: &'static str,
+    clock: Box<dyn Fn() -> i64 + Send + Sync>,
+    next_day: i64,
+}
+
+impl DailyAuditRotation {
+    async fn open_day(&mut self, now: i64) -> std::io::Result<tokio::fs::File> {
+        let name = format!("{}.{}.log", self.prefix, &iso8601_utc_millis(now)[..10]);
+        tokio::fs::create_dir_all(&self.dir).await?;
+        let file = tokio::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(self.dir.join(&name))
+            .await?;
+        self.next_day = (now.div_euclid(DAY_MILLIS) + 1) * DAY_MILLIS;
+        if let Err(error) = self.prune(&name, now).await {
+            tracing::warn!(target: DIAGNOSTIC_TARGET, %error, "Audit log cleanup failed");
+        }
+        Ok(file)
+    }
+
+    async fn prune(&self, current: &str, now: i64) -> std::io::Result<()> {
+        let mut entries = tokio::fs::read_dir(&self.dir).await?;
+        let mut daily = Vec::new();
+        let mut expired = Vec::new();
+        let daily_prefix = format!("{}.", self.prefix);
+        let legacy_prefix = format!("{}-", self.prefix);
+        let cutoff = std::time::UNIX_EPOCH
+            + std::time::Duration::from_millis((now - 14 * DAY_MILLIS).max(0) as u64);
+        while let Some(entry) = entries.next_entry().await? {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if matches_log_name(&name, &daily_prefix, b"dddd-dd-dd") {
+                daily.push(name);
+            } else if matches_log_name(&name, &legacy_prefix, b"dddd-dd-ddTdd-dd-dd-dddZ") {
+                let modified = entry.metadata().await?.modified()?;
+                if modified < cutoff {
+                    expired.push(name);
+                }
+            }
+        }
+        daily.sort();
+        let excess = daily.len().saturating_sub(AUDIT_RETAIN_FILES);
+        expired.extend(daily.into_iter().take(excess));
+        for name in expired {
+            if name == current {
+                continue;
+            }
+            if let Err(error) = tokio::fs::remove_file(self.dir.join(&name)).await
+                && error.kind() != std::io::ErrorKind::NotFound
+            {
+                tracing::warn!(target: DIAGNOSTIC_TARGET, file = name, %error, "Audit log cleanup failed");
+            }
+        }
+        Ok(())
+    }
+}
+
+fn matches_log_name(name: &str, prefix: &str, pattern: &[u8]) -> bool {
+    let Some(stamp) = name
+        .strip_prefix(prefix)
+        .and_then(|s| s.strip_suffix(".log"))
+    else {
+        return false;
+    };
+    stamp.len() == pattern.len()
+        && stamp.bytes().zip(pattern).all(|(c, p)| {
+            if *p == b'd' {
+                c.is_ascii_digit()
+            } else {
+                c == *p
+            }
+        })
 }
 
 async fn finish<W>(writer: &mut W, filename: &Arc<str>, health: &Arc<AtomicU8>)
@@ -350,15 +455,14 @@ struct CliAuditShared<C: AuditClock> {
     pid: u32,
 }
 
-/// The sole lifecycle owner of the process's `cli-*.log` file.
+/// The sole lifecycle owner of the process's daily `cli.*.log` files.
 pub struct CliAuditFile<C: AuditClock> {
     shared: CliAuditShared<C>,
 }
 
 impl<C: AuditClock> CliAuditFile<C> {
     pub async fn open(dir: PathBuf, app: AppTag, clock: C) -> std::io::Result<Self> {
-        let stamp = filename_stamp(clock.now_unix_millis());
-        let writer = CategorizedJsonlWriter::open(&dir, CLI_PREFIX, &stamp).await?;
+        let writer = CategorizedJsonlWriter::open(dir, CLI_PREFIX, clock.clone()).await?;
         Ok(Self {
             shared: CliAuditShared {
                 writer,
@@ -653,11 +757,6 @@ fn opt_string(value: &Option<String>) -> serde_json::Value {
     }
 }
 
-/// The per-boot filename stamp: the product's `new Date().toISOString().replace(/[:.]/g, '-')`.
-fn filename_stamp(unix_millis: i64) -> String {
-    iso8601_utc_millis(unix_millis).replace([':', '.'], "-")
-}
-
 /// Formats signed Unix milliseconds as a UTC ISO-8601 instant with millisecond
 /// precision and a `Z` suffix — exactly `Date.now()` fed to `new Date(_).toISOString()`.
 ///
@@ -693,7 +792,7 @@ fn civil_from_days(z: i64) -> (i64, u32, u32) {
 
 /// The production agent owner-audit sink: a typed facade over one
 /// [`CategorizedJsonlWriter`] that projects an [`AgentAuditEvent`] into one flat,
-/// per-field-addressable `agent-audit-<utc>.log` line.
+/// per-field-addressable `agent-audit.YYYY-MM-DD.log` line.
 ///
 /// This is the ONE durable backing #task:2256's reusable writer feeds for #task:2254's
 /// owner-audit seam: it reuses the exact same primitive (bounded queue, single writer
@@ -711,12 +810,10 @@ pub struct AgentAuditFileSink<C: AuditClock> {
 }
 
 impl<C: AuditClock> AgentAuditFileSink<C> {
-    /// Opens the `agent-audit-<utc>.log` file for this boot under `dir` and spawns its
-    /// writer. The per-boot UTC stamp is sampled from `clock` once, here; an open failure
-    /// is surfaced so the composition root can fail startup.
+    /// Opens the daily `agent-audit.YYYY-MM-DD.log` sink under `dir`.
+    /// An open failure is surfaced so the composition root can fail startup.
     pub async fn open(dir: PathBuf, app: AppTag, clock: C) -> std::io::Result<Self> {
-        let stamp = filename_stamp(clock.now_unix_millis());
-        let writer = CategorizedJsonlWriter::open(&dir, AGENT_AUDIT_PREFIX, &stamp).await?;
+        let writer = CategorizedJsonlWriter::open(dir, AGENT_AUDIT_PREFIX, clock.clone()).await?;
         Ok(Self {
             writer,
             clock,
@@ -880,6 +977,115 @@ mod tests {
         }
     }
 
+    #[derive(Clone)]
+    struct MovingClock(Arc<std::sync::atomic::AtomicI64>);
+
+    impl AuditClock for MovingClock {
+        fn now_unix_millis(&self) -> i64 {
+            self.0.load(Ordering::SeqCst)
+        }
+    }
+
+    #[tokio::test]
+    async fn audit_daily_rotation_appends_restarts_expires_old_files_and_preserves_other_logs() {
+        for prefix in [CLI_PREFIX, AGENT_AUDIT_PREFIX] {
+            let dir = tempfile::tempdir().unwrap();
+            let day = ANCHOR_MS.div_euclid(DAY_MILLIS) * DAY_MILLIS;
+            let clock = MovingClock(Arc::new(std::sync::atomic::AtomicI64::new(day)));
+            let name = |now| format!("{prefix}.{}.log", &iso8601_utc_millis(now)[..10]);
+            for age in 1..20 {
+                std::fs::write(dir.path().join(name(day - age * DAY_MILLIS)), "old\n").unwrap();
+            }
+            let old = dir
+                .path()
+                .join(format!("{prefix}-2023-01-01T00-00-00-000Z.log"));
+            std::fs::write(&old, "expired").unwrap();
+            let recent = dir
+                .path()
+                .join(format!("{prefix}-2023-01-02T00-00-00-000Z.log"));
+            std::fs::write(&recent, "recent write").unwrap();
+            for (path, age) in [(&old, 15), (&recent, 1)] {
+                std::fs::File::options()
+                    .write(true)
+                    .open(path)
+                    .unwrap()
+                    .set_modified(
+                        std::time::UNIX_EPOCH
+                            + std::time::Duration::from_millis((day - age * DAY_MILLIS) as u64),
+                    )
+                    .unwrap();
+            }
+            let untouched = [
+                "rust-backend.2023-01-01.log",
+                "daemon-2023-01-01T00-00-00-000Z.log",
+                "cli-not-a-timestamp.log",
+            ];
+            for file in untouched {
+                std::fs::write(dir.path().join(file), "keep").unwrap();
+            }
+            for text in [b"first".to_vec(), b"restart".to_vec()] {
+                let owner =
+                    CategorizedJsonlWriter::open(dir.path().to_path_buf(), prefix, clock.clone())
+                        .await
+                        .unwrap();
+                owner.enqueue(text);
+                owner.close().await;
+            }
+            assert_eq!(
+                std::fs::read_to_string(dir.path().join(name(day))).unwrap(),
+                "first\nrestart\n"
+            );
+            assert!(!old.exists());
+            assert!(recent.exists());
+            assert!(!dir.path().join(name(day - 14 * DAY_MILLIS)).exists());
+            let owner =
+                CategorizedJsonlWriter::open(dir.path().to_path_buf(), prefix, clock.clone())
+                    .await
+                    .unwrap();
+            clock.0.store(day + DAY_MILLIS, Ordering::SeqCst);
+            owner.enqueue(b"next day".to_vec());
+            owner.close().await;
+            assert_eq!(
+                std::fs::read_to_string(dir.path().join(name(day + DAY_MILLIS))).unwrap(),
+                "next day\n"
+            );
+            let daily = std::fs::read_dir(dir.path())
+                .unwrap()
+                .flatten()
+                .filter(|e| {
+                    matches_log_name(
+                        &e.file_name().to_string_lossy(),
+                        &format!("{prefix}."),
+                        b"dddd-dd-dd",
+                    )
+                })
+                .count();
+            assert_eq!(daily, 14);
+            for file in untouched {
+                assert_eq!(
+                    std::fs::read_to_string(dir.path().join(file)).unwrap(),
+                    "keep"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn cli_rotation_open_failure_preserves_the_existing_durable_failure_contract() {
+        let dir = tempfile::tempdir().unwrap();
+        let clock = MovingClock(Arc::new(std::sync::atomic::AtomicI64::new(ANCHOR_MS)));
+        let owner = CliAuditFile::open(dir.path().to_path_buf(), AppTag::Desktop, clock.clone())
+            .await
+            .unwrap();
+        std::fs::create_dir(dir.path().join("cli.2023-11-15.log")).unwrap();
+        clock.0.store(ANCHOR_MS + DAY_MILLIS, Ordering::SeqCst);
+        owner.shared.writer.enqueue(b"cannot persist".to_vec());
+        owner.close().await;
+        assert_eq!(owner.shared.writer.state(), WriterState::Failed);
+        owner.shared.writer.enqueue(b"after failure".to_vec());
+        assert_eq!(owner.shared.writer.dropped_lines(), 1);
+    }
+
     // 2023-11-14T22:13:20.123Z in milliseconds.
     const ANCHOR_MS: i64 = 1_700_000_123_123;
 
@@ -896,12 +1102,6 @@ mod tests {
             iso8601_utc_millis(1_709_164_800_000),
             "2024-02-29T00:00:00.000Z"
         );
-    }
-
-    #[test]
-    fn filename_stamp_replaces_colons_and_dots() {
-        assert_eq!(filename_stamp(0), "1970-01-01T00-00-00-000Z");
-        assert_eq!(filename_stamp(ANCHOR_MS), "2023-11-14T22-15-23-123Z");
     }
 
     /// An `AsyncWrite` that parks forever on its first write, signalling once it has been
@@ -1061,9 +1261,10 @@ mod tests {
     #[tokio::test]
     async fn close_is_idempotent() {
         let dir = tempfile::tempdir().unwrap();
-        let writer = CategorizedJsonlWriter::open(dir.path(), "cli", "stamp")
-            .await
-            .unwrap();
+        let writer =
+            CategorizedJsonlWriter::open(dir.path().to_path_buf(), "cli", FixedClock(ANCHOR_MS))
+                .await
+                .unwrap();
         writer.close().await;
         writer.close().await; // second close is a no-op, never a panic or a hang
         assert_eq!(writer.state(), WriterState::ClosedShutdown);
@@ -1179,8 +1380,8 @@ mod tests {
         });
         owner.close().await;
 
-        // The file is named for this boot's UTC stamp.
-        let expected_name = "cli-2023-11-14T22-15-23-123Z.log";
+        // CLI logs use the UTC day; the JSON timestamp still has millisecond precision.
+        let expected_name = "cli.2023-11-14.log";
         let path = dir.path().join(expected_name);
         let contents = tokio::fs::read_to_string(&path).await.unwrap();
         let lines: Vec<serde_json::Value> = contents
@@ -1262,7 +1463,7 @@ mod tests {
         });
         owner.close().await;
 
-        let expected_name = "cli-2023-11-14T22-15-23-123Z.log";
+        let expected_name = "cli.2023-11-14.log";
         let contents = tokio::fs::read_to_string(dir.path().join(expected_name))
             .await
             .unwrap();
@@ -1316,7 +1517,7 @@ mod tests {
         });
         sink.close().await;
 
-        let expected_name = "agent-audit-2023-11-14T22-15-23-123Z.log";
+        let expected_name = "agent-audit.2023-11-14.log";
         let path = dir.path().join(expected_name);
         let contents = tokio::fs::read_to_string(&path).await.unwrap();
         let lines: Vec<serde_json::Value> = contents

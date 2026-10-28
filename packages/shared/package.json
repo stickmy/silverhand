@@ -10,6 +10,7 @@
     ".": "./src/index.ts",
     "./api": "./src/api/index.ts",
     "./node-file-logger": "./src/node-file-logger.ts",
+    "./node-daily-log-writer": "./src/node-daily-log-writer.ts",
     "./db": "./src/db/index.ts",
     "./db/baseline-schema": "./src/db/baseline-schema.ts",
     "./db/migrations": "./src/db/migrations.ts",

@@ -1632,7 +1632,7 @@ async function bootstrap(): Promise<void> {
       base: { app: "silverhand-desktop" },
     });
     // Historical `logger` is just an alias for the system sink so we
-    // don't double-create a `backend-<utc>.log` file.
+    // don't double-create a `desktop.YYYY-MM-DD.log` writer.
     logger = loggers.system as FileLogger;
     logger.info(
       {

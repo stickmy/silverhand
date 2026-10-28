@@ -638,7 +638,7 @@ pub struct PreparedApp {
     create_aftermath: CreateAftermath,
     /// #2256/#2261: the ONE composition-owned CLI audit-file lifecycle owner. Its two
     /// narrow facades record preflight failures and authenticated invocations into the
-    /// same `cli-*.log`; neither facade can open or close the writer. Required
+    /// same daily `cli.*.log`; neither facade can open or close the writer. Required
     /// (not optional) because mounted audit producers must
     /// have a durable sink, so bound-listener finalization fails closed without a log
     /// directory rather than degrading to a no-op. Carried so BOTH shutdown paths
@@ -650,7 +650,7 @@ pub struct PreparedApp {
     /// the same footing as [`Self::cli_audit_sink`] — its owner-audit read routes are
     /// mounted, so a durable sink is a startup precondition, never a no-op. Carried so BOTH
     /// shutdown paths flush+close the same instance idempotently. It writes its OWN
-    /// `agent-audit-*` files through #2256's writer primitive and shares no record with the
+    /// `agent-audit.*.log` files through #2256's writer primitive and shares no record with the
     /// CLI sink.
     agent_audit_sink: AgentAuditFileSink<SystemProcessClock>,
     /// #2255/#2257: the process-lifetime embedded-bootstrap one-shot token authority. When

@@ -6,8 +6,7 @@
  *
  * Three observable differences from the backend logger:
  *
- *  1. Filename prefix is `daemon` so `~/.silverhand/logs/` cleanly
- *     groups daemon boots alongside `backend-*` / `agent-*` / `cli-*`.
+ *  1. Filename prefix is `daemon`, with UTC daily rotation and 14-file retention.
  *  2. The daemon process may run headless (no Electron). When
  *     `alsoStderr` is true, the exact JSONL line also mirrors to stderr
  *     so terminal output and disk logs share one format. We use stderr
@@ -17,8 +16,7 @@
  *     subdivide; if we need scoping later, lift the backend logger
  *     into shared and use it instead.
  */
-import { createWriteStream, mkdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { createDailyLogWriter } from '@silverhand/shared/node-daily-log-writer';
 import {
   SILVERHAND_LOG_LEVELS,
   parseSilverhandLogLevel,
@@ -63,10 +61,7 @@ export interface DaemonLoggerOptions {
 }
 
 export function createDaemonLogger(opts: DaemonLoggerOptions): DaemonLogger {
-  mkdirSync(opts.dir, { recursive: true });
-  const ts = new Date().toISOString().replace(/[:.]/g, '-');
-  const filePath = join(opts.dir, `daemon-${ts}.log`);
-  const stream = createWriteStream(filePath, { flags: 'a' });
+  const writer = createDailyLogWriter(opts.dir, 'daemon', ['daemon', 'agent-activity']);
   const alsoStderr = opts.alsoStderr ?? false;
   const base: Record<string, unknown> = { pid: process.pid, ...(opts.base ?? {}) };
   const logControl = opts.logControl ?? createDaemonLogControl(defaultDaemonLogLevel());
@@ -91,25 +86,22 @@ export function createDaemonLogger(opts: DaemonLoggerOptions): DaemonLogger {
     const encoded = safeStringify(line);
     // A late log (e.g. a command landing during teardown) must drop,
     // not crash with ERR_STREAM_WRITE_AFTER_END.
-    if (stream.writable) {
-      stream.write(encoded + '\n');
-    }
+    writer.write(encoded + '\n', now.getTime());
     if (alsoStderr) {
       process.stderr.write(encoded + '\n');
     }
   };
 
   return {
-    filePath,
+    get filePath() {
+      return writer.filePath;
+    },
     logControl,
     debug: (obj, msg) => write('debug', obj, msg),
     info: (obj, msg) => write('info', obj, msg),
     warn: (obj, msg) => write('warn', obj, msg),
     error: (obj, msg) => write('error', obj, msg),
-    close: () =>
-      new Promise<void>((resolve) => {
-        stream.end(() => resolve());
-      }),
+    close: () => writer.close(),
   };
 }
 

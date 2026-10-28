@@ -143,7 +143,7 @@ $PATH` because it's a real binary, so the same incantation
 2. `pnpm package`.
 3. Smoke-test the .app: drag from dmg to /Applications, right-click
    → Open (Gatekeeper warns because we ad-hoc sign — see below),
-   confirm logger first line in `~/.silverhand/logs/backend-*.log`
+   confirm logger first line in `~/.silverhand/logs/desktop.YYYY-MM-DD.log`
    reports `pathPatch.ok=true`.
 4. Tag the release commit + upload the dmg + zip wherever.
 

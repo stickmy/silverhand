@@ -113,7 +113,7 @@ export interface RunDaemonOptions {
    *  view of what the daemon is doing. */
   alsoStderr?: boolean;
   /** Injected logger; tests use it to inspect log lines. When omitted,
-   *  one is created at `logDir/daemon-<utc>.log`. */
+   *  one is created at `logDir/daemon.YYYY-MM-DD.log` (UTC daily rotation). */
   logger?: DaemonLogger;
   /** Root for per-runtime pidfiles. Production defaults to
    *  `~/.silverhand/daemon/runtime-pids`; tests pass a temp dir.

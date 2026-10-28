@@ -1,5 +1,4 @@
-import { createWriteStream, mkdirSync, type WriteStream } from 'node:fs';
-import { join } from 'node:path';
+import { createDailyLogWriter, type DailyLogWriter } from './node-daily-log-writer.js';
 import {
   parseSilverhandLogLevel,
   sanitizeLogFields,
@@ -10,15 +9,13 @@ import {
 type LogEventLevel = SilverhandLogLevel | 'error';
 
 export interface FileLoggerOptions {
-  /** Directory to write logs into. One file per backend boot. */
+  /** Directory to write logs into. One file per UTC day, retaining 14 files per prefix. */
   dir: string;
   /** Also mirror lines to console (default: true in dev, false otherwise). */
   alsoConsole?: boolean;
   /** Static fields included on every line (e.g. process pid). */
   base?: Record<string, unknown>;
-  /** Filename prefix; the file is `<dir>/<prefix>-<utc>.log`. Defaults
-   *  to `backend` so existing callers continue writing to
-   *  `backend-<utc>.log`. */
+  /** Filename prefix; the file is `<dir>/<prefix>.YYYY-MM-DD.log`. Defaults to `desktop`. */
   filenamePrefix?: string;
   /** Shared mutable level/window state. Categorized loggers pass one
    *  instance so system/agent/cli sinks change together. */
@@ -59,8 +56,8 @@ export interface LogLevelControl {
 }
 
 /**
- * One JSONL file per backend boot under `<dir>/<prefix>-<utc>.log`
- * (default `prefix = backend`). Format: one JSON object per line —
+ * One JSONL file per UTC day under `<dir>/<prefix>.YYYY-MM-DD.log`
+ * (default `prefix = desktop`). Format: one JSON object per line —
  * `{ ts, level, msg, ...fields }`.
  *
  * Level is debug|info|warn|error. `SILVERHAND_LOG_LEVEL` accepts
@@ -69,18 +66,16 @@ export interface LogLevelControl {
  * `conversationId` to be lifted by that window.
  */
 export function createFileLogger(opts: FileLoggerOptions): FileLogger {
-  mkdirSync(opts.dir, { recursive: true });
-  const ts = new Date().toISOString().replace(/[:.]/g, '-');
-  const prefix = opts.filenamePrefix ?? 'backend';
-  const filePath = join(opts.dir, `${prefix}-${ts}.log`);
-  const stream = createWriteStream(filePath, { flags: 'a' });
+  const prefix = opts.filenamePrefix ?? 'desktop';
+  // CLI boot files belong to Rust audit sinks too; do not expire them here.
+  const legacyPrefixes = prefix === 'desktop' ? ['backend'] : [prefix];
+  const writer = createDailyLogWriter(opts.dir, prefix, legacyPrefixes);
   const alsoConsole = opts.alsoConsole ?? true;
   const base: Record<string, unknown> = { pid: process.pid, ...(opts.base ?? {}) };
   const logControl = opts.logControl ?? createLogLevelControl();
 
   return makeLogger(
-    stream,
-    filePath,
+    writer,
     alsoConsole,
     base,
     logControl,
@@ -93,17 +88,17 @@ export function createFileLogger(opts: FileLoggerOptions): FileLogger {
  * same `<dir>` so events from different concerns can be queried
  * separately:
  *
- *   - `system`: backend HTTP server lifecycle, scheduler, ws, auth, DB.
- *     Writes `backend-<utc>.log` (historical name preserved).
+ *   - `system`: desktop main-process diagnostics.
+ *     Writes `desktop.YYYY-MM-DD.log`.
  *   - `agent`:  agent runtime spawn / drain / exit / compaction, owned by
  *     silverhand-daemon and surfaced through the outbound runtime projection.
- *     Writes `agent-<utc>.log`.
+ *     Writes `agent.YYYY-MM-DD.log`.
  *   - `cli`:    every `silverhand` CLI invocation (success + failure)
  *     plus pre-flight failures reported by the CLI itself. These are
  *     audit/metrics events, so `cli.invoke` and
  *     `cli.preflight_failure` persist even when the global diagnostic
  *     level is warn.
- *     Writes `cli-<utc>.log`.
+ *     Writes `cli.YYYY-MM-DD.log`.
  *
  * All three share the same JSONL format and base fields. The split is
  * by sink only — callers route events to the appropriate logger via
@@ -123,7 +118,7 @@ export function createCategorizedLoggers(
   return {
     system: createFileLogger({
       ...opts,
-      filenamePrefix: 'backend',
+      filenamePrefix: 'desktop',
       logControl,
       alwaysWriteCategories: SYSTEM_ALWAYS_WRITE_CATEGORIES,
     }),
@@ -215,8 +210,7 @@ export function createLogLevelControl(
 }
 
 function makeLogger(
-  stream: WriteStream,
-  filePath: string,
+  writer: DailyLogWriter,
   alsoConsole: boolean,
   base: Record<string, unknown>,
   logControl: LogLevelControl,
@@ -229,15 +223,16 @@ function makeLogger(
         ? (obj as Record<string, unknown>)
         : { data: serializeUnknown(obj) };
     const fields = sanitizeLogFields(rawFields);
+    const now = new Date();
     const line = {
-      ts: new Date().toISOString(),
+      ts: now.toISOString(),
       level,
       msg: msg ?? '',
       ...safeBase,
       ...fields,
     };
     if (!shouldWrite(level, line, logControl, alwaysWriteCategories)) return;
-    stream.write(safeStringify(line) + '\n');
+    writer.write(safeStringify(line) + '\n', now.getTime());
     if (alsoConsole) {
       const fn = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log;
       fn(`[${level}] ${msg ?? ''}`, fields);
@@ -245,7 +240,9 @@ function makeLogger(
   };
 
   return {
-    filePath,
+    get filePath() {
+      return writer.filePath;
+    },
     logControl,
     debug: (obj, msg) => write('debug', obj, msg),
     info: (obj, msg) => write('info', obj, msg),
@@ -253,17 +250,13 @@ function makeLogger(
     error: (obj, msg) => write('error', obj, msg),
     child: (bindings) =>
       makeLogger(
-        stream,
-        filePath,
+        writer,
         alsoConsole,
         { ...safeBase, ...bindings },
         logControl,
         alwaysWriteCategories,
       ),
-    close: () =>
-      new Promise<void>((resolve) => {
-        stream.end(() => resolve());
-      }),
+    close: () => writer.close(),
   };
 }
 

@@ -809,15 +809,15 @@ async fn prepared_routes_drain_into_disjoint_cli_and_agent_audit_files() {
     let mut agent_log = None;
     while let Some(entry) = entries.next_entry().await.unwrap() {
         let name = entry.file_name().to_string_lossy().into_owned();
-        if name.starts_with("cli-") && name.ends_with(".log") {
+        if name.starts_with("cli.") && name.ends_with(".log") {
             assert!(
                 cli_log.replace(entry.path()).is_none(),
-                "one CLI file per boot"
+                "one CLI file for the current UTC day"
             );
-        } else if name.starts_with("agent-audit-") && name.ends_with(".log") {
+        } else if name.starts_with("agent-audit.") && name.ends_with(".log") {
             assert!(
                 agent_log.replace(entry.path()).is_none(),
-                "one agent audit file per boot"
+                "one agent audit file for the current UTC day"
             );
         }
     }

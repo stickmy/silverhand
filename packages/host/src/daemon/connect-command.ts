@@ -564,7 +564,9 @@ async function runConnectDaemonMode(input: {
   }
 
   mkdirSync(input.paths.logDir, { recursive: true });
-  const logFd = openSync(input.paths.launcherLogPath, 'a', 0o600);
+  // This is the latest launch's fallback output, not a second daemon log archive.
+  // The running daemon owns its daily files; retain raw startup/crash errors here.
+  const logFd = openSync(input.paths.launcherLogPath, 'w', 0o600);
   let child: ChildProcess;
   try {
     child = spawn(
@@ -583,7 +585,7 @@ async function runConnectDaemonMode(input: {
         // re-derives default/explicit from the path shape. The pinned
         // --data-root stays for stop's cmdline identification.
         ...(input.defaultProfile ? [CONNECT_ARG_DATA_ROOT_ORIGIN, 'default'] : []),
-        input.options.alsoStderr ? CONNECT_ARG_STDERR : CONNECT_ARG_QUIET,
+        CONNECT_ARG_QUIET,
       ],
       {
         detached: true,
@@ -861,7 +863,7 @@ function connectUsage(): string {
     '  --data-root        Optional absolute root for daemon runtime files.',
     '  --foreground       Run in the current terminal instead of daemon mode.',
     '  --no-daemon        Alias for --foreground.',
-    '  --quiet            Do not mirror daemon logs to stderr.',
+    '  --quiet            Do not mirror foreground daemon logs to stderr.',
   ].join('\n');
 }
 

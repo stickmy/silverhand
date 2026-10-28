@@ -217,6 +217,35 @@ the application host rather than redesigning instrumentation.
 
 ## Rust log retention
 
+Desktop and daemon diagnostic files follow the same UTC daily convention:
+`<prefix>.YYYY-MM-DD.log`, appending across same-day restarts and retaining the
+latest 14 files per prefix. Each process manages its own configured directory;
+the standalone daemon does not depend on desktop for cleanup. Cleanup runs at
+logger startup and on the first write after a UTC day boundary, with no timer.
+Ordinary writes only compare their timestamp with the cached rotation deadline.
+There is no per-file size cap or total disk quota. Desktop main-process logs use
+the `desktop` prefix (formerly `backend`). At the same cleanup points, desktop
+expires its old `backend` files and boot-timestamp `agent` files, and daemon
+expires its boot-timestamp `daemon` and retired `agent-activity` files, after
+14 days without writes. Last modification time is used because old files may
+span days after their boot timestamp. This includes the interim daily `backend`
+names. Rust diagnostic logging keeps its existing implementation.
+
+The server-owned audit writers use `cli.YYYY-MM-DD.log` and
+`agent-audit.YYYY-MM-DD.log`, appending
+within the UTC day and retaining 14 daily files. It prunes at startup and on the
+first line after midnight; old `cli-<boot-timestamp>.log` and
+`agent-audit-<boot-timestamp>.log` files expire after 14
+days without writes. Record fields, bounded-queue behavior, shutdown draining,
+and observable I/O-failure handling are unchanged. This applies to embedded and
+standalone servers; it does not depend on a desktop process doing cleanup.
+
+Detached `daemon connect` disables the stderr mirror: normal runtime diagnostics
+go only to the daemon's daily files. Its `connect-launcher.log` captures raw
+stdout/stderr (startup failures, uncaught errors) and is overwritten on each
+new background launch, after the existing-process check. It is not daily-rotated
+or size-capped. Foreground connect still mirrors logs to the terminal by default.
+
 Diagnostics are `rust-backend.YYYY-MM-DD.log` under `SILVERHAND_LOG_DIR`; the
 process appender rolls daily and retains at most 14 matching files. Categorized
 CLI/agent audit logs share the directory and have separate retention needs.
