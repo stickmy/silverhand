@@ -10,7 +10,28 @@ import {
 import { join } from 'node:path';
 
 const DAY_MS = 86_400_000;
-const MAX_FILES = 14;
+/** Daily files kept per prefix; also the idle age, in days, after which a legacy file expires. */
+const RETAIN_DAYS = 14;
+const DAILY_STAMP = /^\d{4}-\d{2}-\d{2}\.log$/;
+const BOOT_STAMP = /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z\.log$/;
+
+const stampAfter = (name: string, prefix: string, separator: string): string | null =>
+  name.startsWith(prefix + separator) ? name.slice(prefix.length + 1) : null;
+const isDaily = (name: string, prefix: string) =>
+  DAILY_STAMP.test(stampAfter(name, prefix, '.') ?? '');
+const isBoot = (name: string, prefix: string) =>
+  BOOT_STAMP.test(stampAfter(name, prefix, '-') ?? '');
+
+const nextBoundary = (now: number) => (Math.floor(now / DAY_MS) + 1) * DAY_MS;
+
+function idleSince(path: string, cutoff: number): boolean {
+  try {
+    return statSync(path).mtimeMs < cutoff;
+  } catch {
+    // Removed or unreadable mid-scan: skip it rather than abort the pass.
+    return false;
+  }
+}
 
 /** Process-owned UTC daily files. No timer: a write past midnight rolls and prunes. */
 export function createDailyLogWriter(
@@ -30,35 +51,24 @@ export function createDailyLogWriter(
     const path = join(dir, filename);
     // Create before pruning so even rapid successive rollovers count every file.
     const stream = createWriteStream(path, { fd: openSync(path, 'a') });
+    // An I/O fault (e.g. ENOSPC) must cost log lines, never crash the process.
+    stream.on('error', (error) => console.error('Log write failed', path, error));
     filePath = path;
-    nextRotation = (Math.floor(now / DAY_MS) + 1) * DAY_MS;
+    nextRotation = nextBoundary(now);
     try {
       const names = readdirSync(dir);
       // Old boot files can span many days: expire by last write, not their start date.
-      const expiredLegacy = names.filter((name) =>
-        legacyPrefixes.some((legacy) => {
-          const boot =
-            name.startsWith(`${legacy}-`) &&
-            /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z\.log$/.test(name.slice(legacy.length + 1));
-          const renamedDaily =
-            legacy !== prefix &&
-            name.startsWith(`${legacy}.`) &&
-            /^\d{4}-\d{2}-\d{2}\.log$/.test(name.slice(legacy.length + 1));
-          return (
-            (boot || renamedDaily) && statSync(join(dir, name)).mtimeMs < now - MAX_FILES * DAY_MS
-          );
-        }),
+      const cutoff = now - RETAIN_DAYS * DAY_MS;
+      const expiredLegacy = names.filter(
+        (name) =>
+          legacyPrefixes.some(
+            (legacy) => isBoot(name, legacy) || (legacy !== prefix && isDaily(name, legacy)),
+          ) && idleSince(join(dir, name), cutoff),
       );
-      const files = names
-        .filter(
-          (name) =>
-            name.startsWith(`${prefix}.`) &&
-            /^\d{4}-\d{2}-\d{2}\.log$/.test(name.slice(prefix.length + 1)),
-        )
-        .sort();
+      const files = names.filter((name) => isDaily(name, prefix)).sort();
       for (const name of [
         ...expiredLegacy,
-        ...files.slice(0, Math.max(0, files.length - MAX_FILES)),
+        ...files.slice(0, Math.max(0, files.length - RETAIN_DAYS)),
       ]) {
         if (name === filename) continue;
         try {
@@ -97,7 +107,7 @@ export function createDailyLogWriter(
           stream = next;
         } catch (error) {
           // Like the Rust appender, keep the current file if the new one cannot open.
-          nextRotation = (Math.floor(now / DAY_MS) + 1) * DAY_MS;
+          nextRotation = nextBoundary(now);
           console.error('Failed to rotate log file', error);
         }
       }

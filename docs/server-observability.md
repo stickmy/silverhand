@@ -225,7 +225,7 @@ logger startup and on the first write after a UTC day boundary, with no timer.
 Ordinary writes only compare their timestamp with the cached rotation deadline.
 There is no per-file size cap or total disk quota. Desktop main-process logs use
 the `desktop` prefix (formerly `backend`). At the same cleanup points, desktop
-expires its old `backend` files and boot-timestamp `agent` files, and daemon
+expires its old `backend` and `agent` files (boot-timestamp and interim daily), and daemon
 expires its boot-timestamp `daemon` and retired `agent-activity` files, after
 14 days without writes. Last modification time is used because old files may
 span days after their boot timestamp. This includes the interim daily `backend`
@@ -236,7 +236,9 @@ The server-owned audit writers use `cli.YYYY-MM-DD.log` and
 within the UTC day and retaining 14 daily files. It prunes at startup and on the
 first line after midnight; old `cli-<boot-timestamp>.log` and
 `agent-audit-<boot-timestamp>.log` files expire after 14
-days without writes. Record fields, bounded-queue behavior, shutdown draining,
+days without writes. These sinks are the only owners of `cli.*` and
+`agent-audit.*` files. A day file that cannot be opened does not fail the sink:
+it keeps appending to the current file and retries at the next boundary. Record fields, bounded-queue behavior, shutdown draining,
 and observable I/O-failure handling are unchanged. This applies to embedded and
 standalone servers; it does not depend on a desktop process doing cleanup.
 

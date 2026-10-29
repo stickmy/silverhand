@@ -3,6 +3,9 @@
 set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
+# Suites that touch app data require an isolated root; never the user's ~/.silverhand.
+export SILVERHAND_DIR="$ROOT_DIR/.cache/test-artifacts/silverhand-dir"
+mkdir -p "$SILVERHAND_DIR"
 PACKAGES=(shared host cli client app-ui desktop ios)
 scope=all
 case "${1:-}" in

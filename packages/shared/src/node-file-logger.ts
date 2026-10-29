@@ -15,16 +15,8 @@ export interface FileLoggerOptions {
   alsoConsole?: boolean;
   /** Static fields included on every line (e.g. process pid). */
   base?: Record<string, unknown>;
-  /** Filename prefix; the file is `<dir>/<prefix>.YYYY-MM-DD.log`. Defaults to `desktop`. */
-  filenamePrefix?: string;
-  /** Shared mutable level/window state. Categorized loggers pass one
-   *  instance so system/agent/cli sinks change together. */
+  /** Shared mutable level/window state. */
   logControl?: LogLevelControl;
-  /** Categories that are audit/metrics streams and must persist even
-   *  when the severity threshold would otherwise hide an info line.
-   *  Keep this scoped to a sink, not global, so ordinary diagnostic
-   *  info remains filtered. */
-  alwaysWriteCategories?: readonly string[];
 }
 
 export interface FileLogger {
@@ -56,8 +48,9 @@ export interface LogLevelControl {
 }
 
 /**
- * One JSONL file per UTC day under `<dir>/<prefix>.YYYY-MM-DD.log`
- * (default `prefix = desktop`). Format: one JSON object per line —
+ * The desktop main-process log: one JSONL file per UTC day under
+ * `<dir>/desktop.YYYY-MM-DD.log`. CLI and agent audit files in the same
+ * directory belong to the Rust backend. Format: one JSON object per line —
  * `{ ts, level, msg, ...fields }`.
  *
  * Level is debug|info|warn|error. `SILVERHAND_LOG_LEVEL` accepts
@@ -66,81 +59,22 @@ export interface LogLevelControl {
  * `conversationId` to be lifted by that window.
  */
 export function createFileLogger(opts: FileLoggerOptions): FileLogger {
-  const prefix = opts.filenamePrefix ?? 'desktop';
-  // CLI boot files belong to Rust audit sinks too; do not expire them here.
-  const legacyPrefixes = prefix === 'desktop' ? ['backend'] : [prefix];
-  const writer = createDailyLogWriter(opts.dir, prefix, legacyPrefixes);
+  // Retired desktop names: `backend` (main process) and `agent` (an unused sink).
+  const writer = createDailyLogWriter(opts.dir, 'desktop', ['backend', 'agent']);
   const alsoConsole = opts.alsoConsole ?? true;
   const base: Record<string, unknown> = { pid: process.pid, ...(opts.base ?? {}) };
   const logControl = opts.logControl ?? createLogLevelControl();
 
-  return makeLogger(
-    writer,
-    alsoConsole,
-    base,
-    logControl,
-    new Set(opts.alwaysWriteCategories ?? []),
-  );
+  return makeLogger(writer, alsoConsole, base, logControl, ALWAYS_WRITE_CATEGORIES);
 }
 
-/**
- * Categorized logger triple — three independent JSONL files under the
- * same `<dir>` so events from different concerns can be queried
- * separately:
- *
- *   - `system`: desktop main-process diagnostics.
- *     Writes `desktop.YYYY-MM-DD.log`.
- *   - `agent`:  agent runtime spawn / drain / exit / compaction, owned by
- *     silverhand-daemon and surfaced through the outbound runtime projection.
- *     Writes `agent.YYYY-MM-DD.log`.
- *   - `cli`:    every `silverhand` CLI invocation (success + failure)
- *     plus pre-flight failures reported by the CLI itself. These are
- *     audit/metrics events, so `cli.invoke` and
- *     `cli.preflight_failure` persist even when the global diagnostic
- *     level is warn.
- *     Writes `cli.YYYY-MM-DD.log`.
- *
- * All three share the same JSONL format and base fields. The split is
- * by sink only — callers route events to the appropriate logger via
- * `ctx.loggers.system|agent|cli` instead of `ctx.logger`.
- */
-export interface CategorizedLoggers {
-  system: FileLogger;
-  agent: FileLogger;
-  cli: FileLogger;
-  logControl: LogLevelControl;
-}
-
-export function createCategorizedLoggers(
-  opts: Omit<FileLoggerOptions, 'filenamePrefix' | 'alwaysWriteCategories'>,
-): CategorizedLoggers {
-  const logControl = opts.logControl ?? createLogLevelControl();
-  return {
-    system: createFileLogger({
-      ...opts,
-      filenamePrefix: 'desktop',
-      logControl,
-      alwaysWriteCategories: SYSTEM_ALWAYS_WRITE_CATEGORIES,
-    }),
-    agent: createFileLogger({ ...opts, filenamePrefix: 'agent', logControl }),
-    cli: createFileLogger({
-      ...opts,
-      filenamePrefix: 'cli',
-      logControl,
-      alwaysWriteCategories: CLI_AUDIT_CATEGORIES,
-    }),
-    logControl,
-  };
-}
-
-const CLI_AUDIT_CATEGORIES = ['cli.invoke', 'cli.preflight_failure'] as const;
 // Owner-audit read faces (#task:2036 part ②): the OWNER reading an agent's
 // third-party conversations is an authority-sensitive access, and in the v1
 // single-host model the system logger IS the audit trail — there is no separate
 // audit store. So these three records (chats listed, transcript read, attachment
 // bytes read) must survive the DEFAULT `warn` level (an `info` line is otherwise
 // dropped): they name a category the system sink writes unconditionally, exactly
-// as `cli.*` audit events do on the CLI sink.
+// regardless of level.
 const AGENT_AUDIT_CATEGORIES = [
   'agent_audit.chats_listed',
   'agent_audit.transcript_read',
@@ -155,13 +89,11 @@ const EVENT_WS_DIAGNOSTIC_CATEGORIES = [
   'event_ws.send_skipped_non_open',
   'event_ws.renderer',
 ] as const;
-// The system sink writes its WS diagnostics AND the owner-audit trail regardless
-// of the configured level — both are records whose value is in being complete,
-// not in being above a severity threshold.
-const SYSTEM_ALWAYS_WRITE_CATEGORIES = [
+// Records whose value is in being complete, not in clearing a severity threshold.
+const ALWAYS_WRITE_CATEGORIES: ReadonlySet<string> = new Set([
   ...EVENT_WS_DIAGNOSTIC_CATEGORIES,
   ...AGENT_AUDIT_CATEGORIES,
-] as const;
+]);
 
 export function createLogLevelControl(
   initialLevel: SilverhandLogLevel = parseSilverhandLogLevel(process.env[SILVERHAND_LOG_LEVEL_ENV]),

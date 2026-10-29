@@ -63,11 +63,7 @@ import {
   type ServerInfo,
   type UserDto,
 } from "@silverhand/shared";
-import {
-  createCategorizedLoggers,
-  type CategorizedLoggers,
-  type FileLogger,
-} from "@silverhand/shared/node-file-logger";
+import { createFileLogger, type FileLogger } from "@silverhand/shared/node-file-logger";
 import { startDesktopEmbeddedBackend } from "./embedded/embedded-launcher.js";
 import type {
   EmbeddedRustBackendHandle,
@@ -211,7 +207,6 @@ if (shouldRedirectElectronUserData()) {
   app.setPath("userData", electronUserDataPath());
 }
 let logger: FileLogger | null = null;
-let loggers: CategorizedLoggers | null = null;
 let mainWindow: BrowserWindow | null = null;
 const clientSessionGeneration = new SessionGeneration();
 let switchingServer = false;
@@ -1626,19 +1621,14 @@ async function bootstrap(): Promise<void> {
   try {
     const pathResult = patchPathFromLoginShell();
 
-    loggers = createCategorizedLoggers({
+    logger = createFileLogger({
       dir: desktopAppPaths().logs,
       alsoConsole: !app.isPackaged,
       base: { app: "silverhand-desktop" },
     });
-    // Historical `logger` is just an alias for the system sink so we
-    // don't double-create a `desktop.YYYY-MM-DD.log` writer.
-    logger = loggers.system as FileLogger;
     logger.info(
       {
         logFile: logger.filePath,
-        agentLogFile: loggers.agent.filePath,
-        cliLogFile: loggers.cli.filePath,
         pathPatch: pathResult,
         nodeSystemCa: nodeSystemCaActivation,
       },
@@ -2818,17 +2808,7 @@ async function shutdown(): Promise<void> {
     console.error("[main] host shutdown failed:", err);
   }
   try {
-    // `logger` is just an alias for `loggers.system`; close it via the
-    // categorized triple to avoid double-close.
-    if (loggers) {
-      await Promise.allSettled([
-        loggers.system.close(),
-        loggers.agent.close(),
-        loggers.cli.close(),
-      ]);
-      loggers = null;
-      logger = null;
-    } else if (logger) {
+    if (logger) {
       await logger.close();
       logger = null;
     }

@@ -8,7 +8,21 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import type { WriteStream } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const streams: WriteStream[] = [];
+vi.mock('node:fs', async (original) => {
+  const fs = await original<typeof import('node:fs')>();
+  return {
+    ...fs,
+    createWriteStream: (...args: Parameters<typeof fs.createWriteStream>) => {
+      const stream = fs.createWriteStream(...args);
+      streams.push(stream);
+      return stream;
+    },
+  };
+});
 import { createFileLogger } from '../src/node-file-logger.js';
 
 let dir: string;
@@ -61,11 +75,17 @@ describe('daily file logger', () => {
     ).toEqual(['first boot', 'second boot']);
   });
 
-  it('expires old backend names by last write without touching Rust or audit logs', async () => {
-    const old = ['backend-2026-05-01T00-00-00-000Z.log', 'backend.2026-09-01.log'];
+  it('expires retired desktop names by last write without touching Rust or audit logs', async () => {
+    const old = [
+      'backend-2026-05-01T00-00-00-000Z.log',
+      'backend.2026-09-01.log',
+      'agent-2026-05-01T00-00-00-000Z.log',
+      'agent.2026-09-01.log',
+    ];
     const protectedNames = [
       'rust-backend.2026-05-01.log',
       'cli-2026-05-01T00-00-00-000Z.log',
+      'cli.2026-09-01.log',
       'agent-audit-2026-05-01T00-00-00-000Z.log',
       'daemon-2026-05-01T00-00-00-000Z.log',
     ];
@@ -110,6 +130,17 @@ describe('daily file logger', () => {
     expect(JSON.stringify(next)).not.toContain('secret');
     expect(readFileSync(path(25), 'utf8')).toContain('after idle');
     expect(readFileSync(path(25), 'utf8')).not.toContain('late write');
+  });
+
+  it('reports a stream write error instead of crashing the process', async () => {
+    const report = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const log = logger();
+    log.warn({}, 'before fault');
+    const fault = Object.assign(new Error('full'), { code: 'ENOSPC' });
+    // An unhandled 'error' on a stream throws; the writer must absorb it.
+    expect(() => streams.at(-1)!.emit('error', fault)).not.toThrow();
+    expect(report).toHaveBeenCalledWith('Log write failed', path(20), fault);
+    await log.close();
   });
 
   it('prunes only its daily files at startup and rollover, retaining 14 including today', async () => {

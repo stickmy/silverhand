@@ -155,6 +155,7 @@ impl CategorizedJsonlWriter {
             prefix,
             clock: Box::new(move || clock.now_unix_millis()),
             next_day: 0,
+            current: String::new(),
         };
         let file = rotation.open_day(now).await?;
         Ok(Self::spawn_output(
@@ -294,23 +295,23 @@ async fn drive_writer(
                 rx.close();
                 while let Some(line) = rx.recv().await {
                     if let Err(error) = write_line(&mut writer, &line, &mut rotation).await {
-                        report_durable_failure(&filename, &health, &error);
+                        report_durable_failure(&current_name(&filename, &rotation), &health, &error);
                         return;
                     }
                 }
-                finish(&mut writer, &filename, &health).await;
+                finish(&mut writer, &current_name(&filename, &rotation), &health).await;
                 return;
             }
             received = rx.recv() => match received {
                 Some(line) => {
                     if let Err(error) = write_line(&mut writer, &line, &mut rotation).await {
-                        report_durable_failure(&filename, &health, &error);
+                        report_durable_failure(&current_name(&filename, &rotation), &health, &error);
                         return;
                     }
                 }
                 None => {
                     // Every sender was dropped without an explicit close: flush+close.
-                    finish(&mut writer, &filename, &health).await;
+                    finish(&mut writer, &current_name(&filename, &rotation), &health).await;
                     return;
                 }
             }
@@ -326,10 +327,20 @@ async fn write_line(
     if let Some(rotation) = rotation {
         let now = (rotation.clock)();
         if now >= rotation.next_day {
-            let next = rotation.open_day(now).await?;
-            writer.flush().await?;
-            writer.shutdown().await?;
-            *writer = Box::new(next);
+            // A day file that cannot open must not fail the sink: keep the current
+            // file and retry at the next boundary, like the Node writer.
+            match rotation.open_day(now).await {
+                Ok(next) => {
+                    let mut previous = std::mem::replace(writer, Box::new(next));
+                    if let Err(error) = previous.shutdown().await {
+                        tracing::warn!(target: DIAGNOSTIC_TARGET, %error, "Audit log close failed");
+                    }
+                }
+                Err(error) => {
+                    rotation.next_day = next_day_boundary(now);
+                    tracing::warn!(target: DIAGNOSTIC_TARGET, %error, "Audit log rotation failed");
+                }
+            }
         }
     }
     writer.write_all(line).await?;
@@ -341,13 +352,26 @@ async fn write_line(
 }
 
 const DAY_MILLIS: i64 = 86_400_000;
-const AUDIT_RETAIN_FILES: usize = 14;
+/// Daily files kept per prefix; also the idle age, in days, after which a boot file expires.
+const AUDIT_RETAIN_DAYS: usize = 14;
+
+fn next_day_boundary(now: i64) -> i64 {
+    (now.div_euclid(DAY_MILLIS) + 1) * DAY_MILLIS
+}
+
+fn current_name(fallback: &Arc<str>, rotation: &Option<DailyAuditRotation>) -> Arc<str> {
+    match rotation {
+        Some(rotation) if !rotation.current.is_empty() => Arc::from(rotation.current.as_str()),
+        _ => fallback.clone(),
+    }
+}
 
 struct DailyAuditRotation {
     dir: PathBuf,
     prefix: &'static str,
     clock: Box<dyn Fn() -> i64 + Send + Sync>,
     next_day: i64,
+    current: String,
 }
 
 impl DailyAuditRotation {
@@ -359,10 +383,11 @@ impl DailyAuditRotation {
             .append(true)
             .open(self.dir.join(&name))
             .await?;
-        self.next_day = (now.div_euclid(DAY_MILLIS) + 1) * DAY_MILLIS;
+        self.next_day = next_day_boundary(now);
         if let Err(error) = self.prune(&name, now).await {
             tracing::warn!(target: DIAGNOSTIC_TARGET, %error, "Audit log cleanup failed");
         }
+        self.current = name;
         Ok(file)
     }
 
@@ -373,20 +398,26 @@ impl DailyAuditRotation {
         let daily_prefix = format!("{}.", self.prefix);
         let legacy_prefix = format!("{}-", self.prefix);
         let cutoff = std::time::UNIX_EPOCH
-            + std::time::Duration::from_millis((now - 14 * DAY_MILLIS).max(0) as u64);
+            + std::time::Duration::from_millis(
+                (now - AUDIT_RETAIN_DAYS as i64 * DAY_MILLIS).max(0) as u64,
+            );
         while let Some(entry) = entries.next_entry().await? {
             let name = entry.file_name().to_string_lossy().into_owned();
             if matches_log_name(&name, &daily_prefix, b"dddd-dd-dd") {
                 daily.push(name);
             } else if matches_log_name(&name, &legacy_prefix, b"dddd-dd-ddTdd-dd-dd-dddZ") {
-                let modified = entry.metadata().await?.modified()?;
+                // A file removed or unreadable mid-scan is skipped, not fatal to the pass.
+                let modified = match entry.metadata().await.and_then(|m| m.modified()) {
+                    Ok(modified) => modified,
+                    Err(_) => continue,
+                };
                 if modified < cutoff {
                     expired.push(name);
                 }
             }
         }
         daily.sort();
-        let excess = daily.len().saturating_sub(AUDIT_RETAIN_FILES);
+        let excess = daily.len().saturating_sub(AUDIT_RETAIN_DAYS);
         expired.extend(daily.into_iter().take(excess));
         for name in expired {
             if name == current {
@@ -1071,19 +1102,30 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn cli_rotation_open_failure_preserves_the_existing_durable_failure_contract() {
+    async fn rotation_open_failure_keeps_writing_the_current_file_and_retries_next_day() {
         let dir = tempfile::tempdir().unwrap();
         let clock = MovingClock(Arc::new(std::sync::atomic::AtomicI64::new(ANCHOR_MS)));
         let owner = CliAuditFile::open(dir.path().to_path_buf(), AppTag::Desktop, clock.clone())
             .await
             .unwrap();
+        let writer = owner.shared.writer.clone();
         std::fs::create_dir(dir.path().join("cli.2023-11-15.log")).unwrap();
         clock.0.store(ANCHOR_MS + DAY_MILLIS, Ordering::SeqCst);
-        owner.shared.writer.enqueue(b"cannot persist".to_vec());
+        writer.enqueue(b"kept in old file".to_vec());
+        let old = dir.path().join("cli.2023-11-14.log");
+        while std::fs::read_to_string(&old).unwrap().is_empty() {
+            tokio::task::yield_now().await;
+        }
+        clock.0.store(ANCHOR_MS + 2 * DAY_MILLIS, Ordering::SeqCst);
+        writer.enqueue(b"next day".to_vec());
         owner.close().await;
-        assert_eq!(owner.shared.writer.state(), WriterState::Failed);
-        owner.shared.writer.enqueue(b"after failure".to_vec());
-        assert_eq!(owner.shared.writer.dropped_lines(), 1);
+        assert_eq!(writer.state(), WriterState::ClosedShutdown);
+        assert_eq!(writer.dropped_lines(), 0);
+        assert_eq!(std::fs::read_to_string(&old).unwrap(), "kept in old file\n");
+        assert_eq!(
+            std::fs::read_to_string(dir.path().join("cli.2023-11-16.log")).unwrap(),
+            "next day\n"
+        );
     }
 
     // 2023-11-14T22:13:20.123Z in milliseconds.
