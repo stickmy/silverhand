@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { writeFileSync } from 'node:fs';
+import { readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { Driver, DriverIO, DriverSpawnContext, ParsedEvent } from './index.js';
 
@@ -19,6 +19,14 @@ const DELIVERY_EXTENSION = `export default function (pi) {
   });
 }
 `;
+
+function hasSession(dir: string, id: string): boolean {
+  try {
+    return readdirSync(dir).some((name) => name.endsWith(`_${id}.jsonl`));
+  } catch {
+    return false;
+  }
+}
 
 /** Pi injects deliveries at turn boundaries; settlement waits for the echoed custom message. */
 export class PiDriver implements Driver {
@@ -50,12 +58,15 @@ export class PiDriver implements Driver {
     if (!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(this.sessionId)) {
       throw new Error('Invalid Pi session identity.');
     }
+    // Daemons before Pi's default store kept sessions under the workspace; resume those in place.
+    const legacy = join(ctx.workspacePath, '.silverhand', 'pi-sessions', ctx.agentId);
+    const legacySessionDir = ctx.cliSessionId && hasSession(legacy, this.sessionId) ? legacy : null;
     this.extensionPath = join(dirname(ctx.systemPromptPath), 'silverhand-pi-delivery.mjs');
     writeFileSync(this.extensionPath, DELIVERY_EXTENSION, { mode: 0o600 });
     return [
       '--mode',
       'rpc',
-      // Pi's own store keyed by the spawn cwd; resume finds the same file by id.
+      ...(legacySessionDir ? ['--session-dir', legacySessionDir] : []),
       '--session-id',
       this.sessionId,
       '--extension',

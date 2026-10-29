@@ -78,6 +78,14 @@ interface OccurrenceExemption {
  */
 const OCCURRENCE_INVENTORY: OccurrenceExemption[] = [
   {
+    file: 'packages/host/src/drivers/pi.ts',
+    token: '.silverhand',
+    line: "const legacy = join(ctx.workspacePath, '.silverhand', 'pi-sessions', ctx.agentId);",
+    reason:
+      'read-only lookup of workspace-local Pi sessions written by earlier daemons; never derives an application root',
+    count: 1,
+  },
+  {
     file: 'packages/shared/src/config.ts',
     token: 'server-config.json',
     line: "export const SERVER_CONFIG_FILENAME = 'server-config.json';",
