@@ -1,6 +1,6 @@
 import type { MessageAuthorDto, NotificationDto } from "@silverhand/shared";
 import { presentAuthor } from "@/features/messages/model/author-presentation";
-import { readableExcerpt } from "./mention-toast";
+import { readableExcerpt } from "./mention-banner";
 import { t } from "@/lib/i18n";
 
 /** An OS notification's lines. The system already names the app, so the title

@@ -1,9 +1,7 @@
 export const attention = {
   mute: "Mute",
   unmute: "Unmute",
-  dismiss: "Dismiss",
   someone: "Someone",
-  view: "View",
   agent: "Agent",
   unknownError: "unknown error",
   newMention: "New mention",

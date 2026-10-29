@@ -2,7 +2,6 @@ import { getPlatform } from "@/platform";
 import { useCallback, useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { toastIcon } from "@/lib/toast-icons";
 import {
   type MarkNotificationsReadInput,
   type NotificationDto,
@@ -13,7 +12,7 @@ import { onWsFrame, subscribeViewerScope, isCurrentViewerScope } from "@/lib/ws-
 import { conversationRefQueryOptions } from "@/features/conversations/conversation-ref-query";
 import { recordChannelWorkspace } from "@/features/channels/channel-workspace-index";
 import type { MessageJumpTarget } from "@/features/channels/use-message-jump-controller";
-import { showMentionToast } from "./mention-toast";
+import { showMentionBanner } from "./mention-banner";
 import { payloadString, systemNoticeOf } from "./system-notice";
 import { t } from "@/lib/i18n";
 
@@ -120,21 +119,23 @@ export function useMarkNotificationsRead() {
 
 /**
  * Mount this once at the App root. Listens for WS viewer-scoped notification
- * events (replacing the previous 5 s poll) and fires:
- *  - an in-app toast (sonner) for every new notification
- *  - a system notification via IPC when the app is not in the foreground
+ * events and surfaces each new one the way messaging apps do:
+ *  - nothing while the viewer is looking at it: the window has focus and the
+ *    conversation (and, for a reply, its thread) is on screen;
+ *  - a message never toasts in the desktop app. A mention of the viewer goes
+ *    to the OS even over a focused window (`force`); other kinds only when no
+ *    window has focus (main gates them);
+ *  - on iOS, which has no OS notifications, a mention of the viewer shows the
+ *    native banner;
+ *  - an agent start failure is an error, not a message: a sticky toast plus
+ *    the OS notification, wherever the viewer is.
  *
- * Suppresses toasts for the currently active channel (user can already
- * see it) unless the kind is `agent_start_failed` (always shown — it's
- * an error condition regardless of focus).
- *
- * Click navigation: both toast `onClick` and native-notification click
- * are routed through `onJump`. When omitted, notifications are still
- * shown but inert. `agent_start_failed` is intentionally not clickable
- * (no message anchor to focus on).
+ * Click navigation: the OS notification, the banner and the mention card all
+ * route through `onJump`. When omitted, notifications still show but are
+ * inert. `agent_start_failed` is not clickable (no message anchor).
  */
 export function useNotificationToasts(
-  activeChannelId: string | null,
+  viewing: { conversationId: string | null; threadRootId: string | null },
   onJump?: (target: MessageJumpTarget) => void,
 ) {
   const qc = useQueryClient();
@@ -274,21 +275,40 @@ export function useNotificationToasts(
       seenIds.current.add(seenKey);
       if (isClickableKind(n.kind)) clickableById.current.set(n.id, n);
 
-      const isAgentFailure = n.kind === "agent_start_failed";
-      const isViewerMention = n.kind === "mention_self";
-
-      // Suppress channel-match notifications unless it's an error.
-      if (
-        !isAgentFailure &&
-        !isViewerMention &&
-        n.conversation_id &&
-        n.conversation_id === activeChannelId
-      ) {
+      if (n.kind === "agent_start_failed") {
+        const label = buildToastLabel(n);
+        // Sticky until the read is confirmed: that acknowledge lets the next
+        // failure of this agent notify again. A failed read keeps it up for retry.
+        stickyIds.current.add(n.id);
+        toast.error(label, {
+          id: n.id,
+          duration: Infinity,
+          action: {
+            label: "Dismiss",
+            onClick: (event) => {
+              event.preventDefault();
+              markRead(
+                { id: n.id },
+                {
+                  onSuccess: () => toast.dismiss(n.id),
+                  onError: () =>
+                    toast.error(label, { id: n.id, description: "Couldn't dismiss. Try again." }),
+                },
+              );
+            },
+          },
+        });
+        void getPlatform().notifications?.showSystemNotification(systemNoticeOf(n, label));
         continue;
       }
 
+      if (document.hasFocus() && isOnScreen(n, viewing)) {
+        continue;
+      }
+
+      const isViewerMention = n.kind === "mention_self";
       if (isViewerMention) {
-        showMentionToast(
+        showMentionBanner(
           {
             sender: n.sender ?? null,
             fallbackName: payloadString(n, "trigger_name") ?? t("attention.someone"),
@@ -296,50 +316,8 @@ export function useNotificationToasts(
             excerpt: payloadString(n, "mention_excerpt"),
           },
           n.id,
-          () => handleClickById(n.id),
         );
-      } else {
-        const label = buildToastLabel(n);
-        // A plain toast has no whole-surface click, so a clickable kind gets a
-        // "View" action instead.
-        const toastOptions = isClickableKind(n.kind)
-          ? {
-              action: {
-                label: t("attention.view"),
-                onClick: () => handleClickById(n.id),
-              },
-            }
-          : undefined;
-
-        if (isAgentFailure) {
-          // Sticky until the read is confirmed: that acknowledge lets the next
-          // failure of this agent notify again. A failed read keeps it up for retry.
-          stickyIds.current.add(n.id);
-          toast.error(label, {
-            id: n.id,
-            duration: Infinity,
-            action: {
-              label: "Dismiss",
-              onClick: (event) => {
-                event.preventDefault();
-                markRead(
-                  { id: n.id },
-                  {
-                    onSuccess: () => toast.dismiss(n.id),
-                    onError: () =>
-                      toast.error(label, { id: n.id, description: "Couldn't dismiss. Try again." }),
-                  },
-                );
-              },
-            },
-          });
-        } else {
-          toast(label, { ...toastOptions, icon: toastIcon("notification") });
-        }
       }
-
-      // System notification — main process suppresses ordinary alerts when an
-      // Electron window is focused; direct human mentions opt out via `force`.
       void getPlatform().notifications?.showSystemNotification({
         ...systemNoticeOf(n, buildToastLabel(n)),
         force: isViewerMention,
@@ -355,7 +333,19 @@ export function useNotificationToasts(
     // read-state, so the notification correctly stays unread until an ACTIVE
     // eliminate path clears it: visible read advancing the cursor, clicking the
     // toast/notification to jump to source, or the Activity Mark-as-read ✓.
-  }, [data, activeChannelId, qc, handleClickById, markRead]);
+  }, [data, viewing.conversationId, viewing.threadRootId, qc, handleClickById, markRead]);
+}
+
+/** Whether the notification's message is on screen: its conversation is the
+ *  focused one and, for a reply, that reply's thread is open. */
+function isOnScreen(
+  n: NotificationDto,
+  viewing: { conversationId: string | null; threadRootId: string | null },
+): boolean {
+  if (!n.conversation_id || n.conversation_id !== viewing.conversationId) {
+    return false;
+  }
+  return !n.thread_root_id || n.thread_root_id === viewing.threadRootId;
 }
 
 /**

@@ -92,8 +92,7 @@ html[data-theme] [data-sonner-toaster] {
 html[data-theme] [data-sonner-toast][data-styled="true"] {
   box-shadow: var(--shadow-popover);
 }
-html[data-theme="poster"] [data-sonner-toast][data-styled="true"],
-html[data-theme="poster"] [data-mention-toast] {
+html[data-theme="poster"] [data-sonner-toast][data-styled="true"] {
   border: var(--floating-border);
 }
 html[data-theme] [data-sonner-toast][data-styled="true"] [data-button] {

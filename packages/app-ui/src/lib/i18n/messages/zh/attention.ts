@@ -4,9 +4,7 @@ import type { Translation } from "../../translate";
 export const attention: Translation<typeof en> = {
   mute: "免打扰",
   unmute: "取消免打扰",
-  dismiss: "关闭",
   someone: "有人",
-  view: "查看",
   agent: "Agent",
   unknownError: "未知错误",
   newMention: "新的提及",

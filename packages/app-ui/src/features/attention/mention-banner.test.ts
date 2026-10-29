@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readableExcerpt } from "./mention-toast";
+import { readableExcerpt } from "./mention-banner";
 
 describe("readableExcerpt", () => {
   it("reads references and locators as the names their chips show", () => {
