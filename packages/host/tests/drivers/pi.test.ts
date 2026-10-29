@@ -60,6 +60,7 @@ describe('Pi RPC driver', () => {
     const { d, ctx, args, id } = fixture();
     expect(args).toContain('--append-system-prompt');
     expect(args).not.toContain('--approve');
+    expect(args).not.toContain('--session-dir');
     expect(d.buildArgs({ ...ctx, cliSessionId: id! })).toEqual(args);
     expect(d.applyEnv({ PI_CODING_AGENT_DIR: '/configured' }).PI_CODING_AGENT_DIR).toBe(
       '/configured',

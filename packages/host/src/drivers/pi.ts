@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { Driver, DriverIO, DriverSpawnContext, ParsedEvent } from './index.js';
 
@@ -50,15 +50,12 @@ export class PiDriver implements Driver {
     if (!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(this.sessionId)) {
       throw new Error('Invalid Pi session identity.');
     }
-    const sessions = join(ctx.workspacePath, '.silverhand', 'pi-sessions', ctx.agentId);
-    mkdirSync(sessions, { recursive: true, mode: 0o700 });
     this.extensionPath = join(dirname(ctx.systemPromptPath), 'silverhand-pi-delivery.mjs');
     writeFileSync(this.extensionPath, DELIVERY_EXTENSION, { mode: 0o600 });
     return [
       '--mode',
       'rpc',
-      '--session-dir',
-      sessions,
+      // Pi's own store keyed by the spawn cwd; resume finds the same file by id.
       '--session-id',
       this.sessionId,
       '--extension',
