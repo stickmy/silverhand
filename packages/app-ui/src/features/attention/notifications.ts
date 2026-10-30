@@ -139,7 +139,7 @@ export function useNotificationToasts(
   onJump?: (target: MessageJumpTarget) => void,
 ) {
   const qc = useQueryClient();
-  const { mutate: markRead } = useMarkNotificationsRead();
+  const { mutateAsync: markRead } = useMarkNotificationsRead();
   const { data } = useQuery<{ notifications: NotificationDto[] }>({
     queryKey: [...listKey, { unread: true, toasts: true }],
     queryFn: () => api<{ notifications: NotificationDto[] }>("/api/notifications?unread=1"),
@@ -178,13 +178,11 @@ export function useNotificationToasts(
     [qc],
   );
 
-  // Toasts need the latest notification rows only when a new notification
-  // arrives. `unread_updated` is a badge/read-cursor signal and would make
-  // every channel switch refetch the toast list. The badge variant does,
-  // however, carry the ids just marked read — forward those to main so the OS
-  // notification center clears in step with in-app read state (#task:1431).
-  // This is the single viewer-scope handler fanning the "notification read"
-  // fact to the OS-dismiss projection; main never re-derives read state.
+  // The toast list refetches on a new notification and on a notification read
+  // anywhere (the badge `unread_updated` variants), so an on-screen toast whose
+  // notice was read elsewhere is taken down. The per-message variant is a
+  // read-cursor signal and is ignored. The badge variant carrying ids is also
+  // forwarded to main so the OS notification center clears in step (#task:1431).
   useEffect(() => {
     const sub = subscribeViewerScope();
     const toastKey = [...listKey, { unread: true, toasts: true }] as const;
@@ -196,6 +194,7 @@ export function useNotificationToasts(
           frame.kind === "unread_updated" &&
           !isMessageUnreadUpdatedPayload(frame.payload)
         ) {
+          invalidateQueryDebounced(qc, toastKey);
           const ids = (frame.payload as UnreadUpdatedBadgePayload).dismissed_notification_ids;
           if (Array.isArray(ids)) {
             const stringIds = ids.filter((id): id is string => typeof id === "string");
@@ -287,13 +286,11 @@ export function useNotificationToasts(
             label: "Dismiss",
             onClick: (event) => {
               event.preventDefault();
-              markRead(
-                { id: n.id },
-                {
-                  onSuccess: () => toast.dismiss(n.id),
-                  onError: () =>
-                    toast.error(label, { id: n.id, description: "Couldn't dismiss. Try again." }),
-                },
+              // Per-call promise: `mutate` options are replaced by the next call,
+              // so a second Dismiss would swallow this one's outcome.
+              markRead({ id: n.id }).then(
+                () => toast.dismiss(n.id),
+                () => toast.error(label, { id: n.id, description: "Couldn't dismiss. Try again." }),
               );
             },
           },
