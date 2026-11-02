@@ -1,5 +1,5 @@
 import { getPlatform } from "@/platform";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import type { AttachmentSnapshot } from "@silverhand/shared";
 import { fetchAttachmentBytes } from "@/lib/api";
 import { t } from "@/lib/i18n";

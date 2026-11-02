@@ -37,6 +37,9 @@ final class SilverhandNavigationController: UITabBarController, UITabBarControll
   var onComposerEvent: (([String: Any]) -> Void)?
   private var composerTopLimit: CGFloat = 0
   let banner = BannerView()
+  let toast = ToastView()
+  /// Where the bars end, in the root view; a toast hangs just below.
+  private var barsBottom: CGFloat = 0
   let selectionBar = SelectionBarView()
   var onIntent: (([String: Any]) -> Void)?
   /// The selected page's safe area, horizontally: overlays that float over
@@ -307,6 +310,8 @@ final class SilverhandNavigationController: UITabBarController, UITabBarControll
     }
     content.publishBarMetrics(
       bottom: bottom, tabs: PageAccessory.tabsHeight, vertical: verticalBarEdge != nil)
+    barsBottom = bottom + (pageBar.accessory.window == nil ? 0 : pageBar.accessory.height)
+    toast.setTop(barsBottom)
     composerTopLimit = bottom + (pageBar.accessory.window == nil ? 0 : pageBar.accessory.height)
     for composer in composers.values { composer.topLimit = composerTopLimit }
   }
@@ -510,6 +515,7 @@ final class SilverhandNavigationController: UITabBarController, UITabBarControll
     removeComposer(key: nil)
     removeSelectionBar(key: nil)
     banner.dismiss()
+    toast.dismiss()
   }
 
   // MARK: Tab items
@@ -640,6 +646,10 @@ final class SilverhandNavigationController: UITabBarController, UITabBarControll
 
   func showBanner(_ notice: BannerNotice) {
     banner.show(notice, in: view, area: pageArea)
+  }
+
+  func showToast(_ notice: ToastNotice) {
+    toast.show(notice, in: view, area: pageArea, top: barsBottom)
   }
 
   func showComposer(_ state: ComposerState) {

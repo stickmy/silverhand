@@ -21,7 +21,7 @@ vi.mock("@/platform", () => ({
   getPlatform: () => ({ files: { sharePngExport: h.share } }),
 }));
 vi.mock("@/lib/pinch-zoom-lease", () => ({ usePinchZoomLease: () => {} }));
-vi.mock("sonner", () => ({ toast: { error: h.error, success: vi.fn() } }));
+vi.mock("@/lib/toast", () => ({ toast: { error: h.error, success: vi.fn() } }));
 
 function exportAction(loadExportBytes?: () => Promise<Uint8Array>) {
   const tree = Lightbox({

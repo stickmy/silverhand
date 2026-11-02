@@ -13,6 +13,7 @@ import { createIOSNavigation } from "./navigation";
 import { createIOSTitlebar } from "./titlebar";
 import { createIOSPageBar } from "./page-bar";
 import { createIOSBanner } from "./banner";
+import { createIOSToast } from "./toast";
 import { createIOSComposer } from "./composer";
 import { createIOSSelectionBar } from "./selection-bar";
 import { createIOSFiles, encodeBytes } from "./files";
@@ -68,6 +69,7 @@ export function createIOSPlatform(
     composer: createIOSComposer(bridge),
     selectionBar: createIOSSelectionBar(bridge),
     banner: createIOSBanner(bridge),
+    toast: createIOSToast(bridge),
     avatarMaker: createIOSAvatarMaker(bridge),
     contextMenu: contextMenu ? createIOSContextMenu(bridge) : undefined,
     client: {

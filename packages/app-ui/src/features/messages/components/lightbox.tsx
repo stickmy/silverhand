@@ -4,7 +4,7 @@ import { RangeInput } from "@/components/ui/range-input";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import * as DialogPrimitive from "@/components/ui/modal";
 import { CloseIcon, DownloadIcon, ShareIcon, ZoomInIcon, ZoomOutIcon } from "@/icons";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import { usePinchZoomLease } from "@/lib/pinch-zoom-lease";
 import { SelectionActionButton } from "./selection-toolbar";

@@ -3,7 +3,7 @@ import { useState } from "react";
 import * as Select from "@radix-ui/react-select";
 import { EmptyIcon, ChevronDownIcon, ErrorIcon } from "@/icons";
 import { PanelEmpty, PanelError } from "./permissions-panel-state";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import type { AgentCapability, AgentDto } from "@silverhand/shared";
 import { ApiError } from "@/lib/api";
 import { getCurrentUserId } from "@/features/session/current-user";

@@ -67,4 +67,12 @@ describe("import direction", () => {
   it("a page never imports another page", () => {
     expect(crossPageImports()).toEqual([]);
   });
+
+  it("toasts go through @/lib/toast, which picks the platform's surface", () => {
+    const direct = importers(
+      ["components", "features", "hooks", "lib", "navigation", "pages"],
+      /from\s+["']sonner["']/,
+    );
+    expect(direct).toEqual(["lib/toast.ts"]);
+  });
 });

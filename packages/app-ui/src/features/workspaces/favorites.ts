@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { t } from "@/lib/i18n";
 import type { QueryClient } from "@tanstack/react-query";
 import type {

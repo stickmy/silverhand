@@ -11,7 +11,7 @@ import {
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import type { ScheduleDto, ScheduleListStatusFilter } from "@silverhand/shared";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { useNav } from "@/router";
 import { useConversationIdentity } from "@/features/conversations/conversation-identity";
 import { cn } from "@/lib/cn";

@@ -1,6 +1,6 @@
 import { agentRuntimeStateKey } from "@/features/agents/hooks/hooks";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { t } from "@/lib/i18n";
 import { clearAgentSessionPath } from "./runtime-control";
 import type {

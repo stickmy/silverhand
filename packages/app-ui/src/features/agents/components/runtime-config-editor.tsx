@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type JSX } from "react";
 import * as Select from "@radix-ui/react-select";
 import { ChevronDownIcon, RefreshIcon } from "@/icons";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import type {
   AgentDto,
   ReasoningEffort,

@@ -179,6 +179,7 @@ export interface ClientPlatform {
   composer?: ComposerCapability;
   selectionBar?: SelectionBarCapability;
   banner?: BannerCapability;
+  toast?: ToastCapability;
   avatarMaker?: AvatarMakerCapability;
   contextMenu?: ContextMenuCapability;
   /** Present only where the app can update itself. */
@@ -448,6 +449,24 @@ export type BannerEvent = { kind: "open"; id: string };
 export interface BannerCapability {
   show(notice: BannerNotice): Promise<void>;
   subscribe(handler: (event: BannerEvent) => void): Promise<() => void>;
+}
+/** A short outcome line native draws above its bars; a newer one replaces the
+ *  one showing, and one with the same id updates it in place. */
+export interface ToastNotice {
+  id: string;
+  tone: "success" | "error" | "warning" | "neutral";
+  title: string;
+  description?: string;
+  /** Stays until dismissed or its action is used. */
+  sticky?: boolean;
+  action?: { label: string };
+}
+export type ToastEvent = { kind: "action"; id: string };
+export interface ToastCapability {
+  show(notice: ToastNotice): Promise<void>;
+  /** Without an id, dismisses whatever is showing. */
+  dismiss(id?: string): Promise<void>;
+  subscribe(handler: (event: ToastEvent) => void): Promise<() => void>;
 }
 export interface NavigationCapability {
   badges(input: {

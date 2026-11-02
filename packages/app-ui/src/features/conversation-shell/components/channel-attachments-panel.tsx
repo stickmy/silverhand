@@ -5,7 +5,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { paneChrome } from "@/components/layout/pane-chrome";
 import dayjs from "dayjs";
 import { GroupedVirtuoso } from "react-virtuoso";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import * as Select from "@radix-ui/react-select";
 import {
   AttachmentIcon,

@@ -2,7 +2,7 @@ import { getPlatform } from "@/platform";
 import { DocumentSkeleton } from "@/components/layout/document-skeleton";
 import { RangeInput } from "@/components/ui/range-input";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { DownloadIcon, OpenExternalIcon, ZoomInIcon, ZoomOutIcon } from "@/icons";
 import { cn } from "@/lib/cn";
 import { fetchAttachmentBytes } from "@/lib/api";

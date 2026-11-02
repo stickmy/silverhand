@@ -7,7 +7,7 @@ import {
   SIDEBAR_SORT_GROUP,
   SIDEBAR_SORT_LIST_KEY,
 } from "@silverhand/shared";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { t } from "@/lib/i18n";
 import { api } from "@/lib/api";
 import { useViewerUser } from "@/features/session/hooks";

@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { BellOffIcon, ChevronDownIcon, PlusIcon } from "@/icons";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { useSidebarBranchDrag } from "./sidebar-branch-drag";

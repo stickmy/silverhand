@@ -25,7 +25,7 @@ vi.mock("@tanstack/react-query", async (original) => ({
 }));
 vi.mock("@/features/session/hooks", () => ({ useViewerUser: () => ({ data: { id: "current" } }) }));
 vi.mock("@/lib/api", () => ({ api: (...args: unknown[]) => h.request(...args) }));
-vi.mock("sonner", () => ({ toast: { error: (...args: unknown[]) => h.toast(...args) } }));
+vi.mock("@/lib/toast", () => ({ toast: { error: (...args: unknown[]) => h.toast(...args) } }));
 vi.mock("@/lib/ws-client", () => ({
   subscribeViewerScope: () => ({ unsubscribe() {} }),
   isCurrentViewerScope: (scope: string) => scope === "viewer:current",

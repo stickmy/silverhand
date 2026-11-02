@@ -1,7 +1,7 @@
 import * as Select from "@radix-ui/react-select";
 import { CheckIcon, ChevronDownIcon, ErrorIcon, EmptyIcon } from "@/icons";
 import { PanelEmpty, PanelError } from "./permissions-panel-state";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import type { WorkspaceHumanMemberDto, WorkspaceRole } from "@silverhand/shared";
 import { ApiError } from "@/lib/api";
 import { UserAvatar } from "@/components/user-avatar";

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import "./avatar-maker.css";
 import { CancelledIcon, RandomizeIcon, UndoIcon } from "@/icons";
 import { Button } from "@/components/ui/button";

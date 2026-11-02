@@ -13,7 +13,7 @@ public final class SilverhandClientPlugin: CAPPlugin, CAPBridgedPlugin {
     "upload",
     "openSocket", "sendSocket", "closeSocket", "openExternal", "appVersion",
     "navigationSync", "navigationReset",
-    "navigationBadges", "navigationAvatar", "setLocale", "titlebar", "titlebarEndSearch", "pageBar", "pageBarBackProgress", "composerSync", "composerRemove", "composerSetText", "selectionBarSync", "selectionBarRemove", "bannerShow", "sharePng", "previewPng", "saveAttachment", "avatarMakerEdit", "contextMenuAvailable", "contextMenuShow",
+    "navigationBadges", "navigationAvatar", "setLocale", "titlebar", "titlebarEndSearch", "pageBar", "pageBarBackProgress", "composerSync", "composerRemove", "composerSetText", "selectionBarSync", "selectionBarRemove", "bannerShow", "toastShow", "toastDismiss", "sharePng", "previewPng", "saveAttachment", "avatarMakerEdit", "contextMenuAvailable", "contextMenuShow",
   ].map { CAPPluginMethod(name: $0, returnType: CAPPluginReturnPromise) }
 
   @MainActor private var session: ClientSession?
@@ -461,6 +461,31 @@ public final class SilverhandClientPlugin: CAPPlugin, CAPBridgedPlugin {
         host.banner.onEvent = { [weak self] event in self?.notifyListeners("banner", data: event) }
         host.showBanner(notice)
       }
+      call.resolve()
+    }
+  }
+  @objc public func toastShow(_ call: CAPPluginCall) {
+    guard let id = call.getString("id"), let title = call.getString("title") else {
+      call.reject("A toast needs an id and a title")
+      return
+    }
+    let notice = ToastNotice(
+      id: id, title: title,
+      tone: ToastNotice.Tone(rawValue: call.getString("tone") ?? "") ?? .neutral,
+      description: call.getString("description"), sticky: call.getBool("sticky") ?? false,
+      action: call.getObject("action")?["label"] as? String)
+    Task { @MainActor [self] in
+      if let host = navigationHost {
+        host.toast.onEvent = { [weak self] event in self?.notifyListeners("toast", data: event) }
+        host.showToast(notice)
+      }
+      call.resolve()
+    }
+  }
+  @objc public func toastDismiss(_ call: CAPPluginCall) {
+    let id = call.getString("id")
+    Task { @MainActor in
+      navigationHost?.toast.dismiss(id: id)
       call.resolve()
     }
   }

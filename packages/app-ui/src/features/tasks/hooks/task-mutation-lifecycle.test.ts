@@ -24,7 +24,7 @@ vi.mock("@/lib/api", async (original) => ({
   ...(await original<typeof import("@/lib/api")>()),
   api: (...args: unknown[]) => harness.api(...args),
 }));
-vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
+vi.mock("@/lib/toast", () => ({ toast: { error: vi.fn() } }));
 vi.mock("../model/task-projection", async (original) => ({
   ...(await original<typeof import("../model/task-projection")>()),
   beginOptimisticStatusWrite: (...args: unknown[]) => harness.begin(...args),

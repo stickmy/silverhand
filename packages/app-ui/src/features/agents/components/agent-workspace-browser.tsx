@@ -12,7 +12,7 @@ import {
   ReloadIcon,
 } from "@/icons";
 import dayjs from "dayjs";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import type {
   AgentWorkspaceFileRead,
   AgentWorkspaceTree,

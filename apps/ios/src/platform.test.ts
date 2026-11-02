@@ -22,6 +22,8 @@ function harness() {
     selectionBarSync: vi.fn(async () => {}),
     selectionBarRemove: vi.fn(async () => {}),
     bannerShow: vi.fn(async () => {}),
+    toastShow: vi.fn(async () => {}),
+    toastDismiss: vi.fn(async () => {}),
     getProfile: vi.fn(async () => ({ server_url: "https://server.example", updated_at: 1 })),
     authState: vi.fn(async () => ({
       serverUrl: "https://server.example",

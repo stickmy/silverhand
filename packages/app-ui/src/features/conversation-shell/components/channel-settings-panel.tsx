@@ -1,6 +1,6 @@
 import { ChannelSettingsSkeleton } from "./channel-settings-skeleton";
 import { useChannelSettingsDetail } from "../use-channel-settings-detail";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion, useIsPresent, useReducedMotion } from "motion/react";
 import { ChevronRightIcon, HashIcon, LockIcon, PowerIcon, RefreshIcon } from "@/icons";

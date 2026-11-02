@@ -7,7 +7,7 @@ import * as Dialog from "@/components/ui/modal";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { CloseIcon, ShareIcon } from "@/icons";
 import { toPng } from "html-to-image";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import type { AgentDto, MessageDto, TaskSummaryDto, UserDto } from "@silverhand/shared";
 import { loadAttachmentBlobUrl } from "@/features/attachments/attachment-blob-cache";
 import {

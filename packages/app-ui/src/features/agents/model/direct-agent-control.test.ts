@@ -6,7 +6,7 @@ import type {
   DirectPairListItem,
   UserDto,
 } from "@silverhand/shared";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { api } from "@/lib/api";
 import { useClearAgentSession, useStartAgent, useStopAgent } from "@/features/channels/hooks";
 import { agentRuntimeStateKey, useAgentRuntimeState } from "../hooks/hooks";
@@ -16,7 +16,7 @@ vi.mock("@/lib/api", async (orig) => ({
   ...(await orig<typeof import("@/lib/api")>()),
   api: vi.fn(),
 }));
-vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
+vi.mock("@/lib/toast", () => ({ toast: { error: vi.fn() } }));
 vi.mock("@tanstack/react-query", async (orig) => {
   const original = await orig<typeof import("@tanstack/react-query")>();
   return {
