@@ -171,7 +171,10 @@ export function AttachmentTile({
 
   if (isImage && !decodeFailed) {
     return (
-      <div className="flex min-w-0 max-w-full flex-col gap-1">
+      // The width cap sits on the tile, where the percentage resolves against the
+      // row. On the <img> it is cyclic while the tile sizes itself, so the tile
+      // took the image's natural width and the frame ran far past the picture.
+      <div className="flex min-w-0 max-w-[min(320px,100%)] flex-col gap-1">
         <button
           type="button"
           onClick={() => imageUrl && setLightboxOpen(true)}
@@ -184,7 +187,7 @@ export function AttachmentTile({
               src={imageUrl}
               alt={attachment.filename}
               onError={onImgError}
-              className="block max-h-64 max-w-[min(320px,100%)] cursor-zoom-in object-contain"
+              className="block max-h-64 max-w-full cursor-zoom-in object-contain"
             />
           ) : (
             <div className="flex h-32 w-48 items-center justify-center text-xs text-text-muted">
