@@ -56,6 +56,7 @@ import {
 import { ChannelRowMenuItems } from "./channel-row-menu-items";
 import { ProjectFilterStrip } from "./project-filter-strip";
 import type { WorkspaceItem } from "./workspaces-panel";
+import { useCompactLayout } from "@/navigation/layout";
 import { t } from "@/lib/i18n";
 
 type RecentListRow =
@@ -366,6 +367,11 @@ const RecentRow = forwardRef<HTMLButtonElement, RecentRowProps>(function RecentR
   },
   ref,
 ) {
+  // The phone list takes iOS list proportions: a larger picture and type, no
+  // hairlines, and unread told by weight with a number only when it is loud.
+  const compact = useCompactLayout();
+  const unread = row.badge !== null;
+
   const counterpart = row.kind === "direct" ? presentCounterpart(row.counterpart) : null;
   const title = row.kind === "channel" ? row.title : counterpart!.label;
   const latest = row.latest;
@@ -390,43 +396,52 @@ const RecentRow = forwardRef<HTMLButtonElement, RecentRowProps>(function RecentR
       onClick={onSelect}
       data-row-selected={selected || undefined}
       className={cn(
-        "sidebar-row-border flex h-14 w-full items-center gap-2.5 border px-2 text-left",
+        "sidebar-row-border flex w-full items-center border px-2 text-left",
+        compact ? "h-[72px] gap-3" : "h-14 gap-2.5",
         selected
           ? "navigation-row border-accent bg-bg-nav-selected text-text-nav-selected"
           : "navigation-row border-transparent text-text-secondary hover:border-accent hover:bg-bg-nav-hover hover:text-text-primary",
       )}
     >
-      <span data-recent-avatar className="flex size-9 shrink-0 items-center justify-center">
+      <span
+        data-recent-avatar
+        className={cn("flex shrink-0 items-center justify-center", compact ? "size-12" : "size-9")}
+      >
         {counterpart ? (
           <AuthorAvatarView
             avatar={counterpart.avatar}
-            size={AVATAR_PX.lg}
+            size={compact ? AVATAR_PX["2xl"] : AVATAR_PX.lg}
             label={counterpart.label}
             agentAvatarUrls={agentAvatarUrls}
             humanAvatarUrls={humanAvatarUrls}
           />
         ) : (
-          <ChannelAvatar id={row.id} title={title} />
+          <ChannelAvatar
+            id={row.id}
+            title={title}
+            size={compact ? AVATAR_PX["2xl"] : AVATAR_PX.lg}
+          />
         )}
       </span>
 
       <span
         className={cn(
           "flex min-w-0 flex-1 flex-col justify-center gap-0.5 self-stretch border-b",
-          divider ? "border-border-subtle" : "border-transparent",
+          divider && !compact ? "border-border-subtle" : "border-transparent",
         )}
       >
         <span className="flex min-w-0 items-baseline gap-1.5">
           <span
             className={cn(
-              "min-w-0 truncate text-[13px] leading-4 text-text-primary",
-              selected || row.badge ? "font-semibold" : "font-medium",
+              "min-w-0 truncate text-text-primary",
+              compact ? "text-base leading-5" : "text-[13px] leading-4",
+              selected || unread ? "font-semibold" : compact ? "font-normal" : "font-medium",
               selected && "text-text-nav-selected",
             )}
           >
             {title}
           </span>
-          {row.kind === "channel" && row.visibility === "private" ? (
+          {!compact && row.kind === "channel" && row.visibility === "private" ? (
             <LockIcon
               role="img"
               aria-label={t("chat.private")}
@@ -456,7 +471,13 @@ const RecentRow = forwardRef<HTMLButtonElement, RecentRowProps>(function RecentR
         </span>
 
         <span className="flex min-w-0 items-center gap-1.5">
-          <span className="min-w-0 flex-1 truncate text-xs leading-4 text-text-muted">
+          <span
+            className={cn(
+              "min-w-0 flex-1 truncate",
+              compact ? "text-sm leading-5" : "text-xs leading-4",
+              compact && unread ? "text-text-primary" : "text-text-muted",
+            )}
+          >
             {latest?.thread_root_id ? (
               <ThreadIcon
                 role="img"
@@ -468,7 +489,13 @@ const RecentRow = forwardRef<HTMLButtonElement, RecentRowProps>(function RecentR
             {preview}
           </span>
           {row.kind === "channel" && row.muted ? <MutedMarker /> : null}
-          {row.badge ? (
+          {row.badge && compact && row.badge.tier === "quiet" ? (
+            <span
+              role="img"
+              aria-label={t("ui.unread")}
+              className="size-2 shrink-0 rounded-full bg-(--unread)"
+            />
+          ) : row.badge ? (
             <UnreadBadge count={row.badge.count} tier={row.badge.tier} inverted={selected} />
           ) : null}
         </span>
