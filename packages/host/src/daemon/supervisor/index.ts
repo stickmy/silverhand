@@ -1578,12 +1578,11 @@ export class Supervisor implements SupervisorContract {
       initialPrompt: driver.oneShot && params.startup_delivery ? params.startup_delivery.text : '',
     };
 
-    const args = driver.buildArgs(spawnCtx);
-    // Profile MCP (#task:1135): append the subject's additive MCP layer.
-    // Keyed by runtime, drops the whole layer (loud) on a bad file but never
-    // blocks spawn. Appended after buildArgs — both runtimes parse these flags
-    // regardless of position. opencode (#task:1405) returns its layer via
-    // `env` (OPENCODE_CONFIG_CONTENT) instead of argv.
+    // Profile MCP (#task:1135): the subject's additive MCP layer. Keyed by
+    // runtime, drops the whole layer (loud) on a bad file but never blocks
+    // spawn. argv runtimes get flags appended after buildArgs; opencode
+    // (#task:1405) gets `env`; runtimes that place it themselves read
+    // `spawnCtx.profileMcp`, so it is set before buildArgs.
     const mcpSpawn = await buildProfileMcpSpawnArgs({
       runtimeKind,
       agentHomeDir: resolvedOptions.agent.home_dir,
@@ -1592,8 +1591,9 @@ export class Supervisor implements SupervisorContract {
       agentId: params.agent_id,
       logger: this.logger,
     });
-    args.push(...(mcpSpawn.args ?? []));
     spawnCtx.profileMcp = mcpSpawn.profileMcp;
+    const args = driver.buildArgs(spawnCtx);
+    args.push(...(mcpSpawn.args ?? []));
     const daemonEnv = buildDaemonSpawnEnv({
       driver,
       options: startOptions,
@@ -1769,6 +1769,7 @@ export class Supervisor implements SupervisorContract {
       exitCode: null,
       intentionalExit: false,
       sigkillTimer: null,
+      fatalReclaimTimer: null,
       // 3b additions
       startupDelivery: startupBatch,
       startupAwaitingInit: false,
@@ -4066,6 +4067,7 @@ export class Supervisor implements SupervisorContract {
         break;
       }
       case 'error':
+        if (parsed.fatal === true && handle.initObserved) this.reclaimAfterFatal(handle);
         if (parsed.fatal !== true) {
           this.transitionRunState(handle, {
             status: 'thinking',
@@ -4086,6 +4088,33 @@ export class Supervisor implements SupervisorContract {
     if (!wasBoundaryOpen && strategyBoundaryOpen(handle)) {
       this.maybeScheduleDeferredFlush(handle);
     }
+  }
+
+  /**
+   * A fatal error after init means the process can no longer serve input, and
+   * a runtime may stay alive after reporting it. Close delivery (draining, not
+   * intentional), give it the stop grace to exit on its own, then signal it;
+   * the normal exit path settles deliveries. Pre-init fatals are already
+   * bounded by the init watchdog.
+   */
+  private reclaimAfterFatal(handle: RuntimeHandle): void {
+    if (handle.fatalReclaimTimer || handle.phase === 'exited' || handle.phase === 'draining')
+      return;
+    handle.phase = 'draining';
+    this.emitState(handle);
+    const kill = (signal: NodeJS.Signals, next?: () => void) =>
+      setTimer(() => {
+        if (handle.phase === 'exited') return;
+        try {
+          handle.child.kill(signal);
+        } catch {
+          // Already gone; the exit listener settles.
+        }
+        next?.();
+      }, this.sigtermToSigkillMs).unref();
+    handle.fatalReclaimTimer = kill('SIGTERM', () => {
+      handle.fatalReclaimTimer = kill('SIGKILL');
+    });
   }
 
   /**
@@ -4395,6 +4424,10 @@ export class Supervisor implements SupervisorContract {
     if (handle.sigkillTimer) {
       clearTimeout(handle.sigkillTimer);
       handle.sigkillTimer = null;
+    }
+    if (handle.fatalReclaimTimer) {
+      clearTimeout(handle.fatalReclaimTimer);
+      handle.fatalReclaimTimer = null;
     }
     // 3c-b: stop any pending init / compaction timers attached to
     // this handle BEFORE the retry-respawn branch fires, otherwise a

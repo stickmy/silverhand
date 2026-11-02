@@ -2090,6 +2090,52 @@ describe('Supervisor 3b — parse fanout (Cindy `OQCA05pivtB8nSTC` + `C2BZGDbQWf
     });
   });
 
+  it('reclaims a runtime that stays alive after a post-init fatal error', async () => {
+    const { driver } = makeProgrammableDriver([
+      '--emit-line',
+      'INIT',
+      '--emit-line',
+      'FATAL',
+      '--ignore-sigterm',
+    ]);
+    driver.parseLine = (line) =>
+      line === 'INIT'
+        ? [{ kind: 'session_init', sessionId: 's1' }]
+        : line === 'FATAL'
+          ? [{ kind: 'error', code: 'session_failed', message: 'session failed', fatal: true }]
+          : [];
+    const { supervisor, events } = makeSupervisorWithDriver(driver, { sigtermToSigkillMs: 300 });
+
+    await supervisor.start(baseStartParams);
+    await waitFor(() =>
+      events.some((e) => e.event === 'runtime_parsed_event' && e.parsed.kind === 'error'),
+    );
+    // The grace window refuses new input instead of accepting it and killing it.
+    const during = await supervisor.deliver(
+      {
+        runtime_generation: 1,
+        conversation_id: 'Conversation0001',
+        target: { conversation_id: 'Conversation0001', workspace: null },
+        agent_id: 'a1',
+        delivery_ids: [31],
+        kind: 'message',
+        text: 'late payload',
+        deliveries: [
+          { delivery_id: 31, seq: 31, presentation: testDeliveryPresentation('late payload') },
+        ],
+        spawn_options: baseStartParams.options,
+      },
+      { owner: 'test-owner' },
+    );
+    expect(during).toMatchObject({ disposition: 'refused', reason: 'draining' });
+    await waitFor(() => events.some((e) => e.event === 'runtime_exit'), 3_000);
+    await wait(200);
+
+    const exits = events.filter((e) => e.event === 'runtime_exit');
+    expect(exits).toHaveLength(1);
+    expect(exits[0]).toMatchObject({ intentional: false, code: null });
+  });
+
   it('non-fatal parsed errors surface as thinking activity instead of leaving the UI idle', async () => {
     const { driver } = makeProgrammableDriver(['--emit-line', 'A']);
     const { supervisor, events } = makeSupervisorWithDriver(driver);

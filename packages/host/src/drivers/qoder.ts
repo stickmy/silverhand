@@ -1,5 +1,7 @@
-import { readFileSync } from 'node:fs';
-import { type Driver, type DriverSpawnContext, type ParsedEvent } from './index.js';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { toClaudeMcpConfig } from '@silverhand/shared';
+import { type Driver, type DriverIO, type DriverSpawnContext, type ParsedEvent } from './index.js';
 import {
   classifyStreamJsonInitProgress,
   encodeStreamJsonUserMessage,
@@ -27,11 +29,22 @@ import { versionAtLeast } from './version-gate.js';
 const STEER_MIN_VERSION = '1.1.17';
 
 /**
+ * From 1.1.81 plain headless stream-json no longer emits `command_lifecycle`,
+ * so `started` never arrives and admission stalls (#task:2953). The private
+ * `--sdk` daemon wire still emits it, so these builds are driven through it.
+ */
+const SDK_MIN_VERSION = '1.1.81';
+const SDK_DAEMON_PROTOCOL = 2;
+const SDK_REQUIRED_DAEMON_CAPABILITY = 'multi_session_v2';
+const SDK_REQUIRED_SESSION_CAPABILITY = 'msg_lifecycle_v1';
+
+/**
  * Qoder tools that clash with Silverhand's own contracts and must be
  * denied so the agent can't run a parallel, invisible control plane:
  *  - plan mode (Silverhand has no plan/exit-plan affordance);
  *  - cron / scheduling (Silverhand owns schedules via the CLI);
- *  - goals (Silverhand owns work tracking via tasks).
+ *  - goals (Silverhand owns work tracking via tasks);
+ *  - AskUserQuestion (headless runs have no one to answer; 1.1.81 exposes it).
  * Mirrors the Claude driver's disallow rationale, extended for Qoder's
  * native goal tools (`{Create,Get,Update}Goal`), which Claude lacks.
  * Tool names verified from qoder's `system/init.tools` list (v1.0.37).
@@ -45,6 +58,7 @@ const DISALLOWED_TOOLS = [
   'CreateGoal',
   'GetGoal',
   'UpdateGoal',
+  'AskUserQuestion',
 ].join(',');
 
 function queueStatusEvent(line: string): ParsedEvent | null {
@@ -144,18 +158,24 @@ function queueStatusEvent(line: string): ParsedEvent | null {
  *    chose this over a hermetic config root so existing user habits carry
  *    into Silverhand. A future hermetic mode would be a product decision,
  *    not a driver-default cleanup.
- *  - Profile MCP injection lives in the daemon spawn loader, not this
- *    driver. Qoder uses the same Claude-shaped `--mcp-config <file>`
- *    projection there.
- *  - Resume-failure surfaces on stderr (not a stdout `result` frame),
- *    so it can't be classified here as `session_not_found`. Behaviour
- *    then matches Claude's invalid-resume path anyway: no `session_init`
- *    → init watchdog → retry respawn.
+ *  - Profile MCP arrives as `ctx.profileMcp` and is written next to the
+ *    standing prompt as a Claude-shaped `--mcp-config <file>` worker arg:
+ *    in SDK mode only `daemon.open_session` worker args reach the session.
+ *  - Headless resume-failure surfaces on stderr (not a stdout `result`
+ *    frame), so it can't be classified here as `session_not_found`.
+ *    Behaviour then matches Claude's invalid-resume path anyway: no
+ *    `session_init` → init watchdog → retry respawn.
+ *
+ * SDK mode (>= {@link SDK_MIN_VERSION}): the process runs `--sdk`; `bindIO`
+ * drives `daemon.initialize` → `daemon.open_session` (worker args = the
+ * headless argv) → session `initialize`, and only then announces
+ * `session_init` / `readyToEncode`. User frames carry the session route;
+ * output is the same stream-json. Any handshake/daemon failure is fatal and
+ * shuts the daemon down.
  */
 export class QoderDriver implements Driver {
   readonly kind = 'qoder' as const;
   readonly binary = 'qodercli';
-  readonly kickoffMode = 'requires_first_message' as const;
   readonly oneShot = false;
   readonly supportsNativeStandingPrompt = true;
   readonly initLivenessSilenceMs = 30 * 1000;
@@ -165,6 +185,15 @@ export class QoderDriver implements Driver {
   /** Resolved once by `bindRuntimeVersion`; false until then so a driver
    *  instance nobody bound behaves like an old CLI (fail closed). */
   private steerCapable = false;
+  private sdk = false;
+  private io?: DriverIO;
+  /** SDK route, bound by `daemon.open_session`. */
+  private sdkSessionId: string | null = null;
+  private sdkPhase: 'idle' | 'daemon' | 'open' | 'session' | 'ready' | 'failed' = 'idle';
+
+  get kickoffMode(): 'self_inits' | 'requires_first_message' {
+    return this.sdk ? 'self_inits' : 'requires_first_message';
+  }
 
   /**
    * Version-derived, pinned to this instance = to the child process
@@ -198,9 +227,14 @@ export class QoderDriver implements Driver {
 
   bindRuntimeVersion(version: string | null): void {
     this.steerCapable = versionAtLeast(version, STEER_MIN_VERSION);
+    this.sdk = versionAtLeast(version, SDK_MIN_VERSION);
   }
 
   buildArgs(ctx: DriverSpawnContext): string[] {
+    return this.sdk ? ['--sdk'] : this.workerArgs(ctx);
+  }
+
+  private workerArgs(ctx: DriverSpawnContext): string[] {
     const standingPrompt = readFileSync(ctx.systemPromptPath, 'utf-8');
     const args = [
       '--dangerously-skip-permissions',
@@ -224,7 +258,30 @@ export class QoderDriver implements Driver {
     if (ctx.cliSessionId) {
       args.push('--resume', ctx.cliSessionId);
     }
+    const mcp = ctx.profileMcp ? toClaudeMcpConfig(ctx.profileMcp, 'profile') : null;
+    if (mcp) {
+      const path = join(dirname(ctx.systemPromptPath), 'profile-mcp.json');
+      writeFileSync(path, JSON.stringify(mcp, null, 2), { mode: 0o600 });
+      args.push('--mcp-config', path);
+    }
     return args;
+  }
+
+  bindIO(io: DriverIO): void {
+    if (!this.sdk) return;
+    this.io = io;
+    this.sdkPhase = 'daemon';
+    this.control('daemon', {
+      type: 'daemon.initialize',
+      daemon_protocol_version: SDK_DAEMON_PROTOCOL,
+      sdk_version: 'silverhand',
+      capabilities: [SDK_REQUIRED_DAEMON_CAPABILITY],
+      auth: { type: 'qodercli' },
+    });
+  }
+
+  readyToEncode(): boolean {
+    return !this.sdk || this.sdkPhase === 'ready';
   }
 
   applyEnv(baseEnv: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
@@ -235,7 +292,13 @@ export class QoderDriver implements Driver {
     content: string,
     cliSessionId: string | null,
     opts?: { payloadUuid?: string },
-  ): string {
+  ): string | null {
+    if (this.sdk) {
+      if (!this.readyToEncode()) return null;
+      return encodeStreamJsonUserMessage(content, this.sdkSessionId, opts?.payloadUuid, {
+        priority: 'next',
+      });
+    }
     if (!this.steerCapable) {
       // Below the enable floor the capability is unproven (1.0.48 accepts
       // `priority` but its headless handler never honours it, #task:1556;
@@ -258,12 +321,166 @@ export class QoderDriver implements Driver {
   }
 
   parseLine(line: string): ParsedEvent[] {
+    if (this.sdk) {
+      const frame = sdkFrame(line);
+      if (frame) return this.parseSdkFrame(frame);
+      return this.sdkSessionId ? this.parseStreamJson(line) : [];
+    }
+    return this.parseStreamJson(line);
+  }
+
+  private parseStreamJson(line: string): ParsedEvent[] {
     const queueStatus = queueStatusEvent(line);
     if (queueStatus) return [queueStatus];
-    return parseStreamJsonLine(line, { runtimeLabel: 'Qoder' });
+    // In SDK mode the session is announced by the `initialize` response, so
+    // the worker's own per-turn `system/init` frames are not session evidence.
+    return parseStreamJsonLine(line, { runtimeLabel: 'Qoder' }).filter(
+      (event) => !this.sdk || event.kind !== 'session_init',
+    );
+  }
+
+  private parseSdkFrame(frame: SdkFrame): ParsedEvent[] {
+    if (frame.type === 'keep_alive') return [];
+    if (frame.type === 'protocol_error') {
+      return this.fail('qoder_sdk_protocol_error', `Qoder SDK protocol error: ${frame.code}`);
+    }
+    if (frame.type === 'status_event') {
+      return this.fail('qoder_sdk_session_failed', 'Qoder SDK session failed.');
+    }
+    const response = frame.response;
+    // Only the response to the request in flight carries control; anything
+    // else (unknown, duplicate, late) is ignored.
+    if (response.request_id !== this.sdkPhase) return [];
+    if (response.subtype !== 'success') {
+      const detail = `${response.code ?? 'error'}: ${String(response.error ?? '').slice(0, 512)}`;
+      return this.fail(
+        'qoder_sdk_rejected',
+        `Qoder SDK ${response.request_id} rejected (${detail})`,
+      );
+    }
+    const result = isRecord(response.response) ? response.response : {};
+    if (this.sdkPhase === 'daemon') {
+      if (
+        result.daemon_protocol_version !== SDK_DAEMON_PROTOCOL ||
+        !hasCapability(result, SDK_REQUIRED_DAEMON_CAPABILITY)
+      ) {
+        return this.fail('qoder_sdk_unsupported', 'Qoder SDK daemon protocol is unsupported.');
+      }
+      const ctx = this.io!.spawnCtx;
+      this.sdkPhase = 'open';
+      this.control('open', {
+        type: 'daemon.open_session',
+        cwd: ctx.workspacePath,
+        worker_args: this.workerArgs(ctx),
+      });
+      return [];
+    }
+    if (this.sdkPhase === 'open') {
+      const sessionId = typeof frame.session_id === 'string' ? frame.session_id : '';
+      const resumeId = this.io!.spawnCtx.cliSessionId;
+      if (!sessionId || (resumeId && sessionId !== resumeId)) {
+        return this.fail('qoder_sdk_session_mismatch', 'Qoder SDK opened an unexpected session.');
+      }
+      this.sdkSessionId = sessionId;
+      this.sdkPhase = 'session';
+      this.control('session', { type: 'initialize' }, sessionId);
+      return [];
+    }
+    if (this.sdkPhase === 'session') {
+      if (!hasCapability(result, SDK_REQUIRED_SESSION_CAPABILITY)) {
+        return this.fail('qoder_sdk_unsupported', 'Qoder SDK session has no input lifecycle.');
+      }
+      this.sdkPhase = 'ready';
+      return [{ kind: 'session_init', sessionId: this.sdkSessionId! }];
+    }
+    return [];
+  }
+
+  private fail(code: string, message: string): ParsedEvent[] {
+    // Terminal for this process. Ask the daemon to exit; the supervisor
+    // reclaims it if it does not, and the exit path settles pending input.
+    if (this.sdkPhase === 'failed') return [];
+    this.sdkPhase = 'failed';
+    this.control('shutdown', { type: 'daemon.shutdown' });
+    return [{ kind: 'error', code, message, fatal: true }];
+  }
+
+  private control(requestId: string, request: Record<string, unknown>, sessionId?: string): void {
+    const frame = JSON.stringify({
+      type: 'control_request',
+      request_id: requestId,
+      request,
+      ...(sessionId ? { session_id: sessionId } : {}),
+    });
+    // No separate error report: a failed handshake write is bounded by the init
+    // watchdog, a failed shutdown write by the supervisor's post-fatal reclaim.
+    void this.io!.writeLine(frame).catch(() => {
+      this.sdkPhase = 'failed';
+    });
   }
 
   classifyInitProgress(line: string): 'protocol_ready' | 'session_ready' | null {
+    if (this.sdk) return sdkFrame(line) ? 'protocol_ready' : null;
     return classifyStreamJsonInitProgress(line);
   }
+}
+
+type SdkFrame =
+  | { type: 'keep_alive' }
+  | { type: 'protocol_error'; code: string }
+  | { type: 'status_event' }
+  | {
+      type: 'control_response';
+      session_id?: unknown;
+      response: {
+        subtype: string;
+        request_id: string;
+        response?: unknown;
+        error?: unknown;
+        code?: string;
+      };
+    };
+
+/** Daemon-level frames; everything else is the session's stream-json. */
+function sdkFrame(line: string): SdkFrame | null {
+  let frame: unknown;
+  try {
+    frame = JSON.parse(line);
+  } catch {
+    return null;
+  }
+  if (!isRecord(frame)) return null;
+  switch (frame.type) {
+    case 'keep_alive':
+      return { type: 'keep_alive' };
+    case 'protocol_error':
+      return { type: 'protocol_error', code: String(frame.code ?? 'unknown') };
+    case 'status_event':
+      return frame.status === 'daemon.session_updated' ? { type: 'status_event' } : null;
+    case 'control_response': {
+      const response = frame.response;
+      if (!isRecord(response) || typeof response.request_id !== 'string') return null;
+      return {
+        type: 'control_response',
+        session_id: frame.session_id,
+        response: {
+          subtype: String(response.subtype),
+          request_id: response.request_id,
+          response: response.response,
+          error: response.error,
+          code: typeof response.code === 'string' ? response.code : undefined,
+        },
+      };
+    }
+    default:
+      return null;
+  }
+}
+
+function hasCapability(result: Record<string, unknown>, capability: string): boolean {
+  return Array.isArray(result.capabilities) && result.capabilities.includes(capability);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

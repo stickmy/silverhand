@@ -316,6 +316,8 @@ export interface RuntimeHandle {
   /** Pending SIGTERM → SIGKILL timer, if a hard stop is in progress.
    *  Cleared when the child exits or the timer fires. */
   sigkillTimer: NodeJS.Timeout | null;
+  /** Bounded reclaim after a post-init fatal error. */
+  fatalReclaimTimer: NodeJS.Timeout | null;
 
   // ── 3b additions ─────────────────────────────────────────────────
 

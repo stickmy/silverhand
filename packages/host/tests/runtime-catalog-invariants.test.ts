@@ -139,13 +139,13 @@ describe('runtime catalog ⟺ host invariants', () => {
           agentId: 'a1',
           logger: NOOP_LOGGER,
         });
-        // The MCP layer is dual-channel: argv (claude/codex/qoder) or the
+        // The MCP layer is argv (claude/codex), `profileMcp` (grok/qoder) or the
         // opencode config env, where the standing prompt is ALWAYS present so
         // the MCP layer is specifically the presence of an `mcp` section.
         const hasMcpLayer =
           entry.kind === 'opencode'
             ? Boolean(JSON.parse(result.env?.OPENCODE_CONFIG_CONTENT ?? '{}').mcp)
-            : entry.kind === 'grok'
+            : entry.kind === 'grok' || entry.kind === 'qoder'
               ? Boolean(result.profileMcp)
               : (result.args?.length ?? 0) > 0;
         expect(hasMcpLayer).toBe(entry.supportsProfileMcp);

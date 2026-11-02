@@ -24,8 +24,10 @@ import type { DaemonLogger } from './logger.js';
  *
  * Mechanisms (all additive — never replace the user's own MCP, never write
  * the user's runtime config, never call `<runtime> mcp add`):
- *  - **claude/qoder:** write a per-spawn temp JSON, pass `--mcp-config <temp>` (no
+ *  - **claude:** write a per-spawn temp JSON, pass `--mcp-config <temp>` (no
  *    `--strict-mcp-config`).
+ *  - **qoder:** canonical config via `profileMcp`; the driver writes the same
+ *    file into its worker args (SDK mode has no per-session argv).
  *  - **codex:** one `-c mcp_servers.<prefixed>=<inline-toml>` override per
  *    server (per-server so it MERGES with the user's `[mcp_servers.*]`).
  *  - **opencode:** no additive MCP flag exists; the profile MCP AND the standing
@@ -98,6 +100,7 @@ export async function buildProfileMcpSpawnArgs(
     const projection = projectProfileMcpForRuntime(mcpConfig, runtimeKind);
     switch (projection.kind) {
       case 'claude': {
+        if (runtimeKind === 'qoder') return { profileMcp: mcpConfig };
         const claudeConfig = projection.config;
         if (!claudeConfig) return { args: [] };
         const outPath = join(spawnDir, 'profile-mcp.json');

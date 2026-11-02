@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -70,7 +70,7 @@ describe('QoderDriver.buildArgs', () => {
     expect(args).not.toContain('--allow-dangerously-skip-permissions');
   });
 
-  it('denies Silverhand-conflicting plan / cron / goal tools', () => {
+  it('denies Silverhand-conflicting plan / cron / goal / ask-user tools', () => {
     const built = makeSpawnCtx();
     cleanup = built.cleanup;
 
@@ -87,6 +87,7 @@ describe('QoderDriver.buildArgs', () => {
       'CreateGoal',
       'GetGoal',
       'UpdateGoal',
+      'AskUserQuestion',
     ]) {
       expect(list).toContain(tool);
     }
@@ -125,12 +126,27 @@ describe('QoderDriver.buildArgs', () => {
     expect(args[args.indexOf('--input-format') + 1]).toBe('stream-json');
     expect(args).not.toContain('--mcp-config');
   });
+
+  it('writes profile MCP next to the standing prompt and passes --mcp-config', () => {
+    const built = makeSpawnCtx({
+      profileMcp: { mcpServers: { fs: { command: 'npx', args: ['server-fs'] } } },
+    });
+    cleanup = built.cleanup;
+
+    const args = new QoderDriver().buildArgs(built.ctx);
+    const path = args[args.indexOf('--mcp-config') + 1]!;
+    expect(path).toBe(join(built.ctx.workspacePath, 'profile-mcp.json'));
+    expect(args).not.toContain('--strict-mcp-config');
+    expect(JSON.parse(readFileSync(path, 'utf-8')).mcpServers).toHaveProperty(
+      'silverhand_profile__fs',
+    );
+  });
 });
 
 describe('QoderDriver.encode', () => {
   it('encodes a stream-json user turn, threading the session id', () => {
     const line = new QoderDriver().encodeStdinMessage('hello', 'sess-1');
-    expect(JSON.parse(line)).toEqual({
+    expect(JSON.parse(line!)).toEqual({
       type: 'user',
       message: { role: 'user', content: [{ type: 'text', text: 'hello' }] },
       session_id: 'sess-1',
@@ -139,7 +155,7 @@ describe('QoderDriver.encode', () => {
 
   it('omits session_id when null', () => {
     const line = new QoderDriver().encodeStdinMessage('hi', null);
-    expect(JSON.parse(line).session_id).toBeUndefined();
+    expect(JSON.parse(line!).session_id).toBeUndefined();
   });
 
   it('has no verified control-request interrupt (supervisor uses signals)', () => {
@@ -220,7 +236,7 @@ describe('QoderDriver version-gated release profile (#task:1909)', () => {
     const steer = new QoderDriver();
     steer.bindRuntimeVersion('1.1.17');
     const steerFrame = JSON.parse(
-      steer.encodeStdinMessage('hello', 'sess-1', { payloadUuid: 'uuid-1' }),
+      steer.encodeStdinMessage('hello', 'sess-1', { payloadUuid: 'uuid-1' })!,
     );
     expect(steerFrame.priority).toBe('next');
     expect(steerFrame.uuid).toBe('uuid-1');
@@ -228,7 +244,7 @@ describe('QoderDriver version-gated release profile (#task:1909)', () => {
     const legacy = new QoderDriver();
     legacy.bindRuntimeVersion('1.1.16');
     const legacyFrame = JSON.parse(
-      legacy.encodeStdinMessage('hello', 'sess-1', { payloadUuid: 'uuid-1' }),
+      legacy.encodeStdinMessage('hello', 'sess-1', { payloadUuid: 'uuid-1' })!,
     );
     expect(legacyFrame.priority).toBeUndefined();
     expect(legacyFrame.uuid).toBeUndefined();
@@ -422,5 +438,231 @@ describe('QoderDriver.parseLine', () => {
     expect(events[0]).toEqual({ kind: 'error', message: 'Some execution error' });
     expect(events[0]).not.toHaveProperty('fatal');
     expect(events[1]).toEqual({ kind: 'turn_end', sessionId: 'q-1' });
+  });
+});
+
+describe('QoderDriver SDK mode (>= 1.1.81, #task:2957)', () => {
+  function sdkDriver(overrides: Partial<DriverSpawnContext> = {}) {
+    const built = makeSpawnCtx(overrides);
+    const driver = new QoderDriver();
+    driver.bindRuntimeVersion('1.1.81');
+    const writes: Array<Record<string, any>> = [];
+    driver.bindIO({
+      writeLine: async (line) => {
+        writes.push(JSON.parse(line));
+      },
+      spawnCtx: built.ctx,
+    });
+    return { driver, writes, built };
+  }
+  const respond = (requestId: string, response: unknown, sessionId?: string) =>
+    JSON.stringify({
+      type: 'control_response',
+      ...(sessionId ? { session_id: sessionId } : {}),
+      response: { subtype: 'success', request_id: requestId, response },
+    });
+  const handshake = (driver: QoderDriver, sessionId = 'sess-1') => [
+    ...driver.parseLine(
+      respond('daemon', { daemon_protocol_version: 2, capabilities: ['multi_session_v2'] }),
+    ),
+    ...driver.parseLine(respond('open', undefined, sessionId)),
+    ...driver.parseLine(respond('session', { capabilities: ['msg_lifecycle_v1'] }, sessionId)),
+  ];
+
+  it('keeps headless argv and kickoff at 1.1.80', () => {
+    const driver = new QoderDriver();
+    driver.bindRuntimeVersion('1.1.80');
+    const built = makeSpawnCtx();
+    try {
+      expect(driver.buildArgs(built.ctx)).toContain('--input-format');
+      expect(driver.kickoffMode).toBe('requires_first_message');
+      expect(driver.readyToEncode()).toBe(true);
+    } finally {
+      built.cleanup();
+    }
+  });
+
+  it('spawns --sdk, opens the session with the headless args, and gates encode on ready', () => {
+    const { driver, writes, built } = sdkDriver({ cliSessionId: 'sess-1', model: 'Ultimate' });
+    try {
+      expect(driver.buildArgs(built.ctx)).toEqual(['--sdk']);
+      expect(driver.kickoffMode).toBe('self_inits');
+      expect(driver.admissionPolicy).toBe('lifecycle-start');
+      expect(driver.releaseProfile).toBe('tool-boundary-steer');
+      expect(writes[0]!.request.type).toBe('daemon.initialize');
+      expect(writes[0]!.request.auth).toEqual({ type: 'qodercli' });
+      expect(driver.readyToEncode()).toBe(false);
+      expect(driver.encodeStdinMessage('hi', null, { payloadUuid: 'u1' })).toBeNull();
+
+      const events = handshake(driver);
+      const open = writes[1]!.request;
+      expect(open.type).toBe('daemon.open_session');
+      expect(open.cwd).toBe(built.ctx.workspacePath);
+      expect(open.worker_args).toContain('--resume');
+      expect(open.worker_args).toContain('Ultimate');
+      expect(writes[2]).toMatchObject({ session_id: 'sess-1', request: { type: 'initialize' } });
+      expect(events).toEqual([{ kind: 'session_init', sessionId: 'sess-1' }]);
+
+      const frame = JSON.parse(driver.encodeStdinMessage('hi', null, { payloadUuid: 'u1' })!);
+      expect(frame).toMatchObject({
+        type: 'user',
+        session_id: 'sess-1',
+        uuid: 'u1',
+        priority: 'next',
+      });
+    } finally {
+      built.cleanup();
+    }
+  });
+
+  it('passes profile MCP through the worker args', () => {
+    const { driver, writes, built } = sdkDriver({
+      profileMcp: { mcpServers: { fs: { command: 'npx', args: ['server-fs'] } } },
+    });
+    try {
+      handshake(driver);
+      const args: string[] = writes[1]!.request.worker_args;
+      const path = args[args.indexOf('--mcp-config') + 1]!;
+      expect(JSON.parse(readFileSync(path, 'utf-8')).mcpServers).toHaveProperty(
+        'silverhand_profile__fs',
+      );
+    } finally {
+      built.cleanup();
+    }
+  });
+
+  it('ignores worker system/init and passes lifecycle frames through once ready', () => {
+    const { driver, built } = sdkDriver();
+    try {
+      handshake(driver);
+      const init = JSON.stringify({ type: 'system', subtype: 'init', session_id: 'sess-1' });
+      expect(driver.parseLine(init)).toEqual([]);
+      const lifecycle = JSON.stringify({
+        type: 'command_lifecycle',
+        command_uuid: 'u1',
+        state: 'started',
+        session_id: 'sess-1',
+      });
+      expect(driver.parseLine(lifecycle)).toEqual([
+        { kind: 'input_lifecycle', commandUuid: 'u1', state: 'started' },
+      ]);
+    } finally {
+      built.cleanup();
+    }
+  });
+
+  it('fails fatally and shuts the daemon down on a rejected handshake', () => {
+    const { driver, writes, built } = sdkDriver({ cliSessionId: 'gone' });
+    try {
+      driver.parseLine(
+        respond('daemon', { daemon_protocol_version: 2, capabilities: ['multi_session_v2'] }),
+      );
+      const events = driver.parseLine(
+        JSON.stringify({
+          type: 'control_response',
+          response: { subtype: 'error', request_id: 'open', error: 'transcript missing' },
+        }),
+      );
+      expect(events).toEqual([
+        expect.objectContaining({ kind: 'error', code: 'qoder_sdk_rejected', fatal: true }),
+      ]);
+      expect(writes.at(-1)!.request.type).toBe('daemon.shutdown');
+      expect(driver.readyToEncode()).toBe(false);
+    } finally {
+      built.cleanup();
+    }
+  });
+
+  it('refuses a resumed session that comes back under another id', () => {
+    const { driver, built } = sdkDriver({ cliSessionId: 'sess-1' });
+    try {
+      const events = handshake(driver, 'other');
+      expect(events[0]).toMatchObject({ code: 'qoder_sdk_session_mismatch', fatal: true });
+      expect(driver.readyToEncode()).toBe(false);
+    } finally {
+      built.cleanup();
+    }
+  });
+
+  it('gives control only to the response for the request in flight', () => {
+    const { driver, writes, built } = sdkDriver();
+    try {
+      handshake(driver);
+      const writesBefore = writes.length;
+      const stray = (requestId: string, subtype: string) =>
+        JSON.stringify({
+          type: 'control_response',
+          session_id: 'sess-1',
+          response: { subtype, request_id: requestId, error: 'late' },
+        });
+      expect(driver.parseLine(stray('open', 'error'))).toEqual([]);
+      expect(driver.parseLine(stray('unknown', 'error'))).toEqual([]);
+      expect(driver.parseLine(stray('session', 'success'))).toEqual([]);
+      expect(driver.readyToEncode()).toBe(true);
+      expect(writes).toHaveLength(writesBefore);
+    } finally {
+      built.cleanup();
+    }
+  });
+
+  it('recognizes daemon frames by field, not by serialization', () => {
+    const { driver, writes, built } = sdkDriver();
+    try {
+      driver.parseLine(
+        '{ "type": "control_response", "response": { "subtype": "success", "request_id": "daemon", "response": { "daemon_protocol_version": 2, "capabilities": ["multi_session_v2"] } } }',
+      );
+      expect(writes[1]!.request.type).toBe('daemon.open_session');
+    } finally {
+      built.cleanup();
+    }
+  });
+
+  it('fails a ready session on a daemon session failure', () => {
+    const { driver, writes, built } = sdkDriver();
+    try {
+      handshake(driver);
+      const events = driver.parseLine(
+        JSON.stringify({
+          type: 'status_event',
+          status: 'daemon.session_updated',
+          data: { local_session_id: 'sess-1', state: 'failed', error: {} },
+        }),
+      );
+      expect(events).toEqual([
+        expect.objectContaining({ code: 'qoder_sdk_session_failed', fatal: true }),
+      ]);
+      expect(writes.at(-1)!.request.type).toBe('daemon.shutdown');
+      expect(driver.readyToEncode()).toBe(false);
+    } finally {
+      built.cleanup();
+    }
+  });
+
+  it('stops encoding when a control write fails', async () => {
+    const built = makeSpawnCtx();
+    const driver = new QoderDriver();
+    driver.bindRuntimeVersion('1.1.81');
+    driver.bindIO({ writeLine: () => Promise.reject(new Error('EPIPE')), spawnCtx: built.ctx });
+    try {
+      await new Promise((resolve) => setImmediate(resolve));
+      handshake(driver);
+      expect(driver.readyToEncode()).toBe(false);
+    } finally {
+      built.cleanup();
+    }
+  });
+
+  it('refuses a session without input lifecycle', () => {
+    const { driver, built } = sdkDriver();
+    try {
+      driver.parseLine(
+        respond('daemon', { daemon_protocol_version: 2, capabilities: ['multi_session_v2'] }),
+      );
+      driver.parseLine(respond('open', undefined, 'sess-1'));
+      const events = driver.parseLine(respond('session', { capabilities: [] }, 'sess-1'));
+      expect(events[0]).toMatchObject({ code: 'qoder_sdk_unsupported', fatal: true });
+    } finally {
+      built.cleanup();
+    }
   });
 });
