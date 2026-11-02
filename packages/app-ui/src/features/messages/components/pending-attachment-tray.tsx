@@ -16,7 +16,9 @@ export function PendingAttachmentTray({ children }: { children: ReactNode }): JS
       exit={{ height: 0, opacity: 0, overflow: "hidden" }}
       transition={{ duration: reducedMotion ? 0 : 0.14, ease: "easeOut" }}
     >
-      <div className="relative flex flex-wrap gap-1.5 pb-2">{children}</div>
+      <div data-composer-tray className="relative flex flex-wrap gap-1.5 pb-2">
+        {children}
+      </div>
     </motion.div>
   );
 }

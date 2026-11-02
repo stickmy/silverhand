@@ -26,7 +26,7 @@ export function PickerMenu({
 }): JSX.Element {
   return (
     <div
-      className="absolute bottom-full left-0 mb-1.5 w-64 overflow-hidden rounded-(--select-content-radius) bg-bg-floating shadow-popover"
+      className="absolute bottom-full left-0 z-(--z-raised) mb-1.5 w-64 overflow-hidden rounded-(--select-content-radius) bg-bg-floating shadow-popover"
       data-composer-picker=""
       data-dropdown-frame
       onMouseDown={(e) => e.preventDefault()}

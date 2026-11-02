@@ -58,15 +58,15 @@ interface ComposerActivityHeaderProps {
 }
 
 /**
- * Variant A — agent run-state folded into the Composer's own top chrome.
- *
- * Renders as the first child of the Composer's bordered shell box, sharing
- * its border (no floating overlay, no shadow, no gap). Reads as "the input
- * area is busy", not a debug HUD. The resting state is exactly ONE line
- * with fixed-width slots and a single elastic, truncating middle slot, so
- * it never wraps and never changes height as the agent moves between tool
- * calls / thinking / compacting. Clicking the line morphs it open in place
- * (the textarea is pushed down — content grows, nothing overlays history).
+ * Agent run-state as the composer's top strip: it shares the shell's frame
+ * (the shell squares its top corners and the strip continues its border) so
+ * the two read as one box, but it is out of flow, growing the box UPWARD over
+ * the end of the message list. A run starting or ending must not resize the
+ * scroller (that read as the list jittering on its own); the list keeps a fixed
+ * room at its end (`data-composer-activity-room`) so the resting strip never
+ * covers the latest message. The resting state is exactly ONE line with
+ * fixed-width slots and a single elastic, truncating middle slot, so it never
+ * wraps or changes height between tool calls / thinking / compacting.
  *
  * Collapsed subject when several agents run: the highest-priority agent
  * (`statusRank`), ties broken by most-recent activity, with a `+N` chip for
@@ -130,7 +130,10 @@ export function ComposerActivityHeader({
   const StatusIcon = showCompaction ? LayersIcon : SpinnerIcon;
 
   return (
-    <div data-composer-activity="" className="border-b border-border-subtle bg-bg-floating">
+    <div
+      data-composer-activity=""
+      className="absolute inset-x-0 bottom-full z-(--z-raised) overflow-hidden bg-bg-floating"
+    >
       {expanded ? (
         <>
           <button

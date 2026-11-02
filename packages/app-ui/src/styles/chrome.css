@@ -400,3 +400,68 @@ html[data-theme] [data-sonner-toast][data-styled="true"] [data-button][data-disa
   border-radius: calc(var(--nav-row-radius, var(--row-radius)) * 32 / 56);
   corner-shape: var(--nav-corner-shape, normal);
 }
+
+/* The agent activity strip is the composer's top part, drawn out of flow so a
+   run starting or ending never resizes the message list. It overlaps the
+   shell's top border and continues its sides, top and shadow (clipped at the
+   seam so it never falls onto the shell), so the two read as one box. */
+[data-composer-frame] > [data-composer-activity] {
+  bottom: calc(100% - var(--composer-border-width, 1px));
+  border: var(--composer-border-width, 1px) solid
+    var(--composer-border-color, var(--color-border-subtle));
+  border-bottom-width: 0;
+  border-radius: var(--control-radius) var(--control-radius) 0 0;
+  box-shadow: var(--composer-shadow, none);
+  /* Clip the shadow at the seam, except in the column beside the frame: the
+     shell's own shadow starts its offset below the seam, and the strip's shadow
+     has to bridge that gap (the focus shadow has the larger offset). */
+  clip-path: polygon(
+    -8px -8px,
+    calc(100% + 8px) -8px,
+    calc(100% + 8px) calc(100% + 8px),
+    100% calc(100% + 8px),
+    100% 100%,
+    -8px 100%
+  );
+}
+/* The seam hairline lives inside the padding box: a bottom border would run
+   across the side borders and break them (and the shadow edge) at the joint. */
+[data-composer-frame] > [data-composer-activity]::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--color-border-subtle);
+  pointer-events: none;
+}
+[data-composer-frame]:has(> [data-composer-shell]:focus-within) > [data-composer-activity] {
+  border-color: var(--color-border-focus);
+  box-shadow: var(--composer-shadow-focus, none);
+}
+[data-composer-frame]:has(> [data-composer-activity]) > [data-composer-shell] {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+/* Compact paints the frame on the editor, not the shell. */
+[data-layout="compact"]
+  [data-composer-frame]:has(> [data-composer-activity])
+  [data-composer-editor] {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+/* The strip rises past the composer's top divider; hide the divider while it
+   shows so it doesn't run through the strip. Color only, no layout change. */
+[data-composer]:has([data-composer-activity]) {
+  border-top-color: transparent;
+}
+/* Pending attachments sit above the frame; lift them clear of the strip. */
+[data-composer]:has([data-composer-activity]) [data-composer-tray] {
+  padding-bottom: calc(0.5rem + 2rem + var(--composer-border-width, 1px));
+}
+[data-panel]:has([data-composer]) [data-composer-activity-room] {
+  height: 2.25rem;
+}
+[data-panel]:has([data-composer-activity]) [data-scroll-bottom] {
+  bottom: 2.75rem;
+}

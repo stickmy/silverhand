@@ -66,7 +66,7 @@ const listComponents = {
   ),
   Footer: () => (
     <>
-      <div className="h-3" />
+      <div className="h-3" data-composer-activity-room />
       <NativeComposerRoom />
     </>
   ),

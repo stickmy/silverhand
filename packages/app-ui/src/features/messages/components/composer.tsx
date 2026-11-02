@@ -449,17 +449,21 @@ export function Composer({
       }
     >
       {tray}
-      <div className="relative">
+      <div data-composer-frame className="relative">
+        {covered ? null : (
+          // Sits on the shell's top edge but out of flow, so a run starting or
+          // ending never resizes the message list. Hidden under a covering tab.
+          <ComposerActivityHeader
+            conversationId={conversationId}
+            restrictToAgentIds={activityAgentIds}
+          />
+        )}
         {picker}
         <div
           data-composer-shell
           className="flex flex-col overflow-hidden rounded-(--control-radius) border border-border-subtle bg-bg-floating focus-within:border-border-focus"
         >
           <div data-composer-editor>
-            <ComposerActivityHeader
-              conversationId={conversationId}
-              restrictToAgentIds={activityAgentIds}
-            />
             <textarea
               ref={ref}
               value={draft}

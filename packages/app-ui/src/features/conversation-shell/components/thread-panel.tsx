@@ -1124,6 +1124,7 @@ export function ThreadPanel({
                   return renderMessage(item.message);
                 })
               )}
+              <div aria-hidden className="shrink-0" data-composer-activity-room />
               <NativeComposerRoom />
             </div>
 
