@@ -91,6 +91,7 @@ import {
   UserPlus,
   Users,
   Workflow,
+  WifiOff,
   Wrench,
   X,
   ZoomIn,
@@ -386,5 +387,6 @@ export const ViewIcon = icon("view", Eye);
 export const ViewOffIcon = icon("view-off", EyeOff);
 export const WaitingIcon = icon("waiting", Hourglass);
 export const WarningIcon = icon("warning", TriangleAlert);
+export const OfflineIcon = icon("offline", WifiOff);
 export const ZoomInIcon = icon("zoom-in", ZoomIn);
 export const ZoomOutIcon = icon("zoom-out", ZoomOut);

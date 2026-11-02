@@ -3,6 +3,8 @@ import type { Translation } from "../../translate";
 
 export const appShell: Translation<typeof en> = {
   serverUnreachable: "无法连接服务器",
+  offline: "离线",
+  offlineDetail: "联网后会自动发送。",
   unreachable: {
     saveFailed: "无法保存地址。",
     alreadySet: "已经是这个地址。",

@@ -19,15 +19,19 @@
 import type { ProtocolSkewView } from "./protocol-skew-presentation";
 
 export type AppStatusBannerModel =
+  | { kind: "offline" }
   | { kind: "backend_unreachable" }
   | { kind: "protocol_skew"; view: ProtocolSkewView }
   | null;
 
 export function selectAppStatusBanner(input: {
+  online: boolean;
   unreachableVisible: boolean;
   skew: ProtocolSkewView | null;
 }): AppStatusBannerModel {
-  // Priority: backend_unreachable > protocol_skew.
+  // Priority: offline > backend_unreachable > protocol_skew. Offline explains
+  // the other two: while it lasts, requests pause rather than fail.
+  if (!input.online) return { kind: "offline" };
   if (input.unreachableVisible) return { kind: "backend_unreachable" };
   if (input.skew) return { kind: "protocol_skew", view: input.skew };
   return null;

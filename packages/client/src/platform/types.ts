@@ -455,6 +455,8 @@ export interface BannerCapability {
 export interface ToastNotice {
   id: string;
   tone: "success" | "error" | "warning" | "neutral";
+  /** Replaces the tone's glyph; drawn in a neutral tint. */
+  glyph?: "offline";
   title: string;
   description?: string;
   /** Stays until dismissed or its action is used. */

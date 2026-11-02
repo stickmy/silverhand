@@ -10,18 +10,22 @@ const skewView: ProtocolSkewView = {
 
 describe("selectAppStatusBanner", () => {
   it("shows nothing when neither signal is active", () => {
-    expect(selectAppStatusBanner({ unreachableVisible: false, skew: null })).toBeNull();
+    expect(
+      selectAppStatusBanner({ online: true, unreachableVisible: false, skew: null }),
+    ).toBeNull();
   });
 
   it("shows the skew banner when only skew is active", () => {
-    expect(selectAppStatusBanner({ unreachableVisible: false, skew: skewView })).toEqual({
+    expect(
+      selectAppStatusBanner({ online: true, unreachableVisible: false, skew: skewView }),
+    ).toEqual({
       kind: "protocol_skew",
       view: skewView,
     });
   });
 
   it("shows the unreachable banner when only unreachable is active", () => {
-    expect(selectAppStatusBanner({ unreachableVisible: true, skew: null })).toEqual({
+    expect(selectAppStatusBanner({ online: true, unreachableVisible: true, skew: null })).toEqual({
       kind: "backend_unreachable",
     });
   });
@@ -29,8 +33,18 @@ describe("selectAppStatusBanner", () => {
   it("prioritises backend_unreachable over protocol_skew when both are active", () => {
     // The overlap case Cindy flagged: a cached skew state plus a fresh
     // server drop. Unreachable must win the single slot.
-    expect(selectAppStatusBanner({ unreachableVisible: true, skew: skewView })).toEqual({
+    expect(
+      selectAppStatusBanner({ online: true, unreachableVisible: true, skew: skewView }),
+    ).toEqual({
       kind: "backend_unreachable",
+    });
+  });
+
+  it("prioritises offline over every other signal", () => {
+    expect(
+      selectAppStatusBanner({ online: false, unreachableVisible: true, skew: skewView }),
+    ).toEqual({
+      kind: "offline",
     });
   });
 });

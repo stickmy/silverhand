@@ -16,6 +16,8 @@ export interface ToastOptions {
   action?: { label: string; onClick: (event: { preventDefault(): void }) => void };
   /** Web only; native draws its own glyph for the tone. */
   icon?: ReactNode;
+  /** Native only: a named glyph in place of the tone's. */
+  glyph?: ToastNotice["glyph"];
 }
 
 type Tone = ToastNotice["tone"];
@@ -47,7 +49,7 @@ function native(): ToastCapability | null {
 function show(tone: Tone, title: string, options: ToastOptions = {}): string | number {
   const capability = native();
   if (!capability) {
-    const { icon, ...rest } = options;
+    const { icon, glyph: _glyph, ...rest } = options;
     const web = { ...rest, ...(icon ? { icon } : {}) };
     if (tone === "neutral") {
       return sonner(title, web);
@@ -64,6 +66,7 @@ function show(tone: Tone, title: string, options: ToastOptions = {}): string | n
   void capability.show({
     id,
     tone,
+    glyph: options.glyph,
     title,
     description: options.description,
     sticky: options.duration === Infinity,

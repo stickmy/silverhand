@@ -1,5 +1,7 @@
 export const appShell = {
   serverUnreachable: "Server unreachable",
+  offline: "Offline",
+  offlineDetail: "Changes will send when you reconnect.",
   unreachable: {
     saveFailed: "Could not save the address.",
     alreadySet: "Already set to this value.",

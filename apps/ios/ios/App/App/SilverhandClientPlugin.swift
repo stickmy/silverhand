@@ -472,6 +472,7 @@ public final class SilverhandClientPlugin: CAPPlugin, CAPBridgedPlugin {
     let notice = ToastNotice(
       id: id, title: title,
       tone: ToastNotice.Tone(rawValue: call.getString("tone") ?? "") ?? .neutral,
+      glyph: call.getString("glyph"),
       description: call.getString("description"), sticky: call.getBool("sticky") ?? false,
       action: call.getObject("action")?["label"] as? String)
     Task { @MainActor [self] in

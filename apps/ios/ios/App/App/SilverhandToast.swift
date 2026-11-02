@@ -4,6 +4,8 @@ struct ToastNotice {
   enum Tone: String { case success, error, warning, neutral }
   let id, title: String
   let tone: Tone
+  /// Replaces the tone's glyph, in a neutral tint.
+  let glyph: String?
   let description: String?
   let sticky: Bool
   let action: String?
@@ -155,11 +157,12 @@ final class ToastView: UIView {
 
   private func fill(_ notice: ToastNotice) {
     let (symbol, tint): (String?, UIColor) =
-      switch notice.tone {
-      case .success: ("checkmark.circle.fill", .systemGreen)
-      case .error: ("exclamationmark.circle.fill", .systemRed)
-      case .warning: ("exclamationmark.triangle.fill", .systemOrange)
-      case .neutral: (nil, .secondaryLabel)
+      switch (notice.glyph, notice.tone) {
+      case ("offline", _): ("wifi.slash", .secondaryLabel)
+      case (_, .success): ("checkmark.circle.fill", .systemGreen)
+      case (_, .error): ("exclamationmark.circle.fill", .systemRed)
+      case (_, .warning): ("exclamationmark.triangle.fill", .systemOrange)
+      case (_, .neutral): (nil, .secondaryLabel)
       }
     glyph.image = symbol.flatMap { UIImage(systemName: $0) }
     glyph.tintColor = tint
