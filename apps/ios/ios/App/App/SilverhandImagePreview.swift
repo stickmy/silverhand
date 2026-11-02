@@ -1,27 +1,31 @@
 import UIKit
 
-/// A rendered image in a sheet: it fills the width and scrolls when long,
-/// pinches to zoom, and shares through the system sheet. Reports whether a
-/// share completed; closing or swiping the sheet away is not one.
+/// An image in a sheet: it fills the width and scrolls when long, pinches to
+/// zoom, and shares through the system sheet. The sheet opens at once and shows
+/// a spinner until the image arrives. Reports whether a share completed;
+/// closing or swiping the sheet away is not one.
 @MainActor
 final class ImagePreviewController: UIViewController, UIScrollViewDelegate,
   UIAdaptivePresentationControllerDelegate
 {
-  private let image: UIImage
+  private var image: UIImage?
   private let shareLabel: String
   private let closeLabel: String
   private let scrollView = UIScrollView()
-  private let imageView: UIImageView
+  private let imageView = UIImageView()
+  private let spinner = UIActivityIndicatorView(style: .medium)
   private var finish: ((Bool) -> Void)?
   private var fittedWidth: CGFloat = 0
 
+  /// Presents the sheet empty; `load` supplies the image, decoded off the main
+  /// thread so a large photo never stalls the opening animation.
   static func present(
-    _ image: UIImage, title: String, shareLabel: String, closeLabel: String,
-    from host: UIViewController, finish: @escaping (Bool) -> Void
+    title: String, shareLabel: String, closeLabel: String, from host: UIViewController,
+    load: @escaping () async throws -> Data, finish: @escaping (Result<Bool, Error>) -> Void
   ) {
     let preview = ImagePreviewController(
-      image: image, title: title, shareLabel: shareLabel, closeLabel: closeLabel)
-    preview.finish = finish
+      title: title, shareLabel: shareLabel, closeLabel: closeLabel)
+    preview.finish = { finish(.success($0)) }
     let navigation = UINavigationController(rootViewController: preview)
     navigation.modalPresentationStyle = .pageSheet
     if let sheet = navigation.sheetPresentationController {
@@ -30,13 +34,24 @@ final class ImagePreviewController: UIViewController, UIScrollViewDelegate,
     }
     navigation.presentationController?.delegate = preview
     host.present(navigation, animated: true)
+    Task { @MainActor in
+      do {
+        let data = try await load()
+        let decoded = await Task.detached { UIImage(data: data)?.preparingForDisplay() }.value
+        guard let decoded else { throw ImagePreviewError.undecodable }
+        preview.show(decoded)
+      } catch {
+        guard preview.finish != nil else { return }
+        preview.finish = nil
+        (preview.navigationController ?? preview).presentingViewController?.dismiss(animated: true)
+        finish(.failure(error))
+      }
+    }
   }
 
-  private init(image: UIImage, title: String, shareLabel: String, closeLabel: String) {
-    self.image = image
+  private init(title: String, shareLabel: String, closeLabel: String) {
     self.shareLabel = shareLabel
     self.closeLabel = closeLabel
-    imageView = UIImageView(image: image)
     super.init(nibName: nil, bundle: nil)
     self.title = title
   }
@@ -54,6 +69,7 @@ final class ImagePreviewController: UIViewController, UIScrollViewDelegate,
     let share = UIBarButtonItem(
       systemItem: .action, primaryAction: UIAction { [weak self] _ in self?.share() })
     share.accessibilityLabel = shareLabel
+    share.isEnabled = false
     navigationItem.rightBarButtonItem = share
 
     scrollView.delegate = self
@@ -68,13 +84,36 @@ final class ImagePreviewController: UIViewController, UIScrollViewDelegate,
     let doubleTap = UITapGestureRecognizer(target: self, action: #selector(toggleZoom(_:)))
     doubleTap.numberOfTapsRequired = 2
     scrollView.addGestureRecognizer(doubleTap)
+
+    spinner.translatesAutoresizingMaskIntoConstraints = false
+    // A local image arrives within a frame or two; showing the spinner at once
+    // would only flash it.
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+      guard let self, self.image == nil else { return }
+      self.spinner.startAnimating()
+    }
+    view.addSubview(spinner)
+    NSLayoutConstraint.activate([
+      spinner.centerXAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerXAnchor),
+      spinner.centerYAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerYAnchor),
+    ])
+  }
+
+  private func show(_ image: UIImage) {
+    self.image = image
+    imageView.image = image
+    spinner.stopAnimating()
+    spinner.removeFromSuperview()
+    navigationItem.rightBarButtonItem?.isEnabled = true
+    fittedWidth = 0
+    view.setNeedsLayout()
   }
 
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
     scrollView.frame = view.bounds
     let width = scrollView.bounds.width
-    guard width > 0, image.size.width > 0, width != fittedWidth else { return }
+    guard let image, width > 0, image.size.width > 0, width != fittedWidth else { return }
     fittedWidth = width
     // Zoom 1 is the image at the sheet's width; pinching only enlarges it.
     scrollView.zoomScale = 1
@@ -111,6 +150,7 @@ final class ImagePreviewController: UIViewController, UIScrollViewDelegate,
   }
 
   private func share() {
+    guard let image else { return }
     let activity = UIActivityViewController(activityItems: [image], applicationActivities: nil)
     activity.completionWithItemsHandler = { [weak self] _, completed, _, _ in
       if completed { self?.close(shared: true) }
@@ -132,4 +172,9 @@ final class ImagePreviewController: UIViewController, UIScrollViewDelegate,
     self.finish = nil
     finish?(false)
   }
+}
+
+enum ImagePreviewError: LocalizedError {
+  case undecodable
+  var errorDescription: String? { "Unable to show this image" }
 }

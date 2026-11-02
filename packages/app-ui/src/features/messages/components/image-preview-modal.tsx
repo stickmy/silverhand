@@ -376,7 +376,7 @@ export function ImagePreviewModal({
     }
     const generation = exportGeneration.current;
     void nativePreview({
-      pngBytes,
+      image: { pngBytes },
       title: t("messages.imagePreview"),
       shareLabel: t("messages.share"),
       closeLabel: t("common.close"),

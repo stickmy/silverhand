@@ -289,6 +289,18 @@ public final class ClientSession {
     return try await send(outgoing, path: path, method: method, binary: binary)
   }
 
+  /// A GET under the same rules as `proxy` whose body native consumes itself
+  /// (an image for a native sheet), so it never crosses the bridge.
+  public func download(path: String) async throws -> Data {
+    try checkStorage()
+    guard let record, let token = record.token else { throw ClientError.unauthorized }
+    try checkAPIPath(path)
+    let outgoing = try request(origin: record.serverURL, path: path, token: token)
+    let response = try await exchange(outgoing, path: path, method: "GET")
+    guard (200..<300).contains(response.status) else { throw ClientError.invalidResponse }
+    return response.data
+  }
+
   public struct UploadFile {
     public let fieldName: String
     public let filename: String
@@ -363,6 +375,13 @@ public final class ClientSession {
   private func send(
     _ outgoing: URLRequest, path: String, method: String, binary: Bool
   ) async throws -> [String: Any] {
+    let response = try await exchange(outgoing, path: path, method: method)
+    return response.bridge(binary: binary && (200..<300).contains(response.status))
+  }
+
+  private func exchange(
+    _ outgoing: URLRequest, path: String, method: String
+  ) async throws -> HTTPResult {
     let captured = generation
     let response = try await fetch(outgoing)
     try check(captured)
@@ -371,7 +390,7 @@ public final class ClientSession {
     {
       try clearToken(notify: true)
     }
-    return response.bridge(binary: binary && (200..<300).contains(response.status))
+    return response
   }
 
   public func setActive(_ value: Bool) {

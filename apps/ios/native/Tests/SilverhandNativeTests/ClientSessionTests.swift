@@ -267,6 +267,36 @@ final class ClientSessionTests: XCTestCase {
     XCTAssertEqual(requests.last?.value(forHTTPHeaderField: "Idempotency-Key"), "create-1")
   }
 
+  func testDownloadKeepsProxyBoundariesAndReturnsTheBody() async throws {
+    let store = MemoryStore(initial)
+    var requests: [URLRequest] = []
+    var status = 200
+    let client = try ClientSession(
+      store: store,
+      fetch: { request in
+        requests.append(request)
+        return HTTPResult(status: status, data: Data([1, 2, 3]))
+      })
+    for path in ["https://evil.example/api/attachments/a", "/api/../auth/login", "/auth/login"] {
+      do {
+        _ = try await client.download(path: path)
+        XCTFail(path)
+      } catch {}
+    }
+    XCTAssertTrue(requests.isEmpty)
+    let body = try await client.download(path: "/api/attachments/a")
+    XCTAssertEqual(body, Data([1, 2, 3]))
+    XCTAssertEqual(requests.last?.value(forHTTPHeaderField: "Authorization"), "Bearer A-secret")
+    status = 404
+    do {
+      _ = try await client.download(path: "/api/attachments/a")
+      XCTFail("a failed read has no body to show")
+    } catch {}
+    status = 401
+    _ = try? await client.download(path: "/api/attachments/a")
+    XCTAssertNil(store.value?.token)
+  }
+
   func testPasswordSuccessInvalidatesButFailureKeepsSession() async throws {
     let store = MemoryStore(initial)
     var status = 400

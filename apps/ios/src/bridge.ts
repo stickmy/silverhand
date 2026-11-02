@@ -93,9 +93,11 @@ export interface NativeBridge {
   closeSocket(input: { id: string }): Promise<void>;
   saveAttachment(input: { filename: string; base64: string }): Promise<{ completed: boolean }>;
   sharePng(input: { base64: string }): Promise<{ completed: boolean }>;
-  /** A rendered image in a native sheet with a share action. */
+  /** An image in a native sheet with a share action: inline, or an attachment
+   * native downloads while the sheet shows. */
   previewPng(input: {
-    base64: string;
+    base64?: string;
+    attachmentId?: string;
     title: string;
     shareLabel: string;
     closeLabel: string;

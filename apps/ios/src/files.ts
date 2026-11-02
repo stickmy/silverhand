@@ -14,8 +14,13 @@ export function createIOSFiles(bridge: NativeBridge): ClientPlatform["files"] {
         };
       }
     },
-    previewPngExport: ({ pngBytes, ...labels }) =>
-      bridge.previewPng({ base64: encodeBytes(pngBytes), ...labels }),
+    previewPngExport: ({ image, ...labels }) =>
+      bridge.previewPng({
+        ...("attachmentId" in image
+          ? { attachmentId: image.attachmentId }
+          : { base64: encodeBytes(image.pngBytes) }),
+        ...labels,
+      }),
     openExternal: (url) => bridge.openExternal({ url }),
     saveAttachment: async ({ filename, bytes }) => {
       try {

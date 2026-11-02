@@ -86,10 +86,11 @@ export interface FileCapability {
   sharePngExport?(input: {
     pngBytes: Uint8Array;
   }): Promise<{ ok: true } | { ok: false; canceled: true } | { ok: false; error: string }>;
-  /** Shows a rendered image in a native sheet with a share action; resolves
-   * when the sheet closes, with whether a share completed. */
+  /** Shows an image in a native sheet with a share action; resolves when the
+   * sheet closes, with whether a share completed. The sheet opens at once:
+   * given an attachment id, native downloads the bytes itself while it shows. */
   previewPngExport?(input: {
-    pngBytes: Uint8Array;
+    image: { pngBytes: Uint8Array } | { attachmentId: string };
     title: string;
     shareLabel: string;
     closeLabel: string;

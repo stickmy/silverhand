@@ -202,6 +202,7 @@ export function AttachmentTile({
             onOpenChange={setLightboxOpen}
             src={imageUrl}
             loadExportBytes={async () => (await fetchAttachmentBytes(attachment.id)).bytes}
+            attachmentId={attachment.id}
             alt={attachment.filename}
             // Preview stays; download is a member export. Omitting
             // `onDownload` hides the Lightbox's download action (Copy remains).

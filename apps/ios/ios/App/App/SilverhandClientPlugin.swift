@@ -151,11 +151,13 @@ public final class SilverhandClientPlugin: CAPPlugin, CAPBridgedPlugin {
     }
   }
 
+  /// The image comes inline (`base64`) or as an attachment native downloads
+  /// itself (`attachmentId`), so the sheet never waits on the page for bytes.
   @objc func previewPng(_ call: CAPPluginCall) {
     Task { @MainActor in
-      guard let encoded = call.getString("base64"),
-        let bytes = Data(base64Encoded: encoded),
-        let image = UIImage(data: bytes),
+      let inline = call.getString("base64").flatMap { Data(base64Encoded: $0) }
+      let attachment = call.getString("attachmentId")
+      guard inline != nil || attachment != nil,
         let host = self.bridge?.viewController,
         host.view.window != nil,
         host.presentedViewController == nil
@@ -164,9 +166,19 @@ public final class SilverhandClientPlugin: CAPPlugin, CAPBridgedPlugin {
         return
       }
       ImagePreviewController.present(
-        image, title: call.getString("title") ?? "", shareLabel: call.getString("shareLabel") ?? "",
-        closeLabel: call.getString("closeLabel") ?? "", from: host
-      ) { shared in call.resolve(["shared": shared]) }
+        title: call.getString("title") ?? "", shareLabel: call.getString("shareLabel") ?? "",
+        closeLabel: call.getString("closeLabel") ?? "", from: host,
+        load: {
+          if let inline { return inline }
+          let id = attachment?.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? ""
+          return try await self.client().download(path: "/api/attachments/\(id)")
+        }
+      ) { result in
+        switch result {
+        case .success(let shared): call.resolve(["shared": shared])
+        case .failure(let error): call.reject(error.localizedDescription)
+        }
+      }
     }
   }
 

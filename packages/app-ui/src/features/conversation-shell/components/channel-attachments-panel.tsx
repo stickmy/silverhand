@@ -949,6 +949,7 @@ function ImageLightboxHost({
       onOpenChange={onOpenChange}
       src={url}
       loadExportBytes={async () => (await fetchAttachmentBytes(attachment.id)).bytes}
+      attachmentId={attachment.id}
       alt={attachment.filename}
       onDownload={() => saveAttachmentToDisk(attachment)}
     />
