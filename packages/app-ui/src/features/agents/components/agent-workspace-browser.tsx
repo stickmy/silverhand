@@ -2,6 +2,7 @@ import { DocumentSkeleton } from "@/components/layout/document-skeleton";
 import { FileTreeSkeleton } from "./agent-loading";
 import { useEffect, useMemo, useState } from "react";
 import {
+  CheckIcon,
   ChevronRightIcon,
   CopyIcon,
   DocumentIcon,
@@ -512,16 +513,7 @@ function WorkspaceFilePreview({
           <span className="shrink-0 text-(length:--text-meta) text-text-muted">
             {formatBytes(file.size)} {dayjs(file.mtime).format("YYYY-MM-DD HH:mm")}
           </span>
-          <button
-            type="button"
-            data-panel-control="row-action"
-            className="inline-flex size-6 items-center justify-center text-text-muted transition-colors hover:text-text-primary"
-            aria-label={t("agents.copyFileContents")}
-            title={t("agents.copyContents")}
-            onClick={() => void copyFileContent(file)}
-          >
-            <CopyIcon className="size-3" />
-          </button>
+          <CopyFileButton file={file} />
         </header>
       ) : null}
       {file.truncated ? (
@@ -549,26 +541,41 @@ function WorkspaceFilePreview({
 }
 
 /**
- * The header's copy action takes the **file body**, not the path (shiki
- * 2026-08-07: the path was the wrong payload — you come here to read a file, so
- * what you want out is its text). Two details on purpose:
- *  - the toast is what tells you it worked; a clipboard write is otherwise
- *    completely silent. Wording matches the chat corpus (`Copied to
- *    clipboard` / `Couldn't copy: …`) so this doesn't read as a second dialect.
- *  - when the daemon truncated the read, we copy exactly what the preview shows
- *    and the toast says so. The banner above already explains the 512 KB cap,
- *    but a silent "Copied" would leave you holding a partial file thinking it
- *    was whole.
+ * Copies the file body, not the path: you come here to read a file. A truncated
+ * read copies exactly what the preview shows; the banner above already says so.
  */
-async function copyFileContent(file: AgentWorkspaceFileRead): Promise<void> {
-  try {
-    await navigator.clipboard.writeText(file.content);
-    toast.success(
-      file.truncated ? t("agents.copiedTheTruncatedPreview") : t("agents.copiedToClipboard"),
-    );
-  } catch (err) {
-    toast.error("Couldn't copy: " + (err instanceof Error ? err.message : String(err)));
-  }
+function CopyFileButton({ file }: { file: AgentWorkspaceFileRead }): JSX.Element {
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!copied) {
+      return;
+    }
+    const timer = window.setTimeout(() => setCopied(false), 1500);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
+
+  const onCopy = async (): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(file.content);
+      setCopied(true);
+    } catch {
+      toast.error(t("common.copyFailed"));
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      data-panel-control="row-action"
+      className="inline-flex size-6 items-center justify-center text-text-muted transition-colors hover:text-text-primary"
+      aria-label={copied ? t("agents.copied") : t("agents.copyFileContents")}
+      title={copied ? t("agents.copied") : t("agents.copyContents")}
+      onClick={() => void onCopy()}
+    >
+      {copied ? <CheckIcon className="size-3" /> : <CopyIcon className="size-3" />}
+    </button>
+  );
 }
 
 function formatBytes(bytes: number): string {

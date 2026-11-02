@@ -20,7 +20,6 @@ export const ui: Translation<typeof en> = {
   computers: "电脑",
   appSections: "应用分区",
   settings: "设置",
-  nameCopied: "已复制名称",
   muted: "免打扰",
   sort: "排序",
   recent: "最近",

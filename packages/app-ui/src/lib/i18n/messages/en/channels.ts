@@ -22,4 +22,6 @@ export const channels = {
   startFailed: "Can't start the agent: {reason}",
   removeAgentFailed: "Can't remove the agent: {reason}",
   removeMemberFailed: "Can't remove the member: {reason}",
+  stopFailed: "Couldn't stop the agent. Try again.",
+  clearSessionFailed: "Couldn't clear the session. Try again.",
 } as const;

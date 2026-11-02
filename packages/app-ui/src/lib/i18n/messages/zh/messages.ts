@@ -17,7 +17,6 @@ export const messages: Translation<typeof en> = {
   send: "发送",
   directMessage: "私信",
   channel: "频道",
-  imageCopiedToClipboard: "图片已复制到剪贴板",
   saved: "已保存",
   imagePreview: "图片预览",
   selectAtLeastOne: "请至少选择一条消息",
@@ -93,7 +92,6 @@ export const messages: Translation<typeof en> = {
   attachment: "附件",
   image: "图片",
   file: "文件",
-  copiedToClipboard: "已复制到剪贴板",
   photos: "照片",
   files: "文件",
   add: "添加",
@@ -133,9 +131,6 @@ export const messages: Translation<typeof en> = {
   taskChangeStatus: "任务 #{number}({status}),点击修改状态",
   insertInto: "将 {label} 插入消息",
   reactWith: "回应 {emoji}",
-  copiedMessages: {
-    other: "已复制 {count} 条消息",
-  },
   deletedAccount: "{name}(已注销)",
   openFailed: "无法打开附件:{reason}",
   saveFailed: "无法保存:{reason}",
@@ -178,4 +173,5 @@ export const messages: Translation<typeof en> = {
     done: "已完成",
     closed: "已关闭",
   },
+  shareFailed: "无法分享:{reason}",
 };

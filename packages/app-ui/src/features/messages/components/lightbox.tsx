@@ -121,6 +121,7 @@ export function Lightbox({
   attachmentId,
 }: LightboxProps): JSX.Element {
   const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
   // `scale` = 1 is fit-to-window. `fit` is the on-screen size the image
@@ -343,6 +344,14 @@ export function Lightbox({
     })();
   }, [open, src]);
 
+  useEffect(() => {
+    if (!copied) {
+      return;
+    }
+    const timer = window.setTimeout(() => setCopied(false), 1500);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
+
   const onExport = async (): Promise<void> => {
     if (busy) return;
     const generation = exportGeneration.current;
@@ -357,13 +366,21 @@ export function Lightbox({
       const result = await (shareImage ?? getPlatform().files.copyPngExport)({ pngBytes: bytes });
       if (generation !== exportGeneration.current) return;
       if (result.ok) {
-        if (!shareImage) toast.success(t("messages.imageCopiedToClipboard"));
+        setCopied(!shareImage);
       } else if ("error" in result) {
-        toast.error(result.error);
+        toast.error(
+          shareImage ? t("messages.shareFailed", { reason: result.error }) : t("common.copyFailed"),
+        );
       }
     } catch (err) {
       if (generation === exportGeneration.current)
-        toast.error("Couldn't export: " + (err instanceof Error ? err.message : String(err)));
+        toast.error(
+          shareImage
+            ? t("messages.shareFailed", {
+                reason: err instanceof Error ? err.message : String(err),
+              })
+            : t("common.copyFailed"),
+        );
     } finally {
       if (generation === exportGeneration.current) setBusy(false);
     }
@@ -539,7 +556,13 @@ export function Lightbox({
             <div className="flex items-center gap-2">
               <SelectionActionButton
                 rank={onDownload && !shareImage ? "secondary" : "primary"}
-                label={shareImage ? t("messages.share") : t("messages.copy")}
+                label={
+                  shareImage
+                    ? t("messages.share")
+                    : copied
+                      ? t("messages.copied")
+                      : t("messages.copy")
+                }
                 icon={shareImage ? <ShareIcon className="size-3.5" /> : undefined}
                 disabled={busy}
                 onClick={onExport}

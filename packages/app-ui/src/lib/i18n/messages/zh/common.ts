@@ -26,4 +26,6 @@ export const common: Translation<typeof en> = {
     other: "{count} 个附件",
   },
   lastSeen: "{time}在线",
+  copyFailed: "无法复制，请重试。",
+  updateFailed: "无法更新，请重试。",
 };

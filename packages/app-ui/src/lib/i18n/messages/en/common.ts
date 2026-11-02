@@ -24,4 +24,6 @@ export const common = {
     other: "{count} attachments",
   },
   lastSeen: "Last seen {time}",
+  copyFailed: "Couldn't copy. Try again.",
+  updateFailed: "Couldn't update. Try again.",
 } as const;

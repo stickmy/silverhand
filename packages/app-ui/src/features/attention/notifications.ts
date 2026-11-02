@@ -283,14 +283,14 @@ export function useNotificationToasts(
           id: n.id,
           duration: Infinity,
           action: {
-            label: "Dismiss",
+            label: t("attention.dismiss"),
             onClick: (event) => {
               event.preventDefault();
               // Per-call promise: `mutate` options are replaced by the next call,
               // so a second Dismiss would swallow this one's outcome.
               markRead({ id: n.id }).then(
                 () => toast.dismiss(n.id),
-                () => toast.error(label, { id: n.id, description: "Couldn't dismiss. Try again." }),
+                () => toast.error(label, { id: n.id, description: t("attention.dismissFailed") }),
               );
             },
           },

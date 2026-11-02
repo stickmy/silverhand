@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { Lightbox } from "./lightbox";
+import { t } from "@/lib/i18n";
 
 const h = vi.hoisted(() => ({
   effects: [] as Array<() => void | (() => void)>,
@@ -65,7 +66,7 @@ it("does not fall back to cached display content when authenticated reading fail
   }).run();
   expect(h.share).not.toHaveBeenCalled();
   expect(fetch).not.toHaveBeenCalled();
-  expect(h.error).toHaveBeenCalledWith("Couldn't export: Forbidden");
+  expect(h.error).toHaveBeenCalledWith(t("messages.shareFailed", { reason: "Forbidden" }));
 });
 
 it("does not open native sharing when attachment reading completes after unmount", async () => {

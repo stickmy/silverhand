@@ -29,9 +29,8 @@ export function SidebarChevron({ expanded }: { expanded: boolean }): JSX.Element
 export async function copyConversationName(name: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(name);
-    toast.success(t("ui.nameCopied"));
   } catch {
-    toast.error("Couldn't copy the name");
+    toast.error(t("common.copyFailed"));
   }
 }
 

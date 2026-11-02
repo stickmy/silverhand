@@ -159,4 +159,6 @@ export const workspaces = {
   addFailedStatus: "Failed to add member (HTTP {status}).",
   removeFailedStatus: "Failed to remove member (HTTP {status}).",
   nonMember: "not a member",
+  archiveFailed: "Couldn't archive the channel. Try again.",
+  unarchiveFailed: "Couldn't unarchive the channel. Try again.",
 } as const;

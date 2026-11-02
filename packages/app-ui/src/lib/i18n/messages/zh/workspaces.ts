@@ -155,4 +155,6 @@ export const workspaces: Translation<typeof en> = {
   addFailedStatus: "添加成员失败(HTTP {status})。",
   removeFailedStatus: "移除成员失败(HTTP {status})。",
   nonMember: "非成员",
+  archiveFailed: "无法归档频道，请重试。",
+  unarchiveFailed: "无法取消归档频道，请重试。",
 };

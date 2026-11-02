@@ -113,8 +113,6 @@ export const agents: Translation<typeof en> = {
   itMayBeUnavailable: "它现在可能无法访问。",
   copyFileContents: "复制文件内容",
   copyContents: "复制内容",
-  copiedTheTruncatedPreview: "已复制截断后的预览",
-  copiedToClipboard: "已复制到剪贴板",
   deleting: "正在删除…",
   avatarMustBe5: "头像不能超过 5 MB。",
   avatarMustBeA: "头像必须是 PNG、JPEG、GIF 或 WEBP 图片。",
@@ -230,4 +228,5 @@ export const agents: Translation<typeof en> = {
       failed: "这个 agent 在所有频道共用一个 session，目前出错了。",
     },
   },
+  conversationUnavailable: "无法访问这个对话。",
 };

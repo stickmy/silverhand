@@ -72,4 +72,7 @@ export const chat = {
   settingsFor: "Settings for {name}",
   restoreNamed: "Restore {name}",
   actionsFor: "Actions for {name}",
+  starFailed: "Couldn't star. Try again.",
+  unstarFailed: "Couldn't unstar. Try again.",
+  sortSaveFailed: "Couldn't save the sidebar order.",
 } as const;

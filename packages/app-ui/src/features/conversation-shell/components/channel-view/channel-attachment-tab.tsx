@@ -123,7 +123,8 @@ export function ChannelAttachmentTab({
           isRefresh && shown !== null && Number.isFinite(revision) && revision > shown.revision;
         shownRef.current = { attachmentId, revision };
         setState({ status: "ready", text, contentType: fetchedType });
-        if (isRevisionBump) toast("Attachment auto-updated", { icon: toastIcon("attachment") });
+        if (isRevisionBump)
+          toast(t("conversationShell.attachmentUpdated"), { icon: toastIcon("attachment") });
       })
       .catch((err) => {
         if (cancelled) return;

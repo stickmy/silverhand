@@ -22,4 +22,6 @@ export const channels: Translation<typeof en> = {
   startFailed: "无法启动 agent:{reason}",
   removeAgentFailed: "无法移除 agent:{reason}",
   removeMemberFailed: "无法移除成员:{reason}",
+  stopFailed: "无法停止 agent,请重试。",
+  clearSessionFailed: "无法清除 session,请重试。",
 };

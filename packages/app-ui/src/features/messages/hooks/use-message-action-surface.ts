@@ -119,9 +119,8 @@ export function useMessageActionSurface(deps: {
     if (!isCommittedMessage(msg)) return;
     try {
       await navigator.clipboard.writeText(msg.content);
-      toast.success(t("messages.copiedToClipboard"));
-    } catch (err) {
-      toast.error("Couldn't copy: " + (err instanceof Error ? err.message : String(err)));
+    } catch {
+      toast.error(t("common.copyFailed"));
     }
   }, []);
   // Per-row Share: enter selection mode with this message preselected.
@@ -138,10 +137,9 @@ export function useMessageActionSurface(deps: {
     const text = buildMarkdownTranscript(snapshots);
     try {
       await navigator.clipboard.writeText(text);
-      toast.success(t("messages.copiedMessages", { count: snapshots.length }));
       selection.exit();
-    } catch (err) {
-      toast.error("Couldn't copy: " + (err instanceof Error ? err.message : String(err)));
+    } catch {
+      toast.error(t("common.copyFailed"));
     }
   }, [selection]);
   const handleSaveImage = useCallback(() => {

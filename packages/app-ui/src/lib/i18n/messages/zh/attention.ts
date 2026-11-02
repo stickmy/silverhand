@@ -21,4 +21,7 @@ export const attention: Translation<typeof en> = {
   mentionedIn: "有人在 #{channel} 中提及了你",
   exitCode: "退出码 {code}",
   didntStart: "@{name} 未能启动",
+  markReadFailed: "无法标为已读，请重试。",
+  dismiss: "忽略",
+  dismissFailed: "无法忽略，请重试。",
 };

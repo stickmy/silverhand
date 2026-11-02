@@ -203,7 +203,7 @@ function ScheduleTarget({
 
     setRequested(false);
     if (resolution.status !== "resolved") {
-      toast.error("Conversation unavailable.");
+      toast.error(t("agents.conversationUnavailable"));
       return;
     }
 

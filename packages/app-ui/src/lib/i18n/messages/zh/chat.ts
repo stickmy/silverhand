@@ -75,4 +75,7 @@ export const chat: Translation<typeof en> = {
   settingsFor: "{name} 的设置",
   restoreNamed: "恢复 {name}",
   actionsFor: "{name} 的操作",
+  starFailed: "无法添加星标，请重试。",
+  unstarFailed: "无法取消星标，请重试。",
+  sortSaveFailed: "无法保存侧栏排序。",
 };

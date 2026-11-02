@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { t } from "@/lib/i18n";
 import type { QueryClient } from "@tanstack/react-query";
 import type {
   FavoriteRowDto,
@@ -134,7 +135,7 @@ export function useStarDirectPair() {
       void qc.invalidateQueries({ queryKey: favoritesKey });
     },
     onError: (_e, { starred }) => {
-      toast.error(starred ? "Failed to star, please retry" : "Failed to unstar, please retry");
+      toast.error(t(starred ? "chat.starFailed" : "chat.unstarFailed"));
     },
   });
 }
@@ -172,7 +173,7 @@ export function useUnstarFavorite() {
       void qc.invalidateQueries({ queryKey: ["workspaces"] });
     },
     onError: () => {
-      toast.error("Failed to unstar, please retry");
+      toast.error(t("chat.unstarFailed"));
     },
   });
 }

@@ -1,6 +1,7 @@
 import { agentRuntimeStateKey } from "@/features/agents/hooks/hooks";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { t } from "@/lib/i18n";
 import { clearAgentSessionPath } from "./runtime-control";
 import type {
   AgentDto,
@@ -48,7 +49,7 @@ export function useStopAgent(channelId: string | null) {
       void qc.invalidateQueries({ queryKey: agentRuntimeStateKey(agentId) });
     },
     onError: () => {
-      toast.error("Failed to stop agent");
+      toast.error(t("channels.stopFailed"));
     },
   });
 }
@@ -84,8 +85,8 @@ export function useClearAgentSession(
           : prev,
       );
     },
-    onError: (error) => {
-      toast.error(error.message);
+    onError: () => {
+      toast.error(t("channels.clearSessionFailed"));
     },
   });
 }

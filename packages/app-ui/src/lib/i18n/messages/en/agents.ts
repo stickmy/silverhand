@@ -113,8 +113,6 @@ export const agents = {
   itMayBeUnavailable: "It may be unavailable right now.",
   copyFileContents: "Copy file contents",
   copyContents: "Copy contents",
-  copiedTheTruncatedPreview: "Copied the truncated preview",
-  copiedToClipboard: "Copied to clipboard",
   deleting: "Deleting…",
   avatarMustBe5: "Avatar must be 5 MB or smaller.",
   avatarMustBeA: "Avatar must be a PNG, JPEG, GIF, or WEBP image.",
@@ -237,4 +235,5 @@ export const agents = {
       failed: "This agent's one session, shared across every channel, failed.",
     },
   },
+  conversationUnavailable: "This conversation is unavailable.",
 } as const;

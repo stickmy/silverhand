@@ -115,7 +115,7 @@ export function useSetChannelAttentionPreference(channelId: string | null) {
       // The optimistic re-tier must not survive the failure, and its pre-write
       // value isn't reconstructable from a snapshot of one row — re-read.
       void qc.invalidateQueries({ queryKey: ["attention", "modes"] });
-      toast.error("Failed to update, please retry");
+      toast.error(t("common.updateFailed"));
     },
     onSuccess: (dto) => {
       patchChannelModeInLoadedBatches(qc, dto.conversation_id, dto.mode);
@@ -198,7 +198,7 @@ export function useSetWorkspaceAttentionPreference(workspaceId: string | null) {
         void qc.invalidateQueries({ queryKey: key });
         void qc.invalidateQueries({ queryKey: attentionModesKey(workspaceId) });
       }
-      toast.error("Failed to update, please retry");
+      toast.error(t("common.updateFailed"));
     },
     onSuccess: (dto) => {
       qc.setQueryData(workspaceAttentionPreferenceKey(dto.workspace_id), dto);
@@ -804,7 +804,7 @@ export function useClearActivityItem() {
       void qc.invalidateQueries({ queryKey: ["notifications"] });
     },
     onError: () => {
-      toast.error("Failed to mark as read, please retry");
+      toast.error(t("attention.markReadFailed"));
     },
   });
 }

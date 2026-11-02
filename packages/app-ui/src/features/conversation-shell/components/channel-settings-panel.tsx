@@ -225,7 +225,7 @@ function SettingsBody({
       const response = await leave.mutateAsync(channelId);
       onLeft(response.channel);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to leave channel");
+      toast.error(t("conversationShell.leaveFailed"));
       throw error;
     }
   };

@@ -409,7 +409,7 @@ export function ImagePreviewModal({
         onExportComplete?.();
         onOpenChange(false);
       } else if ("error" in result) {
-        toast.error("Couldn't share: " + result.error);
+        toast.error(t("messages.shareFailed", { reason: result.error }));
       }
     } finally {
       if (generation === exportGeneration.current) setBusy(false);
@@ -422,11 +422,10 @@ export function ImagePreviewModal({
     try {
       const result = await getPlatform().files.copyPngExport({ pngBytes });
       if (result.ok) {
-        toast.success(t("messages.imageCopiedToClipboard"));
         onExportComplete?.();
         onOpenChange(false);
       } else {
-        toast.error("Couldn't copy: " + result.error);
+        toast.error(t("common.copyFailed"));
       }
     } finally {
       setBusy(false);
@@ -450,7 +449,7 @@ export function ImagePreviewModal({
       } else if ("canceled" in result && result.canceled) {
         // user dismissed dialog — silent, keep selection so they can retry
       } else if ("error" in result) {
-        toast.error("Couldn't save: " + result.error);
+        toast.error(t("messages.saveFailed", { reason: result.error }));
       }
     } finally {
       setBusy(false);

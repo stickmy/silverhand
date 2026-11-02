@@ -1,6 +1,5 @@
 import { useEffect, useState, type JSX } from "react";
 import { CheckIcon, CopyIcon } from "@/icons";
-import { toast } from "sonner";
 import {
   buildHostDiagnosticsText,
   type HostDiagnosticsFetchErrorKind,
@@ -74,7 +73,6 @@ export function HostDiagnosticsAction({ host }: { host: HostDto }): JSX.Element 
     };
     await navigator.clipboard.writeText(buildHostDiagnosticsText(input));
     setCopied(true);
-    toast.success(computerCopy().copied);
   };
 
   return (

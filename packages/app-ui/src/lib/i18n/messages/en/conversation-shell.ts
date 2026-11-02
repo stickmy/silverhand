@@ -155,4 +155,8 @@ export const conversationShell = {
   },
   viewMember: "View member {name}",
   threadOf: "thread of {title}",
+  followFailed: "Couldn't follow the thread. Try again.",
+  unfollowFailed: "Couldn't unfollow the thread. Try again.",
+  leaveFailed: "Couldn't leave the channel. Try again.",
+  attachmentUpdated: "Attachment updated",
 } as const;

@@ -1,6 +1,5 @@
 import { useEffect, useState, type JSX } from "react";
 import { CheckIcon, CopyIcon, TerminalIcon, ViewIcon, ViewOffIcon } from "@/icons";
-import { toast } from "sonner";
 import { assembleConnectCommand } from "@silverhand/shared";
 import { computerCopy } from "../../../features/computers/model/computer-copy";
 
@@ -55,7 +54,6 @@ export function ConnectionCommandCard({
     // Copy source is ALWAYS the locally-assembled verbatim command.
     await navigator.clipboard.writeText(daemonCommand);
     setCopied(true);
-    toast.success(computerCopy().copied);
   };
 
   return (

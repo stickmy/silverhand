@@ -14,7 +14,6 @@ export const messages = {
   send: "Send",
   directMessage: "Direct message",
   channel: "Channel",
-  imageCopiedToClipboard: "Image copied to clipboard",
   saved: "Saved",
   imagePreview: "Image Preview",
   selectAtLeastOne: "Select at least one message",
@@ -92,7 +91,6 @@ export const messages = {
   attachment: "Attachment",
   image: "Image",
   file: "File",
-  copiedToClipboard: "Copied to clipboard",
   photos: "Photos",
   files: "Files",
   add: "Add",
@@ -133,10 +131,6 @@ export const messages = {
   taskChangeStatus: "Task #{number} ({status}) — click to change status",
   insertInto: "Insert {label} into message",
   reactWith: "React {emoji}",
-  copiedMessages: {
-    one: "Copied {count} message",
-    other: "Copied {count} messages",
-  },
   deletedAccount: "{name} (deleted account)",
   openFailed: "Can't open the attachment: {reason}",
   saveFailed: "Couldn't save: {reason}",
@@ -180,4 +174,5 @@ export const messages = {
     done: "done",
     closed: "closed",
   },
+  shareFailed: "Couldn't share: {reason}",
 } as const;

@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo } from "react";
 import { toast } from "sonner";
+import { t } from "@/lib/i18n";
 import type {
   AgentRunStatesDto,
   ConversationAgentDto,
@@ -702,7 +703,7 @@ export function useFollowThread(channelId: string | null, rootMessageId: string 
       void qc.invalidateQueries({ queryKey: channelThreadsKey(channelId) });
     },
     onError: () => {
-      toast.error("Couldn't follow the thread. Try again.");
+      toast.error(t("conversationShell.followFailed"));
     },
   });
 }
@@ -736,7 +737,7 @@ export function useUnfollowThread(channelId: string | null, rootMessageId: strin
       void qc.invalidateQueries({ queryKey: channelThreadsKey(channelId) });
     },
     onError: () => {
-      toast.error("Couldn't unfollow the thread. Try again.");
+      toast.error(t("conversationShell.unfollowFailed"));
     },
   });
 }

@@ -155,4 +155,8 @@ export const conversationShell: Translation<typeof en> = {
   },
   viewMember: "查看成员 {name}",
   threadOf: "{title} 中的话题",
+  followFailed: "无法关注话题，请重试。",
+  unfollowFailed: "无法取消关注话题，请重试。",
+  leaveFailed: "无法退出频道，请重试。",
+  attachmentUpdated: "附件已更新",
 };

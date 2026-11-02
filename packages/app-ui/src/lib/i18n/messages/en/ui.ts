@@ -17,7 +17,6 @@ export const ui = {
   computers: "Computers",
   appSections: "App sections",
   settings: "Settings",
-  nameCopied: "Name copied",
   muted: "Muted",
   sort: "Sort",
   recent: "Recent",

@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { t } from "@/lib/i18n";
 import type {
   ChannelDetailResponse,
   ChannelLikeDto,
@@ -187,8 +188,8 @@ export function channelArchiveMutationOptions(qc: QueryClient, workspaceId: stri
       const targetWorkspaceId = vars.workspaceId ?? channel.workspace_id ?? workspaceId;
       reconcileChannelArchive(qc, channel.id, targetWorkspaceId);
     },
-    onError: () => {
-      toast.error("Failed to update channel archive");
+    onError: (_err: unknown, vars: { archived: boolean }) => {
+      toast.error(t(vars.archived ? "workspaces.archiveFailed" : "workspaces.unarchiveFailed"));
     },
   };
 }

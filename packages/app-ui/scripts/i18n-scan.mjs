@@ -115,6 +115,8 @@ function calleeName(node) {
   if (ts.isIdentifier(expr)) return expr.text;
   if (ts.isPropertyAccessExpression(expr)) {
     const base = ts.isIdentifier(expr.expression) ? `${expr.expression.text}.` : "";
+    // `toast.error(...)` carries copy; only `console.error` style loggers don't.
+    if (base === "toast.") return "toast";
     return base === "console." ? `console.${expr.name.text}` : expr.name.text;
   }
   return "";

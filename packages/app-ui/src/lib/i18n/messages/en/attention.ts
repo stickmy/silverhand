@@ -18,4 +18,7 @@ export const attention = {
   mentionedIn: "You were mentioned in #{channel}",
   exitCode: "Exit code {code}",
   didntStart: "@{name} didn't start",
+  markReadFailed: "Couldn't mark as read. Try again.",
+  dismiss: "Dismiss",
+  dismissFailed: "Couldn't dismiss. Try again.",
 } as const;

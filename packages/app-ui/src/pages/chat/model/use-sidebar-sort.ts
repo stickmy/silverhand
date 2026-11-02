@@ -8,6 +8,7 @@ import {
   SIDEBAR_SORT_LIST_KEY,
 } from "@silverhand/shared";
 import { toast } from "sonner";
+import { t } from "@/lib/i18n";
 import { api } from "@/lib/api";
 import { useViewerUser } from "@/features/session/hooks";
 import { isCurrentViewerScope, onWsFrame, subscribeViewerScope } from "@/lib/ws-client";
@@ -78,7 +79,7 @@ export function useSidebarSort() {
       );
     } catch {
       if (!controller.signal.aborted) {
-        toast.error("Could not save sidebar order");
+        toast.error(t("chat.sortSaveFailed"));
       }
     } finally {
       // Always read the current complete set; a late write ACK never replaces it.
