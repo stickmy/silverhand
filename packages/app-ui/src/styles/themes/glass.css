@@ -35,6 +35,10 @@
   --glass-shadow:
     inset 0 1px 0.5px rgba(255, 255, 255, 0.9), inset 0 -1px 1px rgba(var(--shadow-base), 0.05),
     0 0 0 0.5px rgba(var(--shadow-base), 0.08), 0 8px 24px -10px rgba(var(--shadow-base), 0.2);
+  /* Controls sit on the page; only floating surfaces (menus, popovers) lift. */
+  --glass-control-shadow:
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.9), inset 0 -1px 1px rgba(var(--shadow-base), 0.05),
+    0 0 0 0.5px rgba(var(--shadow-base), 0.08), 0 1px 3px rgba(var(--shadow-base), 0.08);
 
   /* Surface, text and border foundations */
   --bg-base: #ffffff;
@@ -261,9 +265,9 @@
 
 [data-theme="glass"] .glass-surface {
   background: var(--glass-tint);
-  -webkit-backdrop-filter: blur(12px) saturate(1.9) brightness(1.04);
-  backdrop-filter: blur(12px) saturate(1.9) brightness(1.04);
-  box-shadow: var(--glass-shadow);
+  -webkit-backdrop-filter: blur(8px) saturate(1.9) brightness(1.04);
+  backdrop-filter: blur(8px) saturate(1.9) brightness(1.04);
+  box-shadow: var(--glass-control-shadow);
   transition: transform 260ms linear(0, 0.4 12%, 1.08 32%, 0.98 50%, 1.01 68%, 1);
 }
 

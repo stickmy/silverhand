@@ -159,12 +159,15 @@
   border: 0;
   color: var(--text-primary);
   background: color-mix(in srgb, var(--bg-base) 55%, transparent);
-  -webkit-backdrop-filter: blur(24px) saturate(1.8);
-  backdrop-filter: blur(24px) saturate(1.8);
+  /* Liquid Glass reads as clear, not frosted: a light blur keeps what is
+     behind it legible, and the control sits on the page rather than floating
+     over it. */
+  -webkit-backdrop-filter: blur(8px) saturate(1.8);
+  backdrop-filter: blur(8px) saturate(1.8);
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, var(--bg-base) 90%, transparent),
     inset 0 0 0 0.5px color-mix(in srgb, var(--text-primary) 12%, transparent),
-    0 8px 24px rgb(0 0 0 / 0.06);
+    0 1px 3px rgb(0 0 0 / 0.06);
   -webkit-tap-highlight-color: transparent;
   transition: transform 220ms cubic-bezier(0.3, 1.4, 0.5, 1);
 }
@@ -181,13 +184,4 @@
   margin-left: auto;
   margin-right: -4px;
   border-radius: 999px;
-}
-
-/* On the flush sidebar canvas the glass lifts only a little; the floating
-   default spreads into a grey band behind the whole row. */
-[data-sidebar-entries] .glass-surface {
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--bg-base) 90%, transparent),
-    inset 0 0 0 0.5px color-mix(in srgb, var(--text-primary) 14%, transparent),
-    0 1px 3px rgb(0 0 0 / 0.06);
 }
