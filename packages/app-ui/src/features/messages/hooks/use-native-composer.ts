@@ -6,7 +6,15 @@ import type {
   ComposerPickerIcon,
   ComposerState,
 } from "@silverhand/client";
-import { AttachFileIcon, BotIcon, HashIcon, ImageIcon, MentionIcon, UserIcon } from "@/icons";
+import {
+  AttachFileIcon,
+  BotIcon,
+  CameraIcon,
+  HashIcon,
+  ImageIcon,
+  MentionIcon,
+  UserIcon,
+} from "@/icons";
 import { iconMarkup } from "@/components/layout/native-page-bar";
 import { useCompactLayout } from "@/navigation/layout";
 import { usePageLive } from "@/navigation/page-stack";
@@ -119,10 +127,16 @@ interface NativeComposerOptions {
   onPick: (item: PickerItem) => void;
   onTrigger: (kind: "@" | "#") => void;
   onFiles: (files: File[]) => void;
+  /** Cards for files native has chosen but not read yet (`filesPending`).
+   *  Without them each file arrives through `onFiles` once read. */
+  onReserveFiles?: (entries: { filename: string; contentType: string }[]) => string[];
+  onFillFile?: (key: string, file: File) => void;
+  onFailFile?: (key: string) => void;
 }
 
 function addMenu(offersMentions: boolean, offersChannels: boolean): ComposerMenuItem[] {
   return [
+    { id: "camera", label: t("messages.takePhoto"), icon: iconMarkup(CameraIcon), pick: "camera" },
     { id: "photos", label: t("messages.photos"), icon: iconMarkup(ImageIcon), pick: "photos" },
     { id: "files", label: t("messages.files"), icon: iconMarkup(AttachFileIcon), pick: "files" },
     ...(offersMentions
@@ -203,6 +217,8 @@ export function useNativeComposer(options: NativeComposerOptions): {
       return;
     }
     const host = options.host.current;
+    // Native ids of files announced in `filesPending`, to the cards held for them.
+    const reservedKeys = new Map<string, string>();
     const listening = capability.subscribe((event) => {
       if (event.key !== key) {
         return;
@@ -226,8 +242,41 @@ export function useNativeComposer(options: NativeComposerOptions): {
         if (event.id === "mention" || event.id === "channel") {
           latest.current.onTrigger(event.id === "mention" ? "@" : "#");
         }
+      } else if (event.kind === "filesPending") {
+        const keys =
+          latest.current.onReserveFiles?.(
+            event.files.map((file) => ({ filename: file.name, contentType: file.type })),
+          ) ?? [];
+        event.files.forEach((file, index) => {
+          const reserved = keys[index];
+          if (reserved) {
+            reservedKeys.set(file.id, reserved);
+          }
+        });
+      } else if (event.kind === "filesFailed") {
+        for (const id of event.ids) {
+          const reserved = reservedKeys.get(id);
+          reservedKeys.delete(id);
+          if (reserved) {
+            latest.current.onFailFile?.(reserved);
+          }
+        }
       } else {
-        latest.current.onFiles(event.files.map(decodeFile));
+        const loose: File[] = [];
+        for (const file of event.files) {
+          const reserved = file.id === undefined ? undefined : reservedKeys.get(file.id);
+          if (file.id !== undefined) {
+            reservedKeys.delete(file.id);
+          }
+          if (reserved) {
+            latest.current.onFillFile?.(reserved, decodeFile(file));
+          } else {
+            loose.push(decodeFile(file));
+          }
+        }
+        if (loose.length > 0) {
+          latest.current.onFiles(loose);
+        }
       }
     });
     return () => {

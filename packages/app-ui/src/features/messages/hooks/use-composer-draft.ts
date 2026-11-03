@@ -26,6 +26,7 @@ import {
 } from "@/features/messages/composer-draft-cache";
 import { canResolveShorthandNow, type ComposerMentionSource } from "../model/composer-picker";
 import { MAX_ATTACHMENTS } from "../model/oversize-paste";
+import { t } from "@/lib/i18n";
 
 export type PendingAttachment = CachedPendingAttachment;
 
@@ -69,6 +70,9 @@ export interface ComposerDraft {
   updateCaret: (caret: number) => void;
   submit: () => void;
   addFiles: (files: FileList | File[]) => void;
+  reservePending: (entries: { filename: string; contentType: string }[]) => string[];
+  fillPending: (key: string, file: File) => void;
+  failPending: (key: string) => void;
   removePending: (key: string) => void;
 }
 
@@ -332,46 +336,71 @@ export function useComposerDraft({
       .catch(restoreDraft);
   }
 
-  function addFiles(files: FileList | File[]): void {
-    const list = Array.from(files);
-    if (list.length === 0) {
-      return;
-    }
+  /** Holds a card for each file before its bytes arrive, so it shows at once;
+   *  `fillPending` then uploads into it. Returns the cards' keys, fewer than
+   *  asked once the draft is full. */
+  function reservePending(entries: { filename: string; contentType: string }[]): string[] {
     const slotsLeft = MAX_ATTACHMENTS - pendingRef.current.length;
-    if (slotsLeft <= 0) {
-      return;
+    if (entries.length === 0 || slotsLeft <= 0) {
+      return [];
     }
     // Detach before assigning labels, so new files number from #1 rather than
     // continuing the sent message's sequence.
     detachSubmittingDraftForEdit();
     editGenerationRef.current += 1;
-    for (const file of list.slice(0, slotsLeft)) {
-      const key = `att-${crypto.randomUUID()}`;
-      const contentType = effectiveContentType(file);
-      const previewUrl = contentType.startsWith("image/") ? URL.createObjectURL(file) : undefined;
+    const items = entries.slice(0, slotsLeft).map((entry): PendingAttachment => ({
+      key: `att-${crypto.randomUUID()}`,
+      filename: entry.filename,
+      size: 0,
+      contentType: entry.contentType,
+      state: "uploading",
       // The label is fixed the moment the file enters the draft, so the chip
       // is the reference the agent gets.
-      const label = assignAttachmentLabel(draftKey, contentType);
-      const item: PendingAttachment = {
-        key,
-        filename: file.name,
-        size: file.size,
-        contentType,
-        state: "uploading",
-        file,
-        previewUrl,
-        label,
-      };
-      setPendingValue((curr) => [...curr, item]);
-      void startComposerDraftAttachmentUpload({
-        conversationId: draftKey,
-        uploadChannelId: conversationId,
-        attachmentKey: key,
-        file,
-        previewUrl,
-        label,
-      });
+      label: assignAttachmentLabel(draftKey, entry.contentType),
+    }));
+    setPendingValue((curr) => [...curr, ...items]);
+    for (const item of items) {
+      upsertComposerDraftAttachment(draftKey, item);
     }
+    return items.map((item) => item.key);
+  }
+
+  function fillPending(key: string, file: File): void {
+    const item = pendingRef.current.find((candidate) => candidate.key === key);
+    if (!item) {
+      return;
+    }
+    const previewUrl = effectiveContentType(file).startsWith("image/")
+      ? URL.createObjectURL(file)
+      : undefined;
+    void startComposerDraftAttachmentUpload({
+      conversationId: draftKey,
+      uploadChannelId: conversationId,
+      attachmentKey: key,
+      file,
+      previewUrl,
+      label: item.label,
+    });
+  }
+
+  function failPending(key: string): void {
+    const item = pendingRef.current.find((candidate) => candidate.key === key);
+    if (!item) {
+      return;
+    }
+    upsertComposerDraftAttachment(draftKey, {
+      ...item,
+      state: "error",
+      error: t("messages.couldntReadFile"),
+    });
+  }
+
+  function addFiles(files: FileList | File[]): void {
+    const list = Array.from(files);
+    const keys = reservePending(
+      list.map((file) => ({ filename: file.name, contentType: effectiveContentType(file) })),
+    );
+    keys.forEach((key, index) => fillPending(key, list[index]!));
   }
 
   function removePending(key: string): void {
@@ -396,6 +425,9 @@ export function useComposerDraft({
     updateCaret,
     submit,
     addFiles,
+    reservePending,
+    fillPending,
+    failPending,
     removePending,
   };
 }

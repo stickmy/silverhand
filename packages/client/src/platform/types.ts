@@ -322,7 +322,8 @@ export interface ComposerMenuItem {
   id: string;
   label: string;
   icon: string;
-  pick?: "photos" | "files";
+  /** `camera` is left out where the device has none. */
+  pick?: "photos" | "camera" | "files";
 }
 /** The composer, drawn natively over the page. The shared
  * UI keeps the draft, the send and every string; native edits the text and
@@ -390,7 +391,16 @@ export type ComposerEvent =
   | { kind: "add"; key: string; id: string }
   | { kind: "pick"; key: string; id: string }
   | { kind: "activity"; key: string; id: string }
-  | { kind: "files"; key: string; files: { name: string; type: string; base64: string }[] }
+  /** Files the user chose, announced before their bytes are read so their
+   * cards show at once; each later arrives in `files` under its `id`, or in
+   * `filesFailed`. */
+  | { kind: "filesPending"; key: string; files: { id: string; name: string; type: string }[] }
+  | {
+      kind: "files";
+      key: string;
+      files: { id?: string; name: string; type: string; base64: string }[];
+    }
+  | { kind: "filesFailed"; key: string; ids: string[] }
   /** Distances up from the bottom of the window to the composer's top: at
    * rest, at the height its text gives it (the keyboard included), and as
    * drawn; `picker` is the room the candidate list takes over it. */

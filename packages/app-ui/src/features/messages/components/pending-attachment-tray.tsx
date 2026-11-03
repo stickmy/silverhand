@@ -1,6 +1,6 @@
 import { motion, useIsPresent, useReducedMotion } from "motion/react";
 import { forwardRef, type ReactNode } from "react";
-import { AttachmentIcon, CloseIcon } from "@/icons";
+import { AttachmentIcon, CloseIcon, SpinnerIcon } from "@/icons";
 import type { CachedPendingAttachment as PendingAttachment } from "@/features/messages/composer-draft-cache";
 import { t } from "@/lib/i18n";
 
@@ -81,6 +81,9 @@ export function AttachmentChip({
         ? "border-border-subtle text-text-muted"
         : "border-border-subtle text-text-secondary";
   const isImage = item.contentType.startsWith("image/");
+  // The card shows the moment a file is chosen, before its bytes are read on
+  // iOS: until the upload ends a spinner holds the thumbnail's place.
+  const uploading = item.state === "uploading";
 
   // Image chip: small thumbnail + filename + remove. Click thumbnail
   // opens the lightbox. Non-image chip: paperclip icon + filename.
@@ -93,9 +96,23 @@ export function AttachmentChip({
   return (
     <div
       className={`flex max-w-70 items-center gap-1.5 rounded-md border bg-bg-floating px-2 py-1 text-xs ${stateClass}`}
-      title={item.error ?? `${item.filename} (${sizeLabel})`}
+      title={item.error ?? (uploading ? item.filename : `${item.filename} (${sizeLabel})`)}
     >
-      {isImage && item.previewUrl ? (
+      {uploading ? (
+        <span className="relative grid size-8 shrink-0 place-items-center overflow-hidden rounded-sm border border-border-subtle">
+          {item.previewUrl ? (
+            <img
+              src={item.previewUrl}
+              alt=""
+              className="absolute inset-0 size-full object-cover opacity-50"
+            />
+          ) : null}
+          <SpinnerIcon
+            aria-label={t("messages.uploading")}
+            className="relative size-3.5 motion-safe:animate-spin"
+          />
+        </span>
+      ) : isImage && item.previewUrl ? (
         <button
           type="button"
           onClick={onPreview}
@@ -126,9 +143,7 @@ export function AttachmentChip({
               <span className="shrink-0 font-mono">{item.label}</span>
             )
           ) : null}
-          <span className="shrink-0">
-            {item.state === "uploading" ? t("messages.uploading") : sizeLabel}
-          </span>
+          {uploading ? null : <span className="shrink-0">{sizeLabel}</span>}
         </div>
       </div>
       <button

@@ -40,7 +40,8 @@ struct ComposerFrame: Equatable {
 /// the page clears: a dragged height covers the page rather than moving it.
 @MainActor
 final class ComposerView: UIView, UITextViewDelegate, UIGestureRecognizerDelegate,
-  PHPickerViewControllerDelegate, UIDocumentPickerDelegate
+  PHPickerViewControllerDelegate, UIDocumentPickerDelegate, UIImagePickerControllerDelegate,
+  UINavigationControllerDelegate
 {
   /// Edits and taps, and `metrics`: distances up from the bottom of the host
   /// view to the composer's top at rest (`rest`), at the height its text gives
@@ -261,7 +262,8 @@ final class ComposerView: UIView, UITextViewDelegate, UIGestureRecognizerDelegat
     placeholder.text = next.placeholder
     addButton.isEnabled = next.enabled
     addButton.accessibilityLabel = next.addLabel
-    addButton.menu = UIMenu(children: next.add.map { item in
+    let camera = UIImagePickerController.isSourceTypeAvailable(.camera)
+    addButton.menu = UIMenu(children: next.add.filter { $0.pick != "camera" || camera }.map { item in
       UIAction(title: item.label, image: BarGlyphs.image(item.icon, size: 18)) { [weak self] _ in
         self?.choose(item)
       }
@@ -657,6 +659,7 @@ final class ComposerView: UIView, UITextViewDelegate, UIGestureRecognizerDelegat
     guard let state else { return }
     switch item.pick {
     case "photos": pickPhotos()
+    case "camera": takePhoto()
     case "files": pickFiles()
     default: onEvent?(["kind": "add", "key": state.key, "id": item.id])
     }
@@ -677,6 +680,33 @@ final class ComposerView: UIView, UITextViewDelegate, UIGestureRecognizerDelegat
     present(picker)
   }
 
+  private func takePhoto() {
+    let picker = UIImagePickerController()
+    picker.sourceType = .camera
+    picker.delegate = self
+    present(picker)
+  }
+
+  nonisolated func imagePickerController(
+    _ picker: UIImagePickerController,
+    didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
+  ) {
+    let image = info[.originalImage] as? UIImage
+    Task { @MainActor in
+      picker.dismiss(animated: true)
+      guard let key = state?.key, let image else { return }
+      let id = UUID().uuidString
+      announce([(id, "photo.jpg", "image/jpeg")], key: key)
+      let data = await Task.detached { image.jpegData(compressionQuality: 0.85) }.value
+      guard let data else { return fail([id], key: key) }
+      sendFiles([ComposerFile(id: id, name: "photo.jpg", type: "image/jpeg", data: data)], key: key)
+    }
+  }
+
+  nonisolated func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+    Task { @MainActor in picker.dismiss(animated: true) }
+  }
+
   private func pickFiles() {
     let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.item], asCopy: true)
     picker.allowsMultipleSelection = true
@@ -687,16 +717,43 @@ final class ComposerView: UIView, UITextViewDelegate, UIGestureRecognizerDelegat
   nonisolated func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
     Task { @MainActor in
       picker.dismiss(animated: true)
-      guard let key = state?.key else { return }
-      var files: [ComposerFile] = []
-      for result in results {
-        if let file = await Self.load(result.itemProvider) { files.append(file) }
+      guard let key = state?.key, !results.isEmpty else { return }
+      // Cards first: reading a photo (from iCloud, at full size) can take a
+      // while, and a card that waits for it reads as a stalled tap.
+      let chosen = results.map { (id: UUID().uuidString, provider: $0.itemProvider) }
+      announce(
+        chosen.map { ($0.id, $0.provider.suggestedName ?? "image", Self.imageType($0.provider)) },
+        key: key)
+      for item in chosen {
+        if let file = await Self.load(item.provider, id: item.id) {
+          sendFiles([file], key: key)
+        } else {
+          fail([item.id], key: key)
+        }
       }
-      sendFiles(files, key: key)
     }
   }
 
-  private nonisolated static func load(_ provider: NSItemProvider) async -> ComposerFile? {
+  /// The image's MIME type as the picker reports it, before it is read.
+  private nonisolated static func imageType(_ provider: NSItemProvider) -> String {
+    let types = provider.registeredTypeIdentifiers.compactMap(UTType.init)
+    return types.first { $0.conforms(to: .image) }?.preferredMIMEType ?? "image/jpeg"
+  }
+
+  private func announce(_ files: [(id: String, name: String, type: String)], key: String) {
+    guard state?.key == key else { return }
+    onEvent?([
+      "kind": "filesPending", "key": key,
+      "files": files.map { ["id": $0.id, "name": $0.name, "type": $0.type] },
+    ])
+  }
+
+  private func fail(_ ids: [String], key: String) {
+    guard state?.key == key else { return }
+    onEvent?(["kind": "filesFailed", "key": key, "ids": ids])
+  }
+
+  private nonisolated static func load(_ provider: NSItemProvider, id: String) async -> ComposerFile? {
     await withCheckedContinuation { continuation in
       provider.loadFileRepresentation(forTypeIdentifier: UTType.image.identifier) { url, _ in
         guard let url, let data = try? Data(contentsOf: url) else {
@@ -707,7 +764,7 @@ final class ComposerView: UIView, UITextViewDelegate, UIGestureRecognizerDelegat
         let base = provider.suggestedName ?? "image"
         let name = url.pathExtension.isEmpty ? base : base + "." + url.pathExtension
         continuation.resume(
-          returning: ComposerFile(name: name, type: type?.preferredMIMEType ?? "", data: data))
+          returning: ComposerFile(id: id, name: name, type: type?.preferredMIMEType ?? "", data: data))
       }
     }
   }
@@ -727,14 +784,20 @@ final class ComposerView: UIView, UITextViewDelegate, UIGestureRecognizerDelegat
     guard let state, key == nil || key == state.key, !files.isEmpty else { return }
     onEvent?([
       "kind": "files", "key": state.key,
-      "files": files.map {
-        ["name": $0.name, "type": $0.type, "base64": $0.data.base64EncodedString()]
+      "files": files.map { file in
+        var entry: [String: Any] = [
+          "name": file.name, "type": file.type, "base64": file.data.base64EncodedString(),
+        ]
+        if let id = file.id { entry["id"] = id }
+        return entry
       },
     ])
   }
 }
 
 struct ComposerFile: Sendable {
+  /// Set when the file was announced in `filesPending` first.
+  var id: String? = nil
   let name, type: String
   let data: Data
 }

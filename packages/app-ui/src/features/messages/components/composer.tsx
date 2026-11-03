@@ -172,6 +172,9 @@ export function Composer({
     onPick: insertPick,
     onTrigger: insertTrigger,
     onFiles: (files) => composer.addFiles(files),
+    onReserveFiles: (entries) => composer.reservePending(entries),
+    onFillFile: (key, file) => composer.fillPending(key, file),
+    onFailFile: (key) => composer.failPending(key),
   });
 
   useEffect(() => {
