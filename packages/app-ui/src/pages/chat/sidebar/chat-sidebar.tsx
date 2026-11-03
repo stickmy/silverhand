@@ -1,6 +1,6 @@
 import { useListReadingPosition } from "@/navigation/view-memory";
 import { Brandmark } from "@/components/brand/brandmark";
-import { iconMarkup, nativeActionBar, useNativeBar } from "@/components/layout/native-page-bar";
+import { iconMarkup, nativeActionGroups, useNativeBar } from "@/components/layout/native-page-bar";
 import { SidebarRowsSkeleton } from "@/components/layout/sidebar-skeleton";
 import type { DirectMessageTarget } from "@/features/direct-pairs/target";
 import { useMemo, type ReactNode } from "react";
@@ -147,8 +147,8 @@ export function ChatSidebar(props: ChatSidebarProps): JSX.Element {
   const style = useSidebarStyle();
   // The compact list is the Chats root, titled like the other Tab roots. Its
   // bar takes the list's entries too, each in reach rather than behind a menu:
-  // Search, Saved, Archived and New project.
-  const [chatsBar, chatsBarHandlers] = nativeActionBar(
+  // Search, Saved and Archived in one capsule, New project in its own.
+  const [chatsBar, chatsBarHandlers] = nativeActionGroups(
     {
       title: t("chat.chats"),
       titleAction: null,
@@ -157,34 +157,38 @@ export function ChatSidebar(props: ChatSidebarProps): JSX.Element {
       addTabs: null,
     },
     [
-      {
-        id: "search",
-        label: t("common.search"),
-        icon: iconMarkup(SearchIcon),
-        primary: true,
-        run: props.onSelectSearch,
-      },
-      {
-        id: "saved",
-        label: t("chat.saved"),
-        icon: iconMarkup(BookmarkIcon),
-        primary: true,
-        run: props.onSelectSaved,
-      },
-      {
-        id: "archived",
-        label: t("common.archived"),
-        icon: iconMarkup(ArchiveIcon),
-        primary: true,
-        run: props.onSelectArchived,
-      },
-      {
-        id: "create-workspace",
-        label: t("chat.newProject"),
-        icon: iconMarkup(PlusIcon),
-        primary: true,
-        run: props.onCreateWorkspace,
-      },
+      [
+        {
+          id: "search",
+          label: t("common.search"),
+          icon: iconMarkup(SearchIcon),
+          primary: true,
+          run: props.onSelectSearch,
+        },
+        {
+          id: "saved",
+          label: t("chat.saved"),
+          icon: iconMarkup(BookmarkIcon),
+          primary: true,
+          run: props.onSelectSaved,
+        },
+        {
+          id: "archived",
+          label: t("common.archived"),
+          icon: iconMarkup(ArchiveIcon),
+          primary: true,
+          run: props.onSelectArchived,
+        },
+      ],
+      [
+        {
+          id: "create-workspace",
+          label: t("chat.newProject"),
+          icon: iconMarkup(PlusIcon),
+          primary: true,
+          run: props.onCreateWorkspace,
+        },
+      ],
     ],
   );
   const native = useNativeBar(props.fill ? chatsBar : null, chatsBarHandlers);

@@ -59,10 +59,21 @@ export function nativeActionBar(
   bar: Omit<PageBarDeclaration, "actions">,
   actions: readonly (NativeBarAction | null)[],
 ): [PageBarDeclaration, PageBarHandlers] {
-  const shown = actions.filter((action) => action !== null);
+  return nativeActionGroups(bar, [actions]);
+}
+
+/** A bar of action groups, each drawn as its own capsule. */
+export function nativeActionGroups(
+  bar: Omit<PageBarDeclaration, "actions">,
+  groups: readonly (readonly (NativeBarAction | null)[])[],
+): [PageBarDeclaration, PageBarHandlers] {
+  const shown = groups
+    .map((group) => group.filter((action) => action !== null))
+    .filter((group) => group.length > 0);
+  const all = shown.flat();
   return [
-    { ...bar, actions: shown.length > 0 ? [shown.map(({ run: _, ...item }) => item)] : [] },
-    { action: ({ id }) => shown.find((action) => action.id === id)?.run() },
+    { ...bar, actions: shown.map((group) => group.map(({ run: _, ...item }) => item)) },
+    { action: ({ id }) => all.find((action) => action.id === id)?.run() },
   ];
 }
 
