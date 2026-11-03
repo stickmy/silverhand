@@ -59,7 +59,9 @@ export function DirectPairDraftPane({ target, onOpenPair }: DirectPairDraftPaneP
   const [draft, setDraft] = useState("");
   const draftFiles = useDraftFiles();
   const files = draftFiles.items;
-  const [previewing, setPreviewing] = useState<{ url: string; alt: string } | null>(null);
+  const [previewing, setPreviewing] = useState<{ url: string; alt: string; file?: File } | null>(
+    null,
+  );
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const attemptRef = useRef<{ id: string; userId: string; target: DirectMessageTarget }>();
@@ -300,7 +302,12 @@ export function DirectPairDraftPane({ target, onOpenPair }: DirectPairDraftPaneP
                   onInsertLabel={sending ? undefined : () => insertLabel(item.label!)}
                   onPreview={
                     item.previewUrl
-                      ? () => setPreviewing({ url: item.previewUrl!, alt: item.filename })
+                      ? () =>
+                          setPreviewing({
+                            url: item.previewUrl!,
+                            alt: item.filename,
+                            file: item.file,
+                          })
                       : undefined
                   }
                 />
@@ -319,6 +326,7 @@ export function DirectPairDraftPane({ target, onOpenPair }: DirectPairDraftPaneP
       }}
       src={previewing?.url ?? ""}
       alt={previewing?.alt ?? ""}
+      file={previewing?.file}
     />
   );
 

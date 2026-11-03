@@ -17,6 +17,9 @@ interface LightboxProps {
   alt: string;
   /** Read original bytes through the resource owner, independently of its display URL. */
   loadExportBytes?: () => Promise<Uint8Array>;
+  /** The local file `src` shows, for a draft's own attachment: its bytes are
+   *  read from it rather than fetched back from the `blob:` URL. */
+  file?: File;
   /** The sent attachment shown, when there is one: a native preview fetches
    *  it itself instead of waiting on the page for its bytes. */
   attachmentId?: string;
@@ -118,6 +121,7 @@ export function Lightbox({
   alt,
   onDownload,
   loadExportBytes,
+  file,
   attachmentId,
 }: LightboxProps): JSX.Element {
   const [busy, setBusy] = useState(false);
@@ -322,8 +326,12 @@ export function Lightbox({
     };
     void (async () => {
       try {
-        const local = await fetch(src)
-          .then(async (res) => new Uint8Array(await res.arrayBuffer()))
+        // WKWebView refuses `fetch` of a `blob:` URL, so a local file is read
+        // directly.
+        const local = await (
+          file ? file.arrayBuffer() : fetch(src).then((res) => res.arrayBuffer())
+        )
+          .then((buffer) => new Uint8Array(buffer))
           .catch((err: unknown) => {
             if (!attachmentId) {
               throw err;
@@ -361,7 +369,7 @@ export function Lightbox({
       // Use its authenticated byte reader instead of fetching the preview URL again.
       const bytes = loadExportBytes
         ? await loadExportBytes()
-        : new Uint8Array(await (await fetch(src)).arrayBuffer());
+        : new Uint8Array(await (file ?? (await fetch(src))).arrayBuffer());
       if (generation !== exportGeneration.current) return;
       const result = await (shareImage ?? getPlatform().files.copyPngExport)({ pngBytes: bytes });
       if (generation !== exportGeneration.current) return;

@@ -98,30 +98,33 @@ export function AttachmentChip({
       className={`flex max-w-70 items-center gap-1.5 rounded-md border bg-bg-floating px-2 py-1 text-xs ${stateClass}`}
       title={item.error ?? (uploading ? item.filename : `${item.filename} (${sizeLabel})`)}
     >
-      {uploading ? (
-        <span className="relative grid size-8 shrink-0 place-items-center overflow-hidden rounded-sm border border-border-subtle">
-          {item.previewUrl ? (
-            <img
-              src={item.previewUrl}
-              alt=""
-              className="absolute inset-0 size-full object-cover opacity-50"
-            />
-          ) : null}
-          <SpinnerIcon
-            aria-label={t("messages.uploading")}
-            className="relative size-3.5 motion-safe:animate-spin"
-          />
-        </span>
-      ) : isImage && item.previewUrl ? (
+      {isImage && item.previewUrl ? (
         <button
           type="button"
           onClick={onPreview}
           disabled={!onPreview}
-          className="block size-8 shrink-0 overflow-hidden rounded-sm border border-border-subtle focus-outline"
+          className="relative grid size-8 shrink-0 place-items-center overflow-hidden rounded-sm border border-border-subtle focus-outline"
           aria-label={t("messages.previewImage")}
         >
-          <img src={item.previewUrl} alt={item.filename} className="block size-full object-cover" />
+          <img
+            src={item.previewUrl}
+            alt={item.filename}
+            className={`absolute inset-0 size-full object-cover ${uploading ? "opacity-50" : ""}`}
+          />
+          {uploading ? (
+            <SpinnerIcon
+              aria-label={t("messages.uploading")}
+              className="relative size-3.5 motion-safe:animate-spin"
+            />
+          ) : null}
         </button>
+      ) : uploading ? (
+        <span className="grid size-8 shrink-0 place-items-center rounded-sm border border-border-subtle">
+          <SpinnerIcon
+            aria-label={t("messages.uploading")}
+            className="size-3.5 motion-safe:animate-spin"
+          />
+        </span>
       ) : (
         <AttachmentIcon className="size-3 shrink-0" />
       )}
