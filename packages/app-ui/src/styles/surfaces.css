@@ -182,3 +182,12 @@
   margin-right: -4px;
   border-radius: 999px;
 }
+
+/* On the flush sidebar canvas the glass lifts only a little; the floating
+   default spreads into a grey band behind the whole row. */
+[data-sidebar-entries] .glass-surface {
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--bg-base) 90%, transparent),
+    inset 0 0 0 0.5px color-mix(in srgb, var(--text-primary) 14%, transparent),
+    0 1px 3px rgb(0 0 0 / 0.06);
+}

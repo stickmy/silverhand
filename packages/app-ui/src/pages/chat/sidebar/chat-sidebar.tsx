@@ -145,10 +145,9 @@ export function ChatSidebar(props: ChatSidebarProps): JSX.Element {
 
   const readingPosition = useListReadingPosition("chat-list");
   const style = useSidebarStyle();
-  // The compact list is the Chats root, titled like the other Tab roots. In the
-  // Recent style the bar also takes the list's own entries: Search beside New
-  // workspace, Saved and Archived behind the bar's menu.
-  const recentEntries = style === "recent";
+  // The compact list is the Chats root, titled like the other Tab roots. Its
+  // bar takes the list's entries too, each in reach rather than behind a menu:
+  // Search, Saved, Archived and New project.
   const [chatsBar, chatsBarHandlers] = nativeActionBar(
     {
       title: t("chat.chats"),
@@ -156,18 +155,29 @@ export function ChatSidebar(props: ChatSidebarProps): JSX.Element {
       largeTitle: true,
       tabs: null,
       addTabs: null,
-      overflow: recentEntries ? { label: t("chat.more"), icon: iconMarkup(MoreIcon) } : undefined,
     },
     [
-      recentEntries
-        ? {
-            id: "search",
-            label: t("common.search"),
-            icon: iconMarkup(SearchIcon),
-            primary: true,
-            run: props.onSelectSearch,
-          }
-        : null,
+      {
+        id: "search",
+        label: t("common.search"),
+        icon: iconMarkup(SearchIcon),
+        primary: true,
+        run: props.onSelectSearch,
+      },
+      {
+        id: "saved",
+        label: t("chat.saved"),
+        icon: iconMarkup(BookmarkIcon),
+        primary: true,
+        run: props.onSelectSaved,
+      },
+      {
+        id: "archived",
+        label: t("common.archived"),
+        icon: iconMarkup(ArchiveIcon),
+        primary: true,
+        run: props.onSelectArchived,
+      },
       {
         id: "create-workspace",
         label: t("chat.newProject"),
@@ -175,22 +185,6 @@ export function ChatSidebar(props: ChatSidebarProps): JSX.Element {
         primary: true,
         run: props.onCreateWorkspace,
       },
-      recentEntries
-        ? {
-            id: "saved",
-            label: t("chat.saved"),
-            icon: iconMarkup(BookmarkIcon),
-            run: props.onSelectSaved,
-          }
-        : null,
-      recentEntries
-        ? {
-            id: "archived",
-            label: t("common.archived"),
-            icon: iconMarkup(ArchiveIcon),
-            run: props.onSelectArchived,
-          }
-        : null,
     ],
   );
   const native = useNativeBar(props.fill ? chatsBar : null, chatsBarHandlers);
@@ -213,7 +207,7 @@ export function ChatSidebar(props: ChatSidebarProps): JSX.Element {
           <nav
             {...readingPosition}
             data-scroll-root
-            className="scrollbar-hide flex min-h-0 flex-1 flex-col overflow-y-auto pb-1 pr-1"
+            className="scrollbar-hide flex min-h-0 flex-1 flex-col overflow-y-auto pb-1"
           >
             {style === "recent" ? (
               <>
@@ -244,41 +238,47 @@ export function ChatSidebar(props: ChatSidebarProps): JSX.Element {
               </>
             ) : (
               <>
-                <div className="mb-3 space-y-1">
-                  <SidebarNavigationButton
-                    onClick={props.onSelectSearch}
-                    active={props.searchActive}
-                  >
-                    <SearchIcon className="size-4" />
-                    <span>{t("common.search")}</span>
-                  </SidebarNavigationButton>
+                {native.active ? null : <TouchEntryRow {...props} />}
+                {native.active ? null : (
+                  <div data-sidebar-entry-list className="mb-3 space-y-1">
+                    <SidebarNavigationButton
+                      onClick={props.onSelectSearch}
+                      active={props.searchActive}
+                    >
+                      <SearchIcon className="size-4" />
+                      <span>{t("common.search")}</span>
+                    </SidebarNavigationButton>
 
-                  <SidebarNavigationButton onClick={props.onSelectSaved} active={props.savedActive}>
-                    <BookmarkIcon
-                      className={cn("size-4", props.savedActive ? "fill-current" : "")}
-                    />
-                    <span>{t("chat.saved")}</span>
-                    {props.savedCount !== undefined && props.savedCount > 0 ? (
-                      <span
-                        data-sidebar-count
-                        className={cn(
-                          "text-[10px] tabular-nums",
-                          props.savedActive ? "text-text-nav-selected/70" : "text-text-muted",
-                        )}
-                      >
-                        {props.savedCount}
-                      </span>
-                    ) : null}
-                  </SidebarNavigationButton>
+                    <SidebarNavigationButton
+                      onClick={props.onSelectSaved}
+                      active={props.savedActive}
+                    >
+                      <BookmarkIcon
+                        className={cn("size-4", props.savedActive ? "fill-current" : "")}
+                      />
+                      <span>{t("chat.saved")}</span>
+                      {props.savedCount !== undefined && props.savedCount > 0 ? (
+                        <span
+                          data-sidebar-count
+                          className={cn(
+                            "text-[10px] tabular-nums",
+                            props.savedActive ? "text-text-nav-selected/70" : "text-text-muted",
+                          )}
+                        >
+                          {props.savedCount}
+                        </span>
+                      ) : null}
+                    </SidebarNavigationButton>
 
-                  <SidebarNavigationButton
-                    onClick={props.onSelectArchived}
-                    active={props.archivedActive}
-                  >
-                    <ArchiveIcon className="size-4" />
-                    <span>{t("common.archived")}</span>
-                  </SidebarNavigationButton>
-                </div>
+                    <SidebarNavigationButton
+                      onClick={props.onSelectArchived}
+                      active={props.archivedActive}
+                    >
+                      <ArchiveIcon className="size-4" />
+                      <span>{t("common.archived")}</span>
+                    </SidebarNavigationButton>
+                  </div>
+                )}
 
                 <SortableGroup ids={branches.map((branch) => branch.id)} onReorder={reorder}>
                   {branches.map((branch) => (
@@ -404,6 +404,49 @@ interface SidebarNavigationButtonProps {
   active: boolean | undefined;
   onClick: () => void;
   children: ReactNode;
+}
+
+/**
+ * The open iPhone Duo, which has no titlebar, takes the three entries as one
+ * row: a grey field that reads as a search input (the titlebar search's fill)
+ * but opens the search page, and one glass capsule with Saved and Archived as
+ * icons. Round ends sit easily under the display's rounded corner. Only
+ * vertical-bar.css shows it, in place of the list of entries.
+ */
+function TouchEntryRow(props: ChatSidebarProps): JSX.Element {
+  return (
+    <div data-sidebar-entries className="mb-3 hidden items-center gap-2 pl-2">
+      <button
+        type="button"
+        onClick={props.onSelectSearch}
+        aria-pressed={props.searchActive}
+        className="flex h-11 min-w-0 flex-1 items-center gap-1.5 rounded-full bg-text-primary/10 px-3 text-left text-text-muted aria-pressed:text-text-primary"
+      >
+        <SearchIcon className="size-4.5 shrink-0" />
+        <span className="truncate text-base">{t("common.search")}</span>
+      </button>
+      <div className="glass-surface flex h-11 shrink-0 items-center rounded-full px-0.5">
+        <button
+          type="button"
+          onClick={props.onSelectSaved}
+          aria-pressed={props.savedActive}
+          aria-label={t("chat.saved")}
+          className="grid size-9.5 place-items-center rounded-full text-text-secondary aria-pressed:bg-bg-nav-selected aria-pressed:text-text-nav-selected"
+        >
+          <BookmarkIcon className={cn("size-4.5", props.savedActive ? "fill-current" : "")} />
+        </button>
+        <button
+          type="button"
+          onClick={props.onSelectArchived}
+          aria-pressed={props.archivedActive}
+          aria-label={t("common.archived")}
+          className="grid size-9.5 place-items-center rounded-full text-text-secondary aria-pressed:bg-bg-nav-selected aria-pressed:text-text-nav-selected"
+        >
+          <ArchiveIcon className="size-4.5" />
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function SidebarNavigationButton({

@@ -14,6 +14,8 @@
    canvas instead, as the compact layout does: no frame, no card corners or
    borders, and iris's hairline between panes. */
 :root[data-vertical-bar][data-layout="regular"] .app-shell {
+  /* Edge to edge, with no card frame around it, the desktop inset reads tight. */
+  --sidebar-inset: 12px;
   --frame-padding: 0px;
   --pane-radius: 0px;
   --pane-border: 0;
@@ -36,8 +38,11 @@
   padding-top: var(--native-bar-bottom, 0px);
   padding-bottom: max(0px, env(safe-area-inset-bottom, 0px) - 12px);
 }
-:root[data-vertical-bar][data-layout="regular"] [data-section-sheet] [data-panel="sidebar"] {
-  padding-top: calc(var(--native-bar-bottom, 0px) + 6px);
+/* The filter row takes the chat header's 48px band (both panes start at the
+   bar bottom above), so its chips and the conversation title share one centre
+   line across the panes. */
+:root[data-vertical-bar][data-layout="regular"] [data-recent-filter] > :first-child {
+  min-height: 48px;
 }
 /* Panes meet at iris's divider in every theme: a hairline down the splitter's
    middle, which darkens with the track on hover and drag. */
@@ -62,4 +67,11 @@
 }
 :root[data-vertical-bar][data-layout="regular"][data-theme] [data-section-sheet] {
   border: 0;
+}
+/* Without a titlebar search, the sidebar's entries are one row. */
+:root[data-vertical-bar][data-layout="regular"] [data-sidebar-entries] {
+  display: flex;
+}
+:root[data-vertical-bar][data-layout="regular"] [data-sidebar-entry-list] {
+  display: none;
 }

@@ -47,6 +47,9 @@ enum BarGlyphs {
   static func item(for action: BarAction, onTap: @escaping (String) -> Void) -> UIBarButtonItem {
     let item = UIBarButtonItem(
       image: image(action.icon), primaryAction: UIAction { _ in onTap(action.id) })
+    // The bar draws the image; the title is what the system's overflow menu
+    // lists when a crowded bar folds items into it.
+    item.title = action.label
     item.accessibilityLabel = action.accessibilityLabel ?? action.label
     item.isSelected = action.selected
     // The system selection, in ink: the accent colour is the brand's, not a

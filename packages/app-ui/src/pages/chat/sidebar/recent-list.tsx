@@ -56,7 +56,7 @@ import {
 import { ChannelRowMenuItems } from "./channel-row-menu-items";
 import { ProjectFilterStrip } from "./project-filter-strip";
 import type { WorkspaceItem } from "./workspaces-panel";
-import { useCompactLayout } from "@/navigation/layout";
+import { useCoarsePointer } from "@/navigation/layout";
 import { t } from "@/lib/i18n";
 
 type RecentListRow =
@@ -203,7 +203,7 @@ export function RecentList(props: {
       {liveWorkspaces.length > 1 || props.actions || focusedWorkspace ? (
         <div
           data-recent-filter
-          className="sticky top-0 z-10 shrink-0 bg-(--pane-bg,var(--bg-base)) px-1 pb-2"
+          className="sticky top-0 z-10 shrink-0 bg-(--pane-bg,var(--bg-base)) pb-2"
         >
           <div className="flex items-center gap-1">
             {liveWorkspaces.length > 1 ? (
@@ -367,9 +367,10 @@ const RecentRow = forwardRef<HTMLButtonElement, RecentRowProps>(function RecentR
   },
   ref,
 ) {
-  // The phone list takes iOS list proportions: a larger picture and type, no
-  // hairlines, and unread told by weight with a number only when it is loud.
-  const compact = useCompactLayout();
+  // A touch list takes iOS list proportions, wide or not: a larger picture and
+  // type, no hairlines, and unread told by weight with a number only when it
+  // is loud.
+  const compact = useCoarsePointer();
   const unread = row.badge !== null;
 
   const counterpart = row.kind === "direct" ? presentCounterpart(row.counterpart) : null;

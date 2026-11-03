@@ -176,6 +176,9 @@ final class SilverhandNavigationController: UITabBarController, UITabBarControll
     let bars: Bars
     let width: CGFloat
     let enabled: Bool
+    /// The bar's edge can settle a layout pass after the width does (Duo
+    /// unfolding), so it must redraw the titlebar on its own.
+    let vertical: Bool
   }
 
   /// What the selected page's navigation bar carries: the titlebar in the
@@ -192,7 +195,8 @@ final class SilverhandNavigationController: UITabBarController, UITabBarControll
       let host = stack.topViewController
     else { return }
     let next = AppliedBars(
-      host: ObjectIdentifier(host), bars: bars, width: view.bounds.width, enabled: !blocked)
+      host: ObjectIdentifier(host), bars: bars, width: view.bounds.width, enabled: !blocked,
+      vertical: verticalBarEdge != nil)
     // Layout passes call this too; rebuilding unchanged items would restart
     // their glass animations.
     guard next != appliedBars else {
@@ -297,7 +301,7 @@ final class SilverhandNavigationController: UITabBarController, UITabBarControll
     let top = view.safeAreaInsets.top
     let bottom: CGFloat
     if verticalBarEdge != nil, titlebar.state != nil {
-      // The panes' own 48pt headers clear the display's corners by their own
+      // The panes' own headers clear the display's corners by their own
       // padding, so they need only a small gap above.
       bottom = view.safeAreaInsets.top + 10
     } else if verticalBarEdge != nil {

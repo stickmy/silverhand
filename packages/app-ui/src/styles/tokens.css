@@ -68,6 +68,8 @@
 
 /* ── Non-themable layout constants ── */
 :root {
+  /* The sidebar's inline inset: its rows and its pinned filter both start here. */
+  --sidebar-inset: 6px;
   --titlebar-height: 36px;
   --nav-rail-width: 36px;
   --sidebar-width: 240px;

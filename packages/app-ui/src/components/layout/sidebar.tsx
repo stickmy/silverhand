@@ -44,7 +44,10 @@ export function Sidebar({
         data-panel="sidebar"
         data-sidebar={name}
         aria-label={label}
-        className={cn("flex h-full flex-col px-1.5 py-1.5", fill ? "min-w-0 flex-1" : "shrink-0")}
+        className={cn(
+          "flex h-full flex-col px-(--sidebar-inset) py-1.5",
+          fill ? "min-w-0 flex-1" : "shrink-0",
+        )}
         style={{ ...paneChrome, overflow: "hidden", width: fill ? undefined : width }}
       >
         {sidebar}
