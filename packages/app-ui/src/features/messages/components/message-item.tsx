@@ -878,93 +878,73 @@ function ActorMessageItem({
           leading side, where a reversed row puts what follows the column. */}
       {alignRight ? hoverTime : null}
 
-      {/* Frame-corner action controls (Save + Thread) — absolutely
-          pinned to the top-right of the framed message row (mirrored
-          to top-left in user-right mode so they sit on the side away
-          from the avatar). Anchored to the OUTER row container (which
-          carries the hover frame's `border-accent bg-bg-floating`),
-          NOT to the inner content column — that way the controls
-          visually belong to the "card" instead of floating over the
-          markdown body.
+      {/* Hover actions (react, thread, save) — one framed toolbar on the row's
+          top-right corner for every message, own right-aligned ones included,
+          straddling the top edge so it covers neither this body nor the row's
+          height. The full-height track keeps it sticky inside the row: on a
+          message taller than the viewport it stays pinned under the pane's
+          top while the row is on screen. It is a descendant of the row, so
+          moving onto the part outside the row keeps `hover`.
 
-          Visibility: gated by hover OR focus-within so a keyboard
-          user can tab to them without sighted-only hover access; on
-          either trigger the wrapper flips to opacity-100 +
-          pointer-events-auto. Both signals are React state — the
-          Tailwind `focus-within:` utility variant has the same
-          specificity as the base `opacity-0` and loses to it in the
-          compiled CSS, so we drive the class directly from a
-          `focusWithin` state instead. The controls re-use
-          ActionButton so they share its visual language — icon-only,
-          color-only hover, no container chrome (the text label lives
-          in `title` / `aria-label`).
+          Visibility is React state (hover / focus-within / open picker):
+          Tailwind's `focus-within:` ties with the base `opacity-0` and loses.
 
-          The Thread button is suppressed when `threadReplyCount` is
-          already set — the inline "{N} Reply" badge is the discovery
-          affordance in that case, so a duplicate "go to thread" icon
-          would just be noise. */}
+          Thread is omitted when the message already has replies — the inline
+          "{N} Reply" badge is that entry. */}
       {committed ? (
-        <div
-          onFocus={() => setFocusWithin(true)}
-          onBlur={handleActionsBlur}
-          className={
-            "absolute top-1 z-(--z-raised) flex items-center gap-3 text-xs transition-opacity " +
-            (alignRight ? "left-2" : "right-2") +
-            " " +
-            (hover || focusWithin || reactionPickerOpen
-              ? "opacity-100"
-              : "pointer-events-none opacity-0")
-          }
-        >
-          {canReact ? (
-            <ReactionPicker
-              // The cluster itself is mirrored (`left-2` above), so the picker's
-              // growth direction has to mirror with it: a popover always opens
-              // from the trigger's own edge INTO the row, never out of it.
-              // `end` grows leftward, `start` rightward — so the left-hand
-              // cluster of an own message takes `start` (shiki 2026-08-06
-              // 「user message 的 reaction 在左侧,如果 popover 也往左,那么就
-              // 超出了」, #task:1840).
-              align={alignRight ? "start" : "end"}
-              onOpenChange={setReactionPickerOpen}
-              onPick={(emoji) =>
-                toggleReaction.mutate({
-                  target: reactionTarget,
-                  emoji,
-                  remove: false,
-                })
+        <div className="pointer-events-none absolute inset-y-0 right-2 z-(--z-raised)">
+          <div className="sticky top-[calc(var(--pane-chrome-height,0px)+1rem)] h-0">
+            <div
+              data-popover-frame="toolbar"
+              onFocus={() => setFocusWithin(true)}
+              onBlur={handleActionsBlur}
+              className={
+                "absolute right-0 flex -translate-y-1/2 items-center gap-0.5 bg-bg-floating p-0.5 shadow-popover transition-opacity " +
+                (hover || focusWithin || reactionPickerOpen
+                  ? "pointer-events-auto opacity-100"
+                  : "opacity-0")
               }
-              trigger={
-                <button
-                  type="button"
-                  title={t("messages.react")}
-                  aria-label={t("messages.react")}
-                  className="flex items-center rounded-sm text-text-muted transition-colors hover:text-text-primary focus-outline"
-                >
-                  <AddReactionIcon className="size-3.5" />
-                </button>
-              }
-            />
-          ) : null}
-          {onStartThread && threadReplyCount === undefined && canParticipate ? (
-            <ActionButton
-              icon={<ThreadIcon className="size-3.5" />}
-              label={t("messages.thread2")}
-              onClick={() => onStartThread(message)}
-              alwaysVisible
-              hovered={hover}
-            />
-          ) : null}
-          {onSave ? (
-            <ActionButton
-              icon={<BookmarkIcon className={"size-3.5 " + (saved ? "fill-current" : "")} />}
-              label={saved ? t("messages.saved") : t("common.save")}
-              active={saved}
-              onClick={() => onSave(message)}
-              alwaysVisible
-              hovered={hover}
-            />
-          ) : null}
+            >
+              {canReact ? (
+                <ReactionPicker
+                  align="end"
+                  onOpenChange={setReactionPickerOpen}
+                  onPick={(emoji) =>
+                    toggleReaction.mutate({
+                      target: reactionTarget,
+                      emoji,
+                      remove: false,
+                    })
+                  }
+                  trigger={
+                    <button
+                      type="button"
+                      title={t("messages.react")}
+                      aria-label={t("messages.react")}
+                      className={TOOLBAR_BUTTON_CLASS + " text-text-muted hover:text-text-primary"}
+                    >
+                      <AddReactionIcon className="size-3.5" />
+                    </button>
+                  }
+                />
+              ) : null}
+              {onStartThread && threadReplyCount === undefined && canParticipate ? (
+                <ActionButton
+                  icon={<ThreadIcon className="size-3.5" />}
+                  label={t("messages.thread2")}
+                  onClick={() => onStartThread(message)}
+                />
+              ) : null}
+              {onSave ? (
+                <ActionButton
+                  icon={<BookmarkIcon className={"size-3.5 " + (saved ? "fill-current" : "")} />}
+                  label={saved ? t("messages.saved") : t("common.save")}
+                  active={saved}
+                  onClick={() => onSave(message)}
+                />
+              ) : null}
+            </div>
+          </div>
         </div>
       ) : null}
     </div>
@@ -1167,27 +1147,21 @@ function AuthorLabel({
   );
 }
 
+// Concentric with the toolbar frame: its corner minus the frame's `p-0.5`.
+const TOOLBAR_BUTTON_CLASS =
+  "flex size-6 items-center justify-center rounded-[max(0px,calc(var(--floating-radius,var(--radius-md))-2px))] transition-colors hover:bg-(--bg-hover) focus-outline";
+
 function ActionButton({
   icon,
   label,
   onClick,
   active = false,
-  hovered,
-  alwaysVisible = false,
 }: {
   icon: React.ReactNode;
   label: string;
   onClick?: () => void;
   active?: boolean;
-  /** Whether the parent row is currently hovered. Drives visibility
-   *  unless `alwaysVisible` overrides it. */
-  hovered: boolean;
-  /** Force the button to render at full opacity regardless of hover —
-   *  used for the persistent "{N} Reply" badge so the user can see at
-   *  a glance that a message has an open thread. */
-  alwaysVisible?: boolean;
 }): JSX.Element {
-  const visible = alwaysVisible || hovered;
   return (
     <button
       type="button"
@@ -1195,8 +1169,7 @@ function ActionButton({
       title={label}
       aria-label={label}
       className={
-        "flex items-center rounded-sm transition-[color,background-color,border-color,outline-color,text-decoration-color,fill,stroke,opacity] focus-outline " +
-        (visible ? "opacity-100" : "pointer-events-none opacity-0") +
+        TOOLBAR_BUTTON_CLASS +
         " " +
         (active ? "text-accent" : "text-text-muted hover:text-text-primary")
       }
