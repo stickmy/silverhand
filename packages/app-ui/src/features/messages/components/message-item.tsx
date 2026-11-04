@@ -896,7 +896,15 @@ function ActorMessageItem({
           <div className="sticky top-[calc(var(--pane-chrome-height,0px)+1rem)] h-0">
             <div
               data-popover-frame="toolbar"
-              onFocus={() => setFocusWithin(true)}
+              // Only keyboard focus keeps the toolbar up. A clicked button keeps
+              // focus (and the picker hands it back to its trigger on close),
+              // which would otherwise leave the toolbar shown after the pointer
+              // has left the row.
+              onFocus={(event) => {
+                if (event.target.matches(":focus-visible")) {
+                  setFocusWithin(true);
+                }
+              }}
               onBlur={handleActionsBlur}
               className={
                 "absolute right-0 flex -translate-y-1/2 items-center gap-0.5 bg-bg-floating p-0.5 shadow-popover transition-opacity " +
