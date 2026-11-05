@@ -4,6 +4,7 @@ import {
   useImperativeHandle,
   useLayoutEffect,
   useRef,
+  type MouseEvent,
   type ReactNode,
   type Ref,
 } from "react";
@@ -78,6 +79,10 @@ export function MessageScroller<T>({
   // Content height at the last settle. When it differs, the DOM changed size
   // since the anchor was taken, and the anchor must be applied, not re-read.
   const settledHeightRef = useRef(0);
+  // A disclosure the reader just toggled. Its growth must extend downward from
+  // where they are reading, even at the bottom, instead of being pinned under
+  // the composer; collapsing must not leave it out of view.
+  const toggledRef = useRef<HTMLElement | null>(null);
   const latest = useRef({ follow, atBottomThreshold, reachEdgeDistance });
   latest.current = { follow, atBottomThreshold, reachEdgeDistance };
   const callbacks = useRef({ onReachTop, onReachBottom, onAtBottomChange, onTopItemChange });
@@ -173,6 +178,12 @@ export function MessageScroller<T>({
     if (!scroller) {
       return;
     }
+    const toggled = toggledRef.current;
+    if (toggled && scroller.scrollHeight !== settledHeightRef.current) {
+      toggledRef.current = null;
+      // Re-derived from the new geometry: grown content has left the bottom.
+      atBottomRef.current = null;
+    }
     if (latest.current.follow && atBottomRef.current) {
       scroller.scrollTop = scroller.scrollHeight;
     } else {
@@ -189,8 +200,37 @@ export function MessageScroller<T>({
         break;
       }
     }
+    if (toggled && toggledRef.current === null) {
+      const top = scroller.getBoundingClientRect().top;
+      const rect = toggled.getBoundingClientRect();
+      if (rect.bottom <= top) {
+        scroller.scrollTop += rect.top - top;
+      }
+    }
     sync();
   }, [findRow, sync, visibleScroller]);
+
+  const handleClickCapture = useCallback(
+    (event: MouseEvent) => {
+      const toggle = (event.target as Element).closest<HTMLElement>("[aria-expanded]");
+      if (!toggle || toggle.hasAttribute("aria-haspopup")) {
+        return;
+      }
+      captureAnchor();
+      toggledRef.current = toggle;
+      // A toggle that changed nothing must not hold over to the next resize
+      // (a live append at the bottom). A real toggle is settled by the
+      // ResizeObserver of the next frame, which runs after its rAF callbacks.
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          if (toggledRef.current === toggle) {
+            toggledRef.current = null;
+          }
+        }),
+      );
+    },
+    [captureAnchor],
+  );
 
   // A scroll event can land between a size change and its ResizeObserver
   // pass; re-reading the anchor there would adopt the moved layout.
@@ -281,6 +321,7 @@ export function MessageScroller<T>({
       ref={scrollerRef}
       data-message-scroller=""
       onScroll={handleScroll}
+      onClickCapture={handleClickCapture}
       // Browser scroll anchoring would correct prepends a second time. Rubber
       // banding is off for the same reason: an iOS bounce still running when
       // older rows land pulls the corrected offset back to the top, which
@@ -288,7 +329,10 @@ export function MessageScroller<T>({
       style={{ overflowAnchor: "none", overscrollBehaviorY: "none" }}
       className={cn("overflow-y-auto outline-none", className)}
     >
-      <div ref={contentRef} className="flow-root">
+      {/* Fewer rows than fill the viewport rest on the composer; the spare
+      height sits above them and the header. */}
+      <div ref={contentRef} className="flex min-h-full flex-col">
+        <div aria-hidden className="flex-1" />
         {header}
         <div ref={rowsRef}>
           {items.map((item) => {

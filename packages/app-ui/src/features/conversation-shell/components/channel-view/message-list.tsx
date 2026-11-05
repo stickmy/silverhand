@@ -30,7 +30,11 @@ import { MessageActionChrome } from "@/features/messages/components/message-acti
 import { NativeComposerRoom } from "@/features/messages/components/native-composer-room";
 import { MessageRowsSkeleton } from "@/features/conversation-shell/components/conversation-view-skeleton";
 import { EmptyConversation } from "./empty-conversation";
-import { type CachedMessage, isCommittedMessage } from "@/features/channels/pending-message";
+import {
+  type CachedMessage,
+  isCommittedMessage,
+  isPendingMessage,
+} from "@/features/channels/pending-message";
 import type { WorkspaceChannelReference } from "@/features/messages/components/conversation-ref";
 import {
   classifyTopShift,
@@ -386,6 +390,20 @@ export function MessageList({
   useEffect(() => {
     setShowScrollBottom(!isAtBottom);
   }, [isAtBottom]);
+
+  // The reader's own send is brought into view wherever they were reading.
+  // Others' messages only follow a reader already at the bottom (`follow`).
+  // Optimistic rows exist only for the viewer's own sends.
+  const lastItem = items[items.length - 1];
+  const ownSendKey =
+    lastItem?.kind === "message" && isPendingMessage(lastItem.message) ? lastItem.message.id : null;
+  const followedSendRef = useRef(ownSendKey);
+  useLayoutEffect(() => {
+    if (ownSendKey && ownSendKey !== followedSendRef.current) {
+      scrollerRef.current?.scrollToBottom();
+    }
+    followedSendRef.current = ownSendKey;
+  }, [ownSendKey]);
 
   const handleStartReached = useCallback(() => {
     if (!surfaceActive || jumpToMessageId || !hasMoreBefore || isFetchingEarlier) return;
