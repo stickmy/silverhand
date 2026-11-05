@@ -1,0 +1,298 @@
+import {
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useRef,
+  type ReactNode,
+  type Ref,
+} from "react";
+import { cn } from "@/lib/cn";
+
+const ANCHOR_ROWS = 4;
+
+export interface MessageScrollerHandle {
+  scrollToBottom(): void;
+  /** False when the row is not in the loaded window. */
+  scrollToKey(key: string, align: "start" | "center"): boolean;
+}
+
+export type MessageScrollerAnchor =
+  | { kind: "bottom" }
+  | { kind: "key"; key: string; align: "start" | "center" };
+
+/**
+ * The message list's scroll engine. Every loaded row is real DOM, so heights
+ * come from layout and are never estimated. The reader's place is held as
+ * (first visible row, its offset); any change above it — older pages
+ * prepended, an image loading, an edit — is compensated before paint, so rows
+ * never visibly move. A reader at the bottom stays at the bottom instead.
+ *
+ * `MessageList` depends only on this props/handle contract, so the engine can
+ * be swapped (back to a virtualizer, say) without touching its callers.
+ */
+export function MessageScroller<T>({
+  items,
+  itemKey,
+  renderItem,
+  header,
+  footer,
+  initialAnchor,
+  follow,
+  atBottomThreshold,
+  reachTopDistance,
+  onReachTop,
+  onAtBottomChange,
+  onTopItemChange,
+  controlRef,
+  className,
+}: {
+  items: readonly T[];
+  itemKey: (item: T) => string;
+  renderItem: (item: T) => ReactNode;
+  header?: ReactNode;
+  footer?: ReactNode;
+  /** Read once, when the engine mounts. */
+  initialAnchor: MessageScrollerAnchor;
+  /** Whether a reader at the bottom is kept there as content grows. */
+  follow: boolean;
+  atBottomThreshold: number;
+  reachTopDistance: number;
+  onReachTop: () => void;
+  onAtBottomChange: (atBottom: boolean) => void;
+  onTopItemChange: (key: string) => void;
+  controlRef: Ref<MessageScrollerHandle>;
+  className?: string;
+}): JSX.Element {
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const rowsRef = useRef<HTMLDivElement>(null);
+  // The first visible rows with their offsets. Several, because the top one
+  // can change key when older rows merge into it (an activity cluster).
+  const anchorRef = useRef<{ key: string; offset: number }[]>([]);
+  const atBottomRef = useRef<boolean | null>(null);
+  const lastScrollTopRef = useRef(0);
+  // Content height at the last settle. When it differs, the DOM changed size
+  // since the anchor was taken, and the anchor must be applied, not re-read.
+  const settledHeightRef = useRef(0);
+  const latest = useRef({ follow, atBottomThreshold, reachTopDistance });
+  latest.current = { follow, atBottomThreshold, reachTopDistance };
+  const callbacks = useRef({ onReachTop, onAtBottomChange, onTopItemChange });
+  callbacks.current = { onReachTop, onAtBottomChange, onTopItemChange };
+  const initialAnchorRef = useRef(initialAnchor);
+
+  const findRow = useCallback((key: string): HTMLElement | null => {
+    const rows = rowsRef.current;
+    if (!rows) {
+      return null;
+    }
+    return rows.querySelector<HTMLElement>(`:scope > [data-scroller-key="${CSS.escape(key)}"]`);
+  }, []);
+
+  // A hidden scroller (display: none) reports zero geometry; reading it would
+  // lose the reader's place, so every pass skips it.
+  const visibleScroller = useCallback((): HTMLDivElement | null => {
+    const scroller = scrollerRef.current;
+    return scroller && scroller.clientHeight > 0 ? scroller : null;
+  }, []);
+
+  const captureAnchor = useCallback(() => {
+    const scroller = visibleScroller();
+    const rows = rowsRef.current;
+    if (!scroller || !rows) {
+      return;
+    }
+    const top = scroller.getBoundingClientRect().top;
+    const children = rows.children;
+    let low = 0;
+    let high = children.length - 1;
+    let found: HTMLElement | null = null;
+    while (low <= high) {
+      const mid = (low + high) >> 1;
+      const row = children[mid] as HTMLElement;
+      if (row.getBoundingClientRect().bottom > top) {
+        found = row;
+        high = mid - 1;
+      } else {
+        low = mid + 1;
+      }
+    }
+    const anchors: { key: string; offset: number }[] = [];
+    for (let row = found; row && anchors.length < ANCHOR_ROWS;) {
+      anchors.push({
+        key: row.dataset.scrollerKey!,
+        offset: row.getBoundingClientRect().top - top,
+      });
+      row = row.nextElementSibling as HTMLElement | null;
+    }
+    anchorRef.current = anchors;
+  }, [visibleScroller]);
+
+  const sync = useCallback(() => {
+    const scroller = visibleScroller();
+    if (!scroller) {
+      return;
+    }
+    const previousKey = anchorRef.current[0]?.key;
+    captureAnchor();
+    const key = anchorRef.current[0]?.key;
+    if (key && key !== previousKey) {
+      callbacks.current.onTopItemChange(key);
+    }
+
+    // Only scrolling up leaves the bottom. Content that grew since the last
+    // settle (an image, the next row) would otherwise read as the reader
+    // having left, and the bottom would stop being held.
+    const distance = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
+    const scrolledUp = scroller.scrollTop < lastScrollTopRef.current;
+    lastScrollTopRef.current = scroller.scrollTop;
+    const atBottom =
+      distance <= latest.current.atBottomThreshold || (atBottomRef.current === true && !scrolledUp);
+    if (atBottom !== atBottomRef.current) {
+      atBottomRef.current = atBottom;
+      callbacks.current.onAtBottomChange(atBottom);
+    }
+
+    settledHeightRef.current = scroller.scrollHeight;
+    if (scroller.scrollTop <= latest.current.reachTopDistance) {
+      callbacks.current.onReachTop();
+    }
+  }, [captureAnchor, visibleScroller]);
+
+  // Re-places the reader after content or viewport changed size. Runs before
+  // paint (layout effect, ResizeObserver), so the intermediate layout is never
+  // shown.
+  const settle = useCallback(() => {
+    const scroller = visibleScroller();
+    if (!scroller) {
+      return;
+    }
+    if (latest.current.follow && atBottomRef.current) {
+      scroller.scrollTop = scroller.scrollHeight;
+    } else {
+      for (const anchor of anchorRef.current) {
+        const row = findRow(anchor.key);
+        if (!row) {
+          continue;
+        }
+        const offset = row.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+        const delta = offset - anchor.offset;
+        if (delta !== 0) {
+          scroller.scrollTop += delta;
+        }
+        break;
+      }
+    }
+    sync();
+  }, [findRow, sync, visibleScroller]);
+
+  // A scroll event can land between a size change and its ResizeObserver
+  // pass; re-reading the anchor there would adopt the moved layout.
+  const handleScroll = useCallback(() => {
+    const scroller = visibleScroller();
+    if (scroller && scroller.scrollHeight !== settledHeightRef.current) {
+      settle();
+    } else {
+      sync();
+    }
+  }, [settle, sync, visibleScroller]);
+
+  const scrollToKey = useCallback(
+    (key: string, align: "start" | "center"): boolean => {
+      const scroller = scrollerRef.current;
+      const row = findRow(key);
+      if (!scroller || !row) {
+        return false;
+      }
+      const rowRect = row.getBoundingClientRect();
+      const offset =
+        align === "center" ? Math.max(0, (scroller.clientHeight - rowRect.height) / 2) : 0;
+      scroller.scrollTop += rowRect.top - scroller.getBoundingClientRect().top - offset;
+      sync();
+      return true;
+    },
+    [findRow, sync],
+  );
+
+  useImperativeHandle(
+    controlRef,
+    () => ({
+      scrollToBottom: () => {
+        const scroller = scrollerRef.current;
+        if (!scroller) {
+          return;
+        }
+        scroller.scrollTop = scroller.scrollHeight;
+        sync();
+      },
+      scrollToKey,
+    }),
+    [scrollToKey, sync],
+  );
+
+  // The anchor must describe the layout BEFORE the new rows commit. Scrolling
+  // since the last scroll event is not yet reflected in it, so it is read here,
+  // while the DOM still holds the previous rows.
+  const renderedItemsRef = useRef(items);
+  if (renderedItemsRef.current !== items) {
+    renderedItemsRef.current = items;
+    if (scrollerRef.current?.scrollHeight === settledHeightRef.current) {
+      captureAnchor();
+    }
+  }
+
+  useLayoutEffect(() => {
+    const scroller = scrollerRef.current;
+    const anchor = initialAnchorRef.current;
+    if (!scroller) {
+      return;
+    }
+    if (anchor.kind === "key" && scrollToKey(anchor.key, anchor.align)) {
+      return;
+    }
+    scroller.scrollTop = scroller.scrollHeight;
+    sync();
+  }, [scrollToKey, sync]);
+
+  useLayoutEffect(() => {
+    settle();
+  }, [items, settle]);
+
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    const content = contentRef.current;
+    if (!scroller || !content) {
+      return;
+    }
+    const observer = new ResizeObserver(() => settle());
+    observer.observe(scroller);
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, [settle]);
+
+  return (
+    <div
+      ref={scrollerRef}
+      data-message-scroller=""
+      onScroll={handleScroll}
+      // Browser scroll anchoring would correct prepends a second time.
+      style={{ overflowAnchor: "none" }}
+      className={cn("overflow-y-auto outline-none", className)}
+    >
+      <div ref={contentRef} className="flow-root">
+        {header}
+        <div ref={rowsRef}>
+          {items.map((item) => {
+            const key = itemKey(item);
+            return (
+              <div key={key} data-scroller-key={key}>
+                {renderItem(item)}
+              </div>
+            );
+          })}
+        </div>
+        {footer}
+      </div>
+    </div>
+  );
+}

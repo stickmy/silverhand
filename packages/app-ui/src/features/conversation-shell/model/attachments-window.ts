@@ -1,7 +1,7 @@
 import {
   classifyTopShift,
   FIRST_ITEM_INDEX_START,
-} from "@/features/conversation-shell/model/message-list-virtualization";
+} from "@/features/conversation-shell/model/message-list-window";
 
 // ── Attachments grouped-window position tracking ─────────────────────────
 //

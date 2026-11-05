@@ -62,7 +62,7 @@ import { useAgents } from "@/features/agents/hooks/hooks";
 import { useAgentAvatarObjectUrls } from "@/features/agents/hooks/avatar-hooks";
 import { useJoinChannel } from "@/features/workspaces/hooks";
 import type { ChannelGate } from "@/features/channels/membership";
-import { classifyTopShift } from "@/features/conversation-shell/model/message-list-virtualization";
+import { classifyTopShift } from "@/features/conversation-shell/model/message-list-window";
 import { t, useLocale } from "@/lib/i18n";
 
 interface ThreadPanelProps {
@@ -376,7 +376,7 @@ export function ThreadPanel({
   // Scroll-to-bottom behavior, mirroring the channel (#task:1050 items 4+5):
   // (re)opening the panel lands at the newest reply, and a back-to-bottom
   // button appears once the user scrolls up. ThreadPanel uses a plain
-  // scroll container (not the channel's Virtuoso list), so this is a small
+  // scroll container (not the channel's message list), so this is a small
   // vanilla controller rather than a reused hook.
   const viewMemory = useViewMemory();
   const readingKey = `thread:${channelId}:${rootMessageId}`;
@@ -755,7 +755,7 @@ export function ThreadPanel({
   // `MessageList` flash sequence. App gates `jumpMessageId` to messages
   // whose `thread_root_id === rootMessageId`, so the panel just locates.
   // A pending jump overrides follow-bottom so the locate scroll wins.
-  // Virtuoso renders the channel list async; this plain container renders
+  // This plain container renders
   // its loaded rows synchronously, so a short rAF poll covers the window's
   // commit. A target outside the loaded window (an older paginated reply)
   // releases the jump rather than latching — cross-page locate is a

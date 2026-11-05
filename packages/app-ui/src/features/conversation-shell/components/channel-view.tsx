@@ -719,7 +719,7 @@ function ActiveChannelView({
   // an "ensure the match is visible" op, NOT "reopen a message window" (Cindy):
   //   • match already in the LOADED window (data, not DOM — a virtualized row
   //     can be loaded-but-unmounted) → MessageList scrolls to it locally via
-  //     `searchActiveMessageId` (no prime, no Virtuoso remount → no white flash).
+  //     `searchActiveMessageId` (no prime, no list remount → no white flash).
   //   • match off the loaded window → App's jump/prime path materialises it.
   // Offered only when the pane supports being jumped into (`onJumpToMessage`
   // present) — secondary `?side` panes don't, so they show no find affordance.
@@ -1239,7 +1239,7 @@ function ActiveChannelView({
           the message list. Anchored just below the h-12 header (`top-12`, or
           below the header + tab strip when it shows) and taken out of flow
           (`absolute`) so opening / closing / typing NEVER changes the scroll
-          container's height → no Virtuoso reflow / flicker (shiki: 搜索框不应挤压
+          container's height → no list reflow / flicker (shiki: 搜索框不应挤压
           对话流、不应触发重渲染). It only drives the search controller + this
           overlay; the message window is untouched until the user navigates to a
           match (ensure-visible below). */}
@@ -1367,7 +1367,7 @@ function ActiveChannelView({
 
             {/* Tasks tab — an opaque overlay over the chat column (message list +
             composer) rather than a mount swap, so Chat stays mounted and its
-            Virtuoso scroll survives a tab round-trip. Rendered only while the
+            scroll position survives a tab round-trip. Rendered only while the
             Tasks tab is active, a task-open handler exists (the primary pane),
             AND a board container resolved (fail-closed: a workspace channel with
             no real workspace id mounts nothing). A card opens detail in the side

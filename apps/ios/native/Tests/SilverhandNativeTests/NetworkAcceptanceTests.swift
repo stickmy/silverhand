@@ -426,7 +426,7 @@ final class NetworkAcceptanceTests: XCTestCase {
       try await waitFor("document.querySelector('textarea')?.value === 'unsent foreground draft'")
       try await waitFor("!!document.querySelector('button[aria-label=\"Thread\"]')")
       _ = try await view.evaluateJavaScript(
-        "window.threadRowId = Array.from(document.querySelectorAll('button[aria-label=\"Thread\"]')).find(b => { const row = b.closest('[data-message-row]').getBoundingClientRect(); const viewport = document.querySelector('[data-virtuoso-scroller]').getBoundingClientRect(); return row.top >= viewport.top && row.bottom <= viewport.bottom; }).closest('[data-message-row]').id; document.getElementById(window.threadRowId).querySelector('button[aria-label=\"Thread\"]').click()"
+        "window.threadRowId = Array.from(document.querySelectorAll('button[aria-label=\"Thread\"]')).find(b => { const row = b.closest('[data-message-row]').getBoundingClientRect(); const viewport = document.querySelector('[data-message-scroller]').getBoundingClientRect(); return row.top >= viewport.top && row.bottom <= viewport.bottom; }).closest('[data-message-row]').id; document.getElementById(window.threadRowId).querySelector('button[aria-label=\"Thread\"]').click()"
       )
       try await waitFor(
         "location.hash.includes('thread=') && document.querySelectorAll('textarea').length === 1")
@@ -464,20 +464,20 @@ final class NetworkAcceptanceTests: XCTestCase {
         try await view.evaluateJavaScript("document.documentElement.scrollWidth > innerWidth")
         as? Bool
       XCTAssertEqual(horizontalOverflow, false, "Compact navigation must fit the phone viewport")
-      try await waitFor("!!document.querySelector('[data-virtuoso-scroller]')")
+      try await waitFor("!!document.querySelector('[data-message-scroller]')")
       _ = try await view.evaluateJavaScript(
-        "const scroller = document.querySelector('[data-virtuoso-scroller]'); scroller.scrollTop = scroller.scrollHeight / 2"
+        "const scroller = document.querySelector('[data-message-scroller]'); scroller.scrollTop = scroller.scrollHeight / 2"
       )
       try await Task.sleep(nanoseconds: 250_000_000)
       _ = try await view.evaluateJavaScript(
-        "const viewport = document.querySelector('[data-virtuoso-scroller]').getBoundingClientRect(); window.readingAnchor = Array.from(document.querySelectorAll('[data-message-row]')).find(e => e.getBoundingClientRect().top >= viewport.top && e.getBoundingClientRect().top < viewport.bottom)?.id"
+        "const viewport = document.querySelector('[data-message-scroller]').getBoundingClientRect(); window.readingAnchor = Array.from(document.querySelectorAll('[data-message-row]')).find(e => e.getBoundingClientRect().top >= viewport.top && e.getBoundingClientRect().top < viewport.bottom)?.id"
       )
       try await waitFor("!!window.readingAnchor")
       selectTab(1)
       try await waitFor("location.hash === '#/activity'")
       selectTab(0)
       try await waitFor(
-        "(() => { const item = document.getElementById(window.readingAnchor); const list = document.querySelector('[data-virtuoso-scroller]'); return !!item && !!list && item.getBoundingClientRect().bottom > list.getBoundingClientRect().top && item.getBoundingClientRect().top < list.getBoundingClientRect().bottom; })()"
+        "(() => { const item = document.getElementById(window.readingAnchor); const list = document.querySelector('[data-message-scroller]'); return !!item && !!list && item.getBoundingClientRect().bottom > list.getBoundingClientRect().top && item.getBoundingClientRect().top < list.getBoundingClientRect().bottom; })()"
       )
       _ = try await view.evaluateJavaScript(
         "document.querySelector('[data-scroll-bottom]')?.click()")

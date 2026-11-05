@@ -50,7 +50,7 @@ export interface MessageActionSurface {
  * `<MessageActionChrome>`.
  *
  * Deliberately NOT in scope (the #task:1067 boundary): the list/window
- * strategy. `ChannelView` keeps Virtuoso + a main-stream window reset;
+ * strategy. `ChannelView` keeps `MessageScroller` + a main-stream window reset;
  * `ThreadPanel` keeps a plain scroller + cluster window reset. Each site
  * computes its own `windowResetVersion` / `jumpToMessageId` reset signals
  * and passes them in; this hook only consumes them (via

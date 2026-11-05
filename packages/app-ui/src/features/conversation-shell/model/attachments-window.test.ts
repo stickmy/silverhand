@@ -4,7 +4,7 @@ import {
   reduceAttachmentsWindow,
   type AttachmentsWindowState,
 } from "./attachments-window";
-import { FIRST_ITEM_INDEX_START } from "./message-list-virtualization";
+import { FIRST_ITEM_INDEX_START } from "./message-list-window";
 
 // itemKey sequence for a contiguous id range [from, to].
 const range = (from: number, to: number): string[] =>

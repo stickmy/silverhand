@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // A parent-render probe: effects intentionally do NOT run before child props
-// are inspected. Prepend bookkeeping in a layout effect would fail this test.
-// Actual Virtuoso measurement/scrolling is verified separately in WebKit.
+// are inspected. Window bookkeeping in a layout effect would fail this test.
+// Actual scrolling is verified separately in the browser.
 const h = vi.hoisted(() => ({ slots: [] as unknown[], cursor: 0, retry: false, compact: true }));
 vi.mock("react", async (load) => {
   const react = await load<typeof import("react")>();
@@ -66,8 +66,8 @@ vi.mock("@/features/messages/components/system-activity-cluster", () => ({
 vi.mock("@/features/conversation-shell/components/conversation-view-skeleton", () => ({
   MessageRowsSkeleton: () => null,
 }));
-vi.mock("react-virtuoso", () => ({ Virtuoso: () => null }));
-import { Virtuoso } from "react-virtuoso";
+vi.mock("./message-scroller", () => ({ MessageScroller: () => null }));
+import { MessageScroller } from "./message-scroller";
 import { MessageList } from "./message-list";
 import type { CachedMessage } from "@/features/channels/pending-message";
 import { decodeMessageSeq } from "@silverhand/shared";
@@ -102,7 +102,7 @@ const base = {
 };
 function find(node: any): any {
   if (!node || typeof node !== "object") return;
-  if (node.type === Virtuoso) return node;
+  if (node.type === MessageScroller) return node;
   for (const child of [node.props?.children].flat(Infinity)) {
     const found = find(child);
     if (found) return found;
@@ -126,35 +126,33 @@ beforeEach(() => {
   h.compact = true;
 });
 describe("message window publication", () => {
-  it("measures compact rows without an extra frame while retaining desktop scheduling", () => {
-    const messages = rows(100, 60);
-    expect(render(messages).props.skipAnimationFrameInResizeObserver).toBe(true);
-    h.compact = false;
-    expect(render(messages).props.skipAnimationFrameInResizeObserver).toBe(false);
-  });
-  it("publishes prepended data and shifted index together, without remounting", () => {
+  it("keeps the scroller mounted across prepends and head trims", () => {
     const before = render(rows(100, 60));
-    const next = render(rows(70, 90));
-    expect(next.props.data[0].message.id).toBe("m70");
-    expect(next.props.firstItemIndex).toBe(before.props.firstItemIndex - 30);
-    expect(next.key).toBe(before.key);
-    expect(render(rows(70, 90)).props.firstItemIndex).toBe(next.props.firstItemIndex);
+    const prepended = render(rows(70, 90));
+    expect(prepended.props.items[0].message.id).toBe("m70");
+    expect(prepended.key).toBe(before.key);
+    const trimmed = render(rows(80, 80));
+    expect(trimmed.key).toBe(before.key);
   });
-  it("preserves absolute row indexes on head trim but remounts disjoint windows", () => {
+  it("remounts a disjoint window at its own anchor", () => {
     const before = render(rows(100, 60));
-    const trim = render(rows(110, 50));
-    expect(trim.props.firstItemIndex).toBe(before.props.firstItemIndex + 10);
-    expect(trim.key).toBe(before.key);
     const replaced = render(rows(300, 60));
-    expect(replaced.props.firstItemIndex).toBe(1_000_000);
-    expect(replaced.key).not.toBe(trim.key);
+    expect(replaced.key).not.toBe(before.key);
+    expect(replaced.props.initialAnchor).toEqual({ kind: "bottom" });
   });
-  it("does not inherit another conversation's prepend offset", () => {
+  it("waits for a jump target before remounting, then centers on it", () => {
+    const before = render(rows(100, 60));
+    const pending = render(rows(300, 60), { jumpToMessageId: "m500" });
+    expect(pending.key).toBe(before.key);
+    const landed = render(rows(480, 60), { jumpToMessageId: "m500" });
+    expect(landed.key).not.toBe(before.key);
+    expect(landed.props.initialAnchor).toEqual({ kind: "key", key: "m500", align: "center" });
+  });
+  it("starts another conversation at a fresh mount", () => {
     render(rows(100, 60));
-    render(rows(70, 90));
+    render(rows(300, 60));
     const next = render(rows(200, 30), { channelId: "b" });
-    expect(next.props.firstItemIndex).toBe(1_000_000);
-    expect(next.key).toBe("b:0:0");
+    expect(next.key).toBe("b:0");
   });
   it("does not remount when older system events merge into the first activity cluster", () => {
     const event = (id: number): CachedMessage => ({
@@ -166,25 +164,18 @@ describe("message window publication", () => {
     const before = render(messages);
     const after = render([event(99), ...messages]);
     expect(after.key).toBe(before.key);
-    expect(after.props.firstItemIndex).toBe(before.props.firstItemIndex);
-    expect(after.props.data[0].messages).toHaveLength(2);
+    expect(after.props.items[0].messages).toHaveLength(2);
   });
-  it("keeps header/footer component identities stable while loading", () => {
+  it("follows the bottom only at the tail with no jump in flight", () => {
     const messages = rows(100, 60);
-    const before = render(messages);
-    const loading = render(messages, { isFetchingEarlier: true });
-    expect(loading.props.components).toBe(before.props.components);
-    // Without a leading slot the header holds only the chrome spacer.
-    expect(loading.props.components.Header({ context: {} }).props.children[1]).toBeNull();
-    expect(loading.key).toBe(before.key);
+    expect(render(messages).props.follow).toBe(true);
+    expect(render(messages, { isAtTail: false }).props.follow).toBe(false);
+    expect(render(messages, { jumpToMessageId: "m120" }).props.follow).toBe(false);
   });
-  it("prefetches near the head, but not when hidden, jumping, exhausted or fetching", () => {
+  it("loads earlier history, but not when hidden, jumping, exhausted or fetching", () => {
     const onLoadEarlier = vi.fn();
     const messages = rows(100, 60);
-    const normal = render(messages, { onLoadEarlier });
-    normal.props.onScroll({ currentTarget: { scrollTop: 1000 } });
-    expect(onLoadEarlier).not.toHaveBeenCalled();
-    normal.props.onScroll({ currentTarget: { scrollTop: 300 } });
+    render(messages, { onLoadEarlier }).props.onReachTop();
     expect(onLoadEarlier).toHaveBeenCalledOnce();
     onLoadEarlier.mockClear();
     for (const blocked of [
@@ -193,9 +184,7 @@ describe("message window publication", () => {
       { hasMoreBefore: false },
       { isFetchingEarlier: true },
     ]) {
-      const node = render(messages, { onLoadEarlier, ...blocked });
-      node.props.onScroll({ currentTarget: { scrollTop: 0 } });
-      node.props.startReached();
+      render(messages, { onLoadEarlier, ...blocked }).props.onReachTop();
     }
     expect(onLoadEarlier).not.toHaveBeenCalled();
   });
