@@ -183,3 +183,35 @@ export const ImageIcon = createDrawnIcon("image", () => (
     <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
   </>
 ));
+
+// Clockwise around the ring; the centre cell stays still as the hub.
+const GRID_RING = [
+  [0, 0],
+  [1, 0],
+  [2, 0],
+  [2, 1],
+  [2, 2],
+  [1, 2],
+  [0, 2],
+  [0, 1],
+] as const;
+
+/** A 3×3 grid of squares; a highlight runs clockwise around the outer ring
+ *  (`.grid-loader` in `surfaces.css`). */
+export const GridLoaderIcon = createDrawnIcon("grid-loader", () => (
+  <g stroke="none" fill="currentColor">
+    <rect className="grid-loader-hub" x="9.5" y="9.5" width="5" height="5" rx="1" />
+    {GRID_RING.map(([col, row], index) => (
+      <rect
+        key={index}
+        className="grid-loader-cell"
+        style={{ animationDelay: `${index * 100 - 800}ms` }}
+        x={2 + col * 7.5}
+        y={2 + row * 7.5}
+        width="5"
+        height="5"
+        rx="1"
+      />
+    ))}
+  </g>
+));

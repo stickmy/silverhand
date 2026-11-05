@@ -349,6 +349,9 @@ function ActiveChannelView({
     hasPreviousPage,
     isFetchingPreviousPage,
     fetchPreviousPage,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
     isAtTail,
     hasNewerLiveGap,
     resetToLatest,
@@ -657,6 +660,10 @@ function ActiveChannelView({
     // flag. Let the query deduplicate them rather than cancel/restart the page.
     void fetchPreviousPage({ cancelRefetch: false });
   }, [fetchPreviousPage, hasPreviousPage, isFetchingPreviousPage]);
+  const loadLaterMessages = useCallback(() => {
+    if (!hasNextPage || isFetchingNextPage) return;
+    void fetchNextPage({ cancelRefetch: false });
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
 
   // Resolve the prop-driven jump target — fires when the global Saved
   // view or the Tasks panel hands us a `{channelId, messageId}` for a
@@ -1290,6 +1297,9 @@ function ActiveChannelView({
                 hasMoreBefore={!!hasPreviousPage}
                 isFetchingEarlier={isFetchingPreviousPage}
                 onLoadEarlier={loadEarlierMessages}
+                hasMoreAfter={!!hasNextPage}
+                isFetchingLater={isFetchingNextPage}
+                onLoadLater={loadLaterMessages}
                 agentAvatarUrls={agentAvatarUrls}
                 leadingSlot={
                   anchor ? (

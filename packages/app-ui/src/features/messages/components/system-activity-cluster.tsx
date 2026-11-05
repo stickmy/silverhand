@@ -1,5 +1,5 @@
 import dayjs from "dayjs";
-import { useState } from "react";
+import { memo, useState } from "react";
 import type { MessageDto, UserDto } from "@silverhand/shared";
 import { SystemMessage } from "./system-message";
 import type { ChannelReference } from "./channel-ref";
@@ -48,7 +48,7 @@ export interface SystemActivityClusterProps {
   humansByName?: Map<string, UserDto>;
 }
 
-export function SystemActivityCluster({
+export const SystemActivityCluster = memo(function SystemActivityCluster({
   messages,
   ...rowProps
 }: SystemActivityClusterProps): JSX.Element {
@@ -59,7 +59,7 @@ export function SystemActivityCluster({
       ))}
     </div>
   );
-}
+});
 
 type RowProps = Omit<SystemActivityClusterProps, "messages">;
 

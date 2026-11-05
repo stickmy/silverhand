@@ -1,3 +1,4 @@
+import { memo } from "react";
 import {
   type MessageDto,
   type SystemSubtype,
@@ -45,7 +46,7 @@ interface SystemMessageProps {
  * rows; that path lived in the old `inferSubtype` helper and was removed in
  * PR-1.
  */
-export function SystemMessage(props: SystemMessageProps): JSX.Element {
+export const SystemMessage = memo(function SystemMessage(props: SystemMessageProps): JSX.Element {
   const resolution = resolveSubtype(readRawSubtype(props.message.metadata));
   const Renderer =
     resolution.kind === "current"
@@ -82,7 +83,7 @@ export function SystemMessage(props: SystemMessageProps): JSX.Element {
       <Renderer {...props} />
     </div>
   );
-}
+});
 
 function readRawSubtype(metadata: MessageDto["metadata"]): string | null | undefined {
   if (!metadata) return null;

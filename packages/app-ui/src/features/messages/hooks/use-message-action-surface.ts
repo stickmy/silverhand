@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@/lib/toast";
 import type { MessageDto } from "@silverhand/shared";
 import {
@@ -106,12 +106,13 @@ export function useMessageActionSurface(deps: {
   // copy are inert on it (~200ms until the ack swaps in the real row). This
   // replaces the old behavior where the same actions fired against a
   // `pending-<uuid>` id the server rejects.
-  const handleSave = useCallback(
-    (msg: CachedMessage) => {
-      if (isCommittedMessage(msg)) toggleSave(msg.id);
-    },
-    [toggleSave],
-  );
+  // Row handlers stay referentially stable so memoized rows skip re-rendering;
+  // `toggleSave` is a fresh closure every render, so it is read through a ref.
+  const toggleSaveRef = useRef(toggleSave);
+  toggleSaveRef.current = toggleSave;
+  const handleSave = useCallback((msg: CachedMessage) => {
+    if (isCommittedMessage(msg)) toggleSaveRef.current(msg.id);
+  }, []);
   // Single-message copy: clipboard receives ONLY `message.content`. The
   // multi-message transcript (with sender headers) is the separate
   // `handleCopyMarkdownTranscript` path — same clipboard, different shape.
@@ -125,11 +126,12 @@ export function useMessageActionSurface(deps: {
   }, []);
   // Per-row Share: enter selection mode with this message preselected.
   // `enter` is idempotent — re-entering just adds another message.
+  const { enter: enterSelection, toggle: toggleSelection } = selection;
   const handleShare = useCallback(
     (msg: CachedMessage) => {
-      if (isCommittedMessage(msg)) selection.enter(msg);
+      if (isCommittedMessage(msg)) enterSelection(msg);
     },
-    [selection],
+    [enterSelection],
   );
   const handleCopyMarkdownTranscript = useCallback(async (): Promise<void> => {
     const snapshots = selection.selectedSorted();
@@ -153,9 +155,9 @@ export function useMessageActionSurface(deps: {
 
   const handleToggleSelected = useCallback(
     (msg: CachedMessage) => {
-      if (isCommittedMessage(msg)) selection.toggle(msg);
+      if (isCommittedMessage(msg)) toggleSelection(msg);
     },
-    [selection],
+    [toggleSelection],
   );
 
   const rowActionProps = useCallback(

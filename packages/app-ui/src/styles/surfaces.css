@@ -84,6 +84,31 @@
   }
 }
 
+/* `GridLoaderIcon`: each ring cell flares in turn, so the highlight travels
+   clockwise; negative delays start it mid-cycle instead of from blank. */
+.grid-loader-hub {
+  opacity: 0.25;
+}
+.grid-loader-cell {
+  opacity: 0.25;
+  animation: grid-loader-cell 800ms linear infinite;
+}
+@keyframes grid-loader-cell {
+  0% {
+    opacity: 1;
+  }
+  40%,
+  100% {
+    opacity: 0.25;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .grid-loader-cell {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
 [data-activity-block-clamped] {
   mask-image: linear-gradient(to bottom, #000 calc(100% - 1.5lh), transparent);
 }

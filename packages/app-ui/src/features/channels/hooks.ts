@@ -5,6 +5,7 @@ import {
   useQueryClient,
   type InfiniteData,
 } from "@tanstack/react-query";
+import { useCompactLayout } from "@/navigation/layout";
 import { useCallback, useEffect, useMemo } from "react";
 import { toast } from "@/lib/toast";
 import { t } from "@/lib/i18n";
@@ -58,6 +59,7 @@ import {
   agentsKey,
   agentRuntimeKey,
   MESSAGE_PAGE_LIMIT,
+  MESSAGE_WINDOW_PAGES,
   AROUND_MESSAGE_LIMIT,
   makeMessagesCache,
   lastPageIsTail,
@@ -207,6 +209,7 @@ async function fetchMessagesWindow(opts: {
  *  flip drives a rerender via the query subscription.
  */
 export function useChannelMessages(channelId: string | null) {
+  const compact = useCompactLayout();
   const qc = useQueryClient();
 
   // Stage-2 (#task:1255 P1a): the central conversation ingestor is the sole
@@ -238,6 +241,11 @@ export function useChannelMessages(channelId: string | null) {
     queryKey: messagesKey(channelId ?? "none"),
     enabled: !!channelId,
     initialPageParam: undefined as MessagesPageParam,
+    // The list renders every loaded row, so the window is bounded. Loading
+    // past it drops the far page; once the tail page is dropped the window is
+    // off-tail, which live appends, mark-read and the bottom button already
+    // handle.
+    maxPages: MESSAGE_WINDOW_PAGES[compact ? "compact" : "regular"],
     queryFn: async ({ pageParam, signal }) =>
       fetchMessagesWindow({
         conversationId: channelId!,

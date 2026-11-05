@@ -83,7 +83,7 @@ export const conversationShell = {
   tasks: "Tasks",
   addAView: "Add a view",
   noMessagesYet: "No messages yet",
-  loadingEarlierMessages: "Loading earlier messages…",
+  loadingEarlierMessages: "Loading earlier messages",
   jumpToLatest: "Jump to latest",
   scrollToBottom: "Scroll to bottom",
   couldntLoadThisConversation: "Couldn't load this conversation — reopen it to retry.",

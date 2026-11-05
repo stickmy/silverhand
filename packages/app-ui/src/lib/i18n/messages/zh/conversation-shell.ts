@@ -86,7 +86,7 @@ export const conversationShell: Translation<typeof en> = {
   tasks: "任务",
   addAView: "添加视图",
   noMessagesYet: "还没有消息",
-  loadingEarlierMessages: "正在加载更早的消息…",
+  loadingEarlierMessages: "正在加载更早的消息",
   jumpToLatest: "跳到最新",
   scrollToBottom: "滚动到底部",
   couldntLoadThisConversation: "无法加载这个对话，请重新打开重试。",

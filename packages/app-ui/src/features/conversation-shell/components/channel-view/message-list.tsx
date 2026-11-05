@@ -10,7 +10,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { ArrowDownIcon } from "@/icons";
+import { ArrowDownIcon, GridLoaderIcon } from "@/icons";
 import type {
   AttachmentSnapshot,
   MessageAuthorDto,
@@ -54,6 +54,9 @@ export function MessageList({
   hasMoreBefore,
   isFetchingEarlier,
   onLoadEarlier,
+  hasMoreAfter = false,
+  isFetchingLater = false,
+  onLoadLater,
   agentAvatarUrls,
   leadingSlot,
   highlightedMessageId,
@@ -90,6 +93,11 @@ export function MessageList({
   hasMoreBefore: boolean;
   isFetchingEarlier: boolean;
   onLoadEarlier: () => void;
+  /** Newer rows exist past the loaded window: an around-message jump, or a
+   *  tail page dropped by the bounded window. */
+  hasMoreAfter?: boolean;
+  isFetchingLater?: boolean;
+  onLoadLater?: () => void;
   /** Map of agent id → avatar object URL. Lifted into ActiveChannelView
    *  so message authors, member chips, and the activity strip share a
    *  single batch fetch instead of three independent ones. */
@@ -384,6 +392,11 @@ export function MessageList({
     onLoadEarlier();
   }, [surfaceActive, jumpToMessageId, hasMoreBefore, isFetchingEarlier, onLoadEarlier]);
 
+  const handleEndReached = useCallback(() => {
+    if (!surfaceActive || jumpToMessageId || !hasMoreAfter || isFetchingLater) return;
+    onLoadLater?.();
+  }, [surfaceActive, jumpToMessageId, hasMoreAfter, isFetchingLater, onLoadLater]);
+
   const isAtBottomRef = useRef(isAtBottom);
   isAtBottomRef.current = isAtBottom;
   const handleTopItemChange = useCallback(
@@ -649,8 +662,9 @@ export function MessageList({
             // currently held.
             follow={shouldFollowBottom({ hasJumpTarget: jumpToMessageId != null, isAtTail })}
             atBottomThreshold={20}
-            reachTopDistance={preloadDistance}
+            reachEdgeDistance={preloadDistance}
             onReachTop={handleStartReached}
+            onReachBottom={handleEndReached}
             onAtBottomChange={handleAtBottomChange}
             onTopItemChange={handleTopItemChange}
             className="h-full min-w-0"
@@ -660,11 +674,11 @@ export function MessageList({
         {isFetchingEarlier ? (
           // Loading must not change the measured list header height: doing so
           // moves every message while the reader is waiting at the top.
-          <div
-            role="status"
-            className="pointer-events-none absolute inset-x-0 top-(--pane-chrome-height,0px) text-center text-xs text-text-muted"
-          >
-            {t("conversationShell.loadingEarlierMessages")}
+          <div className="pointer-events-none absolute inset-x-0 top-[calc(var(--pane-chrome-height,0px)+12px)] flex justify-center motion-safe:animate-in motion-safe:fade-in-0">
+            <div role="status" className="flex items-center gap-1.5 text-xs text-text-muted">
+              <GridLoaderIcon className="size-3.5" />
+              {t("conversationShell.loadingEarlierMessages")}
+            </div>
           </div>
         ) : null}
 

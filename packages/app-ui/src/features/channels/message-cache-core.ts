@@ -78,6 +78,9 @@ export const mainlineLiveGapKey = (cid: string) =>
 export const clusterLiveGapKey = (cid: string, rootId: string) =>
   ["channels", cid, "cluster", rootId, "live-gap"] as const;
 export const MESSAGE_PAGE_LIMIT = 100;
+/** Pages kept in the channel window. Phones get one fewer: a full window
+ *  measured ~30 ms per relayout on an iPhone 12 Pro (rotation, keyboard). */
+export const MESSAGE_WINDOW_PAGES = { regular: 3, compact: 2 } as const;
 export const AROUND_MESSAGE_LIMIT = 100;
 
 export function makeMessagesCache(

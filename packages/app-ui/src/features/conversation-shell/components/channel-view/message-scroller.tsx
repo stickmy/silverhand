@@ -40,8 +40,9 @@ export function MessageScroller<T>({
   initialAnchor,
   follow,
   atBottomThreshold,
-  reachTopDistance,
+  reachEdgeDistance,
   onReachTop,
+  onReachBottom,
   onAtBottomChange,
   onTopItemChange,
   controlRef,
@@ -57,8 +58,10 @@ export function MessageScroller<T>({
   /** Whether a reader at the bottom is kept there as content grows. */
   follow: boolean;
   atBottomThreshold: number;
-  reachTopDistance: number;
+  /** How close to either end the next page is requested. */
+  reachEdgeDistance: number;
   onReachTop: () => void;
+  onReachBottom: () => void;
   onAtBottomChange: (atBottom: boolean) => void;
   onTopItemChange: (key: string) => void;
   controlRef: Ref<MessageScrollerHandle>;
@@ -75,10 +78,10 @@ export function MessageScroller<T>({
   // Content height at the last settle. When it differs, the DOM changed size
   // since the anchor was taken, and the anchor must be applied, not re-read.
   const settledHeightRef = useRef(0);
-  const latest = useRef({ follow, atBottomThreshold, reachTopDistance });
-  latest.current = { follow, atBottomThreshold, reachTopDistance };
-  const callbacks = useRef({ onReachTop, onAtBottomChange, onTopItemChange });
-  callbacks.current = { onReachTop, onAtBottomChange, onTopItemChange };
+  const latest = useRef({ follow, atBottomThreshold, reachEdgeDistance });
+  latest.current = { follow, atBottomThreshold, reachEdgeDistance };
+  const callbacks = useRef({ onReachTop, onReachBottom, onAtBottomChange, onTopItemChange });
+  callbacks.current = { onReachTop, onReachBottom, onAtBottomChange, onTopItemChange };
   const initialAnchorRef = useRef(initialAnchor);
 
   const findRow = useCallback((key: string): HTMLElement | null => {
@@ -154,8 +157,11 @@ export function MessageScroller<T>({
     }
 
     settledHeightRef.current = scroller.scrollHeight;
-    if (scroller.scrollTop <= latest.current.reachTopDistance) {
+    if (scroller.scrollTop <= latest.current.reachEdgeDistance) {
       callbacks.current.onReachTop();
+    }
+    if (distance <= latest.current.reachEdgeDistance) {
+      callbacks.current.onReachBottom();
     }
   }, [captureAnchor, visibleScroller]);
 
@@ -275,8 +281,11 @@ export function MessageScroller<T>({
       ref={scrollerRef}
       data-message-scroller=""
       onScroll={handleScroll}
-      // Browser scroll anchoring would correct prepends a second time.
-      style={{ overflowAnchor: "none" }}
+      // Browser scroll anchoring would correct prepends a second time. Rubber
+      // banding is off for the same reason: an iOS bounce still running when
+      // older rows land pulls the corrected offset back to the top, which
+      // loads the next page.
+      style={{ overflowAnchor: "none", overscrollBehaviorY: "none" }}
       className={cn("overflow-y-auto outline-none", className)}
     >
       <div ref={contentRef} className="flow-root">

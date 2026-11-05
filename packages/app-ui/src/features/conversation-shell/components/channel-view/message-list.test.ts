@@ -188,4 +188,20 @@ describe("message window publication", () => {
     }
     expect(onLoadEarlier).not.toHaveBeenCalled();
   });
+  it("loads newer rows past the window, but not when hidden, jumping, at the tail or fetching", () => {
+    const onLoadLater = vi.fn();
+    const messages = rows(100, 60);
+    render(messages, { onLoadLater, hasMoreAfter: true }).props.onReachBottom();
+    expect(onLoadLater).toHaveBeenCalledOnce();
+    onLoadLater.mockClear();
+    for (const blocked of [
+      { surfaceActive: false },
+      { jumpToMessageId: "m120" },
+      { hasMoreAfter: false },
+      { isFetchingLater: true },
+    ]) {
+      render(messages, { onLoadLater, hasMoreAfter: true, ...blocked }).props.onReachBottom();
+    }
+    expect(onLoadLater).not.toHaveBeenCalled();
+  });
 });
