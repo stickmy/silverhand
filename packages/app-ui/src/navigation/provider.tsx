@@ -6,11 +6,12 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
   type ReactNode,
 } from "react";
-import { Router, createPath, type To } from "react-router-dom";
+import { Router, createPath, type Location, type To } from "react-router-dom";
 import { connectAddress } from "./address";
 import type { NavigationLaunch } from "./launch";
 import { NavigationStore } from "./store";
@@ -33,6 +34,24 @@ export type Driver = {
   registerLeaveGuard: (guard: () => boolean) => () => void;
 };
 export const NavigationContext = createContext<Driver | null>(null);
+
+/** The driver and location in effect, read when an action runs. Its identity
+ * never changes, so a consumer that only acts on navigation (a message row's
+ * avatar, a mention) does not render again on every navigation. */
+export type NavigationReader = () => { driver: Driver; location: Location };
+export const NavigationReaderContext = createContext<NavigationReader | null>(null);
+
+export function useNavigationReaderValue(driver: Driver, location: Location): NavigationReader {
+  const current = useRef({ driver, location });
+  current.current = { driver, location };
+  return useCallback(() => current.current, []);
+}
+
+export function useNavigationReader(): NavigationReader {
+  const reader = useContext(NavigationReaderContext);
+  if (!reader) throw new Error("NavigationProvider required");
+  return reader;
+}
 
 export function NavigationProvider({
   children,
@@ -115,11 +134,14 @@ export function NavigationProvider({
     }),
     [value, run, store],
   );
+  const reader = useNavigationReaderValue(value, snapshot.location);
   return (
     <NavigationContext.Provider value={value}>
-      <Router location={snapshot.location} navigationType={snapshot.action} navigator={navigator}>
-        <ViewMemoryProvider>{children}</ViewMemoryProvider>
-      </Router>
+      <NavigationReaderContext.Provider value={reader}>
+        <Router location={snapshot.location} navigationType={snapshot.action} navigator={navigator}>
+          <ViewMemoryProvider>{children}</ViewMemoryProvider>
+        </Router>
+      </NavigationReaderContext.Provider>
     </NavigationContext.Provider>
   );
 }

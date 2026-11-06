@@ -14,7 +14,7 @@ import type {
 import { AVATAR_PX } from "@/components/avatar-scale";
 import { AgentInfoPopover } from "@/features/agents/components/agent-info-popover";
 import { HumanInfoPopover } from "@/features/profile/human-info-popover";
-import { useNav } from "@/router";
+import { useNavActions } from "@/router";
 import { isCurrentUserId, type UserNameResolver } from "@/features/session/current-user";
 import { Markdown } from "./markdown";
 import {
@@ -375,13 +375,7 @@ function ActorMessageItem({
   const timeTooltip = createdAt.format("YYYY-MM-DD HH:mm:ss");
 
   const continuationTimeLabel = createdAt.format("HH:mm");
-  const { openAgentPanel, openHumanPanel } = useNav();
-
-  const navigateToAgent = useCallback(
-    (agentId: string) => openAgentPanel(agentId),
-    [openAgentPanel],
-  );
-  const navigateToHuman = useCallback((userId: string) => openHumanPanel(userId), [openHumanPanel]);
+  const { openAgentPanel: navigateToAgent, openHumanPanel: navigateToHuman } = useNavActions();
   const taskTag =
     message.linked_task !== null ? (
       <MessageTaskTag

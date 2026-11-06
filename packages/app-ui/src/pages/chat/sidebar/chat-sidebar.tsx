@@ -3,7 +3,7 @@ import { Brandmark } from "@/components/brand/brandmark";
 import { iconMarkup, nativeActionGroups, useNativeBar } from "@/components/layout/native-page-bar";
 import { SidebarRowsSkeleton } from "@/components/layout/sidebar-skeleton";
 import type { DirectMessageTarget } from "@/features/direct-pairs/target";
-import { useMemo, type ReactNode } from "react";
+import { memo, useMemo, type ReactNode } from "react";
 import { ArchiveIcon, BookmarkIcon, MoreIcon, PlusIcon, SearchIcon } from "@/icons";
 import { AppDropdownMenu, AppDropdownMenuItem } from "@/components/menus/app-context-menu";
 import type { AgentDto } from "@silverhand/shared";
@@ -90,7 +90,7 @@ interface ChatSidebarProps {
   }) => void;
 }
 
-export function ChatSidebar(props: ChatSidebarProps): JSX.Element {
+export const ChatSidebar = memo(function ChatSidebar(props: ChatSidebarProps): JSX.Element {
   // Favorites watch all visible workspaces, including archived ones that may be restored.
   const { allVisibleIds: watchWorkspaceIds } = useMemo(
     () => partitionRailWorkspaces(props.workspaces),
@@ -338,7 +338,7 @@ export function ChatSidebar(props: ChatSidebarProps): JSX.Element {
       }
     />
   );
-}
+});
 
 /** Search opens a page rather than filtering in place, so it is an icon like
  *  the menu beside it, not a field. Saved and Archived are rare and wait in the

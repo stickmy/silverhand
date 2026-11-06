@@ -2,7 +2,7 @@ import type { AgentDto, UserDto } from "@silverhand/shared";
 import { AgentInfoPopover } from "@/features/agents/components/agent-info-popover";
 import { HumanInfoPopover } from "@/features/profile/human-info-popover";
 import { useUserAvatarObjectUrl } from "@/features/users/avatar-hooks";
-import { useNav } from "@/router";
+import { useNavActions } from "@/router";
 import { INLINE_REF_HOVER_CLASS } from "../model/inline-ref-chip";
 
 /** Both mention chips share one string on purpose: the two differ only in where
@@ -77,7 +77,7 @@ function AgentMention({
   avatarObjectUrl?: string | null;
   conversationId: string | null;
 }): JSX.Element {
-  const nav = useNav();
+  const nav = useNavActions();
 
   const label = agent.display_name?.trim() || agent.name;
   return (
@@ -108,7 +108,7 @@ function AgentMention({
 }
 
 function HumanMention({ human }: { human: UserDto }): JSX.Element {
-  const nav = useNav();
+  const nav = useNavActions();
   const label = human.display_name?.trim() || human.name;
   // Multi-human audit 2026-06-03 #task:857 P0.8: resolve the mentioned
   // human's avatar so the popover renders a real image instead of the

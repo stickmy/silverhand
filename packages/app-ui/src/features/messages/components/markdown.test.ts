@@ -26,6 +26,10 @@ vi.mock("@/navigation/provider", () => ({
     canBack: false,
     registerLeaveGuard: () => () => {},
   }),
+  useNavigationReader: () => () => ({
+    driver: { go: vi.fn(), selectTab: vi.fn(), openSection: vi.fn() },
+    location: { pathname: "/chat", search: "" },
+  }),
 }));
 
 // Tests pass actor ids through SystemMessage rendering and assert the

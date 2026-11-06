@@ -20,7 +20,13 @@ import { modalScope } from "@/lib/modal-scope";
 import { useCompactLayout } from "./layout";
 import { usePageBarSwipe } from "./page-bar";
 import { showsTabBar } from "./presentation";
-import { NavigationContext, useNavigationDriver, type Driver } from "./provider";
+import {
+  NavigationContext,
+  NavigationReaderContext,
+  useNavigationDriver,
+  useNavigationReaderValue,
+  type Driver,
+} from "./provider";
 import { useLocale } from "@/lib/i18n";
 
 const PageLive = createContext(true);
@@ -309,6 +315,7 @@ const PageFrame = memo(function PageFrame({
   const node = useRef<HTMLDivElement | null>(null);
   const value = useMemo(() => ({ location, navigationType }), [location, navigationType]);
   const driver = useMemo<Driver>(() => (live ? parent : inert(parent)), [live, parent]);
+  const reader = useNavigationReaderValue(driver, location);
   const ref = useCallback(
     (next: HTMLDivElement | null) => {
       node.current = next;
@@ -343,9 +350,11 @@ const PageFrame = memo(function PageFrame({
       }
     >
       <NavigationContext.Provider value={driver}>
-        <PageLive.Provider value={live}>
-          <LocationContext.Provider value={value}>{children}</LocationContext.Provider>
-        </PageLive.Provider>
+        <NavigationReaderContext.Provider value={reader}>
+          <PageLive.Provider value={live}>
+            <LocationContext.Provider value={value}>{children}</LocationContext.Provider>
+          </PageLive.Provider>
+        </NavigationReaderContext.Provider>
       </NavigationContext.Provider>
     </div>
   );

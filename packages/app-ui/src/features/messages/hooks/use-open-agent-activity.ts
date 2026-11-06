@@ -1,9 +1,9 @@
 import { focusAgentSideSection } from "@/features/agents/components/agent-view";
-import { useNav } from "@/router";
+import { useNavActions } from "@/router";
 
 /** Opens an agent's panel at its activity, as the activity line does. */
 export function useOpenAgentActivity(): (agentId: string) => void {
-  const { openAgentPanel } = useNav();
+  const { openAgentPanel } = useNavActions();
   return (agentId) => {
     focusAgentSideSection(agentId, "activity");
     openAgentPanel(agentId);

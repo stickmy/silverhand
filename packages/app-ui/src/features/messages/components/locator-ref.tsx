@@ -19,7 +19,7 @@ import {
   useChannelsForWorkspace,
   useWorkspaces,
 } from "@/features/workspaces/hooks";
-import { buildLocatorTargetUrl, useNav } from "@/router";
+import { buildLocatorTargetUrl, useNavActions } from "@/router";
 import { faceLabel } from "./conversation-ref";
 import { INLINE_REF_HOVER_CLASS } from "../model/inline-ref-chip";
 import { t } from "@/lib/i18n";
@@ -31,7 +31,7 @@ export function LocatorRef({
   locator: Locator;
   children: ReactNode;
 }): JSX.Element {
-  const nav = useNav();
+  const nav = useNavActions();
   const workspaces = useWorkspaces().data ?? [];
   const workspaceId = resolveLocatorWorkspaceId(locator, workspaces);
   const channelListId = locatorChannelListWorkspaceId(locator, workspaceId);

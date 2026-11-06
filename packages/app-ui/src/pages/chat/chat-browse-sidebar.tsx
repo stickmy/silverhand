@@ -1,3 +1,5 @@
+import { useMemo } from "react";
+import { useEventCallback } from "@/hooks/use-event-callback";
 import { ChatSidebar } from "./sidebar/chat-sidebar";
 import type { WorkspaceActions } from "./use-workspace-actions";
 import type { ChatShellModel } from "@/features/conversation-shell/conversation-shell-models";
@@ -28,11 +30,11 @@ export function ChatBrowseSidebar({
     sidebarSelectedConversationId,
   } = model;
 
-  return (
-    <ChatSidebar
-      fill={fill}
-      workspacesLoading={workspacesLoading}
-      workspaces={workspaces.map((w) => ({
+  // The sidebar is memoized; the shell rebuilds its model on every
+  // navigation, so rows and handlers keep their identities here.
+  const rows = useMemo(
+    () =>
+      workspaces.map((w) => ({
         id: w.id,
         name: w.name,
         owner_agent_id: w.owner_agent_id,
@@ -43,7 +45,41 @@ export function ChatBrowseSidebar({
         muted: attentionBadges?.muted_workspace_ids?.includes(w.id) ?? false,
         archived: w.archived_at !== null,
         created_at: w.created_at,
-      }))}
+      })),
+    [workspaces, attentionBadges],
+  );
+  const selectChannel = useEventCallback(handleSelectChannel);
+  const selectDirectPair = useEventCallback(nav.toDirect);
+  const selectDirectDraft = useEventCallback(nav.toDirectDraft);
+  const createChannel = useEventCallback(actions.setCreateChannelWorkspaceId);
+  const openWorkspaceSettings = useEventCallback(actions.setWorkspaceSettingsId);
+  const selectConversation = useEventCallback((workspaceId: string, conversationId: string) =>
+    handleSelectChannel(conversationId, workspaceId),
+  );
+  const createWorkspace = useEventCallback(() => actions.setCreateWorkspaceOpen(true));
+  const selectSaved = useEventCallback(() => nav.toChatSaved());
+  const selectArchived = useEventCallback(() => nav.toChatArchived());
+  const selectSearch = useEventCallback(() => nav.toChatSearch());
+  const openThread = useEventCallback(
+    (target: {
+      workspaceId: string | null;
+      conversationId: string;
+      threadRootId: string;
+      messageId: string;
+    }) =>
+      handleJumpToMessage({
+        workspaceId: target.workspaceId ?? undefined,
+        channelId: target.conversationId,
+        threadRootId: target.threadRootId,
+        messageId: target.messageId,
+      }),
+  );
+
+  return (
+    <ChatSidebar
+      fill={fill}
+      workspacesLoading={workspacesLoading}
+      workspaces={rows}
       agentsById={agentsById}
       selectedWorkspaceId={selectedWorkspaceId}
       // The tree's ONE selection object. Carries forward the
@@ -53,13 +89,13 @@ export function ChatBrowseSidebar({
       // in this sidebar — always true for a private line, which
       // lives in the workspace-independent DIRECT MESSAGES list).
       selectedChannelId={sidebarSelectedConversationId}
-      onSelectChannel={handleSelectChannel}
+      onSelectChannel={selectChannel}
       // A pair has no workspace to open it in, so it takes the
       // workspace-less route directly. No remembered-layout
       // restore: the panes that memory replays (thread /
       // threads-list / side) are channel-scoped, so there is
       // nothing recorded for a pair to restore (#task:2035).
-      onSelectDirectPair={nav.toDirect}
+      onSelectDirectPair={selectDirectPair}
       // The transient draft row (#task:2039) re-opens THE DRAFT,
       // never the pair: while the draft route is open that row is
       // the draft's (`mergeDirectLineRows`), and it holds unsent
@@ -67,32 +103,23 @@ export function ChatBrowseSidebar({
       // `handleMessageAgent` — which prefers an existing pair —
       // would discard both (@Cindy, #task:2039 review).
       directDraftTarget={directDraftTarget}
-      onSelectDirectDraft={nav.toDirectDraft}
-      onCreateChannel={actions.setCreateChannelWorkspaceId}
-      onOpenWorkspaceSettings={actions.setWorkspaceSettingsId}
+      onSelectDirectDraft={selectDirectDraft}
+      onCreateChannel={createChannel}
+      onOpenWorkspaceSettings={openWorkspaceSettings}
       // STARRED is global, so the parent workspace is explicit —
       // `handleSelectChannel` then opens a starred channel in another
       // workspace with the SAME remembered-layout restore as its home
       // row, instead of a bare jump.
-      onSelectConversation={(workspaceId, conversationId) =>
-        handleSelectChannel(conversationId, workspaceId)
-      }
-      onCreateWorkspace={() => actions.setCreateWorkspaceOpen(true)}
+      onSelectConversation={selectConversation}
+      onCreateWorkspace={createWorkspace}
       savedActive={view === "saved"}
-      onSelectSaved={() => nav.toChatSaved()}
+      onSelectSaved={selectSaved}
       archivedActive={view === "archived"}
-      onSelectArchived={() => nav.toChatArchived()}
+      onSelectArchived={selectArchived}
       searchActive={view === "search"}
-      onSelectSearch={() => nav.toChatSearch()}
+      onSelectSearch={selectSearch}
       savedCount={savedItems?.length}
-      onOpenThread={(target) =>
-        handleJumpToMessage({
-          workspaceId: target.workspaceId ?? undefined,
-          channelId: target.conversationId,
-          threadRootId: target.threadRootId,
-          messageId: target.messageId,
-        })
-      }
+      onOpenThread={openThread}
     />
   );
 }

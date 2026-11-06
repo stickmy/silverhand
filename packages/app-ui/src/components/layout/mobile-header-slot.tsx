@@ -47,8 +47,9 @@ export function MobileHeaderProvider({
   }, []);
   const active = [...slots.values()].filter((entry) => entry.section === section).at(-1);
   const target = active?.node ?? null;
+  const value = useMemo(() => ({ section, target, register }), [section, target, register]);
   return (
-    <MobileHeaderContext.Provider value={{ section, target, register }}>
+    <MobileHeaderContext.Provider value={value}>
       <MobileHeaderActionHost section={section}>{children}</MobileHeaderActionHost>
     </MobileHeaderContext.Provider>
   );

@@ -17,6 +17,7 @@ vi.mock("react", async (original) => ({
     context._currentValue === null && h.nextContext++ % 2 === 0 ? h.context : h.section,
   useRef: (value: unknown) => ({ current: value }),
   useCallback: (callback: unknown) => callback,
+  useMemo: (factory: () => unknown) => factory(),
 }));
 vi.mock("@/navigation/layout", () => ({ useCompactLayout: () => true }));
 import { MobileHeaderProvider, MobileNavigationSlot } from "./mobile-header-slot";

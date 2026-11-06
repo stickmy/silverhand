@@ -335,7 +335,8 @@ describe("the sidebar and the shell defer to the seam (the wiring half)", () => 
   it("opening the draft row re-opens THE DRAFT, never the pair", () => {
     // `handleMessageAgent` prefers an existing pair — correct for the agent
     // page's `Message` entry, and a data-loss path for this row.
-    expect(appSource).toContain("onSelectDirectDraft={nav.toDirectDraft}");
+    expect(appSource).toContain("useEventCallback(nav.toDirectDraft)");
+    expect(appSource).toContain("onSelectDirectDraft={selectDirectDraft}");
     expect(appSource).not.toContain("onSelectDirectDraft={handleMessageAgent}");
   });
 });

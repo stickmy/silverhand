@@ -6,6 +6,7 @@ vi.mock("react", async (original) => ({
   useState: (init: unknown) => [typeof init === "function" ? init() : init, vi.fn()],
   useMemo: (fn: () => unknown) => fn(),
   useCallback: (fn: unknown) => fn,
+  useRef: (value: unknown) => ({ current: value }),
   useEffect: (fn: () => void | (() => void)) => h.effects.push(fn),
   useSyncExternalStore: (_subscribe: unknown, get: () => unknown) => get(),
 }));
@@ -32,7 +33,7 @@ function mountWindow(hash: string) {
 function render(launch: NavigationLaunch) {
   h.effects = [];
   const tree = NavigationProvider({ children: null, launch });
-  return { location: tree.props.children.props.location, setup: h.effects.at(-1)! };
+  return { location: tree.props.children.props.children.props.location, setup: h.effects.at(-1)! };
 }
 it("new authentication cannot read the previous domain's hash before its cleanup", () => {
   const address = mountWindow("#/chat/d/private-old?settings=private-old");

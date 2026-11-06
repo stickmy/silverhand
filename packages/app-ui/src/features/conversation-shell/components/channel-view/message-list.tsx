@@ -1,5 +1,6 @@
 import { useViewMemory } from "@/navigation/view-memory";
 import { useCompactLayout } from "@/navigation/layout";
+import { useEventCallback } from "@/hooks/use-event-callback";
 import {
   useCallback,
   useEffect,
@@ -230,14 +231,26 @@ export function MessageList({
     liveChannels,
     archivedChannels,
   } = useMessageRenderContext(workspaceId, channelId, canParticipate);
-  const handleOpenThread = useCallback(
+  // The shell rebuilds these handlers on every navigation, and each new
+  // identity would render every memoized row again. Rows get forwarders that
+  // call the latest handler; only a handler appearing or disappearing reaches
+  // them.
+  const handleOpenThread = useEventCallback(
     (msg: CachedMessage, jumpToMessageId?: string): void => {
       // A pending optimistic row has no server id to anchor a thread on.
       if (!isCommittedMessage(msg)) return;
       onOpenThread?.(msg.id, jumpToMessageId);
     },
-    [onOpenThread],
   );
+  const openConversationRef = useEventCallback((id: string) => onOpenConversationRef?.(id));
+  const openChannelRef = useEventCallback((id: string) => onOpenChannelRef?.(id));
+  const openAttachment = useEventCallback((attachment: AttachmentSnapshot) =>
+    onOpenAttachment?.(attachment),
+  );
+  const rowOpenConversationRef = onOpenConversationRef ? openConversationRef : undefined;
+  const rowOpenChannelRef = onOpenChannelRef ? openChannelRef : undefined;
+  const rowOpenAttachment = onOpenAttachment ? openAttachment : undefined;
+  const rowStartThread = onOpenThread ? handleOpenThread : undefined;
 
   const items = useMemo(() => groupMessages(messages), [messages]);
 
@@ -521,9 +534,9 @@ export function MessageList({
           <SystemActivityCluster
             messages={item.messages}
             conversationRefsById={conversationRefsById}
-            onOpenConversationRef={onOpenConversationRef}
+            onOpenConversationRef={rowOpenConversationRef}
             channelsByName={channelsByName}
-            onOpenChannelRef={onOpenChannelRef}
+            onOpenChannelRef={rowOpenChannelRef}
             humansByName={humansByName}
           />
         );
@@ -537,9 +550,9 @@ export function MessageList({
           <SystemMessage
             message={m}
             conversationRefsById={conversationRefsById}
-            onOpenConversationRef={onOpenConversationRef}
+            onOpenConversationRef={rowOpenConversationRef}
             channelsByName={channelsByName}
-            onOpenChannelRef={onOpenChannelRef}
+            onOpenChannelRef={rowOpenChannelRef}
             humansByName={humansByName}
           />
         );
@@ -556,12 +569,12 @@ export function MessageList({
           humansByName={humansByName}
           humansById={humansById}
           channelsByName={channelsByName}
-          onOpenChannelRef={onOpenChannelRef}
+          onOpenChannelRef={rowOpenChannelRef}
           conversationRefsById={conversationRefsById}
-          onOpenConversationRef={onOpenConversationRef}
-          onOpenAttachment={onOpenAttachment}
+          onOpenConversationRef={rowOpenConversationRef}
+          onOpenAttachment={rowOpenAttachment}
           {...actions.rowActionProps(m)}
-          onStartThread={onOpenThread ? handleOpenThread : undefined}
+          onStartThread={rowStartThread}
           threadReplyCount={
             (replyCountsByRoot?.[m.id] ?? 0) > 0 ? replyCountsByRoot?.[m.id] : undefined
           }
@@ -589,13 +602,12 @@ export function MessageList({
       agentsByName,
       humansByName,
       channelsByName,
-      onOpenChannelRef,
+      rowOpenChannelRef,
       conversationRefsById,
-      onOpenConversationRef,
-      onOpenAttachment,
+      rowOpenConversationRef,
+      rowOpenAttachment,
       actions.rowActionProps,
-      onOpenThread,
-      handleOpenThread,
+      rowStartThread,
       replyCountsByRoot,
       replySummariesByRoot,
       threadUnreadByRoot,

@@ -150,20 +150,32 @@ const WITHHELD_PANE_CAPABILITIES: ConversationPaneCapabilities = {
   workspaceScope: null,
 };
 
+const DIRECT_MESSAGE_PANE_CAPABILITIES: ConversationPaneCapabilities = {
+  headerIdentity: "counterpart",
+  hasRoster: false,
+  workspaceScope: null,
+};
+
+// One object per workspace scope. The capabilities are provided by context to
+// every message row, so a fresh object per render would render them all again.
+const workspaceChannelCapabilities = new Map<string | null, ConversationPaneCapabilities>();
+
 export function paneCapabilities(mode: ConversationPaneMode): ConversationPaneCapabilities {
   switch (mode.kind) {
-    case "workspace_channel":
-      return {
-        headerIdentity: "channel_hash",
-        hasRoster: true,
-        workspaceScope: mode.workspaceId,
-      };
+    case "workspace_channel": {
+      let capabilities = workspaceChannelCapabilities.get(mode.workspaceId);
+      if (!capabilities) {
+        capabilities = {
+          headerIdentity: "channel_hash",
+          hasRoster: true,
+          workspaceScope: mode.workspaceId,
+        };
+        workspaceChannelCapabilities.set(mode.workspaceId, capabilities);
+      }
+      return capabilities;
+    }
     case "direct_message":
-      return {
-        headerIdentity: "counterpart",
-        hasRoster: false,
-        workspaceScope: null,
-      };
+      return DIRECT_MESSAGE_PANE_CAPABILITIES;
     case "unsupported":
       return WITHHELD_PANE_CAPABILITIES;
   }

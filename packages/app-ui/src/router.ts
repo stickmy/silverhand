@@ -1,5 +1,5 @@
 import type { MainTab } from "@/navigation/history";
-import { useNavigationDriver } from "@/navigation/provider";
+import { useNavigationDriver, useNavigationReader, type Driver } from "@/navigation/provider";
 import type { DirectMessageTarget } from "@/features/direct-pairs/target";
 import { useCallback, useMemo } from "react";
 import { matchPath, useLocation } from "react-router-dom";
@@ -1048,27 +1048,57 @@ export function resolveNavigationTarget(
   }
 }
 
+function navigateWith(
+  driver: Driver,
+  pathname: string,
+  search: string,
+  target: NavigationTarget,
+  opts?: { replace?: boolean },
+): void {
+  if (target.kind === "tab") {
+    driver.selectTab(target.tab);
+    return;
+  }
+  if (target.kind === "section") {
+    driver.openSection(target.tab, target.root);
+    return;
+  }
+  const pane = target.kind !== "url" && target.kind !== "conversation";
+  driver.go(resolveNavigationTarget(target, pathname, search), {
+    replace: opts?.replace ?? pane,
+    pane,
+  });
+}
+
+/**
+ * The navigation actions a message row needs, with identities that never
+ * change: they read the location when they run instead of subscribing to it.
+ * `useNav()` re-renders its consumer on every navigation, which across a
+ * hundred rows is most of the cost of switching channels.
+ */
+export function useNavActions() {
+  const read = useNavigationReader();
+  return useMemo(() => {
+    const navigate = (target: NavigationTarget) => {
+      const { driver, location } = read();
+      navigateWith(driver, location.pathname, location.search, target);
+    };
+    return {
+      go: (url: string) => navigate({ kind: "url", url }),
+      openAgentPanel: (agentId: string) => navigate({ kind: "agent", agentId }),
+      openHumanPanel: (userId: string) => navigate({ kind: "human", userId }),
+    };
+  }, [read]);
+}
+
 export function useNav() {
   const driver = useNavigationDriver();
   const { pathname, search } = useLocation();
-  const { back, selectTab, openSection, go: drive } = driver;
+  const { back, go: drive } = driver;
   const navigate = useCallback(
-    (target: NavigationTarget, opts?: { replace?: boolean }) => {
-      if (target.kind === "tab") {
-        selectTab(target.tab);
-        return;
-      }
-      if (target.kind === "section") {
-        openSection(target.tab, target.root);
-        return;
-      }
-      const pane = target.kind !== "url" && target.kind !== "conversation";
-      drive(resolveNavigationTarget(target, pathname, search), {
-        replace: opts?.replace ?? pane,
-        pane,
-      });
-    },
-    [drive, selectTab, openSection, pathname, search],
+    (target: NavigationTarget, opts?: { replace?: boolean }) =>
+      navigateWith(driver, pathname, search, target, opts),
+    [driver, pathname, search],
   );
   const go = useCallback(
     (url: string, opts?: { replace?: boolean }) => navigate({ kind: "url", url }, opts),
