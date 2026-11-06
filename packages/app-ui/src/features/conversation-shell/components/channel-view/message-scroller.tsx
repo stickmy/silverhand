@@ -3,7 +3,10 @@ import {
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
+  useMemo,
   useRef,
+  useState,
+  startTransition,
   type MouseEvent,
   type ReactNode,
   type Ref,
@@ -11,6 +14,9 @@ import {
 import { cn } from "@/lib/cn";
 
 const ANCHOR_ROWS = 4;
+// Rows mounted in the first frame, around the initial anchor: enough to fill
+// a tall viewport. The rest of the window mounts in the following frames.
+const FIRST_PAINT_ROWS = 24;
 
 export interface MessageScrollerHandle {
   scrollToBottom(): void;
@@ -89,6 +95,29 @@ export function MessageScroller<T>({
   callbacks.current = { onReachTop, onReachBottom, onAtBottomChange, onTopItemChange };
   const initialAnchorRef = useRef(initialAnchor);
 
+  // Mounting a whole window (100+ rows of markdown) costs several hundred ms,
+  // so a fresh mount paints only the rows around its anchor and adds the rest
+  // a frame later. The added rows above are absorbed by the anchor like a
+  // prepend, so nothing moves.
+  const [firstPaint, setFirstPaint] = useState(true);
+  const rendered = useMemo(() => {
+    if (!firstPaint || items.length <= FIRST_PAINT_ROWS) {
+      return items;
+    }
+    const anchor = initialAnchorRef.current;
+    const index =
+      anchor.kind === "key" ? items.findIndex((item) => itemKey(item) === anchor.key) : -1;
+    const end = index < 0 ? items.length : Math.min(items.length, index + FIRST_PAINT_ROWS / 2);
+    return items.slice(Math.max(0, end - FIRST_PAINT_ROWS), end);
+  }, [items, itemKey, firstPaint]);
+  const partial = rendered.length < items.length;
+  const partialRef = useRef(partial);
+  partialRef.current = partial;
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => startTransition(() => setFirstPaint(false)));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
   const findRow = useCallback((key: string): HTMLElement | null => {
     const rows = rowsRef.current;
     if (!rows) {
@@ -146,6 +175,14 @@ export function MessageScroller<T>({
     const key = anchorRef.current[0]?.key;
     if (key && key !== previousKey) {
       callbacks.current.onTopItemChange(key);
+    }
+
+    // A partial first paint has artificial ends: neither the bottom nor an
+    // edge of the window has been reached yet.
+    if (partialRef.current) {
+      settledHeightRef.current = scroller.scrollHeight;
+      lastScrollTopRef.current = scroller.scrollTop;
+      return;
     }
 
     // Only scrolling up leaves the bottom. Content that grew since the last
@@ -279,9 +316,9 @@ export function MessageScroller<T>({
   // The anchor must describe the layout BEFORE the new rows commit. Scrolling
   // since the last scroll event is not yet reflected in it, so it is read here,
   // while the DOM still holds the previous rows.
-  const renderedItemsRef = useRef(items);
-  if (renderedItemsRef.current !== items) {
-    renderedItemsRef.current = items;
+  const renderedItemsRef = useRef(rendered);
+  if (renderedItemsRef.current !== rendered) {
+    renderedItemsRef.current = rendered;
     if (scrollerRef.current?.scrollHeight === settledHeightRef.current) {
       captureAnchor();
     }
@@ -302,7 +339,7 @@ export function MessageScroller<T>({
 
   useLayoutEffect(() => {
     settle();
-  }, [items, settle]);
+  }, [rendered, settle]);
 
   useEffect(() => {
     const scroller = scrollerRef.current;
@@ -335,7 +372,7 @@ export function MessageScroller<T>({
         <div aria-hidden className="flex-1" />
         {header}
         <div ref={rowsRef}>
-          {items.map((item) => {
+          {rendered.map((item) => {
             const key = itemKey(item);
             return (
               <div key={key} data-scroller-key={key}>

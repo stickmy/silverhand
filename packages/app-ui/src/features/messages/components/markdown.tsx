@@ -12,9 +12,9 @@ import {
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
-import rehypeHighlight from "rehype-highlight";
 import { ChevronDownIcon, ChevronUpIcon, HashIcon } from "@/icons";
 import { rehypeHighlightTerm } from "../model/rehype-highlight-term";
+import { rehypeSharedHighlight } from "../model/rehype-shared-highlight";
 import type { AgentDto, UserDto } from "@silverhand/shared";
 import { ADDRESSABLE_ID_PATTERN } from "@silverhand/shared";
 import { isAutolink } from "@silverhand/shared/reference-markdown";
@@ -209,8 +209,8 @@ function MarkdownInner({
   const rehypePlugins = useMemo<NonNullable<ComponentProps<typeof ReactMarkdown>["rehypePlugins"]>>(
     () =>
       trimmedTerm
-        ? [rehypeHighlight, [rehypeHighlightTerm, { term: trimmedTerm }]]
-        : [rehypeHighlight],
+        ? [rehypeSharedHighlight, [rehypeHighlightTerm, { term: trimmedTerm }]]
+        : [rehypeSharedHighlight],
     [trimmedTerm],
   );
 
