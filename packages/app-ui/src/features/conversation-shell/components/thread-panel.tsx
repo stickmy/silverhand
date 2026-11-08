@@ -55,7 +55,7 @@ import {
   useThreadRoot,
   useUnfollowThread,
 } from "@/features/channels/hooks";
-import { isCommittedMessage } from "@/features/channels/pending-message";
+import { isCommittedMessage, isPendingMessage } from "@/features/channels/pending-message";
 import type { AttachmentSnapshot, MessageSeq } from "@silverhand/shared";
 import type { ComposerDirectory } from "@/features/conversations/pane-mode";
 import { useAgents } from "@/features/agents/hooks/hooks";
@@ -210,7 +210,7 @@ export function ThreadPanel({
   // mid-history after an around-reply jump (saved/search/task/notification
   // → primeAround with threadRootId), so the back-to-bottom button must be
   // able to reset to the true tail, not just scroll the local window.
-  const { isAtTail, hasNewerLiveGap, resetToLatest } = cluster;
+  const { isAtTail, hasNewerLiveGap, resetToLatest, windowRows, trimWindow } = cluster;
   const shouldResetToLatest = !isAtTail || hasNewerLiveGap;
 
   // Human follower state for this cluster (item 4 + 5). `viewer_following`
@@ -730,6 +730,25 @@ export function ThreadPanel({
       if (seq !== null) issueMarkRead(seq);
     };
   }, [issueMarkRead]);
+
+  // Live replies grow the window past its page bound. Pinned to the tail (or
+  // just sent), the oldest rows go and the pin below re-anchors the view;
+  // otherwise the newest go, below the viewport, so the reader is not moved
+  // and the window leaves the tail for the back-to-latest button.
+  const overWindow = messages.length > windowRows;
+  const lastMessage = messages[messages.length - 1];
+  const lastIsOwnSend = lastMessage !== undefined && isPendingMessage(lastMessage);
+  useLayoutEffect(() => {
+    if (!overWindow || jumpMessageId || cluster.isFetchingPreviousPage) return;
+    trimWindow(pinBottomRef.current || lastIsOwnSend ? "latest" : "earliest");
+  }, [
+    overWindow,
+    messages,
+    jumpMessageId,
+    cluster.isFetchingPreviousPage,
+    lastIsOwnSend,
+    trimWindow,
+  ]);
 
   // While pinned (initial open, or the user sitting at the tail), keep the
   // newest reply in view as the root loads / replies arrive. Instant jump

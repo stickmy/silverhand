@@ -493,6 +493,7 @@ export function useThreadCluster(
     // pre-empt or clobber it until `clearJump` drops the lock (#task:1317).
     refetchOnMount: false,
     initialPageParam: undefined as MessagesPageParam,
+    maxPages: MESSAGE_WINDOW_PAGES,
     queryFn: async ({ pageParam, signal }) => {
       const dto = await fetchMessagesWindow({
         conversationId: channelId!,
@@ -554,6 +555,14 @@ export function useThreadCluster(
     void qc.resetQueries({ queryKey: key, exact: true });
   }, [qc, channelId, rootMessageId, key]);
 
+  const windowRows = MESSAGE_PAGE_LIMIT[layout] * MESSAGE_WINDOW_PAGES;
+  const trimWindow = useCallback(
+    (keep: "latest" | "earliest") => {
+      qc.setQueryData<MessagesCache>(key, (data) => trimMessagesWindow(data, windowRows, keep));
+    },
+    [qc, key, windowRows],
+  );
+
   // Pure reader (#task:1255 P1b): no `onWsFrame` here — the central conversation
   // ingestor is the sole consumer and owns the cluster cache writes (reply
   // append / live-gap SET / task chip patch / snapshot reconcile), gated on this
@@ -595,6 +604,8 @@ export function useThreadCluster(
     isAtTail,
     hasNewerLiveGap,
     resetToLatest,
+    windowRows,
+    trimWindow,
     streamHeadSeq,
     windowFetchSucceededAt: epochQuery.data ?? 0,
   };
