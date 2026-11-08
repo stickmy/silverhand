@@ -77,11 +77,12 @@ export const mainlineLiveGapKey = (cid: string) =>
  *  contract — ingestor SETs, the reader view CLEARs on position changes. */
 export const clusterLiveGapKey = (cid: string, rootId: string) =>
   ["channels", cid, "cluster", rootId, "live-gap"] as const;
-export const MESSAGE_PAGE_LIMIT = 100;
-/** Pages kept in the channel window. Phones get one fewer: a full window
- *  measured ~30 ms per relayout on an iPhone 12 Pro (rotation, keyboard). */
-export const MESSAGE_WINDOW_PAGES = { regular: 3, compact: 2 } as const;
-export const AROUND_MESSAGE_LIMIT = 100;
+/** Rows per fetched page. The list mounts every loaded row, so the window is
+ *  {@link MESSAGE_WINDOW_PAGES} pages: 200 rows on desktop, 100 on phones,
+ *  where 200 still stuttered on an iPhone 12 Pro. */
+export const MESSAGE_PAGE_LIMIT = { regular: 100, compact: 50 } as const;
+export const MESSAGE_WINDOW_PAGES = 2;
+export const AROUND_MESSAGE_LIMIT = MESSAGE_PAGE_LIMIT;
 
 export function makeMessagesCache(
   page: CachedMessagesPage,

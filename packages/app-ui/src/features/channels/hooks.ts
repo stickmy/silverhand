@@ -209,7 +209,7 @@ async function fetchMessagesWindow(opts: {
  *  flip drives a rerender via the query subscription.
  */
 export function useChannelMessages(channelId: string | null) {
-  const compact = useCompactLayout();
+  const layout = useCompactLayout() ? "compact" : "regular";
   const qc = useQueryClient();
 
   // Stage-2 (#task:1255 P1a): the central conversation ingestor is the sole
@@ -245,12 +245,12 @@ export function useChannelMessages(channelId: string | null) {
     // past it drops the far page; once the tail page is dropped the window is
     // off-tail, which live appends, mark-read and the bottom button already
     // handle.
-    maxPages: MESSAGE_WINDOW_PAGES[compact ? "compact" : "regular"],
+    maxPages: MESSAGE_WINDOW_PAGES,
     queryFn: async ({ pageParam, signal }) =>
       fetchMessagesWindow({
         conversationId: channelId!,
         pageParam,
-        limit: MESSAGE_PAGE_LIMIT,
+        limit: MESSAGE_PAGE_LIMIT[layout],
         signal,
       }),
     getPreviousPageParam: (firstPage) => {
@@ -416,6 +416,7 @@ export function useThreadCluster(
     jumpWindowLocked?: boolean;
   },
 ) {
+  const layout = useCompactLayout() ? "compact" : "regular";
   const qc = useQueryClient();
   const enabledBase = !!channelId && !!rootMessageId;
   // The infinite query is enabled (and so allowed to auto-fire its initial
@@ -483,7 +484,7 @@ export function useThreadCluster(
         conversationId: channelId!,
         threadRootId: rootMessageId!,
         pageParam,
-        limit: MESSAGE_PAGE_LIMIT,
+        limit: MESSAGE_PAGE_LIMIT[layout],
         signal,
       });
       // Success path only — reached on a real window response, never via
@@ -766,6 +767,7 @@ export function useUnfollowThread(channelId: string | null, rootMessageId: strin
  */
 export function usePrimeConversationMessages() {
   const qc = useQueryClient();
+  const layout = useCompactLayout() ? "compact" : "regular";
 
   const primeAround = useCallback(
     async (
@@ -796,7 +798,7 @@ export function usePrimeConversationMessages() {
           conversationId,
           aroundMessageId: messageId,
           threadRootId: opts?.threadRootId,
-          limit: AROUND_MESSAGE_LIMIT,
+          limit: AROUND_MESSAGE_LIMIT[layout],
           // Plumb signal into the underlying fetch so an abort on the
           // App side actually cancels the in-flight request, not just
           // the post-response commit. Without this, callers that only
@@ -851,7 +853,7 @@ export function usePrimeConversationMessages() {
         throw err;
       }
     },
-    [qc],
+    [qc, layout],
   );
 
   return { primeAround };
