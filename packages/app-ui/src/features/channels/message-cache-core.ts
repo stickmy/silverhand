@@ -84,6 +84,51 @@ export const MESSAGE_PAGE_LIMIT = { regular: 100, compact: 50 } as const;
 export const MESSAGE_WINDOW_PAGES = 2;
 export const AROUND_MESSAGE_LIMIT = MESSAGE_PAGE_LIMIT;
 
+/** Bring a window back within `maxRows` by dropping rows from one end.
+ *  `maxPages` bounds only paging; live appends grow the tail page, so a channel
+ *  left open keeps growing until this trims it. Keeping the latest rows drops
+ *  the oldest and reopens history above; keeping the earliest drops the newest
+ *  and takes the window off the tail, which the live-gap and back-to-latest
+ *  paths already handle. Pages emptied by the trim are removed. */
+export function trimMessagesWindow(
+  data: MessagesCache | undefined,
+  maxRows: number,
+  keep: "latest" | "earliest",
+): MessagesCache | undefined {
+  if (!data) return data;
+  const total = data.pages.reduce((sum, page) => sum + page.messages.length, 0);
+  let excess = total - maxRows;
+  if (excess <= 0) return data;
+
+  const order = data.pages.map((_, index) => index);
+  if (keep === "earliest") order.reverse();
+  const kept = new Map<number, CachedMessagesPage>();
+  for (const index of order) {
+    const page = data.pages[index]!;
+    if (excess <= 0) {
+      kept.set(index, page);
+      continue;
+    }
+    const drop = Math.min(excess, page.messages.length);
+    excess -= drop;
+    if (drop === page.messages.length) continue;
+    kept.set(index, {
+      ...page,
+      messages: keep === "latest" ? page.messages.slice(drop) : page.messages.slice(0, -drop),
+    });
+  }
+
+  const indexes = [...kept.keys()].sort((a, b) => a - b);
+  const pages = indexes.map((index) => kept.get(index)!);
+  const pageParams = indexes.map((index) => data.pageParams[index]);
+  if (keep === "latest") {
+    pages[0] = { ...pages[0]!, has_more_before: true };
+  } else {
+    pages[pages.length - 1] = { ...pages[pages.length - 1]!, has_more_after: true };
+  }
+  return { pages, pageParams };
+}
+
 export function makeMessagesCache(
   page: CachedMessagesPage,
   pageParam: MessagesPageParam = undefined,

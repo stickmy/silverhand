@@ -60,6 +60,7 @@ import {
   agentRuntimeKey,
   MESSAGE_PAGE_LIMIT,
   MESSAGE_WINDOW_PAGES,
+  trimMessagesWindow,
   AROUND_MESSAGE_LIMIT,
   makeMessagesCache,
   lastPageIsTail,
@@ -357,6 +358,17 @@ export function useChannelMessages(channelId: string | null) {
    *  previous pages here: an around-message window may not be
    *  contiguous with latest, and stitching disjoint ranges would
    *  invalidate before/after cursors on either side. */
+  const windowRows = MESSAGE_PAGE_LIMIT[layout] * MESSAGE_WINDOW_PAGES;
+  const trimWindow = useCallback(
+    (keep: "latest" | "earliest") => {
+      if (!channelId) return;
+      qc.setQueryData<MessagesCache>(messagesKey(channelId), (data) =>
+        trimMessagesWindow(data, windowRows, keep),
+      );
+    },
+    [qc, channelId, windowRows],
+  );
+
   const resetToLatest = useCallback(() => {
     if (!channelId) return;
     setMainlineLiveGap(qc, channelId, false);
@@ -384,6 +396,8 @@ export function useChannelMessages(channelId: string | null) {
     isAtTail,
     hasNewerLiveGap,
     resetToLatest,
+    windowRows,
+    trimWindow,
     replyCountsByRoot,
     replySummariesByRoot,
     replyPreviewsByRoot,

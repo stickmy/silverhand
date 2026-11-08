@@ -62,6 +62,8 @@ export function MessageList({
   hasMoreAfter = false,
   isFetchingLater = false,
   onLoadLater,
+  windowRows,
+  onTrimWindow,
   agentAvatarUrls,
   leadingSlot,
   highlightedMessageId,
@@ -103,6 +105,10 @@ export function MessageList({
   hasMoreAfter?: boolean;
   isFetchingLater?: boolean;
   onLoadLater?: () => void;
+  /** The most rows the window may hold. Past it, `onTrimWindow` asks the
+   *  owner to drop rows from the end farther from the reader. */
+  windowRows?: number;
+  onTrimWindow?: (keep: "latest" | "earliest") => void;
   /** Map of agent id → avatar object URL. Lifted into ActiveChannelView
    *  so message authors, member chips, and the activity strip share a
    *  single batch fetch instead of three independent ones. */
@@ -430,8 +436,35 @@ export function MessageList({
 
   const isAtBottomRef = useRef(isAtBottom);
   isAtBottomRef.current = isAtBottom;
+
+  // Live appends grow the window past its page bound. The trim drops the half
+  // the reader is not in: far from the viewport and from both loading edges,
+  // so it neither moves what is read nor triggers a fetch that undoes it. The
+  // reader's own send counts as the lower half; the scroll that follows it has
+  // not been reported yet.
+  const topItemKeyRef = useRef<string | null>(null);
+  const overWindow = windowRows !== undefined && messages.length > windowRows;
+  const lastIsOwnSend = ownSendKey !== null;
+  useEffect(() => {
+    if (!overWindow || jumpToMessageId || isFetchingEarlier || isFetchingLater) return;
+    const topKey = topItemKeyRef.current;
+    const topIndex = topKey ? items.findIndex((item) => itemKey(item) === topKey) : -1;
+    const inLowerHalf =
+      isAtBottomRef.current || lastIsOwnSend || topIndex < 0 || topIndex >= items.length / 2;
+    onTrimWindow?.(inLowerHalf ? "latest" : "earliest");
+  }, [
+    overWindow,
+    items,
+    itemKey,
+    jumpToMessageId,
+    isFetchingEarlier,
+    isFetchingLater,
+    lastIsOwnSend,
+    onTrimWindow,
+  ]);
   const handleTopItemChange = useCallback(
     (key: string) => {
+      topItemKeyRef.current = key;
       viewMemory?.set(readingKey, { anchor: key, atBottom: isAtBottomRef.current });
     },
     [viewMemory, readingKey],

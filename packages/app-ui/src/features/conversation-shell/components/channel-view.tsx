@@ -355,6 +355,8 @@ function ActiveChannelView({
     isAtTail,
     hasNewerLiveGap,
     resetToLatest,
+    windowRows,
+    trimWindow,
     replyCountsByRoot,
     replySummariesByRoot,
     replyPreviewsByRoot,
@@ -1300,6 +1302,8 @@ function ActiveChannelView({
                 hasMoreAfter={!!hasNextPage}
                 isFetchingLater={isFetchingNextPage}
                 onLoadLater={loadLaterMessages}
+                windowRows={windowRows}
+                onTrimWindow={trimWindow}
                 agentAvatarUrls={agentAvatarUrls}
                 leadingSlot={
                   anchor ? (
