@@ -81,6 +81,8 @@ import { AgentAvatar } from "@/components/agent-avatar";
 import { AVATAR_PX } from "@/components/avatar-scale";
 import { useAgentAvatarObjectUrls } from "@/features/agents/hooks/avatar-hooks";
 import { useUsersById } from "@/features/users/hooks";
+import { useUserAvatarObjectUrl } from "@/features/users/avatar-hooks";
+import { UserAvatar } from "@/components/user-avatar";
 import {
   isBackendUnreachable,
   isRegistrationRequired,
@@ -574,11 +576,6 @@ function ComputerSection({
   createdAt: number;
   creatorUserId: string | null;
 }): JSX.Element {
-  const usersById = useUsersById();
-  // Unresolved (directory still loading, or no recorded creator) drops the
-  // row rather than printing a raw id.
-  const creatorName = creatorUserId ? (usersById.get(creatorUserId)?.display_name ?? null) : null;
-
   return (
     <HostSection title={t("computers.computer")}>
       <TooltipProvider>
@@ -634,13 +631,31 @@ function ComputerSection({
         <SystemField label={t("computers.added")} quiet>
           {formatCreatedAt(createdAt)}
         </SystemField>
-        {creatorName ? (
-          <SystemField label={t("computers.addedBy")} quiet>
-            {creatorName}
-          </SystemField>
-        ) : null}
+        {creatorUserId ? <CreatorField userId={creatorUserId} /> : null}
       </dl>
     </HostSection>
+  );
+}
+
+/** Who added the computer, resolved from the global user directory so a
+ *  rename or new avatar shows here without a host refetch. Unresolved
+ *  (directory still loading) drops the row rather than printing a raw id. */
+function CreatorField({ userId }: { userId: string }): JSX.Element | null {
+  const usersById = useUsersById();
+  const avatarObjectUrl = useUserAvatarObjectUrl({ userId });
+  const name = usersById.get(userId)?.display_name ?? null;
+
+  if (!name) {
+    return null;
+  }
+
+  return (
+    <SystemField label={t("computers.addedBy")} quiet>
+      <span className="inline-flex items-center gap-1.5 align-middle">
+        <UserAvatar size={AVATAR_PX.xs} avatarObjectUrl={avatarObjectUrl} alt={name} />
+        {name}
+      </span>
+    </SystemField>
   );
 }
 
