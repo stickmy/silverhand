@@ -1832,7 +1832,6 @@ async fn stamp_agent_presence(
                     END AS viewer_id
                FROM conversations
               WHERE placement_kind = 'direct_pair'
-                AND status = 'active'
                 AND ((endpoint_a_kind = 'agent' AND endpoint_a_id = ?
                       AND endpoint_b_kind = 'human')
                   OR (endpoint_b_kind = 'agent' AND endpoint_b_id = ?

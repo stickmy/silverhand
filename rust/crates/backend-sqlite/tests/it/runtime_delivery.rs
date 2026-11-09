@@ -1147,6 +1147,53 @@ async fn exit_finalization_status_activity_and_lease_cleanup_are_one_root_transa
 }
 
 #[tokio::test]
+async fn presence_audience_includes_the_human_endpoint_of_a_direct_pair() {
+    let fixture = fixture().await;
+    let mut connection = open(&fixture.path).await;
+    sqlx::raw_sql(
+        "INSERT INTO users (id, name, display_name, created_at, updated_at)
+             VALUES ('user-2', 'user-2', 'User Two', 1, 1);
+         INSERT INTO conversations (
+             id, placement_kind, roster_policy, title, status, visibility,
+             endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id,
+             created_at, updated_at
+         ) VALUES ('pair-1', 'direct_pair', 'fixed', '', 'idle', 'private',
+             'agent', 'agent-delivery', 'human', 'user-2', 1, 1);",
+    )
+    .execute(&mut connection)
+    .await
+    .unwrap();
+    connection.close().await.unwrap();
+    let principal = claim_runtime(&fixture, "daemon-presence").await;
+    let recorded = fixture
+        .delivery
+        .record_activity(
+            RuntimeEventAdmission::new("host-1".into(), principal),
+            RuntimeActivityFact::new(
+                ConversationId::parse(CONVERSATION).unwrap(),
+                AgentId::parse(AGENT).unwrap(),
+                RuntimeActivityKind::Text,
+                RuntimeActivityPayload::Text {
+                    text: "presence".into(),
+                },
+                RuntimeEventTime::from_unix_millis(1_000),
+            ),
+            RuntimeEventTime::from_unix_millis(1_000),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        recorded
+            .presence_viewers()
+            .iter()
+            .map(|viewer| viewer.as_str())
+            .collect::<Vec<_>>(),
+        ["user-1", "user-2"]
+    );
+}
+
+#[tokio::test]
 async fn presence_audience_is_emitted_only_on_deterministic_away_to_online_edges() {
     let fixture = fixture().await;
     let principal = claim_runtime(&fixture, "daemon-presence").await;
