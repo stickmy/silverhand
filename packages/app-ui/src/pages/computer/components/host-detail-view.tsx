@@ -965,7 +965,13 @@ function AgentConfigLine({ agent }: { agent: AgentOnHostDto }): JSX.Element {
   return (
     <span className="flex min-w-0 items-baseline gap-x-3 overflow-hidden text-(length:--text-meta) text-text-muted">
       {parts.map((part, index) => (
-        <span key={index} className={index === 1 ? "min-w-0 truncate" : "shrink-0"}>
+        <span
+          key={index}
+          className={cn(
+            index === 1 ? "min-w-0 truncate" : "shrink-0",
+            index === 0 && "font-semibold",
+          )}
+        >
           {part}
         </span>
       ))}
