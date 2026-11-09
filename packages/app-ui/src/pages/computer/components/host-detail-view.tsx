@@ -676,9 +676,14 @@ export function CreatedField({
                 type="button"
                 onClick={() => nav.toMembersUser(creatorUserId)}
                 aria-label={t("computers.openProfile", { name })}
-                className="inline-flex items-center gap-1.5 align-middle text-text-secondary underline-offset-2 hover:text-text-primary hover:underline focus-visible:underline focus-visible:outline-none"
+                className="inline-flex items-baseline gap-1.5 text-text-secondary underline-offset-2 hover:text-text-primary hover:underline focus-visible:underline focus-visible:outline-none"
               >
-                <UserAvatar size={AVATAR_PX.xs} avatarObjectUrl={avatarObjectUrl} alt={name} />
+                <UserAvatar
+                  size={AVATAR_PX.xs}
+                  avatarObjectUrl={avatarObjectUrl}
+                  alt={name}
+                  className="self-center"
+                />
                 {name}
               </button>
             ),
