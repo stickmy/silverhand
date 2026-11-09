@@ -39,6 +39,35 @@ mod runtime_transition;
 
 const ROOT_WRITE_BEGIN: &str = "BEGIN IMMEDIATE";
 
+/// SQL arms of [`RotationStanding`](silverhand_backend_core::host_runtime::custody::RotationStanding).
+/// `Current`: neither stamp.
+macro_rules! credential_rotation_current {
+    ($p:literal) => {
+        concat!(
+            "(",
+            $p,
+            "revoked_at IS NULL AND ",
+            $p,
+            "consumed_at IS NULL)"
+        )
+    };
+}
+
+/// `Current` or `InGrace`; binds `now` once.
+macro_rules! credential_rotation_usable {
+    ($p:literal) => {
+        concat!(
+            "(",
+            credential_rotation_current!($p),
+            " OR (",
+            $p,
+            "revoked_at > ? AND ",
+            $p,
+            "consumed_at IS NOT NULL))"
+        )
+    };
+}
+
 #[derive(Clone)]
 pub struct SqliteHostRuntimeStore {
     pool: crate::foundation::database::SqliteDatabase,
@@ -486,18 +515,19 @@ impl HostCredentialInventory for SqliteHostRuntimeStore {
         let count: i64 = crate::foundation::statement_metrics::statement(
             "host_credentials.has_active_long_lived",
             "get",
-            sqlx::query_scalar(
+            sqlx::query_scalar(concat!(
                 "SELECT COUNT(*)
                FROM host_credentials cred
                JOIN hosts h ON h.id = cred.host_id
               WHERE cred.host_id = ?
                 AND cred.kind = 'long_lived'
-                AND cred.consumed_at IS NULL
-                AND cred.revoked_at IS NULL
+                AND ",
+                credential_rotation_current!("cred."),
+                "
                 AND (cred.expires_at IS NULL OR cred.expires_at > ?)
                 AND h.revoked_at IS NULL
                 AND h.user_id IS NOT NULL",
-            )
+            ))
             .bind(computer.as_str())
             .bind(now)
             .fetch_one(&self.pool),
@@ -700,16 +730,17 @@ impl silverhand_backend_core::host_runtime::lifecycle::HostActivationPort
         let result = crate::foundation::statement_metrics::statement(
             "hosts.activate_attachment",
             "run",
-            sqlx::query(
+            sqlx::query(concat!(
                 "UPDATE hosts SET activated_at = CASE
                 WHEN provisioning_source = 'user_invite' THEN COALESCE(activated_at, ?) ELSE activated_at END
                 WHERE id = ? AND user_id = ? AND revoked_at IS NULL
                 AND EXISTS (SELECT 1 FROM host_credentials c WHERE c.id = ? AND c.host_id = hosts.id
                     AND c.kind = 'long_lived'
                     AND (c.expires_at IS NULL OR c.expires_at > ?)
-                    AND ((c.revoked_at IS NULL AND c.consumed_at IS NULL)
-                        OR (c.revoked_at > ? AND c.consumed_at IS NOT NULL)))",
-            )
+                    AND ",
+                credential_rotation_usable!("c."),
+                ")"
+            ))
             .bind(now)
             .bind(host)
             .bind(owner.as_str())

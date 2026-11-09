@@ -49,6 +49,35 @@ const CONNECT_TOKEN_BYTES: usize = 32;
 /// leave it unable to reconnect.
 pub const ROTATION_GRACE_MS: i64 = 60_000;
 
+/// Where a credential stands in rotation, read from the two stamps [`CredentialSweep`]
+/// writes. The single reading of the grace clause; the SQL gates spell the usable arms
+/// of the same table.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RotationStanding {
+    /// Neither stamp: the current credential.
+    Current,
+    /// Superseded, and `revoked_at` is still in the future.
+    InGrace,
+    /// Superseded and its grace window has closed.
+    GraceExpired,
+    /// Revoked without being superseded.
+    Revoked,
+    /// Superseded with no revocation instant: unusable.
+    Superseded,
+}
+
+impl RotationStanding {
+    pub fn of(consumed_at: Option<i64>, revoked_at: Option<i64>, now: i64) -> Self {
+        match (consumed_at, revoked_at) {
+            (None, None) => Self::Current,
+            (None, Some(_)) => Self::Revoked,
+            (Some(_), None) => Self::Superseded,
+            (Some(_), Some(revoked_at)) if revoked_at > now => Self::InGrace,
+            (Some(_), Some(_)) => Self::GraceExpired,
+        }
+    }
+}
+
 /// Persistence input for a long-lived credential. Its type fixes the lifecycle to
 /// active, long-lived and unconsumed; no caller can construct another state.
 ///
@@ -294,21 +323,15 @@ pub async fn verify_host_token<S: HostCredentialLookup>(
             HostTokenRejection::CredentialNotUsable,
         ));
     }
-    if let Some(revoked_at) = state.credential_revoked_at {
-        if state.consumed_at.is_none() {
-            return Ok(VerifyHostTokenFact::Rejected(
-                HostTokenRejection::CredentialRevoked,
-            ));
-        }
-        if revoked_at <= now {
-            return Ok(VerifyHostTokenFact::Rejected(
-                HostTokenRejection::CredentialExpired,
-            ));
-        }
-    } else if state.consumed_at.is_some() {
-        return Ok(VerifyHostTokenFact::Rejected(
-            HostTokenRejection::CredentialNotUsable,
-        ));
+    let rejection = match RotationStanding::of(state.consumed_at, state.credential_revoked_at, now)
+    {
+        RotationStanding::Current | RotationStanding::InGrace => None,
+        RotationStanding::Revoked => Some(HostTokenRejection::CredentialRevoked),
+        RotationStanding::GraceExpired => Some(HostTokenRejection::CredentialExpired),
+        RotationStanding::Superseded => Some(HostTokenRejection::CredentialNotUsable),
+    };
+    if let Some(rejection) = rejection {
+        return Ok(VerifyHostTokenFact::Rejected(rejection));
     }
     if state.expires_at.is_some_and(|expires_at| expires_at <= now) {
         return Ok(VerifyHostTokenFact::Rejected(
@@ -535,6 +558,20 @@ fn hash_host_token(token: &str) -> String {
 #[cfg(test)]
 mod tests {
     use std::{collections::VecDeque, convert::Infallible, sync::Mutex};
+
+    #[test]
+    fn rotation_standing_reads_both_stamps_against_now() {
+        use RotationStanding::*;
+        for (consumed, revoked, expected) in [
+            (None, None, Current),
+            (Some(1), Some(101), InGrace),
+            (Some(1), Some(100), GraceExpired),
+            (None, Some(200), Revoked),
+            (Some(1), None, Superseded),
+        ] {
+            assert_eq!(RotationStanding::of(consumed, revoked, 100), expected);
+        }
+    }
 
     use thiserror::Error;
 
