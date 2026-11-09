@@ -1,12 +1,13 @@
 import { useCompactLayout } from "@/navigation/layout";
 import { useEffect, useRef } from "react";
 import { routes, useNav, useRouteState } from "@/router";
-import { useAgents } from "@/features/agents/hooks/hooks";
+import { useAgent, useAgents } from "@/features/agents/hooks/hooks";
 import { DirectoryShell, type DirectoryLifecycle } from "@/components/layout/directory-shell";
 import { Sidebar } from "@/components/layout/sidebar";
 import { AgentSidebarShell } from "./agent-sidebar-shell";
 import { AgentDetailPage, type AgentNavigation } from "./agent-detail-page";
 import { resolveDefaultAgent } from "./selection";
+import { byIdSelection } from "@/lib/by-id-selection";
 
 export function AgentShell({
   mounted,
@@ -19,6 +20,17 @@ export function AgentShell({
   const nav = useNav();
   const { data: agents = [] } = useAgents();
   const lastSelectedAgentId = useRef<string | null>(null);
+  // An agent outside the viewer's list (opened from a link) is read by id;
+  // only a definite 404 falls back to the list.
+  const listed = route.agentId !== null && agents.some((agent) => agent.id === route.agentId);
+  const selectedQuery = useAgent(listed ? null : route.agentId);
+  const unlisted = !listed && route.agentId !== null ? byIdSelection(selectedQuery) : null;
+  const selectedPending = unlisted === "pending";
+  const selectableIds = agents.map((agent) => agent.id);
+
+  if (unlisted === "kept" && route.agentId) {
+    selectableIds.push(route.agentId);
+  }
 
   useEffect(() => {
     if (route.agentId && agents.some((agent) => agent.id === route.agentId)) {
@@ -27,12 +39,12 @@ export function AgentShell({
   }, [agents, route.agentId]);
 
   useEffect(() => {
-    if (compact || route.section !== "members") {
+    if (compact || route.section !== "members" || selectedPending) {
       return;
     }
 
     const target = resolveDefaultAgent(
-      agents.map((agent) => agent.id),
+      selectableIds,
       route.agentId,
       route.userId,
       lastSelectedAgentId.current,
@@ -41,7 +53,7 @@ export function AgentShell({
     if (target) {
       nav.go(routes.membersAgent(target), { replace: true });
     }
-  }, [compact, agents, route.section, route.agentId, route.userId, nav]);
+  }, [compact, agents, unlisted, route.section, route.agentId, route.userId, nav]);
 
   return (
     <DirectoryShell

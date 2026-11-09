@@ -1,5 +1,6 @@
 export const computers = {
   selectAComputer: "Select a computer",
+  couldNotLoadComputer: "Couldn't load this computer.",
   computer: "Computer",
   noComputersAvailable: "No computers available",
   addComputer: "Add computer",

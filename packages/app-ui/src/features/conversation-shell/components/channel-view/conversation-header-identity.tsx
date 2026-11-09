@@ -146,7 +146,7 @@ function CounterpartIdentity({
   const { openAgentPanel, openHumanPanel } = useNav();
   const agentId =
     counterpart.status === "active" && counterpart.kind === "agent" ? counterpart.id : null;
-  const description = useAgent(agentId).data?.description?.trim() || null;
+  const description = useAgent(agentId).data?.agent.description?.trim() || null;
   const face = (
     <AuthorAvatarView
       avatar={presentation.avatar}

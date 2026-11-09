@@ -433,7 +433,11 @@ export function RuntimeConfigEditor({
 const RUNTIME_GRID_CLASS = "grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] gap-x-6 gap-y-3";
 
 /** Read-only presentation of the current runtime + tuning tuple. */
-function ReadOnlyGrid({ agent }: { agent: AgentDto }): JSX.Element {
+export function ReadOnlyGrid({
+  agent,
+}: {
+  agent: Pick<AgentDto, "runtime" | "model" | "reasoning_effort" | "fast_mode">;
+}): JSX.Element {
   const supportsReasoning = runtimeSupportsReasoningEffort(agent.runtime);
   const supportsFastMode = runtimeSupportsFastMode(agent.runtime);
   return (

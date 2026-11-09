@@ -33,7 +33,7 @@
  */
 import type {
   HostAdmissionFailure,
-  HostStatusResponse,
+  HostStatusReadResponse,
   HostUnreachableReason,
 } from "@silverhand/shared";
 import { computerCopy } from "../../../features/computers/model/computer-copy";
@@ -168,7 +168,7 @@ export function describeAdmissionFailure(
  * this function only describes the **availability** of the host as a
  * whole.
  */
-export function describeHostStatus(status: HostStatusResponse): HostStatusView {
+export function describeHostStatus(status: HostStatusReadResponse): HostStatusView {
   switch (status.availability) {
     case "available":
       return {
@@ -191,7 +191,8 @@ export function describeHostStatus(status: HostStatusResponse): HostStatusView {
     case "unreachable":
       return {
         label: computerCopy().availabilityUnreachable,
-        detail: describeUnreachableReason(status.reason),
+        // The public tier carries no reason.
+        detail: status.view === "public" ? null : describeUnreachableReason(status.reason),
         tone: "warning",
       };
     case "revoked":

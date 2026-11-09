@@ -101,6 +101,7 @@ export const agents = {
   perChannelExecutionTrace: "Per-channel execution trace.",
   agentSections: "Agent sections",
   agentNotFound: "Agent not found.",
+  couldNotLoadAgent: "Couldn't load this agent.",
   openAChannelTo: "Open a channel to see this agent's activity there.",
   schedulesArePrivateTo: "Schedules are private to this agent's owner.",
   agentWorkspaceFilesAre: "Agent workspace files are private to this agent's owner.",

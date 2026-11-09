@@ -6,7 +6,7 @@ import { AgentPageLayout } from "./agent-page-layout";
 import { visibleAgentSideSections, type AgentSideSection } from "../model/side-section-access";
 import { useEffect, useState } from "react";
 import { LockIcon } from "@/icons";
-import type { AgentDto, AgentRuntimeStateDto } from "@silverhand/shared";
+import type { AgentDto, AgentPublicDto, AgentRuntimeStateDto } from "@silverhand/shared";
 import { cn } from "@/lib/cn";
 import { SidePanelHeader } from "@/components/layout/side-panel-header";
 import { AgentHeader } from "./agent-header";
@@ -20,6 +20,7 @@ import { AgentChatsPane } from "./agent-chats-pane";
 import { AGENT_PANE_INSET } from "../model/agent-pane-layout";
 import { agentSections, AgentSectionTabs, type AgentSection } from "./agent-section-tabs";
 import { useAgent, useAgentRuntimeState } from "../hooks/hooks";
+import { isPrivilegedAgent } from "../model/agent-read";
 import {
   canAuditAgentChats,
   canManageAgentSchedules,
@@ -27,6 +28,8 @@ import {
 } from "../model/permissions";
 import { isBackendUnreachable, isUpdateRequired, useViewerUser } from "@/features/session/hooks";
 import { t } from "@/lib/i18n";
+import { isNotFound } from "@/lib/by-id-selection";
+import { Button } from "@/components/ui/button";
 
 const SECTION_STORAGE_KEYS = {
   full: "silverhand:layout.agent-section",
@@ -71,7 +74,10 @@ export function AgentView({
   onClose,
 }: AgentViewProps): JSX.Element {
   const agentQuery = useAgent(agentId);
-  const runtimeQuery = useAgentRuntimeState(agentId);
+  const publicView = agentQuery.data?.view === "public";
+  const runtimeQuery = useAgentRuntimeState(agentId, {
+    enabled: agentQuery.data?.view === "privileged",
+  });
   const viewerQuery = useViewerUser();
 
   const [selection, setSelection] = useState(() => ({
@@ -84,7 +90,8 @@ export function AgentView({
     setSelection((current) => ({ ...current, [mode]: next }));
   };
 
-  const agent = agentQuery.data;
+  const agent = agentQuery.data?.agent;
+  const fullAgent = agentQuery.data?.view === "privileged" ? agentQuery.data.agent : undefined;
   const viewer =
     viewerQuery.data &&
     !isBackendUnreachable(viewerQuery.data) &&
@@ -92,11 +99,15 @@ export function AgentView({
       ? viewerQuery.data
       : undefined;
   const accessKnown = Boolean(agent && viewer);
-  const canManageSchedules = Boolean(agent && viewer && canManageAgentSchedules(viewer, agent));
-  const canViewFiles = Boolean(agent && viewer && canViewAgentFiles(viewer, agent));
-  const canAuditChats = Boolean(agent && viewer && canAuditAgentChats(viewer, agent));
-  const visibleSections =
-    mode === "side"
+  const canManageSchedules = Boolean(
+    fullAgent && viewer && canManageAgentSchedules(viewer, fullAgent),
+  );
+  const canViewFiles = Boolean(fullAgent && viewer && canViewAgentFiles(viewer, fullAgent));
+  const canAuditChats = Boolean(fullAgent && viewer && canAuditAgentChats(viewer, fullAgent));
+  // A public read is identity only: the profile is the one section it can fill.
+  const visibleSections: AgentSection[] = publicView
+    ? ["profile"]
+    : mode === "side"
       ? visibleAgentSideSections(canViewFiles, canManageSchedules)
       : agentSections()
           .filter((item) => !item.ownerOnly || canAuditChats)
@@ -104,9 +115,11 @@ export function AgentView({
   const sections = visibleSections.map((id) => agentSections().find((item) => item.id === id)!);
   const effectiveSection = visibleSections.some((id) => id === section)
     ? section
-    : mode === "side"
-      ? "activity"
-      : "profile";
+    : publicView
+      ? "profile"
+      : mode === "side"
+        ? "activity"
+        : "profile";
 
   useEffect(() => {
     try {
@@ -163,7 +176,7 @@ export function AgentView({
         ) : null
       }
       navigation={
-        ready ? (
+        ready && !publicView ? (
           <AgentSectionTabs sections={sections} active={effectiveSection} onChange={setSection} />
         ) : null
       }
@@ -183,6 +196,13 @@ export function AgentView({
         />
       ) : agentQuery.isLoading ? (
         <ProfileSkeleton agent />
+      ) : agentQuery.isError && !isNotFound(agentQuery.error) ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 text-sm text-text-muted">
+          <span>{t("agents.couldNotLoadAgent")}</span>
+          <Button variant="neutral" size="sm" onClick={() => void agentQuery.refetch()}>
+            {t("common.retry")}
+          </Button>
+        </div>
       ) : (
         <div className="flex flex-1 items-center justify-center text-sm text-text-muted">
           {t("agents.agentNotFound")}
@@ -206,7 +226,7 @@ function AgentSectionContent({
 }: {
   mode: AgentViewMode;
   section: AgentSection;
-  agent: AgentDto;
+  agent: AgentDto | AgentPublicDto;
   runtimeState: AgentRuntimeStateDto | undefined;
   accessKnown: boolean;
   canViewFiles: boolean;
@@ -216,6 +236,16 @@ function AgentSectionContent({
   onOpenChat: AgentViewProps["onOpenChat"];
 }): JSX.Element {
   const inset = mode === "side" ? "p-4" : AGENT_PANE_INSET;
+
+  if (!isPrivilegedAgent(agent)) {
+    return (
+      <div className="min-w-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
+        <div className={inset}>
+          <AgentProfileCard agent={agent} />
+        </div>
+      </div>
+    );
+  }
 
   switch (section) {
     case "activity":

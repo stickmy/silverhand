@@ -101,6 +101,7 @@ export const agents: Translation<typeof en> = {
   perChannelExecutionTrace: "按频道查看执行记录。",
   agentSections: "Agent 分区",
   agentNotFound: "找不到这个 agent。",
+  couldNotLoadAgent: "无法加载这个 agent。",
   openAChannelTo: "打开一个频道，查看这个 agent 在其中的动态。",
   schedulesArePrivateTo: "定时任务仅对这个 agent 的所有者可见。",
   agentWorkspaceFilesAre: "Agent 工作区文件仅对它的所有者可见。",

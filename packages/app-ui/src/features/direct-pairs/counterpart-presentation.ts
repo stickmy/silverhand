@@ -92,7 +92,9 @@ export function presentCounterpart(counterpart: DirectPairCounterpart): Counterp
  * exists by construction. Nothing is persisted or pre-allocated by calling this —
  * it is a projection of an agent the renderer already fetched.
  */
-export function counterpartFromAgent(agent: AgentDto): DirectPairCounterpart {
+export function counterpartFromAgent(
+  agent: Pick<AgentDto, "id" | "name" | "display_name" | "avatar_url" | "runtime">,
+): DirectPairCounterpart {
   return {
     status: "active",
     kind: "agent",

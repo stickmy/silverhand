@@ -409,7 +409,7 @@ function ConnectionSection({
 
 /* ─── Hero ──────────────────────────────────────────────────────── */
 
-function HostHero({
+export function HostHero({
   host,
   showStableName,
   statusLabel,
@@ -420,14 +420,15 @@ function HostHero({
   onRename,
   appManaged,
 }: {
-  host: HostDto;
+  host: Pick<HostDto, "name" | "display_label">;
   showStableName: boolean;
   statusLabel: string | null;
   statusTone: HostStatusTone | null;
   statusLoading: boolean;
   refreshing: boolean;
   onRefresh: () => void;
-  onRename: (next: string | null) => Promise<void>;
+  /** Absent for a viewer who cannot rename the computer. */
+  onRename?: (next: string | null) => Promise<void>;
   /** Provenance chip in the state row. This is lifecycle/origin
    *  metadata (per doc §3.1), NOT a capability signal — the four
    *  danger surfaces below are picked by `computerActions`, not by
@@ -440,13 +441,17 @@ function HostHero({
 
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         <div className="font-serif text-lg font-semibold leading-tight text-text-primary">
-          <InlineRename
-            value={host.display_label}
-            placeholder={host.name}
-            fallbackForEdit={host.display_label ?? host.name}
-            ariaLabel={t("computers.renameThisComputer")}
-            onCommit={onRename}
-          />
+          {onRename ? (
+            <InlineRename
+              value={host.display_label}
+              placeholder={host.name}
+              fallbackForEdit={host.display_label ?? host.name}
+              ariaLabel={t("computers.renameThisComputer")}
+              onCommit={onRename}
+            />
+          ) : (
+            <span className="wrap-break-word">{host.display_label?.trim() || host.name}</span>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -640,7 +645,7 @@ function ComputerSection({
 /** Who added the computer, resolved from the global user directory so a
  *  rename or new avatar shows here without a host refetch. Unresolved
  *  (directory still loading) drops the row rather than printing a raw id. */
-function CreatorField({ userId }: { userId: string }): JSX.Element | null {
+export function CreatorField({ userId }: { userId: string }): JSX.Element | null {
   const nav = useNav();
   const usersById = useUsersById();
   const avatarObjectUrl = useUserAvatarObjectUrl({ userId });
@@ -766,14 +771,14 @@ function CopyableValue({ value }: { value: string }): JSX.Element {
 
 /** Host creation date as `YYYY-MM-DD`. Built from local calendar parts,
  *  zero-padded — a lifecycle date, no time of day. */
-function formatCreatedAt(createdAt: number): string {
+export function formatCreatedAt(createdAt: number): string {
   const d = new Date(createdAt);
   const month = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${d.getFullYear()}-${month}-${day}`;
 }
 
-function SystemField({
+export function SystemField({
   label,
   quiet = false,
   children,
@@ -861,12 +866,16 @@ function OfflineSection({
 
 /* ─── Registered agents ─────────────────────────────────────────── */
 
-function RegisteredAgentsSection({
+export function RegisteredAgentsSection({
   hostId,
   agents,
+  live = true,
 }: {
   hostId: string;
   agents: AgentOnHostDto[];
+  /** Off for a public read, which has no realtime liveness to follow: the
+   *  pips then show the status read's own `online`. */
+  live?: boolean;
 }): JSX.Element {
   const nav = useNav();
   // Agent-on-computer liveness (layer-2) is the SAME fact the rail dot
@@ -877,7 +886,7 @@ function RegisteredAgentsSection({
   // Falls back to the frozen snapshot's `online` until the first live
   // sample lands. Do NOT source layer-3 conversation status here —
   // this list's subject is the computer.
-  const liveOnlineByHost = useAgentOnlineByHost([hostId]);
+  const liveOnlineByHost = useAgentOnlineByHost(live ? [hostId] : []);
   // shiki dogfood `DXVl5tEBshVT2LqF` #2: route avatar uploads through
   // the shared object-URL cache so cards show the user-picked image
   // instead of the runtime tint fallback. Memoize the source list so

@@ -1,7 +1,7 @@
 import { ProfileHeaderContent } from "@/features/profile/profile-header-content";
 import { useState } from "react";
 import { DeleteIcon, MessageIcon, MoreIcon, PowerIcon } from "@/icons";
-import type { AgentDto, AgentRuntimeStateDto } from "@silverhand/shared";
+import type { AgentDto, AgentPublicDto, AgentRuntimeStateDto } from "@silverhand/shared";
 import { AgentAvatar } from "@/components/agent-avatar";
 import { AVATAR_PX } from "@/components/avatar-scale";
 import { iconMarkup, useNativeBar } from "@/components/layout/native-page-bar";
@@ -11,10 +11,12 @@ import { useAgentPresence, useStopAgent } from "../hooks/hooks";
 import { projectPresence, PRESENCE_TONE_DOT } from "../model/presence-projection";
 import { useAgentAvatarObjectUrl } from "../hooks/avatar-hooks";
 import { DeleteAgentDialog } from "./delete-agent-dialog";
+import { isPrivilegedAgent } from "../model/agent-read";
 import { t } from "@/lib/i18n";
 
 interface AgentHeaderProps {
-  agent: AgentDto;
+  /** A public read carries identity only, so the header drops every action. */
+  agent: AgentDto | AgentPublicDto;
   runtimeState: AgentRuntimeStateDto | undefined;
   onDeleted: () => void;
   onClose?: () => void;
@@ -31,6 +33,7 @@ export function AgentHeader({
   mode,
 }: AgentHeaderProps): JSX.Element {
   const compact = mode === "side";
+  const full = isPrivilegedAgent(agent) ? agent : null;
 
   const [deleteOpen, setDeleteOpen] = useState(false);
 
@@ -42,7 +45,7 @@ export function AgentHeader({
   const runningCount = (runtimeState?.seats ?? []).filter(
     (seat) => seat.status === "starting" || seat.status === "active",
   ).length;
-  const canMessage = Boolean(onMessageAgent) && agent.session_scope === "agent";
+  const canMessage = Boolean(onMessageAgent) && full?.session_scope === "agent";
   const displayName = agent.display_name || agent.name;
   const presenceDisplay = presence === null ? null : projectPresence({ scope: "global", presence });
 
@@ -64,7 +67,7 @@ export function AgentHeader({
     />
   );
 
-  const actions = (
+  const actions = full ? (
     <>
       {canMessage && onMessageAgent ? (
         <HeaderAction
@@ -101,7 +104,7 @@ export function AgentHeader({
         </HeaderAction>
       ) : null}
     </>
-  );
+  ) : null;
 
   // A full page on compact iOS: the bar names the section, as the page under
   // it is the member list; Message stays out and the rest go behind More. The
@@ -112,29 +115,31 @@ export function AgentHeader({
       : {
           title: t("agents.members"),
           titleAction: null,
-          actions: [
-            [
-              ...(canMessage
-                ? [
-                    {
-                      id: "message",
-                      label: t("agents.messageAgent", { name: agent.name }),
-                      icon: iconMarkup(MessageIcon),
-                      primary: true,
-                    },
-                  ]
-                : []),
-              ...(runningCount > 0
-                ? [{ id: "stop", label: t("agents.stop"), icon: iconMarkup(PowerIcon) }]
-                : []),
-              {
-                id: "delete",
-                label: t("agents.delete"),
-                icon: iconMarkup(DeleteIcon),
-                destructive: true,
-              },
-            ],
-          ],
+          actions: full
+            ? [
+                [
+                  ...(canMessage
+                    ? [
+                        {
+                          id: "message",
+                          label: t("agents.messageAgent", { name: agent.name }),
+                          icon: iconMarkup(MessageIcon),
+                          primary: true,
+                        },
+                      ]
+                    : []),
+                  ...(runningCount > 0
+                    ? [{ id: "stop", label: t("agents.stop"), icon: iconMarkup(PowerIcon) }]
+                    : []),
+                  {
+                    id: "delete",
+                    label: t("agents.delete"),
+                    icon: iconMarkup(DeleteIcon),
+                    destructive: true,
+                  },
+                ],
+              ]
+            : [],
           overflow: { label: t("agents.more"), icon: iconMarkup(MoreIcon) },
           tabs: null,
           addTabs: null,
@@ -214,12 +219,14 @@ export function AgentHeader({
       ) : (
         <header className="agent-header-full">{content}</header>
       )}
-      <DeleteAgentDialog
-        open={deleteOpen}
-        onOpenChange={setDeleteOpen}
-        agent={agent}
-        onDeleted={onDeleted}
-      />
+      {full ? (
+        <DeleteAgentDialog
+          open={deleteOpen}
+          onOpenChange={setDeleteOpen}
+          agent={full}
+          onDeleted={onDeleted}
+        />
+      ) : null}
     </>
   );
 }

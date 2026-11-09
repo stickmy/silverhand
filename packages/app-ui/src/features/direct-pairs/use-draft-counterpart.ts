@@ -12,7 +12,7 @@ export function useDraftCounterpart(target: DirectMessageTarget | null) {
     isLoading: target?.kind === "agent" ? agent.isLoading : users.isLoading,
     counterpart:
       target?.kind === "agent" && agent.data
-        ? counterpartFromAgent(agent.data)
+        ? counterpartFromAgent(agent.data.agent)
         : human
           ? counterpartFromHuman(human)
           : null,

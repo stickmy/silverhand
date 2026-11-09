@@ -3,6 +3,7 @@ import type { Translation } from "../../translate";
 
 export const computers: Translation<typeof en> = {
   selectAComputer: "选择电脑",
+  couldNotLoadComputer: "无法加载这台电脑。",
   computer: "电脑",
   noComputersAvailable: "没有可用的电脑",
   addComputer: "添加电脑",

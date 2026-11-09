@@ -10,6 +10,7 @@ import {
   HostDeleteResponseSchema,
   HostDisconnectResponseSchema,
   HostDtoSchema,
+  HostGetResponseSchema,
   HostPrivilegedGetResponseSchema,
   HostListResponseSchema,
   HostProxyConfigOfflineResponseSchema,
@@ -18,6 +19,7 @@ import {
   HostResourcesResponseSchema,
   HostRevokeResponseSchema,
   HostRotateTokenUserManagedResponseSchema,
+  HostStatusReadResponseSchema,
   HostStatusResponseSchema,
   HOST_PROXY_CONFIG_OFFLINE_ERROR_CODE,
   RuntimeCatalogResponseSchema,
@@ -30,8 +32,10 @@ import {
   type HostResourcesResponse,
   type HostDisconnectResponse,
   type HostDto,
+  type HostGetResponse,
   type HostListResponse,
   type HostProxyConfig,
+  type HostStatusReadResponse,
   type HostStatusResponse,
   type RuntimeCatalogResponse,
   type UpdateHostInput,
@@ -290,6 +294,46 @@ export function useHostByIdQuery(
     },
     enabled: (options?.enabled ?? true) && Boolean(hostId),
     refetchInterval: options?.refetchInterval ?? false,
+  });
+}
+
+/**
+ * A computer by id at the tier the viewer reads it: the owner gets the full
+ * record (`view: "privileged"`), any other signed-in human the public
+ * identity. Public reads receive no realtime frames, so they refresh on mount
+ * and on window focus.
+ */
+export function useHostReadQuery(
+  hostId: string | null | undefined,
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: [...hostByIdKey(hostId ?? "__none__"), "read"] as const,
+    queryFn: async (): Promise<HostGetResponse> => {
+      const raw = await api<unknown>(apiPaths.host(hostId!));
+      return HostGetResponseSchema.parse(raw);
+    },
+    enabled: (options?.enabled ?? true) && Boolean(hostId),
+    refetchOnMount: (query) => (query.state.data?.view === "public" ? "always" : true),
+    refetchOnWindowFocus: (query) => query.state.data?.view === "public",
+  });
+}
+
+/**
+ * Status of a computer the viewer does not own, read at whichever tier the
+ * backend grants. Kept apart from {@link hostStatusKey}, whose readers (rail
+ * dots, pickers) assume the owner's shape and event-driven freshness; this
+ * one has no realtime frames, so it refreshes on mount and on window focus.
+ */
+export function useHostStatusReadQuery(hostId: string) {
+  return useQuery({
+    queryKey: [...hostStatusKey(hostId), "read"] as const,
+    queryFn: async (): Promise<HostStatusReadResponse> => {
+      const raw = await api<unknown>(apiPaths.hostStatus(hostId));
+      return HostStatusReadResponseSchema.parse(raw);
+    },
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 }
 

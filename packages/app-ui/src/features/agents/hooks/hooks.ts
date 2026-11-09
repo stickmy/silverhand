@@ -4,6 +4,7 @@ import type {
   AgentAvailability,
   AgentAvailabilityDto,
   AgentDto,
+  AgentGetResponse,
   AgentPresenceDto,
   AgentRuntimeStateDto,
   AgentWorkspaceFileRead,
@@ -17,7 +18,7 @@ import type {
   SwitchAgentRuntimeResponse,
   UpdateAgentInput,
 } from "@silverhand/shared";
-import { AVATAR_DESIGN_FIELD, apiPaths } from "@silverhand/shared";
+import { AgentGetResponseSchema, AVATAR_DESIGN_FIELD, apiPaths } from "@silverhand/shared";
 import {
   AGENT_AVAILABILITY_CHANGED_EVENT,
   AgentAvailabilityChangedEventSchema,
@@ -92,14 +93,38 @@ export function useAgents(options?: { enabled?: boolean; scope?: "owned" }) {
   });
 }
 
+/** One agent by id, tagged with the tier the viewer reads it at. */
+export type AgentRead = AgentGetResponse;
+
+/**
+ * Window-focus policy for an agent's event-driven reads (presence,
+ * availability). A public reader receives none of their realtime frames, so
+ * for an agent the viewer reads at the public tier, focus re-reads them;
+ * otherwise the frames keep them current and focus does nothing.
+ */
+function refetchOnFocusWhenPublic(qc: QueryClient, agentId: string | null | undefined) {
+  return () =>
+    agentId && qc.getQueryData<AgentRead>(agentKey(agentId))?.view === "public"
+      ? ("always" as const)
+      : false;
+}
+
+/**
+ * One agent by id. Any signed-in human can read an existing agent: viewers
+ * with access get the full record (`view: "privileged"`), everyone else the
+ * public identity (`view: "public"`). Public reads receive no realtime frames,
+ * so they refresh on mount and on window focus instead.
+ */
 export function useAgent(agentId: string | null) {
   return useQuery({
     queryKey: agentId ? agentKey(agentId) : ["agents", "none"],
     enabled: !!agentId,
-    queryFn: async () => {
-      const res = await api<{ agent: AgentDto }>(`/api/agents/${agentId}`);
-      return res.agent;
+    queryFn: async (): Promise<AgentRead> => {
+      const raw = await api<unknown>(`/api/agents/${agentId}`);
+      return AgentGetResponseSchema.parse(raw);
     },
+    refetchOnMount: (query) => (query.state.data?.view === "public" ? "always" : true),
+    refetchOnWindowFocus: (query) => query.state.data?.view === "public",
   });
 }
 
@@ -204,10 +229,8 @@ export function decideAgentPresenceInvalidation(
  * safely (a past deadline reads Away; the availability axis, which folds stale →
  * unknown, is the safety valve for "should we claim anything at all").
  */
-export function useAgentPresence(agentId: string | null | undefined): GlobalPresence | null {
-  const qc = useQueryClient();
-  const availability = useAgentAvailability(agentId);
-  const query = useQuery({
+export function agentPresenceQueryOptions(qc: QueryClient, agentId: string | null | undefined) {
+  return {
     queryKey: agentId ? agentPresenceKey(agentId) : ["agents", "none", "presence"],
     enabled: !!agentId,
     // Route is the single source of the value; `agent_presence_changed` drives
@@ -222,13 +245,20 @@ export function useAgentPresence(agentId: string | null | undefined): GlobalPres
     // agent Away for as long as its next real crossing is away. `'always'` closes
     // that gap and re-pairs `(dataUpdatedAt, server_now)` each mount, bounding the
     // skew residual (see {@link calibratePresenceDeadline}) to mount granularity.
-    refetchOnMount: "always",
+    refetchOnMount: "always" as const,
+    refetchOnWindowFocus: refetchOnFocusWhenPublic(qc, agentId),
     retry: agentAvailabilityRetry,
-    queryFn: async () => {
+    queryFn: async (): Promise<AgentPresenceDto> => {
       const res = await api<AgentPresenceDto>(apiPaths.agentPresence(agentId!));
       return res;
     },
-  });
+  };
+}
+
+export function useAgentPresence(agentId: string | null | undefined): GlobalPresence | null {
+  const qc = useQueryClient();
+  const availability = useAgentAvailability(agentId);
+  const query = useQuery(agentPresenceQueryOptions(qc, agentId));
   useEffect(() => {
     if (!agentId) return;
     const sub = subscribeViewerScope();
@@ -419,11 +449,8 @@ export function decideAgentAvailabilityInvalidation(
  * below) — any frame dropped while every surface was unmounted is recovered on the
  * next mount rather than left painting a stale value from a never-stale warm entry.
  */
-export function useAgentAvailability(
-  agentId: string | null | undefined,
-): AgentAvailability | "unknown" {
-  const qc = useQueryClient();
-  const query = useQuery({
+export function agentAvailabilityQueryOptions(qc: QueryClient, agentId: string | null | undefined) {
+  return {
     queryKey: agentId ? agentAvailabilityKey(agentId) : ["agents", "none", "availability"],
     enabled: !!agentId,
     // The route is the single source of the value; the event drives every
@@ -432,13 +459,21 @@ export function useAgentAvailability(
     // A mount must hit the wire (see docblock): the unbuffered WS listener lives
     // on this hook, so a frame dropped while unmounted is only recovered by a
     // real mount refetch — never by rereading a never-stale warm entry.
-    refetchOnMount: "always",
+    refetchOnMount: "always" as const,
+    refetchOnWindowFocus: refetchOnFocusWhenPublic(qc, agentId),
     retry: agentAvailabilityRetry,
-    queryFn: async () => {
+    queryFn: async (): Promise<AgentAvailability> => {
       const res = await api<AgentAvailabilityDto>(apiPaths.agentAvailability(agentId!));
       return res.availability;
     },
-  });
+  };
+}
+
+export function useAgentAvailability(
+  agentId: string | null | undefined,
+): AgentAvailability | "unknown" {
+  const qc = useQueryClient();
+  const query = useQuery(agentAvailabilityQueryOptions(qc, agentId));
   useEffect(() => {
     if (!agentId) return;
     const sub = subscribeViewerScope();
@@ -814,10 +849,10 @@ export function useAgentWorkspaceFile(
   });
 }
 
-export function useAgentRuntimeState(agentId: string | null) {
+export function useAgentRuntimeState(agentId: string | null, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: agentId ? agentRuntimeStateKey(agentId) : ["agents", "none", "runtime-state"],
-    enabled: !!agentId,
+    enabled: !!agentId && (options?.enabled ?? true),
     queryFn: async () => {
       const res = await api<AgentRuntimeStateDto>(`/api/agents/${agentId}/runtime-state`);
       return res;
