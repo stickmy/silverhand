@@ -76,7 +76,7 @@ import type {
   HostStatusResponse,
   RuntimeKind,
 } from "@silverhand/shared";
-import { reasoningEffortLabel, RuntimeKindSchema } from "@silverhand/shared";
+import { reasoningEffortLabel, RuntimeKindSchema, runtimeLabel } from "@silverhand/shared";
 import { AgentAvatar } from "@/components/agent-avatar";
 import { AVATAR_PX } from "@/components/avatar-scale";
 import { useAgentAvatarObjectUrls } from "@/features/agents/hooks/avatar-hooks";
@@ -951,20 +951,24 @@ function AgentCard({
 
 /** Runtime, then the configuration the agent runs with. Unset values are left
  *  out rather than labelled as defaults: a backend that predates these fields
- *  reports every one as null, which would mislabel configured agents. */
+ *  reports every one as null, which would mislabel configured agents. Parts
+ *  are separated by space, not a glyph: model ids carry their own `/`. */
 function AgentConfigLine({ agent }: { agent: AgentOnHostDto }): JSX.Element {
+  const knownRuntime = RuntimeKindSchema.safeParse(agent.runtime);
   const parts = [
+    knownRuntime.success ? runtimeLabel(knownRuntime.data) : agent.runtime,
     agent.model,
     agent.reasoning_effort ? reasoningEffortLabel(agent.reasoning_effort) : null,
     agent.fast_mode ? t("computers.fast") : null,
   ].filter((part): part is string => part !== null);
 
   return (
-    <span className="flex min-w-0 flex-wrap items-baseline gap-x-2 text-xs text-text-muted">
-      <span data-agent-runtime className="uppercase tracking-wide">
-        {agent.runtime}
-      </span>
-      <span className="truncate font-mono">{parts.join(" / ")}</span>
+    <span className="flex min-w-0 items-baseline gap-x-3 overflow-hidden text-(length:--text-meta) text-text-muted">
+      {parts.map((part, index) => (
+        <span key={index} className={index === 1 ? "min-w-0 truncate" : "shrink-0"}>
+          {part}
+        </span>
+      ))}
     </span>
   );
 }
