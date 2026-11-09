@@ -56,7 +56,8 @@ use tokio::time::Instant;
 use crate::{
     foundation::daemon_transport::{HostDataPlaneCustody, OwningHostDataPlane},
     host_runtime::host_control::status_snapshot::{
-        self, StatusSnapshot, StatusSnapshotOutcome, StatusSnapshotRequest,
+        self, MachineFacts, StatusSnapshot, StatusSnapshotOutcome, StatusSnapshotRequest,
+        UnreachableReason,
     },
 };
 
@@ -236,6 +237,15 @@ pub enum SeedAttempt {
     Exhausted,
 }
 
+/// Result of an explicit refresh. Only `Refreshed` changed the store; a following
+/// [`HostStatusSeeds::read`] serves the new facts.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RefreshOutcome {
+    Refreshed,
+    Disconnected,
+    Unreachable(UnreachableReason),
+}
+
 /// What the synchronous read surface can be told without asking a daemon anything.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SeedRead {
@@ -264,6 +274,9 @@ pub struct SeededStatus {
     /// never compared to this server's, so neither NTP jump can warp the figure, and
     /// a monotonic hold cannot run backwards.
     pub uptime_ms: i64,
+    /// Machine facts; `system_uptime_ms_at_answer` is advanced by the hold like
+    /// `uptime_ms`.
+    pub machine: Box<MachineFacts>,
     /// The seed answer is the pre-hydrate fallback. Once the existing runtime-event
     /// owner has a current-generation hydrated set, [`HostStatusSeeds::read`]
     /// replaces this field with that set; it never unions two authorities.
@@ -511,6 +524,11 @@ impl HostStatusSeeds {
             .facts_for(host, &attached.daemon_instance)
             .map_err(|_| SeedFailure::Misattributed)?;
         let held = Instant::now().saturating_duration_since(sealed.held_since);
+        let held_ms = i64::try_from(held.as_millis()).unwrap_or(i64::MAX);
+        let mut machine = Box::new(facts.machine.clone());
+        machine.system_uptime_ms_at_answer = machine
+            .system_uptime_ms_at_answer
+            .map(|uptime| uptime.saturating_add(held_ms));
         Ok(SeedRead::Seeded(SeededStatus {
             daemon_instance: attached.daemon_instance.clone(),
             os: facts.os.to_owned(),
@@ -518,14 +536,66 @@ impl HostStatusSeeds {
             daemon_pid: facts.daemon_pid,
             daemon_version: facts.daemon_version.to_owned(),
             started_at: facts.started_at,
-            uptime_ms: facts
-                .uptime_ms_at_answer
-                .saturating_add(i64::try_from(held.as_millis()).unwrap_or(i64::MAX)),
+            uptime_ms: facts.uptime_ms_at_answer.saturating_add(held_ms),
+            machine,
             active_agents: self
                 .activity
                 .active_agents(host, &attached)?
                 .unwrap_or_else(|| facts.active_agents.clone()),
         }))
+    }
+
+    /// Ask the attached daemon now and, on an answer, replace its seed. A failure
+    /// leaves the existing seed and ladder untouched (no negative cache).
+    pub async fn refresh(&self, host: &HostId) -> Result<RefreshOutcome, SeedFailure> {
+        let attached = {
+            let _store = self.store.lock().map_err(|_| SeedFailure::Unavailable)?;
+            self.custody.attached_custody(host)?
+        };
+        let Some(attached) = attached else {
+            return Ok(RefreshOutcome::Disconnected);
+        };
+        let instance = attached.daemon_instance.clone();
+        let snapshot = match self
+            .custody
+            .probe_status(host.clone(), attached.clone())
+            .await
+        {
+            StatusSnapshotOutcome::Answered(snapshot) => snapshot,
+            StatusSnapshotOutcome::Disconnected => return Ok(RefreshOutcome::Disconnected),
+            StatusSnapshotOutcome::Unreachable(reason) => {
+                return Ok(RefreshOutcome::Unreachable(reason));
+            }
+            StatusSnapshotOutcome::TransportContractViolation => {
+                return Err(SeedFailure::Misattributed);
+            }
+        };
+        if snapshot.facts_for(host, &instance).is_err() {
+            return Err(SeedFailure::Misattributed);
+        }
+        let mut store = self.store.lock().map_err(|_| SeedFailure::Unavailable)?;
+        // Re-observed under the lock: an answer from a replaced custody is dropped.
+        if self.custody.attached_custody(host)?.as_ref() != Some(&attached) {
+            return Ok(RefreshOutcome::Disconnected);
+        }
+        let state = store
+            .states
+            .entry(host.as_str().to_owned())
+            .and_modify(|state| {
+                if state.instance != attached.daemon_instance
+                    || state.connection_id != attached.connection_id
+                {
+                    *state = SeedState::new(instance.clone(), attached.connection_id.clone());
+                }
+            })
+            .or_insert_with(|| SeedState::new(instance.clone(), attached.connection_id.clone()));
+        state.sealed = Some(Sealed {
+            snapshot,
+            held_since: Instant::now(),
+        });
+        state.failed = 0;
+        state.next = None;
+        Ok(RefreshOutcome::Refreshed)
     }
 
     /// A daemon just attached: seed it now, or re-arm whatever this custody was
@@ -1823,6 +1893,103 @@ mod tests {
             Ok(SeedAttempt::Sealed)
         );
         assert_eq!(daemon.frames(), 2);
+    }
+
+    #[tokio::test]
+    async fn refresh_replaces_the_seed_and_a_failed_one_keeps_it() {
+        let (seeds, daemon) = seeds(Some("instance-1"));
+        let instance = instance_id("instance-1");
+        daemon.answer(
+            "instance-1",
+            answered_with(
+                "instance-1",
+                json!({ "memory_total_bytes": 100, "memory_used_bytes": 10 }),
+            ),
+            WhenServed::Unchanged,
+        );
+        seeds.seed_on_attach(&host(), &instance).await.unwrap();
+
+        daemon.answer(
+            "instance-1",
+            answered_with(
+                "instance-1",
+                json!({ "memory_total_bytes": 100, "memory_used_bytes": 70 }),
+            ),
+            WhenServed::Unchanged,
+        );
+        assert_eq!(seeds.refresh(&host()).await, Ok(RefreshOutcome::Refreshed));
+        assert_eq!(
+            seeded(seeds.read(&host()).unwrap())
+                .machine
+                .memory
+                .map(|m| m.used_bytes),
+            Some(70)
+        );
+
+        daemon.answer("instance-1", unreachable(), WhenServed::Unchanged);
+        assert_eq!(
+            seeds.refresh(&host()).await,
+            Ok(RefreshOutcome::Unreachable(UnreachableReason::Timeout))
+        );
+        assert_eq!(
+            seeded(seeds.read(&host()).unwrap())
+                .machine
+                .memory
+                .map(|m| m.used_bytes),
+            Some(70)
+        );
+        assert_eq!(daemon.frames(), 3);
+    }
+
+    #[tokio::test]
+    async fn refresh_seals_an_unseeded_custody_and_sends_nothing_when_absent() {
+        let (seeds, daemon) = seeds(None);
+        assert_eq!(
+            seeds.refresh(&host()).await,
+            Ok(RefreshOutcome::Disconnected)
+        );
+        assert_eq!(daemon.frames(), 0);
+
+        daemon.set_attached(Some("instance-1"));
+        daemon.answer("instance-1", answered("instance-1"), WhenServed::Unchanged);
+        assert_eq!(seeds.refresh(&host()).await, Ok(RefreshOutcome::Refreshed));
+        assert_eq!(seeded(seeds.read(&host()).unwrap()).os, "macOS 14.5");
+    }
+
+    #[tokio::test]
+    async fn refresh_drops_an_answer_from_a_replaced_custody() {
+        let (seeds, daemon) = seeds(Some("instance-1"));
+        daemon.answer(
+            "instance-1",
+            answered("instance-1"),
+            WhenServed::Replaced("instance-2"),
+        );
+        assert_eq!(
+            seeds.refresh(&host()).await,
+            Ok(RefreshOutcome::Disconnected)
+        );
+        assert_eq!(seeds.read(&host()).unwrap(), SeedRead::NotSeeded);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn system_uptime_grows_with_the_hold_like_daemon_uptime() {
+        let (seeds, daemon) = seeds(Some("instance-1"));
+        daemon.answer(
+            "instance-1",
+            answered_with("instance-1", json!({ "system_uptime_ms": 1_000 })),
+            WhenServed::Unchanged,
+        );
+        seeds
+            .seed_on_attach(&host(), &instance_id("instance-1"))
+            .await
+            .unwrap();
+        tokio::time::advance(Duration::from_secs(5)).await;
+        assert_eq!(
+            seeded(seeds.read(&host()).unwrap())
+                .machine
+                .system_uptime_ms_at_answer,
+            Some(6_000)
+        );
     }
 
     #[tokio::test(start_paused = true)]

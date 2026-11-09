@@ -80,7 +80,7 @@ use silverhand_backend_server::{
     host_runtime::host_control::runtime_catalog::{
         self, CatalogCoordinateMismatch, RuntimeCatalogOutcome, RuntimeCatalogRequest,
     },
-    host_runtime::host_control::status_seed::{SeedAttempt, SeedRead},
+    host_runtime::host_control::status_seed::{RefreshOutcome, SeedAttempt, SeedRead},
     host_runtime::host_control::status_snapshot::{
         self, SnapshotCoordinateMismatch, StatusSnapshotOutcome, StatusSnapshotRequest,
     },
@@ -861,6 +861,29 @@ async fn send_ready_with_name(
                 "instance_id": instance_id,
                 "host_descriptor": { "name": host_name, "kind": "remote" },
                 "capabilities": [],
+                "daemon_pid": 42,
+                "started_at": 100,
+            })
+            .to_string()
+            .into(),
+        ))
+        .await
+        .unwrap();
+}
+
+async fn send_ready_with_capabilities(socket: &mut Socket, capabilities: Value) {
+    socket
+        .send(Message::Text(
+            json!({
+                "direction": "daemon_to_server",
+                "type": "event",
+                "kind": "ready",
+                "protocol_version": OUTBOUND_PROTOCOL_VERSION,
+                "daemon_version": "test",
+                "daemon_id": "daemon-test",
+                "instance_id": "instance-test",
+                "host_descriptor": { "name": "Test host", "kind": "remote" },
+                "capabilities": capabilities,
                 "daemon_pid": 42,
                 "started_at": 100,
             })
@@ -2946,6 +2969,13 @@ async fn the_unmounted_host_management_router_composes_sqlite_live_transport_and
     .await
     .unwrap();
 
+    sqlx::query(
+        "UPDATE agents SET model = 'gpt-5.6-sol', reasoning_effort = 'high', fast_mode = 1",
+    )
+    .execute(&mut db)
+    .await
+    .unwrap();
+
     let announcements = RecordingHostLabelChange::default();
     let app = management_app(&fixture, announcements.clone()).await;
 
@@ -2988,6 +3018,13 @@ async fn the_unmounted_host_management_router_composes_sqlite_live_transport_and
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["availability"], "disconnected");
     assert_eq!(body["agents"][0]["online"], "offline");
+    assert_eq!(body["agents"][0]["model"], "gpt-5.6-sol");
+    assert_eq!(body["agents"][0]["reasoning_effort"], "high");
+    assert_eq!(body["agents"][0]["fast_mode"], true);
+    let (status, refreshed) =
+        management_request(&app, "POST", "/api/hosts/host-1/status/refresh", "").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(refreshed, body);
 
     let (status, body) = management_request(&app, "POST", "/api/hosts/host-1/disconnect", "").await;
     assert_eq!(status, StatusCode::OK);
@@ -3003,6 +3040,27 @@ async fn the_unmounted_host_management_router_composes_sqlite_live_transport_and
     assert_eq!(body["availability"], "available");
     assert_eq!(body["snapshot"]["daemon_pid"], 4_242);
     assert_eq!(body["agents"][0]["online"], "offline");
+    assert!(body["snapshot"].get("hostname").is_none());
+
+    let refresh_app = app.clone();
+    let refresh = tokio::spawn(async move {
+        management_request(&refresh_app, "POST", "/api/hosts/host-1/status/refresh", "").await
+    });
+    let command = next_json(&mut daemon).await;
+    assert_eq!(command["kind"], "host_status");
+    assert_eq!(command["params"], json!({}));
+    let mut answer = machine_status(300);
+    answer["daemon_pid"] = json!(5_000);
+    respond(&mut daemon, &command, answer).await;
+    let (status, body) = refresh.await.unwrap();
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["availability"], "available");
+    assert_eq!(body["snapshot"]["daemon_pid"], 5_000);
+    assert_eq!(body["snapshot"]["memory_used_bytes"], 300);
+    assert_eq!(body["snapshot"]["disk_total_bytes"], 2_000);
+    assert!(body["snapshot"]["system_uptime_ms"].as_i64().unwrap() >= 60_000);
+    let (_, cached) = management_request(&app, "GET", "/api/hosts/host-1/status", "").await;
+    assert_eq!(cached["snapshot"]["daemon_pid"], 5_000);
 
     let proxy_app = app.clone();
     let proxy_read = tokio::spawn(async move {
@@ -3214,6 +3272,88 @@ async fn the_seed_store_asks_the_attached_custody_and_every_handle_reads_what_it
     fixture.controller.close().await;
     viewer_events.close(None).await.unwrap();
     fixture.event_controller.close().await;
+    fixture.server.abort();
+}
+
+fn machine_status(memory_used: i64) -> Value {
+    json!({
+        "os": "macOS 14.5",
+        "daemon_pid": 4_242,
+        "daemon_version": "1.2.3",
+        "started_at": 1_700_000_000_000_i64,
+        "uptime_ms": 90_000,
+        "active_agent_ids": [],
+        "hostname": "studio.local",
+        "ip": "10.0.0.7",
+        "memory_total_bytes": 1_000,
+        "memory_used_bytes": memory_used,
+        "disk_total_bytes": 2_000,
+        "disk_used_bytes": 500,
+        "system_uptime_ms": 60_000,
+    })
+}
+
+#[tokio::test]
+async fn machine_facts_are_requested_by_capability_and_refreshed_on_demand() {
+    let fixture = fixture("host-status-machine.sqlite").await;
+    let seeds = fixture.controller.host_status_seeds();
+    let host = host_id("host-1");
+
+    let mut socket = connect(fixture.address).await;
+    send_ready_with_capabilities(&mut socket, json!(["host_status.machine.v1"])).await;
+    let hydrate = next_json(&mut socket).await;
+    assert_eq!(hydrate["kind"], "runtime_status");
+    respond(&mut socket, &hydrate, json!({ "runtimes": [] })).await;
+    wait_for_attached_count(&fixture.controller, 1).await;
+    let probe = next_json(&mut socket).await;
+    assert_eq!(probe["kind"], "host_status");
+    assert_eq!(probe["params"], json!({ "include_machine": true }));
+    respond(&mut socket, &probe, machine_status(100)).await;
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        while !matches!(seeds.read(&host), Ok(SeedRead::Seeded(_))) {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+
+    let refreshing = tokio::spawn({
+        let seeds = seeds.clone();
+        let host = host.clone();
+        async move { seeds.refresh(&host).await }
+    });
+    let probe = next_json(&mut socket).await;
+    assert_eq!(probe["params"], json!({ "include_machine": true }));
+    respond(&mut socket, &probe, machine_status(900)).await;
+    assert_eq!(refreshing.await.unwrap(), Ok(RefreshOutcome::Refreshed));
+    let SeedRead::Seeded(status) = seeds.read(&host).unwrap() else {
+        panic!("a refreshed host reads seeded")
+    };
+    assert_eq!(status.machine.hostname.as_deref(), Some("studio.local"));
+    assert_eq!(
+        status.machine.memory.map(|usage| usage.used_bytes),
+        Some(900)
+    );
+    assert_eq!(
+        status.machine.disk.map(|usage| usage.total_bytes),
+        Some(2_000)
+    );
+    socket.close(None).await.unwrap();
+    wait_for_attached_count(&fixture.controller, 0).await;
+    assert_eq!(seeds.refresh(&host).await, Ok(RefreshOutcome::Disconnected));
+
+    // A daemon that did not advertise the capability is never asked for the facts.
+    let mut older = connect(fixture.address).await;
+    send_ready_with_capabilities(&mut older, json!([])).await;
+    let hydrate = next_json(&mut older).await;
+    respond(&mut older, &hydrate, json!({ "runtimes": [] })).await;
+    wait_for_attached_count(&fixture.controller, 1).await;
+    let probe = next_json(&mut older).await;
+    assert_eq!(probe["kind"], "host_status");
+    assert_eq!(probe["params"], json!({}));
+
+    older.close(None).await.unwrap();
+    fixture.controller.close().await;
     fixture.server.abort();
 }
 

@@ -25,6 +25,7 @@
   "GET /api/hosts/:id/runtime-catalog",
   "PATCH /api/hosts/:id",
   "GET /api/hosts/:id/status",
+  "POST /api/hosts/:id/status/refresh",
   "GET /api/workspaces",
   "GET /api/workspaces/name-availability",
   "POST /api/workspaces",

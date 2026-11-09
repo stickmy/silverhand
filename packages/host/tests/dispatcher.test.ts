@@ -6,7 +6,11 @@ import type { SupervisorContract } from '../src/daemon/supervisor-contract.js';
 import { FakeSupervisor } from './_helpers/fake-supervisor.js';
 import { testStartOptions } from './_helpers/runtime-start-options.js';
 import { createDaemonLogControl, type DaemonLogger } from '../src/daemon/logger.js';
-import { HOST_PROTOCOL_VERSION, KNOWN_CAPABILITIES_V1 } from '../src/protocol.js';
+import {
+  HOST_PROTOCOL_VERSION,
+  HostStatusResultSchema,
+  KNOWN_CAPABILITIES_V1,
+} from '../src/protocol.js';
 
 function silentLogger(): DaemonLogger {
   return {
@@ -80,6 +84,33 @@ describe('IntentDispatcher', () => {
     // composed SOMETHING (never empty) so renderer doesn't show a blank cell.
     expect(typeof (r.result as { os: unknown }).os).toBe('string');
     expect((r.result as { os: string }).os.length).toBeGreaterThan(0);
+  });
+
+  it('host_status answers machine facts only when asked', async () => {
+    const d = new IntentDispatcher({ logger: silentLogger() });
+    const machineKeys = [
+      'hostname',
+      'ip',
+      'memory_total_bytes',
+      'memory_used_bytes',
+      'disk_total_bytes',
+      'disk_used_bytes',
+      'system_uptime_ms',
+    ];
+    const plain = await d.dispatch('req-plain', 'host_status', {}, { owner: 'test-owner' });
+    if (!('result' in plain)) throw new Error('expected a result');
+    for (const key of machineKeys) expect(plain.result).not.toHaveProperty(key);
+
+    const asked = await d.dispatch(
+      'req-machine',
+      'host_status',
+      { include_machine: true },
+      { owner: 'test-owner' },
+    );
+    if (!('result' in asked)) throw new Error('expected a result');
+    expect(HostStatusResultSchema.safeParse(asked.result).success).toBe(true);
+    expect(asked.result).toHaveProperty('system_uptime_ms');
+    expect(asked.result).toHaveProperty('disk_total_bytes');
   });
 
   it('handles host_status with a supervisor (active agent_ids deduped, exited filtered)', async () => {

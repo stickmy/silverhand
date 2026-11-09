@@ -60,6 +60,7 @@ import {
   type HostProxyConfigSetParams,
   type HostProxyConfigSetResult,
   type HostRuntimeCatalogParams,
+  type HostStatusParams,
   type IntentName,
   type ResponseError,
   type ResponseFrame,
@@ -76,6 +77,7 @@ import {
 import { detectRuntimeCatalog } from '../runtimes.js';
 import { DAEMON_VERSION, createDaemonHelloResult } from './version.js';
 import { composeHostOs, hostOsArch } from './host-os.js';
+import { readHostMachineFacts } from './host-machine.js';
 import type { DaemonLogger } from './logger.js';
 import type { DeliveryOwnerContext, SupervisorContract } from './supervisor-contract.js';
 import { logIntent } from './daemon-logging.js';
@@ -666,6 +668,7 @@ export class IntentDispatcher {
         return { echoed: p.message };
       }
       case 'host_status': {
+        const p = params as HostStatusParams;
         // #task:808 — host snapshot powering `GET /api/hosts/:id/status`.
         // Daemon-owned facts: OS string composed locally (the server NEVER
         // synthesizes OS from cached DB rows — that's the whole point of
@@ -702,6 +705,7 @@ export class IntentDispatcher {
                 ),
               )
             : [],
+          ...(p.include_machine === true ? readHostMachineFacts() : {}),
         };
       }
       case 'host_runtime_catalog': {

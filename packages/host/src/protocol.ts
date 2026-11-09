@@ -150,6 +150,10 @@ export const KNOWN_CAPABILITIES_V1 = [
   // token so a new CLI against an old daemon fails with a clear message
   // instead of `unknown_intent`.
   'agent.stale_receive.v1',
+  // #task:2991 — `host_status` answers machine facts when asked with
+  // `include_machine: true`. Servers ask only daemons advertising this, because
+  // older servers decode the result with unknown fields refused.
+  'host_status.machine.v1',
 ] as const;
 export type KnownCapabilityV1 = (typeof KNOWN_CAPABILITIES_V1)[number];
 
@@ -274,7 +278,12 @@ export type EchoResult = z.infer<typeof EchoResultSchema>;
 // per-row `online` flag in `AgentOnHostDto`. The daemon NEVER
 // references agent names, conversation ids, or any other backend-
 // owned semantic — those live above the host boundary.
-export const HostStatusParamsSchema = z.object({}).strict();
+export const HostStatusParamsSchema = z
+  .object({
+    /** Ask for the machine facts below; see `host_status.machine.v1`. */
+    include_machine: z.boolean().optional(),
+  })
+  .strict();
 export type HostStatusParams = z.infer<typeof HostStatusParamsSchema>;
 
 export const HostStatusResultSchema = z
@@ -298,6 +307,14 @@ export const HostStatusResultSchema = z
      *  per-agent `online` in `AgentOnHostDto`. Empty array = host has
      *  no live runtimes (renderer shows everything as offline). */
     active_agent_ids: z.array(z.string()),
+    /** Machine facts, present only when requested and readable. */
+    hostname: z.string().min(1).optional(),
+    ip: z.string().min(1).optional(),
+    memory_total_bytes: z.number().int().nonnegative().optional(),
+    memory_used_bytes: z.number().int().nonnegative().optional(),
+    disk_total_bytes: z.number().int().nonnegative().optional(),
+    disk_used_bytes: z.number().int().nonnegative().optional(),
+    system_uptime_ms: z.number().int().nonnegative().optional(),
   })
   .strict();
 export type HostStatusResult = z.infer<typeof HostStatusResultSchema>;

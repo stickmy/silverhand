@@ -271,6 +271,7 @@ struct DaemonAttachment {
     connection_id: String,
     daemon_instance: DaemonInstanceId,
     host_name: String,
+    reports_machine_facts: bool,
     commands: mpsc::Sender<ConnectionControl>,
 }
 
@@ -312,7 +313,12 @@ impl AttachedHostDataPlane {
 struct AttachedDaemon {
     daemon_instance: DaemonInstanceId,
     host_name: String,
+    /// Advertised `host_status.machine.v1` in its `ready` frame.
+    reports_machine_facts: bool,
 }
+
+/// Daemon capability: `host_status` answers machine facts when asked.
+const HOST_STATUS_MACHINE_CAPABILITY: &str = "host_status.machine.v1";
 
 #[derive(Clone)]
 pub(crate) struct DaemonRegistry {
@@ -430,6 +436,7 @@ impl DaemonRegistry {
             connection_id: slot.connection_id.clone(),
             daemon_instance: attached.daemon_instance,
             host_name: attached.host_name,
+            reports_machine_facts: attached.reports_machine_facts,
             commands: slot.commands.clone(),
         }))
     }
@@ -1155,6 +1162,22 @@ impl OwningHostDataPlane {
             .map(AttachedHostDataPlane::new))
     }
 
+    /// Whether the daemon holding exactly this custody advertised machine facts.
+    /// A replaced or absent custody answers `false`; its dispatch fails anyway.
+    pub(crate) fn reports_machine_facts(
+        &self,
+        custody: &HostDataPlaneCustody,
+    ) -> Result<bool, DaemonRegistryError> {
+        Ok(self
+            .registry
+            .attachment(custody.host.as_str())?
+            .is_some_and(|attachment| {
+                attachment.connection_id == custody.connection_id
+                    && attachment.daemon_instance == custody.instance
+                    && attachment.reports_machine_facts
+            }))
+    }
+
     /// Resolve the attached custody for `host`. `None` is the ordinary offline
     /// answer. A later replacement is caught again inside `dispatch` before send.
     pub fn resolve(
@@ -1700,6 +1723,7 @@ async fn connection(
                             protocol_version,
                             instance_id,
                             host_descriptor,
+                            capabilities,
                         })) => {
                             if protocol_version != OUTBOUND_PROTOCOL_VERSION {
                                 let _ = socket.send(Message::Close(Some(CloseFrame {
@@ -1717,6 +1741,9 @@ async fn connection(
                             let ready = AttachedDaemon {
                                 daemon_instance: instance.clone(),
                                 host_name: host_descriptor.name,
+                                reports_machine_facts: capabilities
+                                    .iter()
+                                    .any(|token| token == HOST_STATUS_MACHINE_CAPABILITY),
                             };
                             socket.ready(protocol_version);
                             compatible = Some(ready.clone());
@@ -1725,6 +1752,7 @@ async fn connection(
                                 connection_id: connection_id.clone(),
                                 daemon_instance: instance,
                                 host_name: ready.host_name.clone(),
+                                reports_machine_facts: ready.reports_machine_facts,
                                 commands: control.clone(),
                             });
                             let hydration = Arc::clone(&hydration);
@@ -1893,6 +1921,7 @@ struct ReadyFrame {
     protocol_version: u32,
     instance_id: String,
     host_descriptor: ReadyHostDescriptor,
+    capabilities: Vec<String>,
 }
 
 #[derive(Deserialize)]

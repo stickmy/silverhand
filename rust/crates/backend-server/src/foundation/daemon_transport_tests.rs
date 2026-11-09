@@ -132,6 +132,7 @@ fn attach_for_command_test(
                 AttachedDaemon {
                     daemon_instance: instance,
                     host_name: host.as_str().to_owned(),
+                    reports_machine_facts: false,
                 },
             )
             .unwrap()
@@ -177,6 +178,7 @@ async fn command_metrics_observe_timeout_success_and_disconnection_once() {
         connection_id: "private-connection-id".to_owned(),
         daemon_instance: DaemonInstanceId::parse("instance-test").unwrap(),
         host_name: "private-name".into(),
+        reports_machine_facts: false,
         commands,
     };
     let encode = || command::host_status(json!({}));
@@ -222,6 +224,7 @@ async fn production_dequeue_to_wire_gate_drops_a_queued_set_after_its_budget_exp
         connection_id: "connection-1".to_owned(),
         daemon_instance: DaemonInstanceId::parse("instance-1").unwrap(),
         host_name: "host".to_owned(),
+        reports_machine_facts: false,
         commands,
     };
 
@@ -317,6 +320,7 @@ async fn production_status_adapter_never_re_resolves_captured_custody_by_host_an
                 AttachedDaemon {
                     daemon_instance: instance.clone(),
                     host_name: "host-a".to_owned(),
+                    reports_machine_facts: false,
                 },
             )
             .unwrap()
@@ -343,6 +347,7 @@ async fn production_status_adapter_never_re_resolves_captured_custody_by_host_an
                 AttachedDaemon {
                     daemon_instance: instance,
                     host_name: "host-b".to_owned(),
+                    reports_machine_facts: false,
                 },
             )
             .unwrap()
@@ -469,6 +474,7 @@ mod scope_runtime_stop_adapter {
                     AttachedDaemon {
                         daemon_instance: instance,
                         host_name: host.as_str().to_owned(),
+                        reports_machine_facts: false,
                     },
                 )
                 .unwrap()
@@ -3279,6 +3285,7 @@ fn attach_generation(
             AttachedDaemon {
                 daemon_instance: instance.clone(),
                 host_name: host.to_owned(),
+                reports_machine_facts: false,
             },
         )
         .expect("attach");
@@ -3333,6 +3340,7 @@ async fn a_generation_pinned_purge_refuses_a_reused_connection_with_a_new_instan
             AttachedDaemon {
                 daemon_instance: DaemonInstanceId::parse("instance-2").expect("instance"),
                 host_name: "host-1".to_owned(),
+                reports_machine_facts: false,
             },
         )
         .expect("re-attach");

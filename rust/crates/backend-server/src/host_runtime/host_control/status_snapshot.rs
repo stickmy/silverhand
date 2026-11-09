@@ -55,6 +55,16 @@ impl StatusSnapshotRequest {
     }
 }
 
+/// Only daemons that advertised the capability are asked: older servers refuse
+/// unknown result fields, so a daemon must never volunteer them.
+fn status_params(include_machine: bool) -> Value {
+    if include_machine {
+        json!({ "include_machine": true })
+    } else {
+        json!({})
+    }
+}
+
 pub enum StatusSnapshotOutcome {
     Answered(StatusSnapshot),
     /// No daemon this server has agreed to speak to, or the custody moved before
@@ -112,6 +122,7 @@ impl UnreachableReason {
 ///         daemon_version: "1.0.0".to_owned(),
 ///         started_at: 1,
 ///         uptime_ms_at_answer: 1,
+///         machine: Box::default(),
 ///         active_agents: HashSet::new(),
 ///     }
 /// }
@@ -140,7 +151,26 @@ pub struct StatusSnapshot {
     daemon_version: String,
     started_at: i64,
     uptime_ms_at_answer: i64,
+    machine: Box<MachineFacts>,
     active_agents: HashSet<AgentId>,
+}
+
+/// Machine-wide facts a daemon reports when asked (`host_status.machine.v1`).
+/// Cosmetic: an unusable fact is dropped on its own rather than faulting the host,
+/// and a used/total pair is kept only whole and consistent.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct MachineFacts {
+    pub hostname: Option<String>,
+    pub ip: Option<String>,
+    pub memory: Option<Usage>,
+    pub disk: Option<Usage>,
+    pub system_uptime_ms_at_answer: Option<i64>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Usage {
+    pub total_bytes: i64,
+    pub used_bytes: i64,
 }
 
 impl StatusSnapshot {
@@ -162,6 +192,7 @@ impl StatusSnapshot {
             daemon_version: &self.daemon_version,
             started_at: self.started_at,
             uptime_ms_at_answer: self.uptime_ms_at_answer,
+            machine: &self.machine,
             active_agents: &self.active_agents,
         })
     }
@@ -182,6 +213,7 @@ pub struct SnapshotView<'a> {
     pub daemon_version: &'a str,
     pub started_at: i64,
     pub uptime_ms_at_answer: i64,
+    pub machine: &'a MachineFacts,
     pub active_agents: &'a HashSet<AgentId>,
 }
 
@@ -197,10 +229,11 @@ pub async fn probe(
     request: StatusSnapshotRequest,
 ) -> StatusSnapshotOutcome {
     let custody = &request.custody;
+    let include_machine = dispatch.reports_machine_facts(custody).unwrap_or(false);
     let answer = match dispatch
         .dispatch(HostDataPlaneRequest {
             custody: custody.clone(),
-            command: command::host_status(json!({})),
+            command: command::host_status(status_params(include_machine)),
             timeout: PROBE_TIMEOUT,
         })
         .await
@@ -267,6 +300,42 @@ struct StatusWire {
     started_at: i64,
     uptime_ms: i64,
     active_agent_ids: Vec<String>,
+    #[serde(default)]
+    hostname: Option<Value>,
+    #[serde(default)]
+    ip: Option<Value>,
+    #[serde(default)]
+    memory_total_bytes: Option<Value>,
+    #[serde(default)]
+    memory_used_bytes: Option<Value>,
+    #[serde(default)]
+    disk_total_bytes: Option<Value>,
+    #[serde(default)]
+    disk_used_bytes: Option<Value>,
+    #[serde(default)]
+    system_uptime_ms: Option<Value>,
+}
+
+fn machine_text(value: Option<Value>) -> Option<String> {
+    match value? {
+        Value::String(text) if !text.is_empty() => Some(text),
+        _ => None,
+    }
+}
+
+fn machine_count(value: Option<&Value>) -> Option<i64> {
+    value?
+        .as_i64()
+        .filter(|count| *count >= 0 && js_safe_integer(*count))
+}
+
+fn machine_usage(total: Option<&Value>, used: Option<&Value>) -> Option<Usage> {
+    let total_bytes = machine_count(total)?;
+    let used_bytes = machine_count(used)?;
+    (used_bytes <= total_bytes).then_some(Usage {
+        total_bytes,
+        used_bytes,
+    })
 }
 
 impl StatusWire {
@@ -291,6 +360,19 @@ impl StatusWire {
             // an absent key is not.
             Some(None) => return None,
         };
+        let machine = MachineFacts {
+            hostname: machine_text(wire.hostname),
+            ip: machine_text(wire.ip),
+            memory: machine_usage(
+                wire.memory_total_bytes.as_ref(),
+                wire.memory_used_bytes.as_ref(),
+            ),
+            disk: machine_usage(
+                wire.disk_total_bytes.as_ref(),
+                wire.disk_used_bytes.as_ref(),
+            ),
+            system_uptime_ms_at_answer: machine_count(wire.system_uptime_ms.as_ref()),
+        };
         Some(StatusSnapshot {
             host,
             instance,
@@ -300,6 +382,7 @@ impl StatusWire {
             daemon_version: wire.daemon_version,
             started_at: wire.started_at,
             uptime_ms_at_answer: wire.uptime_ms,
+            machine: Box::new(machine),
             active_agents: wire
                 .active_agent_ids
                 .into_iter()
@@ -488,6 +571,62 @@ mod tests {
         assert!(decode(status(json!({ "os": "" }))).is_none());
         assert!(decode(status(json!({ "active_agent_ids": "agent-1" }))).is_none());
         assert!(decode(status(json!({ "active_agent_ids": [7] }))).is_none());
+    }
+
+    #[test]
+    fn machine_facts_are_optional_and_an_unusable_one_is_dropped_alone() {
+        let older = decode(status(json!({}))).expect("a status without machine facts decodes");
+        assert_eq!(
+            older.facts_for(&host(), &instance()).unwrap().machine,
+            &MachineFacts::default()
+        );
+
+        let snapshot = decode(status(json!({
+            "hostname": "studio.local",
+            "ip": "10.0.0.7",
+            "memory_total_bytes": 64_000,
+            "memory_used_bytes": 32_000,
+            "disk_total_bytes": 1_000,
+            "disk_used_bytes": 400,
+            "system_uptime_ms": 5_000,
+        })))
+        .expect("machine facts decode");
+        assert_eq!(
+            snapshot.facts_for(&host(), &instance()).unwrap().machine,
+            &MachineFacts {
+                hostname: Some("studio.local".to_owned()),
+                ip: Some("10.0.0.7".to_owned()),
+                memory: Some(Usage {
+                    total_bytes: 64_000,
+                    used_bytes: 32_000
+                }),
+                disk: Some(Usage {
+                    total_bytes: 1_000,
+                    used_bytes: 400
+                }),
+                system_uptime_ms_at_answer: Some(5_000),
+            }
+        );
+
+        let damaged = decode(status(json!({
+            "hostname": "",
+            "ip": 7,
+            "memory_total_bytes": 100,
+            "memory_used_bytes": 200,
+            "disk_total_bytes": 1_000,
+            "system_uptime_ms": -1,
+        })))
+        .expect("bad machine facts never fault the host");
+        assert_eq!(
+            damaged.facts_for(&host(), &instance()).unwrap().machine,
+            &MachineFacts::default()
+        );
+    }
+
+    #[test]
+    fn machine_facts_are_requested_only_from_a_daemon_that_advertised_them() {
+        assert_eq!(status_params(false), json!({}));
+        assert_eq!(status_params(true), json!({ "include_machine": true }));
     }
 
     #[test]
