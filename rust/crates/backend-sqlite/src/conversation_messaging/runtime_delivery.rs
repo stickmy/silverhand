@@ -2,6 +2,7 @@
 
 use std::{collections::HashSet, path::Path, time::Duration};
 
+use crate::foundation::agent_lifecycle_sql::{agent_materialized, agent_transition_clear};
 use serde::Serialize;
 use silverhand_backend_core::{
     conversation_messaging::messaging::{
@@ -290,19 +291,16 @@ impl SqliteRuntimeDeliveryStore {
             return Ok(ClaimPendingInbox::Empty);
         }
         for delivery in &deliveries {
-            let changed = sqlx::query(
+            let changed = sqlx::query(concat!(
                 "UPDATE conversation_inboxes
                     SET in_flight_owner = ?, in_flight_at = ?
                   WHERE id = ? AND conversation_id = ? AND agent_id = ?
                     AND delivered_at IS NULL AND failed_at IS NULL
                     AND in_flight_owner IS NULL
-                    AND EXISTS (
-                        SELECT 1 FROM agents
-                         WHERE id = ?
-                           AND runtime_transition_target IS NULL
-                           AND runtime_transition_started_at IS NULL
-                    )",
-            )
+                    AND EXISTS (SELECT 1 FROM agents WHERE id = ? AND ",
+                agent_transition_clear!(""),
+                ")",
+            ))
             .bind(owner.as_str())
             .bind(now_ms)
             .bind(delivery.id().as_i64())
@@ -1810,11 +1808,13 @@ async fn stamp_agent_presence(
     if was_online {
         return Ok(Vec::new());
     }
-    let rows = sqlx::query(
+    let rows = sqlx::query(concat!(
         "SELECT viewer_id FROM (
              SELECT created_by_user_id AS viewer_id
                FROM agents
-              WHERE id = ? AND materialization_status = 'active'
+              WHERE id = ? AND ",
+        agent_materialized!(""),
+        "
                 AND created_by_user_id IS NOT NULL
              UNION
              SELECT CASE
@@ -1834,9 +1834,11 @@ async fn stamp_agent_presence(
                FROM workspace_members wm
                JOIN workspace_users wu ON wu.workspace_id = wm.workspace_id
                JOIN agents a ON a.id = wm.agent_id
-              WHERE wm.agent_id = ? AND a.materialization_status = 'active'
+              WHERE wm.agent_id = ? AND ",
+        agent_materialized!("a."),
+        "
          ) WHERE viewer_id IS NOT NULL ORDER BY viewer_id",
-    )
+    ))
     .bind(agent.as_str())
     .bind(agent.as_str())
     .bind(agent.as_str())

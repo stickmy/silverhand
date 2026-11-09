@@ -30,17 +30,22 @@ use silverhand_backend_core::{
 use sqlx::{Row, SqliteConnection};
 use thiserror::Error;
 
+use crate::foundation::agent_lifecycle_sql::{agent_materialized, agent_not_deleting};
+
 use super::{
     ENDPOINT_KIND_AGENT, ENDPOINT_KIND_HUMAN, MessagingStore, MessagingStoreError,
     PLACEMENT_DIRECT_PAIR, SELECT_AGENT_PARTICIPATES, SELECT_AGENT_PARTICIPATING_SET,
     SELECT_USER_PARTICIPATES, driver,
 };
 
-const SELECT_DIRECT_PAIR_INITIATION_CANDIDATE: &str = "WITH candidate AS (\
+const SELECT_DIRECT_PAIR_INITIATION_CANDIDATE: &str = concat!(
+    "WITH candidate AS (\
      SELECT a.id,a.created_by_user_id,a.session_scope FROM agents a WHERE \
-     CASE ? WHEN 'id' THEN a.id = ? WHEN 'name' THEN a.name = ? ELSE 0 END \
-     AND a.materialization_status = 'active' AND a.deletion_started_at IS NULL\
-     ) \
+     CASE ? WHEN 'id' THEN a.id = ? WHEN 'name' THEN a.name = ? ELSE 0 END AND ",
+    agent_materialized!("a."),
+    " AND ",
+    agent_not_deleting!("a."),
+    ") \
      SELECT id,created_by_user_id AS viewer_id,session_scope FROM candidate \
      WHERE created_by_user_id = ? \
      UNION ALL \
@@ -56,7 +61,8 @@ const SELECT_DIRECT_PAIR_INITIATION_CANDIDATE: &str = "WITH candidate AS (\
      SELECT candidate.id,wu.user_id,candidate.session_scope \
      FROM candidate JOIN workspace_members wm ON wm.agent_id = candidate.id \
      JOIN workspace_users wu ON wu.workspace_id = wm.workspace_id AND wu.user_id = ? \
-     LIMIT 1";
+     LIMIT 1"
+);
 
 pub(crate) enum DirectPairInitiationTarget<'value> {
     Id(&'value str),

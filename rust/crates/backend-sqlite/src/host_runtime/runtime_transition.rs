@@ -45,7 +45,10 @@ use silverhand_backend_core::{
 use sqlx::{Row, sqlite::SqliteRow};
 use thiserror::Error;
 
-use crate::foundation::host_agent_store::{SqliteHostAgentStore, decode};
+use crate::foundation::{
+    agent_lifecycle_sql::{agent_not_deleting, agent_transition_clear},
+    host_agent_store::{SqliteHostAgentStore, decode},
+};
 
 /// The pre-read `begin` decides from: enough to answer `NotFound` / `Deleting` /
 /// `InProgress` before the acquiring compare-and-set runs.
@@ -57,12 +60,15 @@ const SELECT_BEGIN_PRECHECK: &str =
 /// and `RETURNING` hands back the row the write touched so core can prove the subject.
 /// It does NOT bump `updated_at` — the runtime has not changed yet, matching the
 /// TypeScript `beginRuntimeTransition`.
-const BEGIN_TRANSITION_CAS: &str = "UPDATE agents \
+const BEGIN_TRANSITION_CAS: &str = concat!(
+    "UPDATE agents \
         SET runtime_transition_target = ?, runtime_transition_started_at = ? \
-      WHERE id = ? \
-        AND runtime_transition_target IS NULL \
-        AND deletion_started_at IS NULL \
-    RETURNING id, runtime_transition_target, runtime_transition_started_at";
+      WHERE id = ? AND ",
+    agent_transition_clear!(""),
+    " AND ",
+    agent_not_deleting!(""),
+    " RETURNING id, runtime_transition_target, runtime_transition_started_at"
+);
 
 /// Release a lock the caller owns, keyed on BOTH its target and its started-at so a
 /// reacquired row (fresh started-at) is not the caller's to release.

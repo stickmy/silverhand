@@ -22,12 +22,17 @@ use silverhand_backend_core::{
     },
     foundation::identity::{AgentId, HostId},
     foundation::persistence::PersistenceFailure,
-    identity_access::agent_lifecycle::MaterializationStatus,
+    identity_access::agent_lifecycle::{
+        AgentLifecycle, AgentLifecycleStamps, MaterializationStatus, agent_lifecycle,
+    },
 };
 use sqlx::{Row, sqlite::SqliteRow};
 use thiserror::Error;
 
-use crate::foundation::host_agent_store::{SqliteHostAgentStore, decode};
+use crate::foundation::{
+    agent_lifecycle_sql::agent_active,
+    host_agent_store::{SqliteHostAgentStore, decode},
+};
 
 use super::{
     facts::{capture_agent, select_agent_facts},
@@ -44,12 +49,10 @@ const SELECT_BEGIN_PRECHECK: &str = "SELECT host_id, materialization_status, del
 /// The marker write. `updated_at` is bumped with the marker so the row's mtime
 /// reflects the transition, matching the TypeScript authority. The `WHERE` is the
 /// serialized compare-and-set: still active, still unmarked, no transition.
-const BEGIN_DELETION_CAS: &str = "UPDATE agents \
-        SET deletion_started_at = ?, updated_at = ? \
-      WHERE id = ? \
-        AND materialization_status = 'active' \
-        AND deletion_started_at IS NULL \
-        AND runtime_transition_target IS NULL";
+const BEGIN_DELETION_CAS: &str = concat!(
+    "UPDATE agents SET deletion_started_at = ?, updated_at = ? WHERE id = ? AND ",
+    agent_active!("")
+);
 
 /// The restart inventory, ordered oldest-marker-first so a resumer drains them in
 /// the order they were condemned.
@@ -68,19 +71,21 @@ struct DeletionCasLost;
 /// projection uses.
 struct BeginPrecheck {
     host_id: HostId,
-    status: MaterializationStatus,
-    deletion_started_at: Option<i64>,
-    runtime_transition_target: Option<String>,
+    stamps: AgentLifecycleStamps,
 }
 
 fn begin_precheck(row: &SqliteRow) -> Result<BeginPrecheck, sqlx::Error> {
     Ok(BeginPrecheck {
         host_id: decode::host_id(row.try_get("host_id")?)?,
-        status: decode::materialization_status(
-            &row.try_get::<String, _>("materialization_status")?,
-        )?,
-        deletion_started_at: row.try_get("deletion_started_at")?,
-        runtime_transition_target: row.try_get::<Option<String>, _>("runtime_transition_target")?,
+        stamps: AgentLifecycleStamps {
+            materialization: decode::materialization_status(
+                &row.try_get::<String, _>("materialization_status")?,
+            )?,
+            deletion_started_at: row.try_get("deletion_started_at")?,
+            transition_held: row
+                .try_get::<Option<String>, _>("runtime_transition_target")?
+                .is_some(),
+        },
     })
 }
 
@@ -115,20 +120,23 @@ impl AgentDeletionLifecyclePort for SqliteHostAgentStore {
 
         // Precedence is the TypeScript authority's: an existing marker answers first
         // (this request changed nothing), then stage, then a runtime transition.
-        if let Some(deletion_started_at) = pre.deletion_started_at {
-            return Ok(BeginDeletionRecord::AlreadyPending(
-                PersistedDeletionIntent {
-                    agent_id: agent_id.clone(),
-                    host_id: pre.host_id,
-                    deletion_started_at,
-                },
-            ));
-        }
-        if pre.status != MaterializationStatus::Active {
-            return Ok(BeginDeletionRecord::NotActive);
-        }
-        if pre.runtime_transition_target.is_some() {
-            return Ok(BeginDeletionRecord::RuntimeTransitionInProgress);
+        match agent_lifecycle(&pre.stamps) {
+            AgentLifecycle::Deleting { started_at } => {
+                return Ok(BeginDeletionRecord::AlreadyPending(
+                    PersistedDeletionIntent {
+                        agent_id: agent_id.clone(),
+                        host_id: pre.host_id,
+                        deletion_started_at: started_at,
+                    },
+                ));
+            }
+            AgentLifecycle::Pending | AgentLifecycle::Failed => {
+                return Ok(BeginDeletionRecord::NotActive);
+            }
+            AgentLifecycle::Transitioning => {
+                return Ok(BeginDeletionRecord::RuntimeTransitionInProgress);
+            }
+            AgentLifecycle::Active => {}
         }
 
         let changed = sqlx::query(BEGIN_DELETION_CAS)

@@ -5,6 +5,7 @@
 
 use std::{path::Path, time::Duration};
 
+use crate::foundation::agent_lifecycle_sql::agent_transition_clear;
 use silverhand_backend_core::{
     foundation::identity::DaemonInstanceId,
     foundation::persistence::PersistenceFailure,
@@ -75,21 +76,18 @@ impl SqliteRuntimeCustodyStore {
             .generation
             .checked_next()
             .map_err(PersistenceFailure::from_source)?;
-        let updated = sqlx::query(
+        let updated = sqlx::query(concat!(
             "UPDATE agent_runtime_slots
                 SET generation = ?,
                     claimed_by_daemon_instance_id = ?,
                     observed_status = 'starting',
                     observed_pid = NULL
               WHERE id = ? AND generation = ?
-                AND EXISTS (
-                    SELECT 1 FROM agents
-                     WHERE id = ?
-                       AND runtime_transition_target IS NULL
-                       AND runtime_transition_started_at IS NULL
-                )
+                AND EXISTS (SELECT 1 FROM agents WHERE id = ? AND ",
+            agent_transition_clear!(""),
+            ")
               RETURNING cli_session_id",
-        )
+        ))
         .bind(next_generation.as_i64())
         .bind(claim.daemon_instance().as_str())
         .bind(slot.id)
