@@ -28,11 +28,9 @@ describe("MessageItem — pending rows render no server-row affordance (#task:12
 
   it("gates the top-corner action cluster (reaction / thread / save) on committed", () => {
     // The toolbar (ReactionPicker + Thread + Save) is wrapped in
-    // `{committed ? ( <div …track…> … ) : null}`. Assert the wrap sits
-    // immediately before its track so a pending row renders none of them.
-    expect(source.replace(/\s+/g, " ")).toContain(
-      '{committed ? ( <div className="pointer-events-none absolute inset-y-0 right-2',
-    );
+    // `{committed ? ( <MessageHoverToolbar … /> ) : null}`, so a pending row
+    // renders none of them.
+    expect(source.replace(/\s+/g, " ")).toContain("{committed ? ( <MessageHoverToolbar");
   });
 
   it("gates selection checkbox + row-toggle capture on committed", () => {
