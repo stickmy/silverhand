@@ -1,15 +1,11 @@
 //! Authenticated public byte fetch for `GET /api/agents/{id}/avatar`: the raw avatar
-//! image for one agent — if the caller may see that agent at all.
+//! image for one agent. Public like the profile: any signed-in human reads it for an
+//! active agent ([`agent_read_tier`]).
 //!
-//! The gate order mirrors [`super::agent_detail`], because the anti-enumeration rule
-//! is the same: VISIBILITY is settled BEFORE anything product-specific is touched.
-//!
-//!  1. VISIBILITY ([`can_view_agent`]) — an absent row, a caller outside the ACL, and
-//!     a row whose stage the default view hides all collapse to ONE byte-identical
-//!     `404 {"error":"agent not found"}`. The avatar serve-ref read and the blob are
-//!     NOT touched until this passes: a refused caller learns nothing, not even
-//!     whether the agent has an avatar.
-//!  2. SERVE — only for an admitted caller: read the row's own id plus the
+//!  1. TIER — an absent row, and a pending or failed one, are one
+//!     `404 {"error":"agent not found"}`, decided before the serve-ref or blob is
+//!     touched.
+//!  2. SERVE — only for a readable agent: read the row's own id plus the
 //!     `(storage_key, content_type)` pair as one typed shape, bind the read-back id to
 //!     the request (a SECOND source-bind, over the separate serve-ref port), and serve
 //!     the bytes. An agent with no row and a row with no avatar are BOTH the distinct
@@ -20,10 +16,8 @@
 //!     lane's safe `500`, with the cause logged — matching the TypeScript route, whose
 //!     uncaught `blobStorage.serve` throws on a missing file rather than answering 404.
 //!
-//! Unlike the `users` avatar fetch this route runs the visibility authority, so it
-//! reads TWICE — the detail facts for the gate, then the narrow serve-ref for the
-//! bytes — exactly as the TypeScript route calls `canViewAgent` then
-//! `getAvatarStorageRef`. Each read is INDEPENDENTLY source-bound to the request so a
+//! It reads TWICE — the detail facts for the gate, then the narrow serve-ref for the
+//! bytes. Each read is INDEPENDENTLY source-bound to the request so a
 //! cross-wired adapter can never splice one agent's bytes onto another's authorized
 //! response. There is no ETag/304: the response is `Cache-Control: private, no-store`,
 //! and the wire cache-buster lives in the DTO's `avatar_url` query, not here.
@@ -42,13 +36,13 @@ use axum::{
 };
 use serde::Serialize;
 use silverhand_backend_core::{
-    foundation::identity::{AgentId, Principal, UserId},
+    foundation::identity::{AgentId, UserId},
     identity_access::agent_avatar::{
         AgentAvatarBlobRead, AgentAvatarFetchOutcome, AgentAvatarServeRefRead, fetch_agent_avatar,
     },
     identity_access::agent_detail_read::{AgentDetailFacts, AgentDetailReadModel},
     identity_access::avatar::AvatarContentType,
-    identity_access::capability::agent_view::{VisibleStages, can_view_agent},
+    identity_access::capability::{agent_view::VisibleStages, read_tier::agent_read_tier},
 };
 
 use crate::foundation::error;
@@ -56,7 +50,7 @@ use crate::foundation::error;
 /// The product route template, in axum's `{id}` capture syntax.
 pub const AGENT_AVATAR_PATH: &str = "/api/agents/{id}/avatar";
 
-/// The anti-enumeration refusal, pinned to the TypeScript handler
+/// The not-found refusal, pinned to the TypeScript handler
 /// (`c.json({ error: 'agent not found' }, 404)`).
 const AGENT_NOT_FOUND: &str = "agent not found";
 
@@ -103,7 +97,6 @@ where
         tracing::error!("agent-avatar route reached without its human principal fact");
         return internal_error();
     };
-    let principal = Principal::human(viewer);
 
     // A malformed id names no agent — the same 404 an absent row gets.
     let Ok(agent) = AgentId::parse(agent_id) else {
@@ -140,13 +133,14 @@ where
     // The avatar fetch has no stage wideners: the default active-only view, exactly
     // as the TypeScript route runs `canViewAgent` with no flags.
     let stages = VisibleStages::active_only();
-    let decision = can_view_agent(
-        &principal,
+    let readable = agent_read_tier(
+        &viewer,
         &agent,
         detail.as_ref().map(AgentDetailFacts::visibility),
         &stages,
-    );
-    if !decision.is_allowed() {
+    )
+    .is_some();
+    if !readable {
         return agent_not_found();
     }
 
@@ -602,7 +596,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_viewer_in_no_arm_is_the_anti_enumeration_404_before_the_serve_ref() {
+    async fn the_avatar_is_public_for_an_active_agent() {
         let reply = get(
             present("a1", Arm::NobodyRelevant),
             Ok(present_ref()),
@@ -611,12 +605,27 @@ mod tests {
             true,
         )
         .await;
+        assert_eq!(reply.status, StatusCode::OK);
+        assert_eq!(reply.body, vec![9]);
+    }
+
+    #[tokio::test]
+    async fn a_hidden_stage_is_agent_not_found_before_the_serve_ref() {
+        let reply = get(
+            ViewOutcome::Present(Box::new(facts(
+                "a1",
+                Arm::NobodyRelevant,
+                MaterializationStatus::Failed,
+            ))),
+            Ok(present_ref()),
+            FakeBlob::found(vec![9]),
+            "a1",
+            true,
+        )
+        .await;
         assert_eq!(reply.status, StatusCode::NOT_FOUND);
         assert_eq!(json_body(&reply), json!({ "error": "agent not found" }));
-        assert_eq!(
-            reply.serve_ref_calls, 0,
-            "the ACL gate runs before the avatar is touched"
-        );
+        assert_eq!(reply.serve_ref_calls, 0);
         assert_eq!(reply.blob_calls, 0);
     }
 

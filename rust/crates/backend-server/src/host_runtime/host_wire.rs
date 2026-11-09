@@ -38,6 +38,35 @@ pub(crate) struct HostDto {
     pub display_label: Option<String>,
 }
 
+/// The public tier of the by-id read: what any signed-in human may see. A separate
+/// type rather than nulled fields, so a privileged column cannot leak by omission.
+#[derive(Serialize)]
+pub(crate) struct HostPublicDto {
+    pub id: String,
+    pub name: String,
+    pub display_label: Option<String>,
+    pub kind: &'static str,
+    pub status: &'static str,
+    pub creator_user_id: Option<String>,
+    pub created_at: i64,
+    pub last_seen_at: Option<i64>,
+}
+
+impl From<HostDto> for HostPublicDto {
+    fn from(dto: HostDto) -> Self {
+        Self {
+            id: dto.id,
+            name: dto.name,
+            display_label: dto.display_label,
+            kind: dto.kind,
+            status: dto.status,
+            creator_user_id: dto.creator_user_id,
+            created_at: dto.created_at,
+            last_seen_at: dto.last_seen_at,
+        }
+    }
+}
+
 /// Project a persisted computer record for the wire.
 ///
 /// `connected_host_name` is left absent on purpose: it is diagnostic liveness the

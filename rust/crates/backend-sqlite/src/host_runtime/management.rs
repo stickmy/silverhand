@@ -204,7 +204,7 @@ mod tests {
     use silverhand_backend_core::foundation::identity::UserId;
     use silverhand_backend_core::host_runtime::{
         computer::ComputerDisplayLabel,
-        status::{HostStatusStoredReadModel, visible_host_status},
+        status::{HostStatusStoredReadModel, readable_host_status},
         update::{
             UpdateComputer, UpdateComputerCommand, UpdateComputerInput, UpdateComputerOutcome,
         },
@@ -268,13 +268,12 @@ mod tests {
         let (_directory, store) = fixture().await;
         let computer = HostId::parse("host-1").unwrap();
         let facts = store.read_host_status(&computer).await.unwrap().unwrap();
-        let visible =
-            visible_host_status(&UserId::parse("owner").unwrap(), &computer, Some(&facts))
-                .unwrap()
-                .unwrap();
-        assert_eq!(visible.computer().name, "stable");
-        assert_eq!(visible.agents().len(), 1);
-        assert_eq!(visible.agents()[0].id.as_str(), "agent-1");
-        assert_eq!(visible.agents()[0].runtime, RuntimeKind::Codex);
+        let read = readable_host_status(&UserId::parse("owner").unwrap(), &computer, Some(&facts))
+            .unwrap()
+            .unwrap();
+        assert_eq!(read.computer.name, "stable");
+        assert_eq!(read.agents.len(), 1);
+        assert_eq!(read.agents[0].id.as_str(), "agent-1");
+        assert_eq!(read.agents[0].runtime, RuntimeKind::Codex);
     }
 }

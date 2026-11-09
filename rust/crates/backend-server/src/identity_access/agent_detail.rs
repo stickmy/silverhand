@@ -1,31 +1,18 @@
-//! Authenticated cold face for `GET /api/agents/{id}`: one agent's profile row,
-//! projected to the wire DTO — if the caller may see it at all.
+//! Authenticated cold face for `GET /api/agents/{id}`: one agent's profile row at the
+//! tier [`agent_read_tier`] grants the caller.
 //!
-//! Like availability this route is AUTHENTICATED and names a SPECIFIC agent, so it
-//! runs the visibility authority BEFORE it projects anything:
+//! Viewers in the visibility ACL read the full DTO (`view: "privileged"`); any other
+//! signed-in human reads [`AgentPublicDto`] (`view: "public"`) for an active agent.
+//! An absent row, and a pending or failed row outside the ACL, are one
+//! `404 {"error":"agent not found"}`.
 //!
-//!  1. VISIBILITY ([`can_view_agent`]) — may this caller see this agent? An absent
-//!     row, a caller outside the ACL, and a row whose stage this view hides all
-//!     collapse to ONE byte-identical `404 {"error":"agent not found"}`, so the
-//!     surface can never become an existence oracle.
-//!  2. PROJECTION — build the DTO ONLY once the caller is admitted. Access precedes
-//!     product: a refused caller never learns a single profile field.
+//! The resolved row is bound to the requested id before the tier is decided: a bundle
+//! decoded for another agent is a resolver defect and takes the lane's safe `500`.
 //!
-//! Unlike availability there is no second host-side read: every wire field comes off
-//! the ONE agent row and its host `LEFT JOIN` the adapter already resolved, so the
-//! visibility judged and the values projected are one snapshot. The resolved row is
-//! still bound to the requested id BEFORE the gate: a bundle whose decoded id is not
-//! the one asked for is a resolver defect — the ACL would judge one row and the wire
-//! render another — so it takes the lane's safe `500`, never a product `404`.
+//! `?include_failed=1` and `?include_pending=1` widen the privileged tier's stages
+//! only; they never reach the public tier.
 //!
-//! `?include_failed=1` and `?include_pending=1` widen the visible STAGES only; they
-//! never relax the ACL, so a cross-caller failed or pending lookup still 404s with
-//! both flags set. The default view is active-only.
-//!
-//! Like presence, the human principal is proof the authenticating perimeter ran; its
-//! ABSENCE is a composition fault, not a product request, so it takes a fail-closed
-//! `500` reading nothing. Mounting the real bearer perimeter is the composition
-//! root's job (#task:2197), not this factory's.
+//! The human principal's absence is a composition fault: fail-closed `500`.
 
 use axum::{
     Json, Router,
@@ -36,20 +23,23 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use silverhand_backend_core::{
-    foundation::identity::{AgentId, Principal, UserId},
+    foundation::identity::{AgentId, UserId},
     identity_access::agent_detail_read::{AgentDetailFacts, AgentDetailReadModel},
     identity_access::agent_lifecycle::MaterializationStatus,
-    identity_access::capability::agent_view::{VisibleStages, can_view_agent},
+    identity_access::capability::{
+        agent_view::VisibleStages,
+        read_tier::{ReadTier, agent_read_tier},
+    },
 };
 
 use crate::foundation::error;
 
-use crate::identity_access::agent_wire::{AgentDto, agent_dto};
+use crate::identity_access::agent_wire::{AgentDto, AgentPublicDto, agent_dto};
 
 /// The product route template, in axum's `{id}` capture syntax.
 pub const AGENT_DETAIL_PATH: &str = "/api/agents/{id}";
 
-/// The anti-enumeration refusal string, pinned to the TypeScript handler
+/// The not-found refusal string, pinned to the TypeScript handler
 /// (`c.json({ error: 'agent not found' }, 404)`) so a fixture drift shows here.
 const AGENT_NOT_FOUND: &str = "agent not found";
 
@@ -90,8 +80,6 @@ where
         tracing::error!("agent-detail route reached without its human principal fact");
         return internal_error();
     };
-    let principal = Principal::human(viewer);
-
     // A malformed id names no agent — the same 404 an absent row gets, so the surface
     // never distinguishes "unparseable" from "not there".
     let Ok(agent) = AgentId::parse(agent_id) else {
@@ -138,22 +126,30 @@ where
     }
     let stages = VisibleStages::including(stages);
 
-    // Access precedes product: absence, non-membership, and a hidden stage all
-    // collapse to one anti-enumeration 404.
-    let decision = can_view_agent(
-        &principal,
+    // Absence, and a non-active row outside the visibility ACL, are one 404.
+    let tier = agent_read_tier(
+        &viewer,
         &agent,
         detail.as_ref().map(AgentDetailFacts::visibility),
         &stages,
     );
-    let Some(detail) = detail.filter(|_| decision.is_allowed()) else {
+    let (Some(tier), Some(detail)) = (tier, detail) else {
         return not_found();
     };
 
-    Json(AgentDetailResponse {
-        agent: agent_dto(&detail),
-    })
-    .into_response()
+    let agent = agent_dto(&detail);
+    match tier {
+        ReadTier::Privileged => Json(AgentDetailResponse {
+            view: tier.as_str(),
+            agent,
+        })
+        .into_response(),
+        ReadTier::Public => Json(AgentPublicDetailResponse {
+            view: tier.as_str(),
+            agent: agent.into(),
+        })
+        .into_response(),
+    }
 }
 
 /// The two stage-widening flags, read the framework-native way.
@@ -176,11 +172,18 @@ fn opted_in(value: Option<&str>) -> bool {
     value == Some(STAGE_OPT_IN)
 }
 
-/// Success body: `{ "agent": {AgentDto} }`, wrapping the shared
-/// [`crate::identity_access::agent_wire`] projector `agentRowToDto` builds.
+/// Success body for a viewer in the visibility ACL: `{ "view": "privileged", "agent" }`.
 #[derive(Serialize)]
 struct AgentDetailResponse {
+    view: &'static str,
     agent: AgentDto,
+}
+
+/// Success body for any other signed-in human: `{ "view": "public", "agent" }`.
+#[derive(Serialize)]
+struct AgentPublicDetailResponse {
+    view: &'static str,
+    agent: AgentPublicDto,
 }
 
 /// The flat refusal body, mirroring the product `{ "error": ... }`.
@@ -407,7 +410,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_viewer_in_no_arm_is_the_anti_enumeration_404() {
+    async fn a_viewer_in_no_arm_reads_exactly_the_public_tier() {
         let reply = get(
             present(facts_with(
                 "a1",
@@ -419,8 +422,59 @@ mod tests {
             true,
         )
         .await;
-        assert_eq!(reply.status, StatusCode::NOT_FOUND);
-        assert_eq!(parsed(&reply.body), json!({ "error": "agent not found" }));
+        assert_eq!(reply.status, StatusCode::OK);
+        assert_eq!(
+            parsed(&reply.body),
+            json!({
+                "view": "public",
+                "agent": {
+                    "id": "a1",
+                    "name": "agent-one",
+                    "display_name": "Agent One",
+                    "runtime": "qoder",
+                    "model": "sonnet",
+                    "reasoning_effort": "high",
+                    "fast_mode": true,
+                    "host_id": "h1",
+                    "host_label": "Host One Label",
+                    "description": "a description",
+                    "created_by_user_id": "someone-else",
+                    "avatar_url": "/api/agents/a1/avatar?v=2000",
+                    "created_at": 1000,
+                }
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn an_admitted_viewer_reads_the_privileged_tier() {
+        let reply = get(present(admitting()), "", true).await;
+        assert_eq!(reply.status, StatusCode::OK);
+        let body = parsed(&reply.body);
+        assert_eq!(body["view"], "privileged");
+        assert_eq!(body["agent"]["session_scope"], "agent");
+    }
+
+    #[tokio::test]
+    async fn a_hidden_stage_is_a_404_to_a_viewer_in_no_arm() {
+        for status in [
+            MaterializationStatus::PendingMaterialization,
+            MaterializationStatus::Failed,
+        ] {
+            let reply = get(
+                present(facts_with(
+                    "a1",
+                    Arm::NobodyRelevant,
+                    status,
+                    full_projection(),
+                )),
+                "",
+                true,
+            )
+            .await;
+            assert_eq!(reply.status, StatusCode::NOT_FOUND);
+            assert_eq!(parsed(&reply.body), json!({ "error": "agent not found" }));
+        }
     }
 
     #[tokio::test]
@@ -516,9 +570,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn the_stage_widener_never_relaxes_the_acl() {
-        // A caller in no arm stays a 404 even with BOTH flags set: the widener admits
-        // stages, never viewers.
+    async fn the_stage_widener_never_reaches_the_public_tier() {
+        // A caller in no arm stays a 404 for a failed row even with BOTH flags set.
         let reply = get(
             present(facts_with(
                 "a1",

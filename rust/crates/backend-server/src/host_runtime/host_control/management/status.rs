@@ -1,6 +1,10 @@
 //! `GET /api/hosts/{id}/status` — persisted registration plus memory-only host facts.
 //! `POST /api/hosts/{id}/status/refresh` — same answer after re-probing the attached
 //! daemon; the GET path never round-trips to a daemon.
+//!
+//! The owner reads `view: "privileged"`. Any other signed-in human may GET
+//! `view: "public"`: OS only from the snapshot, no unreachable reason, no admission
+//! failure. Refresh probes a daemon, so it stays owner-only.
 
 use std::collections::HashSet;
 
@@ -13,8 +17,9 @@ use axum::{
 use serde::Serialize;
 use silverhand_backend_core::{
     foundation::identity::{AgentId, HostId, UserId},
-    host_runtime::status::{HostStatusAgentFact, HostStatusStoredReadModel, visible_host_status},
+    host_runtime::status::{HostStatusAgentFact, HostStatusStoredReadModel, readable_host_status},
     identity_access::agent_lifecycle::MaterializationStatus,
+    identity_access::capability::read_tier::ReadTier,
 };
 
 use crate::{
@@ -75,8 +80,8 @@ where
     respond(raw_host, principal, state, true).await
 }
 
-/// Visibility, revocation and admission are decided before any probe, so a refresh
-/// never reaches a daemon the viewer may not see.
+/// The tier, revocation and admission are decided before any probe, so a refresh
+/// never reaches a daemon the viewer does not own.
 async fn respond<R>(
     raw_host: String,
     principal: Option<Extension<UserId>>,
@@ -104,9 +109,9 @@ where
             return internal_error();
         }
     };
-    let visible = match visible_host_status(&viewer, &host, facts.as_ref()) {
-        Ok(Some(visible)) => visible,
-        Ok(None) => return not_found(),
+    let visible = match readable_host_status(&viewer, &host, facts.as_ref()) {
+        Ok(Some(visible)) if visible.tier == ReadTier::Privileged || !probe => visible,
+        Ok(_) => return not_found(),
         Err(cause) => {
             tracing::error!(
                 error = crate::foundation::safe_log_field::safe_display(&(cause)),
@@ -115,7 +120,8 @@ where
             return internal_error();
         }
     };
-    let computer = visible.computer();
+    let tier = visible.tier;
+    let computer = visible.computer;
     if computer
         .last_seen_at
         .is_some_and(|value| !js_safe_integer(value))
@@ -127,12 +133,14 @@ where
         return internal_error();
     }
     if computer.revoked_at.is_some() {
-        return Json(StatusResponse::Revoked {
-            host_id: host.as_str().to_owned(),
-            agents: agent_rows(visible.agents(), None),
-            last_seen_at: computer.last_seen_at,
-        })
-        .into_response();
+        return render(
+            tier,
+            StatusResponse::Revoked {
+                host_id: host.as_str().to_owned(),
+                agents: agent_rows(&visible.agents, None),
+                last_seen_at: computer.last_seen_at,
+            },
+        );
     }
 
     let refusal = match state.admission.refusal(&host) {
@@ -153,31 +161,35 @@ where
             );
             return internal_error();
         }
-        return Json(StatusResponse::Disconnected {
-            host_id: host.as_str().to_owned(),
-            agents: agent_rows(visible.agents(), None),
-            last_seen_at: computer.last_seen_at,
-            admission_failure: Some(AdmissionFailure {
-                kind: "protocol_mismatch",
-                offered_protocol_version: refusal.offered_protocol_version,
-                expected_protocol_version: refusal.expected_protocol_version,
-                observed_at: refusal.observed_at,
-            }),
-        })
-        .into_response();
+        return render(
+            tier,
+            StatusResponse::Disconnected {
+                host_id: host.as_str().to_owned(),
+                agents: agent_rows(&visible.agents, None),
+                last_seen_at: computer.last_seen_at,
+                admission_failure: Some(AdmissionFailure {
+                    kind: "protocol_mismatch",
+                    offered_protocol_version: refusal.offered_protocol_version,
+                    expected_protocol_version: refusal.expected_protocol_version,
+                    observed_at: refusal.observed_at,
+                }),
+            },
+        );
     }
 
     if probe {
         match state.seeds.refresh(&host).await {
             Ok(RefreshOutcome::Refreshed | RefreshOutcome::Disconnected) => {}
             Ok(RefreshOutcome::Unreachable(reason)) => {
-                return Json(StatusResponse::Unreachable {
-                    host_id: host.as_str().to_owned(),
-                    reason: reason.as_str(),
-                    agents: agent_rows(visible.agents(), None),
-                    last_seen_at: computer.last_seen_at,
-                })
-                .into_response();
+                return render(
+                    tier,
+                    StatusResponse::Unreachable {
+                        host_id: host.as_str().to_owned(),
+                        reason: reason.as_str(),
+                        agents: agent_rows(&visible.agents, None),
+                        last_seen_at: computer.last_seen_at,
+                    },
+                );
             }
             Err(cause) => {
                 tracing::error!(
@@ -190,22 +202,26 @@ where
     }
 
     match state.seeds.read(&host) {
-        Ok(SeedRead::Disconnected) => Json(StatusResponse::Disconnected {
-            host_id: host.as_str().to_owned(),
-            agents: agent_rows(visible.agents(), None),
-            last_seen_at: computer.last_seen_at,
-            admission_failure: None,
-        })
-        .into_response(),
-        Ok(SeedRead::NotSeeded) => Json(StatusResponse::Unreachable {
-            host_id: host.as_str().to_owned(),
-            reason: "daemon_unreachable",
-            agents: agent_rows(visible.agents(), None),
-            last_seen_at: computer.last_seen_at,
-        })
-        .into_response(),
+        Ok(SeedRead::Disconnected) => render(
+            tier,
+            StatusResponse::Disconnected {
+                host_id: host.as_str().to_owned(),
+                agents: agent_rows(&visible.agents, None),
+                last_seen_at: computer.last_seen_at,
+                admission_failure: None,
+            },
+        ),
+        Ok(SeedRead::NotSeeded) => render(
+            tier,
+            StatusResponse::Unreachable {
+                host_id: host.as_str().to_owned(),
+                reason: "daemon_unreachable",
+                agents: agent_rows(&visible.agents, None),
+                last_seen_at: computer.last_seen_at,
+            },
+        ),
         Ok(SeedRead::Seeded(seed)) => {
-            available(&host, visible.agents(), computer.last_seen_at, seed)
+            available(tier, &host, &visible.agents, computer.last_seen_at, seed)
         }
         Err(cause) => {
             tracing::error!(
@@ -218,8 +234,9 @@ where
 }
 
 fn available(
+    tier: ReadTier,
     host: &HostId,
-    agents: &[HostStatusAgentFact],
+    agents: &[&HostStatusAgentFact],
     last_seen_at: Option<i64>,
     seed: SeededStatus,
 ) -> Response {
@@ -233,34 +250,36 @@ fn available(
         );
         return internal_error();
     }
-    Json(StatusResponse::Available {
-        host_id: host.as_str().to_owned(),
-        snapshot: Snapshot {
-            os: seed.os,
-            os_arch: seed.os_arch,
-            daemon_version: seed.daemon_version,
-            daemon_pid: seed.daemon_pid,
-            started_at: seed.started_at,
-            uptime_ms: seed.uptime_ms,
-            hostname: seed.machine.hostname,
-            ip: seed.machine.ip,
-            memory_total_bytes: seed.machine.memory.map(|usage| usage.total_bytes),
-            memory_used_bytes: seed.machine.memory.map(|usage| usage.used_bytes),
-            disk_total_bytes: seed.machine.disk.map(|usage: Usage| usage.total_bytes),
-            disk_used_bytes: seed.machine.disk.map(|usage| usage.used_bytes),
-            system_uptime_ms: seed
-                .machine
-                .system_uptime_ms_at_answer
-                .filter(|value| js_safe_integer(*value)),
+    render(
+        tier,
+        StatusResponse::Available {
+            host_id: host.as_str().to_owned(),
+            snapshot: Snapshot {
+                os: seed.os,
+                os_arch: seed.os_arch,
+                daemon_version: seed.daemon_version,
+                daemon_pid: seed.daemon_pid,
+                started_at: seed.started_at,
+                uptime_ms: seed.uptime_ms,
+                hostname: seed.machine.hostname,
+                ip: seed.machine.ip,
+                memory_total_bytes: seed.machine.memory.map(|usage| usage.total_bytes),
+                memory_used_bytes: seed.machine.memory.map(|usage| usage.used_bytes),
+                disk_total_bytes: seed.machine.disk.map(|usage: Usage| usage.total_bytes),
+                disk_used_bytes: seed.machine.disk.map(|usage| usage.used_bytes),
+                system_uptime_ms: seed
+                    .machine
+                    .system_uptime_ms_at_answer
+                    .filter(|value| js_safe_integer(*value)),
+            },
+            agents: agent_rows(agents, Some(&seed.active_agents)),
+            last_seen_at,
         },
-        agents: agent_rows(agents, Some(&seed.active_agents)),
-        last_seen_at,
-    })
-    .into_response()
+    )
 }
 
 fn agent_rows(
-    agents: &[HostStatusAgentFact],
+    agents: &[&HostStatusAgentFact],
     active: Option<&HashSet<AgentId>>,
 ) -> Vec<AgentOnHost> {
     agents
@@ -292,6 +311,114 @@ fn agent_rows(
             },
         })
         .collect()
+}
+
+fn render(tier: ReadTier, body: StatusResponse) -> Response {
+    match tier {
+        ReadTier::Privileged => Json(Tiered {
+            view: tier.as_str(),
+            body,
+        })
+        .into_response(),
+        ReadTier::Public => Json(Tiered {
+            view: tier.as_str(),
+            body: PublicStatusResponse::from(body),
+        })
+        .into_response(),
+    }
+}
+
+#[derive(Serialize)]
+struct Tiered<T> {
+    view: &'static str,
+    #[serde(flatten)]
+    body: T,
+}
+
+/// The public tier: the same arms without machine detail, the unreachable reason,
+/// or the admission failure. A separate type so a new privileged field cannot leak
+/// by default.
+#[derive(Serialize)]
+#[serde(tag = "availability", rename_all = "snake_case")]
+enum PublicStatusResponse {
+    Available {
+        host_id: String,
+        snapshot: PublicSnapshot,
+        agents: Vec<AgentOnHost>,
+        last_seen_at: Option<i64>,
+    },
+    Disconnected {
+        host_id: String,
+        agents: Vec<AgentOnHost>,
+        last_seen_at: Option<i64>,
+    },
+    Unreachable {
+        host_id: String,
+        agents: Vec<AgentOnHost>,
+        last_seen_at: Option<i64>,
+    },
+    Revoked {
+        host_id: String,
+        agents: Vec<AgentOnHost>,
+        last_seen_at: Option<i64>,
+    },
+}
+
+#[derive(Serialize)]
+struct PublicSnapshot {
+    os: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    os_arch: Option<String>,
+}
+
+impl From<StatusResponse> for PublicStatusResponse {
+    fn from(body: StatusResponse) -> Self {
+        match body {
+            StatusResponse::Available {
+                host_id,
+                snapshot,
+                agents,
+                last_seen_at,
+            } => Self::Available {
+                host_id,
+                snapshot: PublicSnapshot {
+                    os: snapshot.os,
+                    os_arch: snapshot.os_arch,
+                },
+                agents,
+                last_seen_at,
+            },
+            StatusResponse::Disconnected {
+                host_id,
+                agents,
+                last_seen_at,
+                admission_failure: _,
+            } => Self::Disconnected {
+                host_id,
+                agents,
+                last_seen_at,
+            },
+            StatusResponse::Unreachable {
+                host_id,
+                reason: _,
+                agents,
+                last_seen_at,
+            } => Self::Unreachable {
+                host_id,
+                agents,
+                last_seen_at,
+            },
+            StatusResponse::Revoked {
+                host_id,
+                agents,
+                last_seen_at,
+            } => Self::Revoked {
+                host_id,
+                agents,
+                last_seen_at,
+            },
+        }
+    }
 }
 
 #[derive(Serialize)]

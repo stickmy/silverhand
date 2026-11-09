@@ -233,6 +233,16 @@ async fn management_request(
     uri: &str,
     body: &'static str,
 ) -> (StatusCode, Value) {
+    management_request_as(app, "user-1", method, uri, body).await
+}
+
+async fn management_request_as(
+    app: &Router,
+    viewer: &str,
+    method: &str,
+    uri: &str,
+    body: &'static str,
+) -> (StatusCode, Value) {
     let mut request = Request::builder()
         .method(method)
         .uri(uri)
@@ -241,7 +251,7 @@ async fn management_request(
         .unwrap();
     request
         .extensions_mut()
-        .insert(UserId::parse("user-1").unwrap());
+        .insert(UserId::parse(viewer).unwrap());
     let response = app.clone().oneshot(request).await.unwrap();
     let status = response.status();
     let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
@@ -2975,6 +2985,19 @@ async fn the_unmounted_host_management_router_composes_sqlite_live_transport_and
     .execute(&mut db)
     .await
     .unwrap();
+    sqlx::query(
+        "INSERT INTO agents (
+            id, name, runtime, host_id, created_at, updated_at,
+            display_name, created_by_user_id, materialization_status
+         ) VALUES
+            ('agent-pending', 'agent-pending', 'codex', 'host-1', 2, 2,
+             'Pending Agent', 'user-1', 'pending_materialization'),
+            ('agent-failed', 'agent-failed', 'codex', 'host-1', 3, 3,
+             'Failed Agent', 'user-1', 'failed')",
+    )
+    .execute(&mut db)
+    .await
+    .unwrap();
 
     let announcements = RecordingHostLabelChange::default();
     let app = management_app(&fixture, announcements.clone()).await;
@@ -3016,7 +3039,23 @@ async fn the_unmounted_host_management_router_composes_sqlite_live_transport_and
 
     let (status, body) = management_request(&app, "GET", "/api/hosts/host-1/status", "").await;
     assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["view"], "privileged");
     assert_eq!(body["availability"], "disconnected");
+    let listed = |body: &Value| -> Vec<String> {
+        body["agents"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|agent| agent["agent_id"].as_str().unwrap().to_owned())
+            .collect()
+    };
+    // The owner keeps today's rows (failed hidden); a public reader sees active only.
+    assert_eq!(listed(&body), vec!["agent-delivery", "agent-pending"]);
+    let (status, public) =
+        management_request_as(&app, "u-stranger", "GET", "/api/hosts/host-1/status", "").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(public["view"], "public");
+    assert_eq!(listed(&public), vec!["agent-delivery"]);
     assert_eq!(body["agents"][0]["online"], "offline");
     assert_eq!(body["agents"][0]["model"], "gpt-5.6-sol");
     assert_eq!(body["agents"][0]["reasoning_effort"], "high");
@@ -3061,6 +3100,32 @@ async fn the_unmounted_host_management_router_composes_sqlite_live_transport_and
     assert!(body["snapshot"]["system_uptime_ms"].as_i64().unwrap() >= 60_000);
     let (_, cached) = management_request(&app, "GET", "/api/hosts/host-1/status", "").await;
     assert_eq!(cached["snapshot"]["daemon_pid"], 5_000);
+
+    // Any other signed-in human reads the public tier: OS only, agents kept.
+    let (status, public) =
+        management_request_as(&app, "u-stranger", "GET", "/api/hosts/host-1/status", "").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        public,
+        json!({
+            "view": "public",
+            "availability": "available",
+            "host_id": "host-1",
+            "snapshot": { "os": "macOS 14.5" },
+            "agents": [cached["agents"][0].clone()],
+            "last_seen_at": cached["last_seen_at"],
+        })
+    );
+    // Refresh probes the daemon, so it stays the owner's.
+    let (status, _) = management_request_as(
+        &app,
+        "u-stranger",
+        "POST",
+        "/api/hosts/host-1/status/refresh",
+        "",
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
 
     let proxy_app = app.clone();
     let proxy_read = tokio::spawn(async move {

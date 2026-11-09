@@ -13,11 +13,8 @@
 //!
 //! So this is a single LOAD-BEARING composition proof, not a differential and not a
 //! matrix: two vectors driven through the real stack against a fresh current-schema
-//! database — one admitted creator who must receive the full DTO, and one registered
-//! stranger whom the anti-enumeration ACL must collapse to
-//! `404 {"error":"agent not found"}`. The expected values were authored against the
-//! real TS route's behavior and ratified at authoring; the Rust vertical is now
-//! their sole consumer.
+//! database — one admitted creator who must receive the privileged DTO, and one
+//! registered stranger who must receive exactly the public tier.
 //!
 //! The route is authenticated, so each request injects the `UserId` extension the
 //! composition perimeter (#task:2197) would attach; the auth-refusal body is that
@@ -100,6 +97,7 @@ async fn an_admitted_creator_reads_the_full_dto_through_the_real_stack() {
     assert_eq!(
         body,
         json!({
+            "view": "privileged",
             "agent": {
                 "id": "a1",
                 "name": "agent-one",
@@ -126,10 +124,9 @@ async fn an_admitted_creator_reads_the_full_dto_through_the_real_stack() {
 }
 
 #[tokio::test]
-async fn a_registered_stranger_is_the_anti_enumeration_404() {
-    // A human in NO arm — not the creator, not a direct-pair endpoint, not a member
-    // of any workspace the agent reaches — must be indistinguishable from an absent
-    // row: the same byte-identical 404, so the surface is never an existence oracle.
+async fn a_registered_stranger_reads_exactly_the_public_tier() {
+    // A human in NO visibility arm reads the public tier of an active agent: no
+    // session scope, lifecycle, or update stamp.
     let seed = "\
         INSERT INTO users (id, name, display_name, created_at, updated_at) \
         VALUES ('u-creator', 'creator', 'Creator', 1000, 1000); \
@@ -139,6 +136,44 @@ async fn a_registered_stranger_is_the_anti_enumeration_404() {
         VALUES ('h1', 'host-one', 'desktop', 1000); \
         INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id) \
         VALUES ('a1', 'agent-one', 'qoder', 'h1', 1000, 1000, 'u-creator');";
+
+    let (status, body) = run(seed, "u-stranger", "a1").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        body,
+        json!({
+            "view": "public",
+            "agent": {
+                "id": "a1",
+                "name": "agent-one",
+                "display_name": "",
+                "runtime": "qoder",
+                "model": null,
+                "reasoning_effort": null,
+                "fast_mode": null,
+                "host_id": "h1",
+                "host_label": "host-one",
+                "description": null,
+                "created_by_user_id": "u-creator",
+                "avatar_url": null,
+                "created_at": 1000
+            }
+        })
+    );
+}
+
+#[tokio::test]
+async fn a_registered_stranger_gets_the_404_for_a_failed_agent() {
+    let seed = "\
+        INSERT INTO users (id, name, display_name, created_at, updated_at) \
+        VALUES ('u-creator', 'creator', 'Creator', 1000, 1000); \
+        INSERT INTO users (id, name, display_name, created_at, updated_at) \
+        VALUES ('u-stranger', 'stranger', 'Stranger', 1000, 1000); \
+        INSERT INTO hosts (id, name, kind, created_at) \
+        VALUES ('h1', 'host-one', 'desktop', 1000); \
+        INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id, \
+          materialization_status) \
+        VALUES ('a1', 'agent-one', 'qoder', 'h1', 1000, 1000, 'u-creator', 'failed');";
 
     let (status, body) = run(seed, "u-stranger", "a1").await;
     assert_eq!(status, StatusCode::NOT_FOUND);

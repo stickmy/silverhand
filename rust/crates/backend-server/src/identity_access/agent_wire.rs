@@ -74,6 +74,45 @@ impl AgentDto {
     }
 }
 
+/// The public tier of the by-id read: what any signed-in human may see. A separate
+/// type rather than nulled fields, so a privileged column cannot leak by omission.
+#[derive(Serialize)]
+pub(crate) struct AgentPublicDto {
+    id: String,
+    name: String,
+    display_name: String,
+    runtime: &'static str,
+    model: Option<String>,
+    reasoning_effort: Option<String>,
+    fast_mode: Option<bool>,
+    host_id: String,
+    host_label: Option<String>,
+    description: Option<String>,
+    created_by_user_id: String,
+    avatar_url: Option<String>,
+    created_at: i64,
+}
+
+impl From<AgentDto> for AgentPublicDto {
+    fn from(dto: AgentDto) -> Self {
+        Self {
+            id: dto.id,
+            name: dto.name,
+            display_name: dto.display_name,
+            runtime: dto.runtime,
+            model: dto.model,
+            reasoning_effort: dto.reasoning_effort,
+            fast_mode: dto.fast_mode,
+            host_id: dto.host_id,
+            host_label: dto.host_label,
+            description: dto.description,
+            created_by_user_id: dto.created_by_user_id,
+            avatar_url: dto.avatar_url,
+            created_at: dto.created_at,
+        }
+    }
+}
+
 pub(crate) fn agent_dto(detail: &AgentDetailFacts) -> AgentDto {
     let projection = detail.projection();
     let id = detail.source().as_str().to_string();

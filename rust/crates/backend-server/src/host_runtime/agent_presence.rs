@@ -1,23 +1,10 @@
 //! Authenticated cold face for `GET /api/agents/{id}/presence`: one agent's Away
-//! deadline, projected to the wire — if the caller may see it at all.
+//! deadline. Presence is public: any signed-in human reads it for an active agent
+//! ([`agent_read_tier`]). An absent row, and a pending or failed one, are one
+//! `404 {"error":"agent not found"}`; presence never widens the stage.
 //!
-//! Like availability and detail this route is AUTHENTICATED and names a SPECIFIC
-//! agent, so it runs the visibility authority BEFORE it projects anything:
-//!
-//!  1. VISIBILITY ([`can_view_agent`]) — may this caller see this agent? An absent
-//!     row, a caller outside the ACL, and a row whose stage this view hides all
-//!     collapse to ONE byte-identical `404 {"error":"agent not found"}`, so the
-//!     surface can never become an existence oracle. The view is active-only:
-//!     presence carries NO stage-widening flags (the TypeScript handler calls
-//!     `canViewAgent` with no options, whose default is `ACTIVE_ONLY`), so a pending
-//!     or failed row 404s even for a caller inside its ACL.
-//!  2. PROJECTION — emit the deadline ONLY once the caller is admitted. Access
-//!     precedes product: a refused caller never learns whether the agent is online.
-//!
-//! The resolved row is bound to the requested id BEFORE the gate: a bundle whose
-//! decoded id is not the one asked for is a resolver defect — the ACL would judge one
-//! row and the wire report another — so it takes the lane's safe `500`, never a
-//! product `404`.
+//! The resolved row is bound to the requested id before the tier is decided: a bundle
+//! decoded for another agent is a resolver defect and takes the lane's safe `500`.
 //!
 //! ## Two clocks that never touch
 //!
@@ -43,9 +30,9 @@ use axum::{
 };
 use serde::Serialize;
 use silverhand_backend_core::{
-    foundation::identity::{AgentId, Principal, UserId},
+    foundation::identity::{AgentId, UserId},
     host_runtime::agent_presence_read::{AgentPresenceFacts, AgentPresenceReadModel},
-    identity_access::capability::agent_view::{VisibleStages, can_view_agent},
+    identity_access::capability::{agent_view::VisibleStages, read_tier::agent_read_tier},
 };
 
 use crate::{foundation::clock::ProcessClock, foundation::error};
@@ -53,7 +40,7 @@ use crate::{foundation::clock::ProcessClock, foundation::error};
 /// The product route template, in axum's `{id}` capture syntax.
 pub const AGENT_PRESENCE_PATH: &str = "/api/agents/{id}/presence";
 
-/// The anti-enumeration refusal string, pinned to the TypeScript handler
+/// The not-found refusal string, pinned to the TypeScript handler
 /// (`c.json({ error: 'agent not found' }, 404)`) so a fixture drift shows here.
 const AGENT_NOT_FOUND: &str = "agent not found";
 
@@ -91,7 +78,6 @@ where
         tracing::error!("agent-presence route reached without its human principal fact");
         return internal_error();
     };
-    let principal = Principal::human(viewer);
 
     // A malformed id names no agent — the same 404 an absent row gets, so the surface
     // never distinguishes "unparseable" from "not there".
@@ -128,15 +114,15 @@ where
         return internal_error();
     }
 
-    // Access precedes product: absence, non-membership, and a hidden stage all collapse
-    // to one anti-enumeration 404. Active-only: presence never widens the view.
-    let decision = can_view_agent(
-        &principal,
+    // Absence and a hidden stage are one 404. Active-only: presence never widens.
+    let readable = agent_read_tier(
+        &viewer,
         &agent,
         presence.as_ref().map(AgentPresenceFacts::visibility),
         &VisibleStages::active_only(),
-    );
-    let Some(presence) = presence.filter(|_| decision.is_allowed()) else {
+    )
+    .is_some();
+    let Some(presence) = presence.filter(|_| readable) else {
         return not_found();
     };
 
@@ -412,12 +398,31 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_viewer_in_no_arm_is_the_anti_enumeration_404() {
+    async fn presence_is_public_for_an_active_agent() {
         let reply = get(
             present(facts_with(
                 "a1",
                 Arm::NobodyRelevant,
                 MaterializationStatus::Active,
+                None,
+            )),
+            true,
+        )
+        .await;
+        assert_eq!(reply.status, StatusCode::OK);
+        assert_eq!(
+            parsed(&reply.body),
+            json!({ "away_at": Value::Null, "server_now": FIXED_NOW })
+        );
+    }
+
+    #[tokio::test]
+    async fn a_hidden_stage_is_a_404_to_a_viewer_in_no_arm() {
+        let reply = get(
+            present(facts_with(
+                "a1",
+                Arm::NobodyRelevant,
+                MaterializationStatus::Failed,
                 Some(1_000),
             )),
             true,

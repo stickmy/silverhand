@@ -151,6 +151,6 @@ parity_case!(online_agent_home, "online-agent-home");
 parity_case!(offline_deleted, "offline-deleted");
 parity_case!(offline_revoked, "offline-revoked");
 parity_case!(offline_detached, "offline-detached");
-parity_case!(deny_not_viewer, "deny-not-viewer");
+parity_case!(online_stranger, "online-stranger");
 parity_case!(miss_absent_agent, "miss-absent-agent");
 parity_case!(stage_hidden, "stage-hidden");

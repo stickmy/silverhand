@@ -11,8 +11,9 @@
 use crate::{
     foundation::identity::{HostId, UserId},
     foundation::persistence::PersistenceFailure,
-    identity_access::capability::computer_access::{
-        ComputerAccess, ComputerAccessHeld, can_access_computer,
+    identity_access::capability::{
+        computer_access::{ComputerAccess, ComputerAccessHeld, can_access_computer},
+        read_tier::ReadTier,
     },
 };
 
@@ -150,6 +151,20 @@ pub fn find_owned_computer(
     }
 }
 
+/// The tier `viewer` reads a computer at by id, or `None` for the not-found answer.
+///
+/// The privileged tier is exactly [`can_access_computer`]; every other signed-in
+/// human reads the public tier. An unfinalized user-invite draft is the owner's
+/// alone: it is a half-finished invitation, not a computer anyone else can name.
+/// Writes keep calling [`find_owned_computer`], so this rule widens none of them.
+pub fn computer_read_tier(viewer: &UserId, record: &ComputerRecord) -> Option<ReadTier> {
+    if let ComputerAccess::Held(_) = can_access_computer(viewer, Some(&record.ownership())) {
+        return Some(ReadTier::Privileged);
+    }
+    let draft = record.is_user_managed() && record.finalized_at.is_none();
+    (!draft).then_some(ReadTier::Public)
+}
+
 /// A row the owner-keyed query offered that the authorization rule then refused.
 ///
 /// The narrowing is supposed to be a faithful subset: every row it yields must be one
@@ -257,6 +272,30 @@ mod tests {
         let owned = owned_computers(&user("u1"), &candidates).expect("all rows are the owner's");
         let ids: Vec<&str> = owned.iter().map(|row| row.id.as_str()).collect();
         assert_eq!(ids, vec!["h2", "h1", "h3"]);
+    }
+
+    #[test]
+    fn the_owner_reads_privileged_and_anyone_else_public() {
+        let row = record("h1", Some("u1"));
+        assert_eq!(
+            computer_read_tier(&user("u1"), &row),
+            Some(ReadTier::Privileged)
+        );
+        assert_eq!(
+            computer_read_tier(&user("u2"), &row),
+            Some(ReadTier::Public)
+        );
+    }
+
+    #[test]
+    fn an_unfinalized_invite_draft_is_the_owners_alone() {
+        let mut row = record("h1", Some("u1"));
+        row.finalized_at = None;
+        assert_eq!(
+            computer_read_tier(&user("u1"), &row),
+            Some(ReadTier::Privileged)
+        );
+        assert_eq!(computer_read_tier(&user("u2"), &row), None);
     }
 
     #[test]

@@ -10247,8 +10247,8 @@ mod host_resources_activation {
 /// The composition mounts `GET /api/agents/{id}/presence` behind the SAME human
 /// perimeter, wired to the real SQLite agent-presence cold read and the production
 /// `SystemProcessClock`. Proves the composition obligation the leaf's own tests
-/// cannot: the anonymous perimeter refusal; the anti-enumeration 404 a registered
-/// stranger and an absent id share BYTE-for-byte; a one-method route checksum; AND
+/// cannot: the anonymous perimeter refusal; the absent-id 404; a registered
+/// stranger reading public presence; a one-method route checksum; AND
 /// an admitted creator reading a real seeded stamp projected off the live SQLite
 /// adapter to the shared away deadline, alongside a live `server_now` bracketed by
 /// the wall clock — proving the mount injected the real production clock, not a
@@ -10276,8 +10276,8 @@ async fn the_composition_serves_agent_presence_behind_the_perimeter() {
         serde_json::json!({ "error": "agent not found" })
     );
 
-    // Admitted stranger: a REAL row the viewer is in no arm of collapses to the
-    // SAME 404 bytes as an absent id, so the mounted surface is never an oracle.
+    // Admitted stranger: presence is public, so a REAL active row the viewer is in
+    // no arm of answers 200.
     let (status, stranger_body) = request(
         &router,
         "GET",
@@ -10285,8 +10285,7 @@ async fn the_composition_serves_agent_presence_behind_the_perimeter() {
         Some(&bearer),
     )
     .await;
-    assert_eq!(status, StatusCode::NOT_FOUND, "{stranger_body}");
-    assert_eq!(stranger_body, absent_body);
+    assert_eq!(status, StatusCode::OK, "{stranger_body}");
 
     // One-method route checksum: the mounted path serves GET only.
     let (status, body) = request(&router, "POST", absent, Some(&bearer)).await;

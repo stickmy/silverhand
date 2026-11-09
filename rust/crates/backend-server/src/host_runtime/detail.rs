@@ -1,25 +1,18 @@
-//! Authenticated by-id read for `GET /api/hosts/{id}`: one computer the requester
-//! owns, projected through the one host wire with its live attachment name overlaid.
+//! Authenticated by-id read for `GET /api/hosts/{id}` at the tier
+//! [`computer_read_tier`] grants the requester.
 //!
-//! Two authorities, in order:
+//! The owner reads the full host wire with its live attachment name overlaid
+//! (`view: "privileged"`); any other signed-in human reads [`HostPublicDto`]
+//! (`view: "public"`). An absent row and someone else's unfinalized invite draft are
+//! one `404 {"error":"host not found","error_code":"host_not_found"}`.
 //!
-//!  1. ADMIT — [`find_owned_computer`] resolves the named computer for this
-//!     requester. An absent row and someone else's collapse to ONE byte-identical
-//!     `404 {"error":"host not found","error_code":"host_not_found"}`, so the surface
-//!     can never become an existence oracle for computer ids.
-//!  2. PROJECT — only once admitted, render the row and overlay
-//!     [`ConnectedHostName`]. The base wire carries `connected_host_name: null`; the
-//!     live name is read here, AFTER admission, so a refused requester never learns
-//!     whether a computer they cannot see has a daemon attached.
+//! The live attachment name is read only for the privileged tier, so a public reader
+//! never learns the hostname a daemon announced.
 //!
-//! Unlike the bulk list, this route deliberately still returns an unfinalized
-//! user-invite draft, so the add-computer modal that minted it can watch
-//! pending → attached → active.
+//! Unlike the bulk list, the owner still gets an unfinalized user-invite draft here,
+//! so the add-computer modal that minted it can watch pending → attached → active.
 //!
-//! [`ConnectedHostName`] reads the hostname the currently attached daemon announced.
-//! The composition root supplies the controller's [`ConnectedHostNameView`].
-//! The human principal's ABSENCE is a
-//! composition fault, so it takes a fail-closed `500` having read nothing.
+//! The human principal's absence is a composition fault: fail-closed `500`.
 
 use axum::{
     Json, Router,
@@ -30,7 +23,8 @@ use axum::{
 use serde::Serialize;
 use silverhand_backend_core::{
     foundation::identity::{HostId, UserId},
-    host_runtime::read::{ComputerReadModel, find_owned_computer},
+    host_runtime::read::{ComputerReadModel, computer_read_tier},
+    identity_access::capability::read_tier::ReadTier,
 };
 
 use crate::{
@@ -40,7 +34,7 @@ use crate::{
 
 use super::{
     host_not_found,
-    host_wire::{HostDto, host_wire},
+    host_wire::{HostDto, HostPublicDto, host_wire},
     internal_error,
 };
 
@@ -131,21 +125,42 @@ where
         }
     };
 
-    let Some(owned) = find_owned_computer(&requester, record) else {
+    let Some((tier, record)) = record
+        .and_then(|record| computer_read_tier(&requester, &record).map(|tier| (tier, record)))
+    else {
         return host_not_found();
     };
-    let record = owned.record();
 
-    let mut host = host_wire(record);
-    host.connected_host_name = state.connected.connected_host_name(&record.id);
-
-    Json(HostDetailResponse { host }).into_response()
+    let mut host = host_wire(&record);
+    match tier {
+        ReadTier::Privileged => {
+            host.connected_host_name = state.connected.connected_host_name(&record.id);
+            Json(HostDetailResponse {
+                view: tier.as_str(),
+                host,
+            })
+            .into_response()
+        }
+        ReadTier::Public => Json(HostPublicDetailResponse {
+            view: tier.as_str(),
+            host: host.into(),
+        })
+        .into_response(),
+    }
 }
 
-/// Success body: `{ "host": HostDto }`.
+/// Success body for the owner: `{ "view": "privileged", "host": HostDto }`.
 #[derive(Serialize)]
 struct HostDetailResponse {
+    view: &'static str,
     host: HostDto,
+}
+
+/// Success body for any other signed-in human: `{ "view": "public", "host" }`.
+#[derive(Serialize)]
+struct HostPublicDetailResponse {
+    view: &'static str,
+    host: HostPublicDto,
 }
 
 #[cfg(test)]
@@ -318,6 +333,7 @@ mod tests {
         assert_eq!(
             parsed(&reply.body),
             json!({
+                "view": "privileged",
                 "host": {
                     "id": "h1",
                     "name": "h1-name",
@@ -358,16 +374,45 @@ mod tests {
         assert_eq!(reply.lookups, 1);
     }
 
-    /// An absent row and a foreign one render the same envelope, and neither reaches
-    /// the live-attachment seam — a refused requester learns nothing about a computer
-    /// they cannot see.
+    /// A foreign computer is the public tier, and never reaches the live-attachment
+    /// seam: a public reader does not learn the hostname a daemon announced.
     #[tokio::test]
-    async fn a_missing_or_foreign_computer_has_the_same_404_and_never_looks_up() {
-        let refused = json!({ "error": "host not found", "error_code": "host_not_found" });
-        for outcome in [
-            ReadOutcome::Absent,
+    async fn a_foreign_computer_is_exactly_the_public_tier_and_never_looks_up() {
+        let reply = get_detail(
             ReadOutcome::Present(record("h1", "u-someone-else")),
-        ] {
+            FakeAttachment::announcing(Some("live-box")),
+            "h1",
+            true,
+        )
+        .await;
+        assert_eq!(reply.status, StatusCode::OK);
+        assert_eq!(
+            parsed(&reply.body),
+            json!({
+                "view": "public",
+                "host": {
+                    "id": "h1",
+                    "name": "h1-name",
+                    "display_label": null,
+                    "kind": "remote",
+                    "status": "active",
+                    "creator_user_id": "u-someone-else",
+                    "created_at": 1,
+                    "last_seen_at": null
+                }
+            })
+        );
+        assert_eq!(reply.lookups, 0);
+    }
+
+    /// An absent row and someone else's unfinalized draft are one envelope, and
+    /// neither reaches the live-attachment seam.
+    #[tokio::test]
+    async fn a_missing_computer_or_foreign_draft_is_the_same_404() {
+        let refused = json!({ "error": "host not found", "error_code": "host_not_found" });
+        let mut draft = record("h1", "u-someone-else");
+        draft.finalized_at = None;
+        for outcome in [ReadOutcome::Absent, ReadOutcome::Present(draft)] {
             let reply = get_detail(
                 outcome,
                 FakeAttachment::announcing(Some("live-box")),

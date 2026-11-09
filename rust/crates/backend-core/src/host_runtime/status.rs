@@ -15,10 +15,8 @@ use crate::{
     identity_access::agents::runtime::RuntimeKind,
 };
 
-use super::{
-    computer::ComputerRecord,
-    read::{OwnedComputer, find_owned_computer},
-};
+use super::{computer::ComputerRecord, read::computer_read_tier};
+use crate::identity_access::capability::read_tier::ReadTier;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct HostStatusAgentFact {
@@ -72,26 +70,44 @@ pub enum HostStatusFactsMismatch {
     },
 }
 
-pub struct VisibleHostStatus<'a> {
-    owned: OwnedComputer,
-    agents: &'a [HostStatusAgentFact],
+/// A status read admitted at some tier. A face that probes the daemon admits only
+/// [`ReadTier::Privileged`].
+pub struct ReadableHostStatus<'a> {
+    pub tier: ReadTier,
+    pub computer: &'a ComputerRecord,
+    /// The public tier lists only active agents, matching what a by-id agent read
+    /// would show the same viewer.
+    pub agents: Vec<&'a HostStatusAgentFact>,
 }
 
-impl VisibleHostStatus<'_> {
-    pub fn computer(&self) -> &ComputerRecord {
-        self.owned.record()
-    }
-
-    pub fn agents(&self) -> &[HostStatusAgentFact] {
-        self.agents
-    }
-}
-
-pub fn visible_host_status<'a>(
+pub fn readable_host_status<'a>(
     viewer: &UserId,
     requested: &HostId,
     facts: Option<&'a HostStatusStoredFacts>,
-) -> Result<Option<VisibleHostStatus<'a>>, HostStatusFactsMismatch> {
+) -> Result<Option<ReadableHostStatus<'a>>, HostStatusFactsMismatch> {
+    let Some(facts) = bound(requested, facts)? else {
+        return Ok(None);
+    };
+    Ok(
+        computer_read_tier(viewer, &facts.computer).map(|tier| ReadableHostStatus {
+            tier,
+            computer: &facts.computer,
+            agents: facts
+                .agents
+                .iter()
+                .filter(|agent| {
+                    tier == ReadTier::Privileged
+                        || agent.materialization_status == MaterializationStatus::Active
+                })
+                .collect(),
+        }),
+    )
+}
+
+fn bound<'a>(
+    requested: &HostId,
+    facts: Option<&'a HostStatusStoredFacts>,
+) -> Result<Option<&'a HostStatusStoredFacts>, HostStatusFactsMismatch> {
     let Some(facts) = facts else {
         return Ok(None);
     };
@@ -110,12 +126,7 @@ pub fn visible_host_status<'a>(
             });
         }
     }
-    Ok(
-        find_owned_computer(viewer, Some(facts.computer.clone())).map(|owned| VisibleHostStatus {
-            owned,
-            agents: &facts.agents,
-        }),
-    )
+    Ok(Some(facts))
 }
 
 #[cfg(test)]
@@ -160,26 +171,73 @@ mod tests {
     }
 
     #[test]
-    fn missing_and_foreign_are_one_answer() {
+    fn a_missing_computer_is_no_answer() {
         let viewer = UserId::parse("owner").unwrap();
         assert!(
-            visible_host_status(&viewer, &host("host-1"), None)
-                .unwrap()
-                .is_none()
-        );
-        assert!(
-            visible_host_status(&viewer, &host("host-1"), Some(&facts("other", "host-1")))
+            readable_host_status(&viewer, &host("host-1"), None)
                 .unwrap()
                 .is_none()
         );
     }
 
     #[test]
+    fn a_foreign_viewer_reads_the_public_tier_and_the_owner_privileged() {
+        let facts = facts("owner", "host-1");
+        let tier = |viewer: &str| {
+            readable_host_status(
+                &UserId::parse(viewer).unwrap(),
+                &host("host-1"),
+                Some(&facts),
+            )
+            .unwrap()
+            .map(|read| read.tier)
+        };
+        assert_eq!(tier("owner"), Some(ReadTier::Privileged));
+        assert_eq!(tier("other"), Some(ReadTier::Public));
+    }
+
+    #[test]
     fn a_cross_wired_registration_is_an_internal_mismatch() {
-        let viewer = UserId::parse("owner").unwrap();
+        let viewer = UserId::parse("other").unwrap();
         assert!(matches!(
-            visible_host_status(&viewer, &host("host-1"), Some(&facts("owner", "host-2"))),
+            readable_host_status(&viewer, &host("host-1"), Some(&facts("owner", "host-2"))),
             Err(HostStatusFactsMismatch::Agent { .. })
         ));
+    }
+
+    #[test]
+    fn the_public_tier_lists_only_active_agents() {
+        let mut facts = facts("owner", "host-1");
+        let template = facts.agents[0].clone();
+        for (id, status) in [
+            (
+                "agent-pending",
+                MaterializationStatus::PendingMaterialization,
+            ),
+            ("agent-failed", MaterializationStatus::Failed),
+        ] {
+            let mut agent = template.clone();
+            agent.id = AgentId::parse(id).unwrap();
+            agent.materialization_status = status;
+            facts.agents.push(agent);
+        }
+        let ids = |viewer: &str| -> Vec<String> {
+            readable_host_status(
+                &UserId::parse(viewer).unwrap(),
+                &host("host-1"),
+                Some(&facts),
+            )
+            .unwrap()
+            .unwrap()
+            .agents
+            .iter()
+            .map(|agent| agent.id.as_str().to_owned())
+            .collect()
+        };
+        assert_eq!(ids("other"), vec!["agent-1"]);
+        assert_eq!(
+            ids("owner"),
+            vec!["agent-1", "agent-pending", "agent-failed"]
+        );
     }
 }

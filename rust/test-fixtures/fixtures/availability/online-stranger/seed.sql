@@ -1,7 +1,6 @@
 INSERT INTO users (id, name, display_name, created_at, updated_at)
 VALUES ('u-creator', 'creator', 'Creator', 1000, 1000);
--- A registered human who is in NO visibility arm of the agent: not its creator,
--- not a direct-pair endpoint, not a member of any workspace it reaches.
+-- A registered human in NO visibility arm of the agent: availability is public.
 INSERT INTO users (id, name, display_name, created_at, updated_at)
 VALUES ('u-stranger', 'stranger', 'Stranger', 1000, 1000);
 

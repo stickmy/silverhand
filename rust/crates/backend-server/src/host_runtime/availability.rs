@@ -1,17 +1,7 @@
 //! Authenticated cold face for `GET /api/agents/{id}/availability`: whether one
-//! agent can be reached right now.
-//!
-//! The route is AUTHENTICATED and answers about a SPECIFIC agent, so unlike the
-//! caller-independent presence list it composes TWO authorities in a fixed order:
-//!
-//!  1. VISIBILITY ([`can_view_agent`]) — may this caller see this agent at all?
-//!     An absent row, a caller outside the ACL, and a row whose stage this view
-//!     hides all collapse to ONE byte-identical `404 {"error":"agent not found"}`,
-//!     so the surface can never become an existence oracle: a stranger cannot tell
-//!     a private agent from one that was never minted.
-//!  2. REACHABILITY ([`read_agent_availability`]) — read ONLY once the caller is
-//!     admitted. Access precedes product: the route refuses a caller who may not
-//!     see the agent BEFORE it reads anything about the host the agent sits on.
+//! agent can be reached right now. Public like presence: any signed-in human reads it
+//! for an active agent ([`agent_read_tier`]). An absent row, and a pending or failed
+//! one, are one `404 {"error":"agent not found"}`, decided before any host-side read.
 //!
 //! Both host-side facts are bound to the AGENT row's own host id, and the core
 //! rule seals that binding: facts describing another row are an
@@ -33,12 +23,12 @@ use axum::{
 };
 use serde::Serialize;
 use silverhand_backend_core::{
-    foundation::identity::{AgentId, Principal, UserId},
+    foundation::identity::{AgentId, UserId},
     host_runtime::agent_availability_read::{AgentAvailabilityReadModel, AgentViewFacts},
     host_runtime::availability::{
         AgentAvailability, AvailabilityReadError, read_agent_availability,
     },
-    identity_access::capability::agent_view::{VisibleStages, can_view_agent},
+    identity_access::capability::{agent_view::VisibleStages, read_tier::agent_read_tier},
 };
 
 use crate::{foundation::error, host_runtime::host_attachment::HostAttachment};
@@ -46,7 +36,7 @@ use crate::{foundation::error, host_runtime::host_attachment::HostAttachment};
 /// The product route template, in axum's `{id}` capture syntax.
 pub const AVAILABILITY_PATH: &str = "/api/agents/{id}/availability";
 
-/// The anti-enumeration refusal string, pinned to the TypeScript handler
+/// The not-found refusal string, pinned to the TypeScript handler
 /// (`c.json({ error: 'agent not found' }, 404)`) so a fixture drift shows here.
 const AGENT_NOT_FOUND: &str = "agent not found";
 
@@ -89,7 +79,6 @@ where
         tracing::error!("availability route reached without its human principal fact");
         return internal_error();
     };
-    let principal = Principal::human(viewer);
 
     // A malformed id names no agent — the same 404 an absent row gets, so the
     // surface never distinguishes "unparseable" from "not there".
@@ -110,13 +99,9 @@ where
         }
     };
 
-    // Access precedes product: the capability decides absence, non-membership, and
-    // a hidden stage alike, and all three collapse to one anti-enumeration 404. But
-    // first bind the resolved row to the request: a view whose decoded id is not the
-    // one asked for is a resolver defect — the ACL would be judged against one row
-    // and reachability computed from another — so it takes the lane's safe 500, not
-    // a product 404. A short read (no row) has nothing to bind; it is the ACL's
-    // absence arm.
+    // Bind the resolved row to the request first: a view decoded for another agent
+    // would gate one row and compute reachability from another — a resolver defect,
+    // the lane's safe 500. A short read has nothing to bind; it is the 404 arm.
     if let Some(view) = view.as_ref()
         && view.source() != &agent
     {
@@ -128,13 +113,14 @@ where
         return internal_error();
     }
 
-    let decision = can_view_agent(
-        &principal,
+    let readable = agent_read_tier(
+        &viewer,
         &agent,
         view.as_ref().map(AgentViewFacts::visibility),
         &VisibleStages::active_only(),
-    );
-    let Some(view) = view.filter(|_| decision.is_allowed()) else {
+    )
+    .is_some();
+    let Some(view) = view.filter(|_| readable) else {
         return not_found();
     };
 
@@ -461,14 +447,31 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_viewer_in_no_arm_is_a_404_that_never_reads_the_host() {
-        // Dropping the arm that admitted a viewer flips them to the same 404 an
-        // absent agent gets, and the host is never touched — access precedes
-        // product.
+    async fn availability_is_public_for_an_active_agent() {
         let reply = get(
             ViewOutcome::Present(view(
                 Arm::NobodyRelevant,
                 MaterializationStatus::Active,
+                None,
+            )),
+            host_present(None),
+            attached_h1(true),
+            true,
+        )
+        .await;
+        assert_eq!(reply.status, StatusCode::OK);
+        assert_eq!(
+            serde_json::from_str::<Value>(&reply.body).unwrap(),
+            json!({ "availability": "online" })
+        );
+    }
+
+    #[tokio::test]
+    async fn a_hidden_stage_is_a_404_that_never_reads_the_host() {
+        let reply = get(
+            ViewOutcome::Present(view(
+                Arm::NobodyRelevant,
+                MaterializationStatus::Failed,
                 None,
             )),
             host_present(None),
