@@ -8,7 +8,7 @@ import { describeHostStatus } from "../model/host-status-presentation";
 import { formatOsShort } from "../model/format-os";
 import { ComputerStatusSkeleton } from "./computer-skeletons";
 import {
-  CreatorField,
+  CreatedField,
   formatCreatedAt,
   HostHero,
   RegisteredAgentsSection,
@@ -64,10 +64,7 @@ export function PublicHostDetailView({ host }: { host: HostPublicDto }): JSX.Ele
               snapshot && "mt-4 border-t border-dashed border-border-subtle pt-4",
             )}
           >
-            <SystemField label={t("computers.added")} quiet>
-              {formatCreatedAt(host.created_at)}
-            </SystemField>
-            {host.creator_user_id ? <CreatorField userId={host.creator_user_id} /> : null}
+            <CreatedField createdAt={host.created_at} creatorUserId={host.creator_user_id} />
           </dl>
         </HostSection>
 

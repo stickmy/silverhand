@@ -127,7 +127,7 @@ import {
   DeleteComputerSection,
 } from "./host-danger-sections";
 import { Banner, HostSection } from "./host-section";
-import { t } from "@/lib/i18n";
+import { t, tRich } from "@/lib/i18n";
 import { toast } from "@/lib/toast";
 
 /**
@@ -643,39 +643,47 @@ function ComputerSection({
             })}
           </span>
         </SystemField>
-        <SystemField label={t("computers.added")} quiet>
-          {formatCreatedAt(createdAt)}
-        </SystemField>
-        {creatorUserId ? <CreatorField userId={creatorUserId} /> : null}
+        <CreatedField createdAt={createdAt} creatorUserId={creatorUserId} />
       </dl>
     </HostSection>
   );
 }
 
-/** Who added the computer, resolved from the global user directory so a
- *  rename or new avatar shows here without a host refetch. Unresolved
- *  (directory still loading) drops the row rather than printing a raw id. */
-export function CreatorField({ userId }: { userId: string }): JSX.Element | null {
+/** When and by whom the computer was created, on one row. The creator is
+ *  resolved from the global user directory so a rename or new avatar shows
+ *  here without a host refetch; until it resolves (or with no creator) the row
+ *  shows the date alone rather than a raw id. */
+export function CreatedField({
+  createdAt,
+  creatorUserId,
+}: {
+  createdAt: number;
+  creatorUserId: string | null | undefined;
+}): JSX.Element {
   const nav = useNav();
   const usersById = useUsersById();
-  const avatarObjectUrl = useUserAvatarObjectUrl({ userId });
-  const name = usersById.get(userId)?.display_name ?? null;
-
-  if (!name) {
-    return null;
-  }
+  const avatarObjectUrl = useUserAvatarObjectUrl({ userId: creatorUserId ?? null });
+  const name = creatorUserId ? (usersById.get(creatorUserId)?.display_name ?? null) : null;
+  const date = formatCreatedAt(createdAt);
 
   return (
-    <SystemField label={t("computers.addedBy")} quiet>
-      <button
-        type="button"
-        onClick={() => nav.toMembersUser(userId)}
-        aria-label={t("computers.openProfile", { name })}
-        className="inline-flex items-center gap-1.5 align-middle text-text-secondary underline-offset-2 hover:text-text-primary hover:underline focus-visible:underline focus-visible:outline-none"
-      >
-        <UserAvatar size={AVATAR_PX.xs} avatarObjectUrl={avatarObjectUrl} alt={name} />
-        {name}
-      </button>
+    <SystemField label={t("computers.created")} quiet>
+      {creatorUserId && name
+        ? tRich("computers.createdOnBy", {
+            date,
+            creator: (
+              <button
+                type="button"
+                onClick={() => nav.toMembersUser(creatorUserId)}
+                aria-label={t("computers.openProfile", { name })}
+                className="inline-flex items-center gap-1.5 align-middle text-text-secondary underline-offset-2 hover:text-text-primary hover:underline focus-visible:underline focus-visible:outline-none"
+              >
+                <UserAvatar size={AVATAR_PX.xs} avatarObjectUrl={avatarObjectUrl} alt={name} />
+                {name}
+              </button>
+            ),
+          })
+        : date}
     </SystemField>
   );
 }
