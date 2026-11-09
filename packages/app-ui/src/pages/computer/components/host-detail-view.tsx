@@ -80,6 +80,7 @@ import { reasoningEffortLabel, RuntimeKindSchema, runtimeLabel } from "@silverha
 import { AgentAvatar } from "@/components/agent-avatar";
 import { AVATAR_PX } from "@/components/avatar-scale";
 import { useAgentAvatarObjectUrls } from "@/features/agents/hooks/avatar-hooks";
+import { useUsersById } from "@/features/users/hooks";
 import {
   isBackendUnreachable,
   isRegistrationRequired,
@@ -238,7 +239,11 @@ export function HostDetailView({ host }: HostDetailViewProps): JSX.Element {
               />
             ) : null}
             {statusQuery.data.availability === "available" ? (
-              <ComputerSection snapshot={statusQuery.data.snapshot} createdAt={host.created_at} />
+              <ComputerSection
+                snapshot={statusQuery.data.snapshot}
+                createdAt={host.created_at}
+                creatorUserId={host.creator_user_id}
+              />
             ) : actions.connection ? (
               <ConnectionSection host={host} status={statusQuery.data} />
             ) : (
@@ -563,10 +568,17 @@ const USAGE_WARNING_RATIO = 0.9;
 function ComputerSection({
   snapshot,
   createdAt,
+  creatorUserId,
 }: {
   snapshot: HostSnapshot;
   createdAt: number;
+  creatorUserId: string | null;
 }): JSX.Element {
+  const usersById = useUsersById();
+  // Unresolved (directory still loading, or no recorded creator) drops the
+  // row rather than printing a raw id.
+  const creatorName = creatorUserId ? (usersById.get(creatorUserId)?.display_name ?? null) : null;
+
   return (
     <HostSection title={t("computers.computer")}>
       <TooltipProvider>
@@ -622,6 +634,11 @@ function ComputerSection({
         <SystemField label={t("computers.added")} quiet>
           {formatCreatedAt(createdAt)}
         </SystemField>
+        {creatorName ? (
+          <SystemField label={t("computers.addedBy")} quiet>
+            {creatorName}
+          </SystemField>
+        ) : null}
       </dl>
     </HostSection>
   );

@@ -86,6 +86,7 @@ export const computers: Translation<typeof en> = {
   daemon: "守护进程",
   daemonProcess: "PID {pid},已运行 {uptime}",
   added: "添加于",
+  addedBy: "添加者",
   copyValue: "复制 {value}",
   fast: "快速",
   uptime: "开机时长",
