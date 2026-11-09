@@ -641,6 +641,7 @@ function ComputerSection({
  *  rename or new avatar shows here without a host refetch. Unresolved
  *  (directory still loading) drops the row rather than printing a raw id. */
 function CreatorField({ userId }: { userId: string }): JSX.Element | null {
+  const nav = useNav();
   const usersById = useUsersById();
   const avatarObjectUrl = useUserAvatarObjectUrl({ userId });
   const name = usersById.get(userId)?.display_name ?? null;
@@ -651,10 +652,15 @@ function CreatorField({ userId }: { userId: string }): JSX.Element | null {
 
   return (
     <SystemField label={t("computers.addedBy")} quiet>
-      <span className="inline-flex items-center gap-1.5 align-middle">
+      <button
+        type="button"
+        onClick={() => nav.toMembersUser(userId)}
+        aria-label={t("computers.openProfile", { name })}
+        className="inline-flex items-center gap-1.5 align-middle text-text-secondary underline-offset-2 hover:text-text-primary hover:underline focus-visible:underline focus-visible:outline-none"
+      >
         <UserAvatar size={AVATAR_PX.xs} avatarObjectUrl={avatarObjectUrl} alt={name} />
         {name}
-      </span>
+      </button>
     </SystemField>
   );
 }
