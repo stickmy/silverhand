@@ -15,6 +15,7 @@
 
 pub(crate) mod agent_lifecycle_sql;
 pub(crate) mod capability;
+pub(crate) mod conversation_lifecycle_sql;
 pub mod database;
 pub mod database_startup;
 pub mod host_agent_store;

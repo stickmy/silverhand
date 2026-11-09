@@ -1,5 +1,6 @@
 //! SQLite authority for the tiered badge and per-workspace mode cold faces.
 
+use crate::foundation::conversation_lifecycle_sql::conversation_open;
 use crate::{
     conversation_messaging::messaging::MessagingStore,
     viewer_read_model::unread_read::{
@@ -38,7 +39,9 @@ const CHANNEL_TIERS: &str = concat!(
     ") AS directed_unread_count FROM conversations c JOIN conversation_users cu ON \
      cu.conversation_id=c.id AND cu.user_id=(SELECT viewer FROM p) WHERE \
      c.workspace_id=(SELECT workspace FROM p) AND c.placement_kind='workspace' AND \
-     c.roster_policy='open' AND c.id IS NOT NULL AND c.archived_at IS NULL ORDER BY \
+     c.roster_policy='open' AND c.id IS NOT NULL AND ",
+    conversation_open!("c."),
+    " ORDER BY \
      c.created_at ASC, c.id ASC"
 );
 

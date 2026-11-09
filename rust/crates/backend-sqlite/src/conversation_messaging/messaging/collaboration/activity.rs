@@ -5,6 +5,7 @@
 //! Existing unread, attention-tier, author, and direct-pair authorities are
 //! composed rather than transcribed.
 
+use crate::foundation::conversation_lifecycle_sql::conversation_open;
 use silverhand_backend_observability::Observe;
 use std::collections::HashSet;
 
@@ -51,7 +52,9 @@ const DIRECTED: &str = concat!(
      n.user_id=(SELECT viewer FROM p) AND (",
     effective_directed_mention!(),
     " OR (n.kind='agent_start_failed' AND n.read_at IS NULL)) AND c.id IS NOT NULL AND \
-     c.archived_at IS NULL AND (c.placement_kind='workspace' OR \
+     ",
+    conversation_open!("c."),
+    " AND (c.placement_kind='workspace' OR \
      (c.placement_kind='direct_pair' AND ((c.endpoint_a_kind='human' AND \
      c.endpoint_a_id=(SELECT viewer FROM p)) OR (c.endpoint_b_kind='human' AND \
      c.endpoint_b_id=(SELECT viewer FROM p))))) AND ((SELECT ws FROM p) IS NULL OR \
@@ -72,7 +75,9 @@ const POSITIONAL: &str = concat!(
        JOIN conversations c ON c.id=vc.conversation_id JOIN conversation_stream_heads sh ON \
        sh.conversation_id=c.id LEFT JOIN conversation_reads cr ON cr.user_id=(SELECT viewer FROM p) \
        AND cr.conversation_id=c.id AND cr.thread_root_id IS sh.thread_root_id WHERE \
-       c.id IS NOT NULL AND c.archived_at IS NULL AND ((SELECT ws FROM p) IS NULL OR \
+       c.id IS NOT NULL AND ",
+    conversation_open!("c."),
+    " AND ((SELECT ws FROM p) IS NULL OR \
        c.workspace_id=(SELECT ws FROM p)) AND ((sh.thread_root_id IS NULL AND \
        c.roster_policy='fixed') OR (sh.thread_root_id IS NULL AND c.roster_policy='open' AND ",
     channel_ambient_enters!(),

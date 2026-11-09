@@ -1,5 +1,6 @@
 //! SQLite runtime dispatch projection and durable inbox leases.
 
+use crate::foundation::conversation_lifecycle_sql::conversation_open;
 use std::{collections::HashSet, path::Path, time::Duration};
 
 use crate::foundation::agent_lifecycle_sql::{agent_materialized, agent_transition_clear};
@@ -49,9 +50,11 @@ pub(crate) async fn conversation_allows_delivery(
     connection: &mut SqliteConnection,
     conversation: &ConversationId,
 ) -> Result<bool, sqlx::Error> {
-    sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM conversations WHERE id = ? AND archived_at IS NULL)",
-    )
+    sqlx::query_scalar(concat!(
+        "SELECT EXISTS(SELECT 1 FROM conversations WHERE id = ? AND ",
+        conversation_open!(""),
+        ")",
+    ))
     .bind(conversation.as_str())
     .fetch_one(connection)
     .await

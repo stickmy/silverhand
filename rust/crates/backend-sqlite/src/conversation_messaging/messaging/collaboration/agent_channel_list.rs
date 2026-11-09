@@ -4,6 +4,7 @@
 //! `(archived_at IS NOT NULL) ASC, updated_at DESC` — the exact
 //! `listAgentVisibleChannels` query.
 
+use crate::foundation::conversation_lifecycle_sql::{conversation_archived, conversation_open};
 use silverhand_backend_core::{
     conversation_messaging::messaging::collaboration::agent_channel_list::{
         AgentChannelListRead, AgentListedChannel, ListChannelsRefusal, ListChannelsResult,
@@ -61,7 +62,8 @@ impl From<AgentChannelListError> for PersistenceFailure {
     }
 }
 
-const SELECT_AGENT_VISIBLE_CHANNELS: &str = "\
+const SELECT_AGENT_VISIBLE_CHANNELS: &str = concat!(
+    "\
     SELECT c.id AS id, c.title AS title, c.roster_policy AS roster_policy, \
            c.visibility AS visibility, c.archived_at AS archived_at, c.updated_at AS updated_at, \
            EXISTS (SELECT 1 FROM conversation_agents ca \
@@ -72,9 +74,14 @@ const SELECT_AGENT_VISIBLE_CHANNELS: &str = "\
          EXISTS (SELECT 1 FROM conversation_agents ca2 \
                   WHERE ca2.conversation_id = c.id AND ca2.agent_id = ?) \
          OR (c.placement_kind = 'workspace' AND c.roster_policy = 'open' \
-             AND c.visibility = 'public' AND c.archived_at IS NULL) \
+             AND c.visibility = 'public' AND ",
+    conversation_open!("c."),
+    ") \
        ) \
-     ORDER BY (c.archived_at IS NOT NULL) ASC, c.updated_at DESC";
+     ORDER BY (",
+    conversation_archived!("c."),
+    ") ASC, c.updated_at DESC"
+);
 
 impl AgentChannelListRead for SqliteAgentChannelList {
     async fn list_channels(

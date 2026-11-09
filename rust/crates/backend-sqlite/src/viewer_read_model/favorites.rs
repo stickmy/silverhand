@@ -7,6 +7,7 @@
 //! in-tree row would show — one source, no drift. Membership is projected from the
 //! join alone; the favorites `list_key` stores only its own rank/mode.
 
+use crate::foundation::conversation_lifecycle_sql::conversation_open;
 use silverhand_backend_core::{
     conversation_messaging::messaging::collaboration::channel_directory::DirectoryRoster,
     foundation::identity::{ConversationId, UserId, WorkspaceId},
@@ -72,7 +73,8 @@ impl From<FavoritesReadError> for PersistenceFailure {
     }
 }
 
-const SELECT_CONVERSATION_FAVORITES: &str = "\
+const SELECT_CONVERSATION_FAVORITES: &str = concat!(
+    "\
     SELECT use.entity_id AS entity_id, use.starred_at AS starred_at, \
            use.last_accessed_at AS last_accessed_at, c.created_at AS created_at, \
            c.roster_policy AS roster_policy, c.title AS title, c.visibility AS visibility, \
@@ -87,14 +89,17 @@ const SELECT_CONVERSATION_FAVORITES: &str = "\
      WHERE use.user_id = ? \
        AND use.list_key = 'channels:' || c.workspace_id \
        AND use.starred_at IS NOT NULL \
-       AND c.archived_at IS NULL \
+       AND ",
+    conversation_open!("c."),
+    " \
        AND w.archived_at IS NULL \
        AND ( \
          EXISTS (SELECT 1 FROM conversation_users cu \
                   WHERE cu.conversation_id = c.id AND cu.user_id = ?) \
          OR (c.placement_kind = 'workspace' AND c.roster_policy = 'open' \
              AND c.visibility = 'public') \
-       )";
+       )"
+);
 
 const SELECT_DIRECT_PAIR_FAVORITES: &str = "\
     SELECT c.id, c.endpoint_a_kind, c.endpoint_a_id, c.endpoint_a_deleted_at, \

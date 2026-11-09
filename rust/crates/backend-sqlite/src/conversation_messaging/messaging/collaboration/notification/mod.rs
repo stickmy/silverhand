@@ -2,6 +2,7 @@ use crate::conversation_messaging::messaging::{
     HostEnvironment, MessagingStore,
     author::{AuthorEvidence, resolve_authors},
 };
+use crate::foundation::conversation_lifecycle_sql::conversation_open;
 use silverhand_backend_core::{
     conversation_messaging::messaging::{
         FromKind, MessageId, NotificationId, SendClock, ThreadRootId,
@@ -217,7 +218,7 @@ impl<E: Clone + Send + Sync + 'static> NotificationReadPort for SqliteNotificati
         .await
         .map_err(NotificationStoreError::from)?;
         let counts=sqlx::query("SELECT COALESCE(n.workspace_id,c.workspace_id) scope_id,COUNT(*) c FROM notifications n LEFT JOIN conversations c ON c.id=n.conversation_id WHERE n.user_id=? AND n.read_at IS NULL AND COALESCE(n.workspace_id,c.workspace_id) IS NOT NULL GROUP BY scope_id ORDER BY scope_id").bind(viewer.as_str()).fetch_all(&mut *tx).await.map_err(NotificationStoreError::from)?;
-        let latest=sqlx::query("SELECT scope_id,conversation_id,message_id,thread_root_id FROM (SELECT COALESCE(n.workspace_id,c.workspace_id) scope_id,n.conversation_id,m.id message_id,m.thread_root_id,ROW_NUMBER() OVER(PARTITION BY COALESCE(n.workspace_id,c.workspace_id) ORDER BY n.created_at DESC,n.id DESC) rn FROM notifications n JOIN conversations c ON c.id=n.conversation_id JOIN messages m ON m.id=n.message_id WHERE n.user_id=? AND n.read_at IS NULL AND c.archived_at IS NULL) WHERE rn=1 ORDER BY scope_id").bind(viewer.as_str()).fetch_all(&mut *tx).await.map_err(NotificationStoreError::from)?;
+        let latest=sqlx::query(concat!("SELECT scope_id,conversation_id,message_id,thread_root_id FROM (SELECT COALESCE(n.workspace_id,c.workspace_id) scope_id,n.conversation_id,m.id message_id,m.thread_root_id,ROW_NUMBER() OVER(PARTITION BY COALESCE(n.workspace_id,c.workspace_id) ORDER BY n.created_at DESC,n.id DESC) rn FROM notifications n JOIN conversations c ON c.id=n.conversation_id JOIN messages m ON m.id=n.message_id WHERE n.user_id=? AND n.read_at IS NULL AND ", conversation_open!("c."), ") WHERE rn=1 ORDER BY scope_id")).bind(viewer.as_str()).fetch_all(&mut *tx).await.map_err(NotificationStoreError::from)?;
         let by_workspace = counts
             .into_iter()
             .map(|r| {

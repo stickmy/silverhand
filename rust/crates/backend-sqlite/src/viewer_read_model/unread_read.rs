@@ -18,6 +18,7 @@
 //! referenced as a scalar subquery `(SELECT viewer FROM p)`. The predicate text is
 //! otherwise unchanged, so the set it selects is the same set.
 
+use crate::foundation::conversation_lifecycle_sql::conversation_open;
 use std::{collections::HashMap, path::Path, time::Duration};
 
 use silverhand_backend_core::{
@@ -63,7 +64,9 @@ macro_rules! unread_guards {
     () => {
         concat!(
             "NOT EXISTS (SELECT 1 FROM conversations arch WHERE arch.id = m.conversation_id AND \
-             arch.archived_at IS NOT NULL) AND ",
+             ",
+            $crate::foundation::conversation_lifecycle_sql::conversation_archived!("arch."),
+            ") AND ",
             $crate::viewer_read_model::unread_read::message_unread_guards!()
         )
     };
@@ -192,7 +195,9 @@ macro_rules! badge_directed_term {
              c.id = n.conversation_id JOIN conversation_users cu ON cu.conversation_id = c.id AND \
              cu.user_id = (SELECT viewer FROM p) WHERE n.user_id = (SELECT viewer FROM p) AND ",
             effective_directed_mention!(),
-            " AND (c.id IS NOT NULL AND c.archived_at IS NULL) AND NOT ",
+            " AND (c.id IS NOT NULL AND ",
+            $crate::foundation::conversation_lifecycle_sql::conversation_open!("c."),
+            ") AND NOT ",
             loud_positional!(),
             " AND c.workspace_id = (SELECT ws FROM p)"
         )
@@ -254,7 +259,9 @@ const WORKSPACE_UNREAD_AND_BADGE: &str = concat!(
      conversation_users cu ON cu.conversation_id = c.id AND cu.user_id = (SELECT viewer FROM p) \
      JOIN messages m ON m.conversation_id = c.id AND ",
     rollup_unread!(live_conversation),
-    " WHERE c.workspace_id = (SELECT ws FROM p) AND c.archived_at IS NULL) counts"
+    " WHERE c.workspace_id = (SELECT ws FROM p) AND ",
+    conversation_open!("c."),
+    ") counts"
 );
 
 /// The single most-recent unread message for the viewer in one conversation, or no row.
@@ -275,7 +282,9 @@ const BADGE_COUNTS_BY_WORKSPACE: &str = concat!(
      conversation_users cu ON cu.conversation_id=c.id AND cu.user_id=(SELECT viewer FROM p) \
      JOIN messages m ON m.conversation_id=c.id AND ",
     rollup_unread!(live_conversation),
-    " WHERE c.archived_at IS NULL AND ",
+    " WHERE ",
+    conversation_open!("c."),
+    " AND ",
     loud_positional!(),
     " GROUP BY c.workspace_id UNION ALL SELECT c.workspace_id AS workspace_id, ",
     directed_claim_count!(),
@@ -283,7 +292,9 @@ const BADGE_COUNTS_BY_WORKSPACE: &str = concat!(
      conversation_users cu ON cu.conversation_id=c.id AND cu.user_id=(SELECT viewer FROM p) WHERE \
      n.user_id=(SELECT viewer FROM p) AND ",
     effective_directed_mention!(),
-    " AND (c.id IS NOT NULL AND c.archived_at IS NULL) AND NOT ",
+    " AND (c.id IS NOT NULL AND ",
+    conversation_open!("c."),
+    ") AND NOT ",
     loud_positional!(),
     " GROUP BY c.workspace_id) GROUP BY workspace_id ORDER BY workspace_id"
 );

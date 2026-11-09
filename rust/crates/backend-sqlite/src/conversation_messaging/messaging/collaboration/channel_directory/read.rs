@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use crate::foundation::conversation_lifecycle_sql::{conversation_archived, conversation_open};
 use silverhand_backend_core::{
     conversation_messaging::messaging::collaboration::channel_directory::{
         ActiveChannelDirectoryPort, ActiveWorkspaceChannelDirectory, ArchivedChannelRow,
@@ -367,9 +368,9 @@ async fn load_workspace_rows(
         }
     }
     if archived {
-        query.push(" AND c.archived_at IS NOT NULL");
+        query.push(concat!(" AND ", conversation_archived!("c.")));
     } else {
-        query.push(" AND c.archived_at IS NULL");
+        query.push(concat!(" AND ", conversation_open!("c.")));
     }
     let rows = query.build().fetch_all(&mut **tx).await?;
     rows.iter()
@@ -531,7 +532,7 @@ async fn load_global_rows(
     sql.push(ROW_COLUMNS_BEFORE_VIEWER)
         .push_bind(viewer.as_str())
         .push(ROW_COLUMNS_AFTER_VIEWER)
-        .push(",w.name AS workspace_name,w.name_key AS workspace_name_key,w.archived_at AS workspace_archived_at,w.owner_agent_id,a.id AS owner_id,a.name AS owner_name FROM conversations c LEFT JOIN workspaces w ON w.id=c.workspace_id LEFT JOIN agents a ON a.id=w.owner_agent_id WHERE c.placement_kind='workspace' AND c.archived_at IS NOT NULL AND EXISTS(SELECT 1 FROM conversation_users member WHERE member.conversation_id=c.id AND member.user_id=")
+        .push(concat!(",w.name AS workspace_name,w.name_key AS workspace_name_key,w.archived_at AS workspace_archived_at,w.owner_agent_id,a.id AS owner_id,a.name AS owner_name FROM conversations c LEFT JOIN workspaces w ON w.id=c.workspace_id LEFT JOIN agents a ON a.id=w.owner_agent_id WHERE c.placement_kind='workspace' AND ", conversation_archived!("c."), " AND EXISTS(SELECT 1 FROM conversation_users member WHERE member.conversation_id=c.id AND member.user_id="))
         .push_bind(viewer.as_str())
         .push(")");
     if let Some(workspace) = workspace_filter {

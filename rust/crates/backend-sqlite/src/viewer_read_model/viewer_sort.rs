@@ -8,6 +8,7 @@
 //! one multi-row primitive and runs as a single `BEGIN IMMEDIATE` transaction —
 //! `order ⟹ manual` can never observe a torn state.
 
+use crate::foundation::conversation_lifecycle_sql::conversation_open;
 use silverhand_backend_core::foundation::identity::{ConversationId, WorkspaceId};
 use silverhand_backend_core::{
     foundation::identity::UserId,
@@ -239,7 +240,8 @@ async fn resolve_list_groups_tx(
     }
 }
 
-const SELECT_FAVORITE_KEYS_TX: &str = "\
+const SELECT_FAVORITE_KEYS_TX: &str = concat!(
+    "\
     SELECT use.entity_id AS entity_id \
       FROM user_sort_entry use \
       JOIN conversations c ON c.id = use.entity_id \
@@ -248,7 +250,9 @@ const SELECT_FAVORITE_KEYS_TX: &str = "\
      WHERE use.user_id = ? \
        AND use.list_key = 'channels:' || c.workspace_id \
        AND use.starred_at IS NOT NULL \
-       AND c.archived_at IS NULL \
+       AND ",
+    conversation_open!("c."),
+    " \
        AND w.archived_at IS NULL \
        AND ( \
          EXISTS (SELECT 1 FROM conversation_users cu \
@@ -264,7 +268,8 @@ const SELECT_FAVORITE_KEYS_TX: &str = "\
        AND use.list_key = 'direct_pairs' \
        AND use.starred_at IS NOT NULL \
        AND ((c.endpoint_a_kind = 'human' AND c.endpoint_a_id = ?) \
-         OR (c.endpoint_b_kind = 'human' AND c.endpoint_b_id = ?))";
+         OR (c.endpoint_b_kind = 'human' AND c.endpoint_b_id = ?))"
+);
 
 const SELECT_VIEWER_DIRECT_PAIR_IDS_TX: &str = "\
     SELECT c.id AS id FROM conversations c \

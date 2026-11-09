@@ -1,5 +1,6 @@
 mod users;
 
+use crate::foundation::conversation_lifecycle_sql::{conversation_archived, conversation_open};
 use silverhand_backend_core::{
     application_orchestration::console_analytics::{
         ActivityWindow, CalendarWindow, CategoryCount, ConsoleAnalyticsRead,
@@ -121,16 +122,16 @@ impl SqliteConsoleAnalyticsRead {
         let thirty_start = calendar.start_ms().expect("a 30-day window is nonempty");
 
         let mut transaction = self.pool.begin().await?;
-        let totals = sqlx::query(
+        let totals = sqlx::query(concat!(
             "SELECT \
              (SELECT COUNT(*) FROM users) AS users, \
              (SELECT COUNT(*) FROM agents) AS agents, \
              (SELECT COUNT(*) FROM workspaces WHERE owner_agent_id IS NULL) AS regular_workspaces, \
-             (SELECT COUNT(*) FROM conversations WHERE placement_kind='workspace' AND archived_at IS NULL) AS active_channels, \
-             (SELECT COUNT(*) FROM conversations WHERE placement_kind='workspace' AND archived_at IS NOT NULL) AS archived_channels, \
+             (SELECT COUNT(*) FROM conversations WHERE placement_kind='workspace' AND ", conversation_open!(""), ") AS active_channels, \
+             (SELECT COUNT(*) FROM conversations WHERE placement_kind='workspace' AND ", conversation_archived!(""), ") AS archived_channels, \
              (SELECT COUNT(*) FROM messages WHERE from_kind IN ('user','agent') AND cc_source_message_id IS NULL) AS messages, \
              (SELECT COUNT(*) FROM hosts WHERE revoked_at IS NULL) AS active_computers",
-        )
+        ))
         .fetch_one(&mut *transaction)
         .await?;
         let totals = ConsoleTotals {
