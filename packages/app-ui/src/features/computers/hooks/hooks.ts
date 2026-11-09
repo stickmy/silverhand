@@ -10,7 +10,7 @@ import {
   HostDeleteResponseSchema,
   HostDisconnectResponseSchema,
   HostDtoSchema,
-  HostGetResponseSchema,
+  HostPrivilegedGetResponseSchema,
   HostListResponseSchema,
   HostProxyConfigOfflineResponseSchema,
   HostProxyConfigResponseSchema,
@@ -286,7 +286,7 @@ export function useHostByIdQuery(
     queryKey: hostByIdKey(hostId ?? "__none__"),
     queryFn: async (): Promise<HostDto> => {
       const raw = await api<unknown>(apiPaths.host(hostId!));
-      return HostGetResponseSchema.parse(raw).host;
+      return HostPrivilegedGetResponseSchema.parse(raw).host;
     },
     enabled: (options?.enabled ?? true) && Boolean(hostId),
     refetchInterval: options?.refetchInterval ?? false,

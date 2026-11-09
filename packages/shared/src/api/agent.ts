@@ -85,6 +85,41 @@ export const AgentDtoSchema = z.object({
 });
 export type AgentDto = z.infer<typeof AgentDtoSchema>;
 
+/** The public tier of `GET /api/agents/{id}`: what any signed-in human on the
+ *  server may read. Restricted fields are absent, not null. */
+export const AgentPublicDtoSchema = AgentDtoSchema.pick({
+  id: true,
+  name: true,
+  display_name: true,
+  runtime: true,
+  model: true,
+  reasoning_effort: true,
+  fast_mode: true,
+  host_id: true,
+  host_label: true,
+  description: true,
+  created_by_user_id: true,
+  avatar_url: true,
+  created_at: true,
+});
+export type AgentPublicDto = z.infer<typeof AgentPublicDtoSchema>;
+
+/** `GET /api/agents/{id}`. `view` names the tier; a body without it is the
+ *  privileged shape older backends returned. */
+export const AgentPrivilegedGetResponseSchema = z.object({
+  view: z.literal('privileged').default('privileged'),
+  agent: AgentDtoSchema,
+});
+export const AgentPublicGetResponseSchema = z.object({
+  view: z.literal('public'),
+  agent: AgentPublicDtoSchema,
+});
+export const AgentGetResponseSchema = z.union([
+  AgentPrivilegedGetResponseSchema,
+  AgentPublicGetResponseSchema,
+]);
+export type AgentGetResponse = z.infer<typeof AgentGetResponseSchema>;
+
 export const CreateAgentInputSchema = z
   .object({
     name: ParticipantNameSchema,

@@ -96,6 +96,20 @@ export const HostDtoSchema = z.object({
 });
 export type HostDto = z.infer<typeof HostDtoSchema>;
 
+/** The public tier of `GET /api/hosts/{id}`: what any signed-in human on the
+ *  server may read. Restricted fields are absent, not null. */
+export const HostPublicDtoSchema = HostDtoSchema.pick({
+  id: true,
+  name: true,
+  display_label: true,
+  kind: true,
+  status: true,
+  creator_user_id: true,
+  created_at: true,
+  last_seen_at: true,
+});
+export type HostPublicDto = z.infer<typeof HostPublicDtoSchema>;
+
 /** `PATCH /api/hosts/:id` rename input. Currently only `display_label`
  *  is mutable; `name` is the stable identifier and never changes after
  *  claim. Pass `null` to clear the custom label (renderer falls back to
@@ -351,6 +365,8 @@ export type HostStatusSnapshot = z.infer<typeof HostStatusSnapshotSchema>;
 const HostStatusAvailableArmSchema = z
   .object({
     host_id: z.string(),
+    /** Absent from older backends; absent or `privileged` mean the same. */
+    view: z.literal('privileged').optional(),
     availability: z.literal('available'),
     snapshot: HostStatusSnapshotSchema,
     agents: z.array(AgentOnHostDtoSchema),
@@ -361,6 +377,8 @@ const HostStatusAvailableArmSchema = z
 const HostStatusDisconnectedArmSchema = z
   .object({
     host_id: z.string(),
+    /** Absent from older backends; absent or `privileged` mean the same. */
+    view: z.literal('privileged').optional(),
     availability: z.literal('disconnected'),
     agents: z.array(AgentOnHostDtoSchema),
     last_seen_at: z.number().nullable().optional(),
@@ -375,6 +393,8 @@ const HostStatusDisconnectedArmSchema = z
 const HostStatusUnreachableArmSchema = z
   .object({
     host_id: z.string(),
+    /** Absent from older backends; absent or `privileged` mean the same. */
+    view: z.literal('privileged').optional(),
     availability: z.literal('unreachable'),
     reason: HostUnreachableReasonSchema,
     agents: z.array(AgentOnHostDtoSchema),
@@ -385,6 +405,8 @@ const HostStatusUnreachableArmSchema = z
 const HostStatusRevokedArmSchema = z
   .object({
     host_id: z.string(),
+    /** Absent from older backends; absent or `privileged` mean the same. */
+    view: z.literal('privileged').optional(),
     availability: z.literal('revoked'),
     agents: z.array(AgentOnHostDtoSchema),
     last_seen_at: z.number().nullable().optional(),
@@ -398,6 +420,44 @@ export const HostStatusResponseSchema = z.discriminatedUnion('availability', [
   HostStatusRevokedArmSchema,
 ]);
 export type HostStatusResponse = z.infer<typeof HostStatusResponseSchema>;
+
+/** The public tier of a running computer's facts: OS only, never hostname,
+ *  address, resources, or daemon process facts. */
+export const HostStatusPublicSnapshotSchema = HostStatusSnapshotSchema.pick({
+  os: true,
+  os_arch: true,
+});
+export type HostStatusPublicSnapshot = z.infer<typeof HostStatusPublicSnapshotSchema>;
+
+const publicArmBase = {
+  host_id: z.string(),
+  view: z.literal('public'),
+  agents: z.array(AgentOnHostDtoSchema),
+  last_seen_at: z.number().nullable().optional(),
+};
+
+/** Public tier of `GET /api/hosts/{id}/status`: same arms, without the
+ *  snapshot detail, the unreachable reason, or the admission failure. */
+export const HostStatusPublicResponseSchema = z.discriminatedUnion('availability', [
+  z
+    .object({
+      ...publicArmBase,
+      availability: z.literal('available'),
+      snapshot: HostStatusPublicSnapshotSchema,
+    })
+    .strict(),
+  z.object({ ...publicArmBase, availability: z.literal('disconnected') }).strict(),
+  z.object({ ...publicArmBase, availability: z.literal('unreachable') }).strict(),
+  z.object({ ...publicArmBase, availability: z.literal('revoked') }).strict(),
+]);
+export type HostStatusPublicResponse = z.infer<typeof HostStatusPublicResponseSchema>;
+
+/** `GET /api/hosts/{id}/status` as any signed-in viewer reads it. */
+export const HostStatusReadResponseSchema = z.union([
+  HostStatusResponseSchema,
+  HostStatusPublicResponseSchema,
+]);
+export type HostStatusReadResponse = z.infer<typeof HostStatusReadResponseSchema>;
 
 export const HostProxyConfigSchema = z.object({
   proxy_url: z.string().nullable(),
@@ -479,12 +539,22 @@ export const HostConnectTokenResolveResponseSchema = z.object({
 });
 export type HostConnectTokenResolveResponse = z.infer<typeof HostConnectTokenResolveResponseSchema>;
 
-/** `GET /api/hosts/{id}` owner-scoped host read. Unlike the bulk list, this
+/** `GET /api/hosts/{id}`. `view` names the tier; a body without it is the
+ *  privileged shape older backends returned. For the owner, unlike the bulk list, this
  *  may return a modal-scoped setup draft so the Add computer flow can observe
  *  `pending → attached → active` without exposing drafts in the sidebar. */
-export const HostGetResponseSchema = z.object({
+export const HostPrivilegedGetResponseSchema = z.object({
+  view: z.literal('privileged').default('privileged'),
   host: HostDtoSchema,
 });
+export const HostPublicGetResponseSchema = z.object({
+  view: z.literal('public'),
+  host: HostPublicDtoSchema,
+});
+export const HostGetResponseSchema = z.union([
+  HostPrivilegedGetResponseSchema,
+  HostPublicGetResponseSchema,
+]);
 export type HostGetResponse = z.infer<typeof HostGetResponseSchema>;
 
 /** `DELETE /api/hosts/{id}` user-managed computer delete. The same route covers
