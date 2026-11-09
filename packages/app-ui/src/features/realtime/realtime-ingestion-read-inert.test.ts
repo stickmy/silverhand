@@ -257,10 +257,14 @@ describe("channel membership/runtime readers — gate-(b) fence (#task:2026)", (
 });
 
 describe("ChannelView — read-cursor cache-driven / gate-(b) (#task:1255 P1c)", () => {
-  const source = readFileSync(
-    fileURLToPath(new URL("../conversation-shell/components/channel-view.tsx", import.meta.url)),
-    "utf8",
-  );
+  const source = ["components/channel-view.tsx", "use-channel-message-window.ts"]
+    .map((path) =>
+      readFileSync(
+        fileURLToPath(new URL(`../conversation-shell/${path}`, import.meta.url)),
+        "utf8",
+      ),
+    )
+    .join("\n");
 
   it("registers no frame consumer (no onWsFrame / useConversationStream)", () => {
     expect(source).not.toContain("onWsFrame(");
