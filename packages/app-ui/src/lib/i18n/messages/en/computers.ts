@@ -89,7 +89,7 @@ export const computers = {
   daemon: "Daemon",
   daemonProcess: "PID {pid}, up {uptime}",
   created: "Created",
-  createdOnBy: "{date} by {creator}",
+  createdOnBy: "{creator} on {date}",
   copyValue: "Copy {value}",
   fast: "Fast",
   uptime: "Uptime",
