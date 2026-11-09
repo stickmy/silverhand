@@ -16,9 +16,10 @@
 use std::{path::Path, sync::Arc, time::Duration};
 
 use silverhand_backend_core::conversation_messaging::messaging::task::{
-    AgentClaimOutcome, AgentEventNames, Assignee, HumanClaimOutcome, TaskClaimWrite,
-    TaskEventAssignee, TaskEventFacts, TaskEventKind, TaskEventMessage, TaskId,
-    TaskMutationWitness, TaskStatus, TaskSystemActor, TaskWriteClock, UnclaimOutcome,
+    AgentClaimOutcome, AgentEventNames, Assignee, AssignmentRefusal, HumanClaimOutcome,
+    TaskClaimWrite, TaskEventAssignee, TaskEventFacts, TaskEventKind, TaskEventMessage, TaskId,
+    TaskMutationWitness, TaskStatus, TaskStatusChange, TaskSystemActor, TaskWriteClock,
+    UnclaimOutcome, agent_release_status_change, assignment_open, claim_status_change,
     compose_claim_event, compose_unclaim_event,
 };
 use silverhand_backend_core::foundation::identity::{AgentId, ConversationId, UserId};
@@ -40,30 +41,25 @@ const WRITE_BEGIN: &str = "BEGIN IMMEDIATE";
 const SELECT_CLAIM_ROW: &str = "SELECT conversation_id, status, assignee_agent_id, \
      assignee_user_id FROM tasks WHERE id = ?";
 
-/// Assign the agent to a FREE, non-terminal task, promoting `todo → in_progress`.
-/// Guarded so a race cannot double-assign: 0 rows affected means taken or terminal.
+/// Assign the agent to a FREE task. Status and `closed_at` come from the planner's
+/// [`TaskStatusChange`]; the `status = ?` guard is the status it planned from, so 0
+/// rows affected means taken.
 const ASSIGN_TO_AGENT: &str = "UPDATE tasks \
-     SET assignee_agent_id = ?, assignee_user_id = NULL, \
-     status = CASE WHEN status = 'todo' THEN 'in_progress' ELSE status END \
-     WHERE id = ? AND assignee_agent_id IS NULL AND assignee_user_id IS NULL \
-     AND status NOT IN ('done', 'closed')";
+     SET assignee_agent_id = ?, assignee_user_id = NULL, status = ?, closed_at = ? \
+     WHERE id = ? AND status = ? AND assignee_agent_id IS NULL AND assignee_user_id IS NULL";
 
-/// Human dispatch is an override: assign or reassign any non-terminal task.
+/// Human dispatch is an override: assign or reassign regardless of the current assignee.
 const DISPATCH_TO_AGENT: &str = "UPDATE tasks \
-     SET assignee_agent_id = ?, assignee_user_id = NULL, \
-     status = CASE WHEN status = 'todo' THEN 'in_progress' ELSE status END \
-     WHERE id = ? AND status NOT IN ('done', 'closed')";
+     SET assignee_agent_id = ?, assignee_user_id = NULL, status = ?, closed_at = ? \
+     WHERE id = ? AND status = ?";
 
-/// Clear the assignee (both columns) on a non-terminal task; `status`/`closed_at`
-/// untouched. The agent door adds `assignee_agent_id = ?` (ownership); the human
-/// door omits it (ownership-agnostic). Terminal rows are refused BEFORE this runs,
-/// so the `NOT IN` guard is defensive.
+/// Agent release clears assignment and applies the planned rewind; ownership-guarded.
 const RELEASE_TO_TODO_AGENT: &str = "UPDATE tasks SET assignee_agent_id = NULL, \
-     assignee_user_id = NULL, status = 'todo', closed_at = NULL \
-     WHERE id = ? AND assignee_agent_id = ? \
-     AND status NOT IN ('done', 'closed')";
+     assignee_user_id = NULL, status = ?, closed_at = ? \
+     WHERE id = ? AND assignee_agent_id = ? AND status = ?";
+/// Human unassign clears assignment only; workflow status is preserved.
 const CLEAR_ASSIGNEE_ANY: &str = "UPDATE tasks SET assignee_agent_id = NULL, \
-     assignee_user_id = NULL WHERE id = ? AND status NOT IN ('done', 'closed')";
+     assignee_user_id = NULL WHERE id = ? AND status = ?";
 
 /// The SQLite task claim/unclaim writer. Holds only a pool.
 #[derive(Clone)]
@@ -113,18 +109,6 @@ struct ClaimRow {
 impl ClaimRow {
     fn is_taken(&self) -> bool {
         self.assignee_agent_id.is_some() || self.assignee_user_id.is_some()
-    }
-
-    fn is_terminal(&self) -> bool {
-        matches!(self.status, TaskStatus::Done | TaskStatus::Closed)
-    }
-
-    /// The status a claim promotes to: `todo → in_progress`, else unchanged.
-    fn claimed_status(&self) -> TaskStatus {
-        match self.status {
-            TaskStatus::Todo => TaskStatus::InProgress,
-            other => other,
-        }
     }
 }
 
@@ -265,15 +249,19 @@ impl TaskClaimWrite for SqliteTaskClaimWrite {
             GateVerdict::Admit => {}
         }
         // Terminal check first (TS order), then the guarded assign-if-free CAS.
-        if row.is_terminal() {
-            let outcome = terminal_claim_outcome(row.status);
-            tx.rollback().await.map_err(driver)?;
-            return Ok(outcome);
-        }
-        let claimed_status = row.claimed_status();
-        let affected = sqlx::query(ASSIGN_TO_AGENT)
-            .bind(actor.as_str())
+        let change = match claim_status_change(row.status) {
+            Ok(change) => change,
+            Err(refusal) => {
+                tx.rollback().await.map_err(driver)?;
+                return Ok(match refusal {
+                    AssignmentRefusal::TaskDone => AgentClaimOutcome::TaskDone,
+                    AssignmentRefusal::TaskClosed => AgentClaimOutcome::TaskClosed,
+                });
+            }
+        };
+        let affected = bind_change(sqlx::query(ASSIGN_TO_AGENT).bind(actor.as_str()), change)
             .bind(task_id.as_str())
+            .bind(row.status.as_str())
             .execute(&mut *tx)
             .await
             .map_err(driver)?
@@ -306,7 +294,7 @@ impl TaskClaimWrite for SqliteTaskClaimWrite {
         .await?;
         tx.commit().await.map_err(driver)?;
         Ok(AgentClaimOutcome::Claimed {
-            status: claimed_status,
+            status: change.target(),
             witness: Box::new(witness),
         })
     }
@@ -335,28 +323,32 @@ impl TaskClaimWrite for SqliteTaskClaimWrite {
             }
             GateVerdict::Admit => {}
         }
-        if row.is_terminal() {
-            let outcome = match row.status {
-                TaskStatus::Closed => HumanClaimOutcome::TaskClosed,
-                _ => HumanClaimOutcome::TaskDone,
-            };
-            tx.rollback().await.map_err(driver)?;
-            return Ok(outcome);
-        }
+        let change = match claim_status_change(row.status) {
+            Ok(change) => change,
+            Err(refusal) => {
+                tx.rollback().await.map_err(driver)?;
+                return Ok(match refusal {
+                    AssignmentRefusal::TaskDone => HumanClaimOutcome::TaskDone,
+                    AssignmentRefusal::TaskClosed => HumanClaimOutcome::TaskClosed,
+                });
+            }
+        };
         // The chosen assignee agent must itself participate (a fire dispatches to
         // it). Judged on the same connection via the shared agent participation.
         if agent_gate(&mut tx, &row.conversation_id, assignee).await? == GateVerdict::NotFound {
             tx.rollback().await.map_err(driver)?;
             return Ok(HumanClaimOutcome::AssigneeNotConversationMember);
         }
-        let claimed_status = row.claimed_status();
-        let affected = sqlx::query(DISPATCH_TO_AGENT)
-            .bind(assignee.as_str())
-            .bind(task_id.as_str())
-            .execute(&mut *tx)
-            .await
-            .map_err(driver)?
-            .rows_affected();
+        let affected = bind_change(
+            sqlx::query(DISPATCH_TO_AGENT).bind(assignee.as_str()),
+            change,
+        )
+        .bind(task_id.as_str())
+        .bind(row.status.as_str())
+        .execute(&mut *tx)
+        .await
+        .map_err(driver)?
+        .rows_affected();
         if affected == 0 {
             let cur = fetch_claim_row(&mut tx, task_id).await?;
             let outcome = match cur {
@@ -383,7 +375,7 @@ impl TaskClaimWrite for SqliteTaskClaimWrite {
         .await?;
         tx.commit().await.map_err(driver)?;
         Ok(HumanClaimOutcome::Claimed {
-            status: claimed_status,
+            status: change.target(),
             witness: Box::new(witness),
         })
     }
@@ -427,20 +419,20 @@ impl TaskClaimWrite for SqliteTaskClaimWrite {
             tx.rollback().await.map_err(driver)?;
             return Ok(UnclaimOutcome::NotAssignee);
         }
-        if row.is_terminal() {
-            let outcome = match row.status {
-                TaskStatus::Closed => UnclaimOutcome::TaskClosed,
-                _ => UnclaimOutcome::TaskDone,
-            };
-            tx.rollback().await.map_err(driver)?;
-            return Ok(outcome);
-        }
+        let change = match agent_release_status_change(row.status) {
+            Ok(change) => change,
+            Err(refusal) => {
+                tx.rollback().await.map_err(driver)?;
+                return Ok(unclaim_refusal(refusal));
+            }
+        };
         // The prior assignee's display name for the unclaim content (`was @<prev>`),
         // read from the pre-clear join before the assignee columns go NULL.
         let prior_name = prior_assignee_agent_name(&mut tx, task_id).await?;
-        sqlx::query(RELEASE_TO_TODO_AGENT)
+        bind_change(sqlx::query(RELEASE_TO_TODO_AGENT), change)
             .bind(task_id.as_str())
             .bind(actor.as_str())
+            .bind(row.status.as_str())
             .execute(&mut *tx)
             .await
             .map_err(driver)?;
@@ -485,19 +477,16 @@ impl TaskClaimWrite for SqliteTaskClaimWrite {
             GateVerdict::Admit => {}
         }
         // Human unclaim is ownership-agnostic; only terminal is refused.
-        if row.is_terminal() {
-            let outcome = match row.status {
-                TaskStatus::Closed => UnclaimOutcome::TaskClosed,
-                _ => UnclaimOutcome::TaskDone,
-            };
+        if let Err(refusal) = assignment_open(row.status) {
             tx.rollback().await.map_err(driver)?;
-            return Ok(outcome);
+            return Ok(unclaim_refusal(refusal));
         }
         // The prior assignee name is not interpolated on the human arm (content is
         // `task #N unassigned (by user)`), but the composer takes it uniformly.
         let prior_name = prior_assignee_agent_name(&mut tx, task_id).await?;
         sqlx::query(CLEAR_ASSIGNEE_ANY)
             .bind(task_id.as_str())
+            .bind(row.status.as_str())
             .execute(&mut *tx)
             .await
             .map_err(driver)?;
@@ -546,11 +535,19 @@ async fn prior_assignee_agent_name(
     })
 }
 
-/// The claim outcome for a task already terminal at the participation/read-only
-/// gate (before the CAS).
-fn terminal_claim_outcome(status: TaskStatus) -> AgentClaimOutcome {
-    match status {
-        TaskStatus::Closed => AgentClaimOutcome::TaskClosed,
-        _ => AgentClaimOutcome::TaskDone,
+/// Bind the planner's `(status, closed_at)` pair together, in that order.
+fn bind_change<'q>(
+    query: sqlx::query::Query<'q, Sqlite, sqlx::sqlite::SqliteArguments>,
+    change: TaskStatusChange,
+) -> sqlx::query::Query<'q, Sqlite, sqlx::sqlite::SqliteArguments> {
+    query
+        .bind(change.target().as_str())
+        .bind(change.closed_at())
+}
+
+fn unclaim_refusal(refusal: AssignmentRefusal) -> UnclaimOutcome {
+    match refusal {
+        AssignmentRefusal::TaskDone => UnclaimOutcome::TaskDone,
+        AssignmentRefusal::TaskClosed => UnclaimOutcome::TaskClosed,
     }
 }

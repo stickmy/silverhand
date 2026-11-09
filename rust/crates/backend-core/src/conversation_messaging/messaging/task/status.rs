@@ -148,6 +148,49 @@ pub fn human_status_change(
     Ok(change_to(to, current_closed_at, now))
 }
 
+/// A terminal task refuses assignment changes; the arm names which terminal status.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
+pub enum AssignmentRefusal {
+    #[error("task is done")]
+    TaskDone,
+    #[error("task is closed")]
+    TaskClosed,
+}
+
+/// Whether the assignment may change at all; human unassign uses only this gate.
+pub fn assignment_open(from: TaskStatus) -> Result<(), AssignmentRefusal> {
+    match from {
+        TaskStatus::Done => Err(AssignmentRefusal::TaskDone),
+        TaskStatus::Closed => Err(AssignmentRefusal::TaskClosed),
+        TaskStatus::Todo | TaskStatus::InProgress | TaskStatus::InReview => Ok(()),
+    }
+}
+
+/// Claim or dispatch: the only producer of `todo → in_progress`; other open statuses
+/// keep their status.
+pub fn claim_status_change(from: TaskStatus) -> Result<TaskStatusChange, AssignmentRefusal> {
+    assignment_open(from)?;
+    let target = match from {
+        TaskStatus::Todo => TaskStatus::InProgress,
+        other => other,
+    };
+    Ok(TaskStatusChange {
+        target,
+        closed_at: None,
+    })
+}
+
+/// Agent release: an open task rewinds to `todo`.
+pub fn agent_release_status_change(
+    from: TaskStatus,
+) -> Result<TaskStatusChange, AssignmentRefusal> {
+    assignment_open(from)?;
+    Ok(TaskStatusChange {
+        target: TaskStatus::Todo,
+        closed_at: None,
+    })
+}
+
 /// The `closed_at` a status change resolves to. Only the resulting status
 /// matters: `closed` keeps an existing close instant or stamps `now` when there
 /// was none; every other status clears it to `None`.
@@ -213,6 +256,21 @@ mod tests {
             .into_iter()
             .filter(|&to| agent_status_change(from, to, None, 42).is_ok())
             .collect()
+    }
+
+    #[test]
+    fn assignment_planners_promote_rewind_and_refuse_terminal() {
+        let claimed = |from| claim_status_change(from).map(TaskStatusChange::target);
+        assert_eq!(claimed(Todo), Ok(InProgress));
+        assert_eq!(claimed(InProgress), Ok(InProgress));
+        assert_eq!(claimed(InReview), Ok(InReview));
+        assert_eq!(claimed(Done), Err(AssignmentRefusal::TaskDone));
+        assert_eq!(claimed(Closed), Err(AssignmentRefusal::TaskClosed));
+        let released = |from| agent_release_status_change(from).map(TaskStatusChange::target);
+        assert_eq!(released(InReview), Ok(Todo));
+        assert_eq!(released(Done), Err(AssignmentRefusal::TaskDone));
+        assert_eq!(released(Closed), Err(AssignmentRefusal::TaskClosed));
+        assert_eq!(claim_status_change(Todo).unwrap().closed_at(), None);
     }
 
     #[test]

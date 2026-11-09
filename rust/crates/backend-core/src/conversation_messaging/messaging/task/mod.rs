@@ -111,8 +111,9 @@ pub use spec::{
     TaskTitle, UnknownTaskStatus,
 };
 pub use status::{
-    AgentStatusRefusal, StatusTransitionRefusal, TaskStatusChange, agent_status_change,
-    agent_status_write_decision, human_status_change,
+    AgentStatusRefusal, AssignmentRefusal, StatusTransitionRefusal, TaskStatusChange,
+    agent_release_status_change, agent_status_change, agent_status_write_decision, assignment_open,
+    claim_status_change, human_status_change,
 };
 pub use write::{
     AgentClaimOutcome, AgentStatusWriteOutcome, ExistingSourceTask, HumanClaimOutcome,
