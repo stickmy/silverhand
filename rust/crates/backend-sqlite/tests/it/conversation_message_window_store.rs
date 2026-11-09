@@ -25,13 +25,21 @@ async fn seed(path: &std::path::Path) {
          ('w','Workspace','workspace',1,1)",
         "INSERT INTO workspace_users(workspace_id,user_id,joined_at,role) VALUES \
          ('w','viewer',1,'member'),('w','outsider',1,'member')",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,latest_message_seq,created_at,updated_at) VALUES \
-         ('c','w','workspace','open','Channel','channel','public',5,1,1)",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,\
-         endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,visibility,\
-         latest_message_seq,created_at,updated_at) VALUES \
-         ('pair',NULL,'direct_pair','fixed','human','reply-a','human','viewer','',NULL,\
-         'private',0,1,1)",
+        seed_channel!(
+            id = "c",
+            workspace_id = "w",
+            title = "Channel",
+            title_key = "channel",
+            visibility = "public",
+            latest_message_seq = 5,
+        ),
+        seed_direct_pair!(
+            id = "pair",
+            endpoint_a_kind = "human",
+            endpoint_a_id = "reply-a",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "viewer",
+        ),
         "INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('c','viewer',1)",
         "INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,metadata,seq,\
          created_at,author_id,author_name,author_display_name) VALUES \
@@ -442,10 +450,11 @@ async fn linked_task_uses_its_actual_conversation_and_rejects_cross_conversation
     let mut db = sqlx::SqliteConnection::connect(&format!("sqlite:{}", path.display()))
         .await
         .unwrap();
-    db.execute(
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,latest_message_seq,created_at,updated_at) VALUES \
-         ('foreign','w','workspace','open','Foreign','foreign','private',0,1,1)",
-    )
+    db.execute(seed_channel!(
+        id = "foreign",
+        workspace_id = "w",
+        title = "Foreign"
+    ))
     .await
     .unwrap();
     db.execute("DROP TRIGGER trg_tasks_board_coordinates_immutable")

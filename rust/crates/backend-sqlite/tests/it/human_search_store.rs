@@ -21,18 +21,32 @@ async fn seed(path: &std::path::Path) {
         "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES \
          ('viewer','viewer','Viewer',1,1),('outsider','outsider','Outsider',1,1),\
          ('author','author','Author',1,1)",
-        "INSERT INTO agents(id,name,runtime,host_id,created_by_user_id,created_at,updated_at,\
-         display_name) VALUES('agent','agent','codex','h','viewer',1,1,'Agent')",
+        seed_agent!(
+            id = "agent",
+            runtime = "codex",
+            host_id = "h",
+            created_by_user_id = "viewer",
+            display_name = "Agent",
+        ),
         "INSERT INTO workspaces(id,name,name_key,description,created_at,updated_at) VALUES \
          ('w','Needle Space','needle space','needle workspace',1,30)",
         "INSERT INTO workspace_users(workspace_id,user_id,joined_at,role) VALUES \
          ('w','viewer',1,'member')",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES \
-         ('c','w','workspace','open','Needle Channel','needle channel','private',1,20)",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,\
-         endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,visibility,created_at,\
-         updated_at) VALUES ('pair',NULL,'direct_pair','fixed','agent','agent','human','viewer','',\
-         NULL,'private',1,10)",
+        seed_channel!(
+            id = "c",
+            workspace_id = "w",
+            title = "Needle Channel",
+            title_key = "needle channel",
+            updated_at = 20,
+        ),
+        seed_direct_pair!(
+            id = "pair",
+            endpoint_a_kind = "agent",
+            endpoint_a_id = "agent",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "viewer",
+            updated_at = 10,
+        ),
         "INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('c','viewer',1)",
         "INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,metadata,seq,\
          created_at,author_id,author_name,author_display_name) VALUES \

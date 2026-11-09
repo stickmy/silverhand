@@ -438,13 +438,14 @@ mod tests {
     const SEED_PRE: &str = "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-1','viewer','Viewer',1,1); \
          INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-1','Host','local',1);";
 
-    const SEED_POST: &str = "INSERT INTO workspaces (id, name, name_key, owner_agent_id, created_at, updated_at) VALUES ('home',' ',NULL,'agent-a',1,1); \
-         INSERT INTO workspace_users (workspace_id, user_id, joined_at, role) VALUES ('home','user-1',1,'member'); \
-         INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, visibility, created_at, updated_at) \
-           VALUES ('chan','home','workspace','open','Chan','chan','private',1,1); \
-         INSERT INTO conversation_users (conversation_id, user_id, joined_at) VALUES ('chan','user-1',1); \
-         INSERT INTO user_sort_entry (user_id, list_key, entity_id, rank, last_accessed_at, starred_at) \
-           VALUES ('user-1','channels:home','chan',NULL,NULL,10);";
+    const SEED_POST: &str = concat!(
+        "INSERT INTO workspaces (id, name, name_key, owner_agent_id, created_at, updated_at) VALUES ('home',' ',NULL,'agent-a',1,1); ",
+        "INSERT INTO workspace_users (workspace_id, user_id, joined_at, role) VALUES ('home','user-1',1,'member'); ",
+        seed_channel!(id = "chan", workspace_id = "home", title = "Chan",),
+        "; ",
+        "INSERT INTO conversation_users (conversation_id, user_id, joined_at) VALUES ('chan','user-1',1); ",
+        "INSERT INTO user_sort_entry (user_id, list_key, entity_id, rank, last_accessed_at, starred_at) VALUES ('user-1','channels:home','chan',NULL,NULL,10); ",
+    );
 
     async fn parent_title_for(display_name: &str) -> String {
         let dir = tempfile::tempdir().unwrap();
@@ -461,10 +462,13 @@ mod tests {
         db.execute(sqlx::raw_sql(SEED_PRE)).await.unwrap();
         // The owning agent, with its display_name BOUND (never formatted into SQL), so the
         // trim discriminator is exercised on the real stored value.
-        sqlx::query(
-            "INSERT INTO agents (id, name, display_name, runtime, host_id, created_by_user_id, created_at, updated_at, session_scope) \
-             VALUES ('agent-a','alice',?,'claude','host-1','user-1',1,1,'conversation')",
-        )
+        sqlx::query(seed_agent!(
+            id = "agent-a",
+            name = "alice",
+            display_name = ?,
+            host_id = "host-1",
+            created_by_user_id = "user-1",
+        ))
         .bind(display_name)
         .execute(&mut db)
         .await
@@ -532,14 +536,30 @@ mod tests {
         db.execute(sqlx::raw_sql(CURRENT_SCHEMA)).await.unwrap();
         db.execute(sqlx::raw_sql(SEED_PRE)).await.unwrap();
         db.execute(sqlx::raw_sql(
-            "INSERT INTO agents (id, name, display_name, runtime, host_id, created_by_user_id, created_at, updated_at, session_scope) \
-               VALUES ('agent-a','alice','Alice','claude','host-1','user-1',1,1,'agent'); \
-             INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-2','other','Other',1,1); \
-             INSERT INTO conversations (id,placement_kind,roster_policy,title,visibility,created_at,updated_at,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id) \
-               VALUES ('dm-1','direct_pair','fixed','','private',7,7,'agent','agent-a','human','user-1'); \
-             INSERT INTO user_sort_entry (user_id, list_key, entity_id, rank, last_accessed_at, starred_at) \
-               VALUES ('user-1','direct_pairs','dm-1',NULL,NULL,20), ('user-2','direct_pairs','dm-1',NULL,NULL,20); \
-             INSERT INTO user_sort_entry (user_id, list_key, entity_id, rank) VALUES ('user-1','favorites','conversation:dm-1',3);",
+            concat!(
+                seed_agent!(
+                    id = "agent-a",
+                    name = "alice",
+                    display_name = "Alice",
+                    host_id = "host-1",
+                    created_by_user_id = "user-1",
+                    session_scope = "agent",
+                ),
+                "; ",
+                "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-2','other','Other',1,1); ",
+                seed_direct_pair!(
+                    id = "dm-1",
+                    created_at = 7,
+                    updated_at = 7,
+                    endpoint_a_kind = "agent",
+                    endpoint_a_id = "agent-a",
+                    endpoint_b_kind = "human",
+                    endpoint_b_id = "user-1",
+                ),
+                "; ",
+                "INSERT INTO user_sort_entry (user_id, list_key, entity_id, rank, last_accessed_at, starred_at) VALUES ('user-1','direct_pairs','dm-1',NULL,NULL,20), ('user-2','direct_pairs','dm-1',NULL,NULL,20); ",
+                "INSERT INTO user_sort_entry (user_id, list_key, entity_id, rank) VALUES ('user-1','favorites','conversation:dm-1',3); ",
+            ),
         ))
         .await
         .unwrap();

@@ -18,21 +18,49 @@ async fn seed(path: &std::path::Path) {
         "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES \
          ('member','activity-member','Member',1,1),('browser','activity-browser','Browser',1,1),\
          ('other','activity-other','Other',1,1)",
-        "INSERT INTO agents(id,name,runtime,host_id,created_by_user_id,created_at,updated_at,display_name) VALUES \
-         ('target','activity-target','codex','h','member',1,1,'Target'),\
-         ('stranger','activity-stranger','codex','h','member',1,1,'Stranger')",
+        concat!(
+            seed_agent!(
+                id = "target",
+                name = "activity-target",
+                runtime = "codex",
+                host_id = "h",
+                created_by_user_id = "member",
+                display_name = "Target",
+            ),
+            "; ",
+            seed_agent!(
+                id = "stranger",
+                name = "activity-stranger",
+                runtime = "codex",
+                host_id = "h",
+                created_by_user_id = "member",
+                display_name = "Stranger",
+            ),
+        ),
         "INSERT INTO workspaces(id,name,name_key,created_at,updated_at) VALUES \
          ('w','Workspace','activity-workspace',1,1)",
         "INSERT INTO workspace_users(workspace_id,user_id,joined_at,role) VALUES \
          ('w','member',1,'member'),('w','browser',1,'member')",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES \
-         ('private','w','workspace','open','Private','private','private',1,1),\
-         ('public','w','workspace','open','Public','public','public',1,1)",
+        concat!(
+            seed_channel!(id = "private", workspace_id = "w", title = "Private"),
+            "; ",
+            seed_channel!(
+                id = "public",
+                workspace_id = "w",
+                title = "Public",
+                visibility = "public",
+            ),
+        ),
         "INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES ('private','member',1)",
         "INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES \
          ('private','target',1),('public','target',1)",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,visibility,created_at,updated_at) VALUES \
-         ('pair',NULL,'direct_pair','fixed','agent','target','human','member','',NULL,'private',1,1)",
+        seed_direct_pair!(
+            id = "pair",
+            endpoint_a_kind = "agent",
+            endpoint_a_id = "target",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "member",
+        ),
         "INSERT INTO conversation_events(id,conversation_id,agent_id,kind,payload,created_at) VALUES \
          (1,'private','target','text','{\"text\":\"one\"}',11),\
          (2,'private','target','text','{\"text\":\"two\"}',12),\
@@ -235,7 +263,16 @@ async fn agent_stream_uses_existing_viewer_arms_without_channel_slicing_and_rech
         .await
         .unwrap();
     db.execute("PRAGMA foreign_keys=ON").await.unwrap();
-    db.execute("INSERT INTO agents(id,name,runtime,host_id,created_by_user_id,session_scope,created_at,updated_at,display_name) VALUES ('stream','stream','codex','h','member','agent',1,1,'Stream')").await.unwrap();
+    db.execute(seed_agent!(
+        id = "stream",
+        runtime = "codex",
+        host_id = "h",
+        created_by_user_id = "member",
+        session_scope = "agent",
+        display_name = "Stream",
+    ))
+    .await
+    .unwrap();
     db.execute(
         "INSERT INTO workspace_members(workspace_id,agent_id,joined_at) VALUES ('w','stream',1)",
     )
@@ -314,7 +351,15 @@ async fn agent_stream_uses_existing_viewer_arms_without_channel_slicing_and_rech
         .unwrap()
         .is_some()
     );
-    db.execute("INSERT INTO conversations(id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,visibility,created_at,updated_at) VALUES ('stream-dm','direct_pair','fixed','agent','stream','human','browser','','private',1,1)").await.unwrap();
+    db.execute(seed_direct_pair!(
+        id = "stream-dm",
+        endpoint_a_kind = "agent",
+        endpoint_a_id = "stream",
+        endpoint_b_kind = "human",
+        endpoint_b_id = "browser",
+    ))
+    .await
+    .unwrap();
     assert!(
         authority
             .authorize_event_scope(&viewer, &EventScope::Agent(agent.clone()))
@@ -376,7 +421,15 @@ async fn retention_seven_day_boundary_shared_stream_and_expired_page_cursor() {
     let now = 604_800_000 + 100; // Seven days, independent of the production retention constant.
     // Deliberately non-monotone timestamps: retention is time-based, not an id cutoff.
     db.execute("UPDATE conversation_events SET created_at=CASE id WHEN 1 THEN 100 WHEN 2 THEN 99 WHEN 3 THEN 101 ELSE 99 END").await.unwrap();
-    db.execute("INSERT INTO agents(id,name,runtime,host_id,created_by_user_id,session_scope,created_at,updated_at) VALUES ('stream','stream','codex','h','member','agent',1,1)").await.unwrap();
+    db.execute(seed_agent!(
+        id = "stream",
+        runtime = "codex",
+        host_id = "h",
+        created_by_user_id = "member",
+        session_scope = "agent",
+    ))
+    .await
+    .unwrap();
     db.execute("INSERT INTO conversation_events(id,conversation_id,agent_id,kind,payload,created_at) VALUES (5,'private','stream','thinking','{\"text\":\"expired\"}',99),(6,'public','stream','text','{\"text\":\"boundary\"}',100),(7,'pair','stream','tool_output',NULL,101)").await.unwrap();
     db.execute("INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,seq,created_at,author_id,author_name) VALUES('kept-message','private','user','member','keep',1,1,'member','member')").await.unwrap();
     let store = MessagingStore::open(&path).await.unwrap();

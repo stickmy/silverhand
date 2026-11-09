@@ -2905,13 +2905,13 @@ async fn start_archive_fixture(path: &std::path::Path) -> sqlx::SqliteConnection
     .execute(&mut db)
     .await
     .unwrap();
-    sqlx::query(
-        "INSERT INTO agents (
-            id, name, runtime, host_id, created_at, updated_at,
-            display_name, created_by_user_id, session_scope
-         ) VALUES ('agent-lease', 'agent-lease', 'codex', 'host-b', 1, 1,
-             'Lease Agent', 'user-1', 'conversation')",
-    )
+    sqlx::query(seed_agent!(
+        id = "agent-lease",
+        runtime = "codex",
+        host_id = "host-b",
+        display_name = "Lease Agent",
+        created_by_user_id = "user-1",
+    ))
     .execute(&mut db)
     .await
     .unwrap();
@@ -2930,12 +2930,12 @@ async fn start_archive_fixture(path: &std::path::Path) -> sqlx::SqliteConnection
     .execute(&mut db)
     .await
     .unwrap();
-    sqlx::query(
-        "INSERT INTO conversations (
-            id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at
-         ) VALUES ('conversation0001', 'workspace-1', 'workspace', 'open',
-             'Conversation One', 'conversation one', 1, 1)",
-    )
+    sqlx::query(seed_channel!(
+        id = "conversation0001",
+        workspace_id = "workspace-1",
+        title = "Conversation One",
+        title_key = "conversation one",
+    ))
     .execute(&mut db)
     .await
     .unwrap();
@@ -3041,13 +3041,13 @@ async fn a_restarted_process_cannot_release_an_old_hosts_real_inbox_lease() {
     .execute(&mut db)
     .await
     .unwrap();
-    sqlx::query(
-        "INSERT INTO agents (
-            id, name, runtime, host_id, created_at, updated_at,
-            display_name, created_by_user_id, session_scope
-         ) VALUES ('agent-lease', 'agent-lease', 'codex', 'host-b', 1, 1,
-             'Lease Agent', 'user-1', 'conversation')",
-    )
+    sqlx::query(seed_agent!(
+        id = "agent-lease",
+        runtime = "codex",
+        host_id = "host-b",
+        display_name = "Lease Agent",
+        created_by_user_id = "user-1",
+    ))
     .execute(&mut db)
     .await
     .unwrap();
@@ -3066,12 +3066,12 @@ async fn a_restarted_process_cannot_release_an_old_hosts_real_inbox_lease() {
     .execute(&mut db)
     .await
     .unwrap();
-    sqlx::query(
-        "INSERT INTO conversations (
-            id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at
-         ) VALUES ('conversation0001', 'workspace-1', 'workspace', 'open',
-             'Conversation One', 'conversation one', 1, 1)",
-    )
+    sqlx::query(seed_channel!(
+        id = "conversation0001",
+        workspace_id = "workspace-1",
+        title = "Conversation One",
+        title_key = "conversation one",
+    ))
     .execute(&mut db)
     .await
     .unwrap();

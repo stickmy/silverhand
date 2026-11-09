@@ -587,12 +587,18 @@ INSERT INTO users (id, name, display_name, email, avatar_storage_key, avatar_con
             ["user-1"]
         );
 
-        sqlx::raw_sql("INSERT INTO hosts(id,name,kind,created_at) VALUES('h','H','local',1);
-          INSERT INTO agents(id,name,display_name,runtime,host_id,created_by_user_id,created_at,updated_at)
-          VALUES('agent','agent','Agent','claude','h','user-1',1,1);
-          INSERT INTO workspaces(id,name,name_key,owner_user_id,owner_agent_id,created_at,updated_at)
-          VALUES('home','Home',NULL,'user-1','agent',1,1);
-          INSERT INTO workspace_users(workspace_id,user_id,joined_at) VALUES('home','user-3',1);")
+        sqlx::raw_sql(concat!(
+                          "INSERT INTO hosts(id,name,kind,created_at) VALUES('h','H','local',1); ",
+                          seed_agent!(
+                              id = "agent",
+                              display_name = "Agent",
+                              host_id = "h",
+                              created_by_user_id = "user-1",
+                          ),
+                          "; ",
+                          "INSERT INTO workspaces(id,name,name_key,owner_user_id,owner_agent_id,created_at,updated_at) VALUES('home','Home',NULL,'user-1','agent',1,1); ",
+                          "INSERT INTO workspace_users(workspace_id,user_id,joined_at) VALUES('home','user-3',1); ",
+                      ))
           .execute(&store.pool).await.unwrap();
         assert_eq!(
             ids(store.list_related(&uid("user-1")).await.unwrap()),

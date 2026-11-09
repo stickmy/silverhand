@@ -10,30 +10,42 @@ use crate::current_schema;
 async fn seed(path: &std::path::Path) {
     let mut db = current_schema::create_current_schema(path).await;
     db.execute(
-        "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES \
-         ('viewer','latest-viewer','Viewer',1,1),('peer','latest-peer','Peer',1,1),\
-         ('outsider','latest-outsider','Outsider',1,1); \
-         INSERT INTO workspaces(id,name,name_key,created_at,updated_at) VALUES \
-         ('ws','Workspace','latest-ws',1,1); \
-         INSERT INTO workspace_users(workspace_id,user_id,joined_at) VALUES \
-         ('ws','viewer',1),('ws','peer',1),('ws','outsider',1); \
-         INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES \
-         ('chan','ws','workspace','open','Chan','chan','public',1,1),\
-         ('quiet','ws','workspace','open','Quiet','quiet','public',1,1),\
-         ('other','ws','workspace','open','Other','other','public',1,1); \
-         INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES \
-         ('chan','viewer',1),('chan','peer',1),('quiet','viewer',1),('other','outsider',1); \
-         INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,\
-         endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,visibility,created_at,updated_at) \
-         VALUES('pair',NULL,'direct_pair','fixed','human','peer','human','viewer','',NULL,'private',1,1); \
-         INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,metadata,seq,created_at,thread_root_id) VALUES \
-         ('root','chan','user','peer','root',NULL,1,10,NULL),\
-         ('reply','chan','user','peer','  a\n reply  ',NULL,2,20,'root'),\
-         ('notice','chan','system',NULL,'renamed',NULL,3,30,NULL),\
-         ('quiet-notice','quiet','system',NULL,'joined',NULL,1,5,NULL),\
-         ('secret','other','user','outsider','secret',NULL,1,40,NULL),\
-         ('dm','pair','user','viewer','',\
-          '{\"attachments\":[{\"id\":\"att-1\",\"filename\":\"a.png\",\"size\":1,\"content_type\":\"image/png\"}]}',1,15,NULL);",
+        concat!(
+            "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES ('viewer','latest-viewer','Viewer',1,1),('peer','latest-peer','Peer',1,1),('outsider','latest-outsider','Outsider',1,1); ",
+            "INSERT INTO workspaces(id,name,name_key,created_at,updated_at) VALUES ('ws','Workspace','latest-ws',1,1); ",
+            "INSERT INTO workspace_users(workspace_id,user_id,joined_at) VALUES ('ws','viewer',1),('ws','peer',1),('ws','outsider',1); ",
+            seed_channel!(
+                id = "chan",
+                workspace_id = "ws",
+                title = "Chan",
+                visibility = "public",
+            ),
+            "; ",
+            seed_channel!(
+                id = "quiet",
+                workspace_id = "ws",
+                title = "Quiet",
+                visibility = "public",
+            ),
+            "; ",
+            seed_channel!(
+                id = "other",
+                workspace_id = "ws",
+                title = "Other",
+                visibility = "public",
+            ),
+            "; ",
+            "INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES ('chan','viewer',1),('chan','peer',1),('quiet','viewer',1),('other','outsider',1); ",
+            seed_direct_pair!(
+                id = "pair",
+                endpoint_a_kind = "human",
+                endpoint_a_id = "peer",
+                endpoint_b_kind = "human",
+                endpoint_b_id = "viewer",
+            ),
+            "; ",
+            "INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,metadata,seq,created_at,thread_root_id) VALUES ('root','chan','user','peer','root',NULL,1,10,NULL),('reply','chan','user','peer',' a\n reply ',NULL,2,20,'root'),('notice','chan','system',NULL,'renamed',NULL,3,30,NULL),('quiet-notice','quiet','system',NULL,'joined',NULL,1,5,NULL),('secret','other','user','outsider','secret',NULL,1,40,NULL),('dm','pair','user','viewer','','{\"attachments\":[{\"id\":\"att-1\",\"filename\":\"a.png\",\"size\":1,\"content_type\":\"image/png\"}]}',1,15,NULL); ",
+        ),
     )
     .await
     .unwrap();

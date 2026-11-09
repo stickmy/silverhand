@@ -385,10 +385,21 @@ mod tests {
            ('u-none', 'u-none', 'None', 1, 1)",
         "INSERT INTO hosts (id, name, kind, created_at, user_id, provisioning_source) VALUES \
            ('h1', 'h1', 'local', 1, 'u-pair', 'app_install')",
-        "INSERT INTO agents (id, name, display_name, runtime, host_id, created_at, updated_at, \
-             created_by_user_id, materialization_status) VALUES \
-           ('a1', 'a1', 'A1', 'claude', 'h1', 1, 1, 'u-pair', 'active'), \
-           ('a2', 'a2', 'A2', 'claude', 'h1', 1, 1, 'u-other', 'active')",
+        concat!(
+            seed_agent!(
+                id = "a1",
+                display_name = "A1",
+                host_id = "h1",
+                created_by_user_id = "u-pair",
+            ),
+            "; ",
+            seed_agent!(
+                id = "a2",
+                display_name = "A2",
+                host_id = "h1",
+                created_by_user_id = "u-other",
+            ),
+        ),
         // Regular workspaces: a1 joined w-regular, a2 joined w-other.
         "INSERT INTO workspaces (id, name, name_key, created_at, updated_at) VALUES \
            ('w-regular', 'Regular', 'regular', 1, 1), \
@@ -405,15 +416,31 @@ mod tests {
            ('w-regular', 'u-both', 1), \
            ('w-home', 'u-home', 1), \
            ('w-other', 'u-other', 1)",
-        "INSERT INTO conversations (id, workspace_id, endpoint_a_kind, endpoint_a_id, \
-             endpoint_b_kind, endpoint_b_id, placement_kind, roster_policy, title, \
-             created_at, updated_at) VALUES \
-           ('c-pair', NULL, 'agent', 'a1', 'human', 'u-pair', 'direct_pair', 'fixed', '', \
-             1, 1), \
-           ('c-both', NULL, 'agent', 'a1', 'human', 'u-both', 'direct_pair', 'fixed', '', \
-             1, 1), \
-           ('c-agents', NULL, 'agent', 'a1', 'agent', 'a2', 'direct_pair', 'fixed', '', \
-             1, 1)",
+        concat!(
+            seed_direct_pair!(
+                id = "c-pair",
+                endpoint_a_kind = "agent",
+                endpoint_a_id = "a1",
+                endpoint_b_kind = "human",
+                endpoint_b_id = "u-pair",
+            ),
+            "; ",
+            seed_direct_pair!(
+                id = "c-both",
+                endpoint_a_kind = "agent",
+                endpoint_a_id = "a1",
+                endpoint_b_kind = "human",
+                endpoint_b_id = "u-both",
+            ),
+            "; ",
+            seed_direct_pair!(
+                id = "c-agents",
+                endpoint_a_kind = "agent",
+                endpoint_a_id = "a1",
+                endpoint_b_kind = "agent",
+                endpoint_b_id = "a2",
+            ),
+        ),
     ];
 
     async fn seeded(dir: &TempDir) -> SqliteConnection {
@@ -523,13 +550,13 @@ mod tests {
         let dir = TempDir::new().expect("temp dir");
         let mut db = seeded(&dir).await;
 
-        let human_first = sqlx::query(
-            "INSERT INTO conversations (id, workspace_id, endpoint_a_kind, endpoint_a_id, \
-                 endpoint_b_kind, endpoint_b_id, placement_kind, roster_policy, title, \
-                 created_at, updated_at) VALUES \
-               ('c-human-first', NULL, 'human', 'u-none', 'agent', 'a1', 'direct_pair', 'fixed', \
-                 '', 1, 1)",
-        )
+        let human_first = sqlx::query(seed_direct_pair!(
+            id = "c-human-first",
+            endpoint_a_kind = "human",
+            endpoint_a_id = "u-none",
+            endpoint_b_kind = "agent",
+            endpoint_b_id = "a1",
+        ))
         .execute(&mut db)
         .await;
 

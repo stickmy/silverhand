@@ -424,20 +424,72 @@ mod tests {
     // preserve; and a claude agent `agent-5` seeded with an EMPTY storage key + a content
     // type — a pair that passes the schema's NULL-coupling CHECK yet the writer never
     // mints, so the decode rule rejects it as corruption BEFORE any decision.
-    const SEED_SQL: &str = "\
-INSERT INTO users (id, name, display_name, created_at, updated_at) \
-  VALUES ('user-1', 'owner', 'Owner', 1, 1); \
-INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-1', 'Host', 'local', 1); \
-INSERT INTO agents (id, name, display_name, runtime, model, reasoning_effort, fast_mode, description, host_id, created_by_user_id, created_at, updated_at) \
-  VALUES ('agent-1', 'alice', 'Alice', 'codex', 'gpt-5.6-sol', 'ultra', 1, 'first', 'host-1', 'user-1', 10, 100); \
-INSERT INTO agents (id, name, display_name, runtime, host_id, created_by_user_id, created_at, updated_at) \
-  VALUES ('agent-2', 'bob', 'Bob', 'claude', 'host-1', 'user-1', 10, 100); \
-INSERT INTO agents (id, name, display_name, runtime, model, reasoning_effort, host_id, created_by_user_id, created_at, updated_at) \
-  VALUES ('agent-3', 'carol', 'Carol', 'codex', 'gpt-5.6-sol', 'high', 'host-1', 'user-1', 10, 100); \
-INSERT INTO agents (id, name, display_name, runtime, avatar_storage_key, avatar_content_type, host_id, created_by_user_id, created_at, updated_at) \
-  VALUES ('agent-4', 'dave', 'Dave', 'claude', 'agent-avatars/agent-4/blob-seed', 'image/png', 'host-1', 'user-1', 10, 100); \
-INSERT INTO agents (id, name, display_name, runtime, avatar_storage_key, avatar_content_type, host_id, created_by_user_id, created_at, updated_at) \
-  VALUES ('agent-5', 'erin', 'Erin', 'claude', '', 'image/png', 'host-1', 'user-1', 10, 100);";
+    const SEED_SQL: &str = concat!(
+        "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-1', 'owner', 'Owner', 1, 1); ",
+        "INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-1', 'Host', 'local', 1); ",
+        seed_agent!(
+            id = "agent-1",
+            name = "alice",
+            display_name = "Alice",
+            runtime = "codex",
+            model = "gpt-5.6-sol",
+            reasoning_effort = "ultra",
+            fast_mode = 1,
+            description = "first",
+            host_id = "host-1",
+            created_by_user_id = "user-1",
+            created_at = 10,
+            updated_at = 100,
+        ),
+        "; ",
+        seed_agent!(
+            id = "agent-2",
+            name = "bob",
+            display_name = "Bob",
+            host_id = "host-1",
+            created_by_user_id = "user-1",
+            created_at = 10,
+            updated_at = 100,
+        ),
+        "; ",
+        seed_agent!(
+            id = "agent-3",
+            name = "carol",
+            display_name = "Carol",
+            runtime = "codex",
+            model = "gpt-5.6-sol",
+            reasoning_effort = "high",
+            host_id = "host-1",
+            created_by_user_id = "user-1",
+            created_at = 10,
+            updated_at = 100,
+        ),
+        "; ",
+        seed_agent!(
+            id = "agent-4",
+            name = "dave",
+            display_name = "Dave",
+            avatar_storage_key = "agent-avatars/agent-4/blob-seed",
+            avatar_content_type = "image/png",
+            host_id = "host-1",
+            created_by_user_id = "user-1",
+            created_at = 10,
+            updated_at = 100,
+        ),
+        "; ",
+        seed_agent!(
+            id = "agent-5",
+            name = "erin",
+            display_name = "Erin",
+            avatar_storage_key = "",
+            avatar_content_type = "image/png",
+            host_id = "host-1",
+            created_by_user_id = "user-1",
+            created_at = 10,
+            updated_at = 100,
+        ),
+        "; ",
+    );
 
     async fn open_seeded() -> (tempfile::TempDir, SqliteAgentProfileWrite) {
         let directory = tempfile::tempdir().unwrap();

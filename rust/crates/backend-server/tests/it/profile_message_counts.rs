@@ -58,11 +58,27 @@ async fn actual_http_counts_private_sources_without_exposing_them_and_rechecks_s
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("counts.sqlite");
     let mut db = current_schema::create_current_schema(&path).await;
-    db.execute(sqlx::raw_sql("INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES('u','user','User',1,1),('v','viewer','Viewer',1,1),('empty','empty','Empty',1,1);
-    INSERT INTO auth_sessions(id,user_id,token_hash,created_at,last_used_at) VALUES('session','u','OXoqnFv14szsOMJZa2grsb0F_m5OzqbBDPQnVf8iVAM',1,9500);
-    INSERT INTO hosts(id,name,kind,created_at) VALUES('h','host','local',1);
-    INSERT INTO agents(id,name,runtime,host_id,created_by_user_id,created_at,updated_at) VALUES('u','agent','codex','h','u',1,1);
-    INSERT INTO conversations(id,placement_kind,roster_policy,title,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,created_at,updated_at) VALUES('private','direct_pair','fixed','','human','u','human','v',1,1);" )).await.unwrap();
+    db.execute(sqlx::raw_sql(concat!(
+                                 "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES('u','user','User',1,1),('v','viewer','Viewer',1,1),('empty','empty','Empty',1,1); ",
+                                 "INSERT INTO auth_sessions(id,user_id,token_hash,created_at,last_used_at) VALUES('session','u','OXoqnFv14szsOMJZa2grsb0F_m5OzqbBDPQnVf8iVAM',1,9500); ",
+                                 "INSERT INTO hosts(id,name,kind,created_at) VALUES('h','host','local',1); ",
+                                 seed_agent!(
+                                     id = "u",
+                                     name = "agent",
+                                     runtime = "codex",
+                                     host_id = "h",
+                                     created_by_user_id = "u",
+                                 ),
+                                 "; ",
+                                 seed_direct_pair!(
+                                     id = "private",
+                                     endpoint_a_kind = "human",
+                                     endpoint_a_id = "u",
+                                     endpoint_b_kind = "human",
+                                     endpoint_b_id = "v",
+                                 ),
+                                 "; ",
+                             ) )).await.unwrap();
     let start = 1704038400000i64; // Shanghai 2024-01-01.
     for (id, kind, offset, cc, thread) in [
         ("root", "user", 0, None, None),

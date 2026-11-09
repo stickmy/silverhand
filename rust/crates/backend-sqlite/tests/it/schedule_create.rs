@@ -73,12 +73,14 @@ async fn seed(connection: &mut SqliteConnection) {
     .execute(&mut *connection)
     .await
     .unwrap();
-    sqlx::query(
-        "INSERT INTO agents (
-            id, name, runtime, host_id, created_at, updated_at,
-            display_name, created_by_user_id, session_scope
-         ) VALUES (?, ?, 'codex', 'host-1', 1, 1, 'Agent', 'user-1', 'conversation')",
-    )
+    sqlx::query(seed_agent!(
+        id = ?,
+        name = ?,
+        runtime = "codex",
+        host_id = "host-1",
+        display_name = "Agent",
+        created_by_user_id = "user-1",
+    ))
     .bind(OWNER)
     .bind(OWNER)
     .execute(&mut *connection)
@@ -110,9 +112,7 @@ async fn seed(connection: &mut SqliteConnection) {
     .await
     .unwrap();
     sqlx::query(
-        "INSERT INTO conversations
-            (id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at)
-         VALUES (?, 'ws-1', 'workspace', 'open', 'general', 'general', 1, 1)",
+        seed_channel!(id = ?, workspace_id = "ws-1", title = "general", title_key = "general"),
     )
     .bind(TARGET)
     .execute(&mut *connection)
@@ -591,12 +591,13 @@ async fn the_cap_is_scoped_per_owner_and_does_not_share_quota_across_agents() {
 
     let (_dir, path, mut connection) = open_db().await;
     // A DIFFERENT owner, filled to the cap.
-    sqlx::query(
-        "INSERT INTO agents (
-            id, name, runtime, host_id, created_at, updated_at,
-            display_name, created_by_user_id, session_scope
-         ) VALUES ('agent-other', 'agent-other', 'codex', 'host-1', 1, 1, 'Agent', 'user-1', 'conversation')",
-    )
+    sqlx::query(seed_agent!(
+        id = "agent-other",
+        runtime = "codex",
+        host_id = "host-1",
+        display_name = "Agent",
+        created_by_user_id = "user-1",
+    ))
     .execute(&mut connection)
     .await
     .unwrap();

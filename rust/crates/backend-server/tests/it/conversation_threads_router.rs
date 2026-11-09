@@ -35,14 +35,23 @@ async fn seed(path: &std::path::Path) {
          ('local','local','Local',1,1),('root-user','root-user','Root User',1,1),\
          ('reply-a','reply-a','Reply A',1,1),('reply-b','reply-b','Reply B',1,1),\
          ('reply-c','reply-c','Reply C',1,1),('reply-d','reply-d','Reply D',1,1)",
-        "INSERT INTO agents(id,name,runtime,host_id,created_by_user_id,created_at,updated_at,display_name) \
-         VALUES('root-agent','root-agent','codex','h','local',1,1,'Root Agent')",
+        seed_agent!(
+            id = "root-agent",
+            runtime = "codex",
+            host_id = "h",
+            created_by_user_id = "local",
+            display_name = "Root Agent",
+        ),
         "INSERT INTO workspaces(id,name,name_key,created_at,updated_at) VALUES \
          ('threads-w','Threads Workspace','threads-workspace',1,1)",
         "INSERT OR IGNORE INTO workspace_users(workspace_id,user_id,joined_at,role) VALUES \
          ('threads-w','local',1,'member')",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) \
-         VALUES('c','threads-w','workspace','open','Threads','threads','private',1,1)",
+        seed_channel!(
+            id = "c",
+            workspace_id = "threads-w",
+            title = "Threads",
+            title_key = "threads",
+        ),
         "INSERT OR IGNORE INTO conversation_users(conversation_id,user_id,joined_at) VALUES('c','local',1)",
         "INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,seq,created_at,author_id,author_name,author_display_name) VALUES \
          ('root-1','c','user','root-user','root one',1,10,'root-user','root-user','Root User')",

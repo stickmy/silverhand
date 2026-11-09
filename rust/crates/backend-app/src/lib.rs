@@ -2,6 +2,11 @@
 #![deny(rustdoc::broken_intra_doc_links)]
 //! The sole executable composition root for the Rust backend.
 
+#[cfg(test)]
+#[macro_use]
+#[path = "../../backend-sqlite/tests/support/seed_rows.rs"]
+mod seed_rows;
+
 use std::{
     env,
     error::Error,

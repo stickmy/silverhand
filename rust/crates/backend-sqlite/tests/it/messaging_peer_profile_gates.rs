@@ -100,11 +100,17 @@ async fn seed(db: &mut SqliteConnection) {
     .await
     .unwrap();
     for id in [CALLER, MEMBER_NO_CAP, OWNER, STRANGER, PEER] {
-        sqlx::query(
-            "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, \
-             display_name, created_by_user_id, materialization_status, session_scope) \
-             VALUES (?, ?, 'codex', 'host-1', 0, 0, ?, ?, 'active', 'agent')",
-        )
+        sqlx::query(seed_agent!(
+            id = ?,
+            name = ?,
+            runtime = "codex",
+            host_id = "host-1",
+            created_at = 0,
+            updated_at = 0,
+            display_name = ?,
+            created_by_user_id = ?,
+            session_scope = "agent",
+        ))
         .bind(id)
         .bind(id)
         .bind(id)
@@ -156,11 +162,14 @@ async fn seed(db: &mut SqliteConnection) {
         .await
         .unwrap();
     }
-    sqlx::query(
-        "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-         title_key, visibility, created_at, updated_at, latest_message_seq) \
-         VALUES (?, ?, 'workspace', 'open', 'General', 'general', 'private', 0, 0, 0)",
-    )
+    sqlx::query(seed_channel!(
+        id = ?,
+        workspace_id = ?,
+        title = "General",
+        title_key = "general",
+        created_at = 0,
+        updated_at = 0,
+    ))
     .bind(CHANNEL)
     .bind(WS_MAIN)
     .execute(&mut *db)
@@ -177,12 +186,15 @@ async fn seed(db: &mut SqliteConnection) {
     .await
     .unwrap();
     // A workspace-less direct pair between the caller agent and the human.
-    sqlx::query(
-        "INSERT INTO conversations (id, placement_kind, roster_policy, endpoint_a_kind, \
-         endpoint_a_id, endpoint_b_kind, endpoint_b_id, title, visibility, \
-         created_at, updated_at) VALUES (?, 'direct_pair', 'fixed', 'agent', ?, 'human', ?, \
-         '', 'private', 0, 0)",
-    )
+    sqlx::query(seed_direct_pair!(
+        id = ?,
+        endpoint_a_kind = "agent",
+        endpoint_a_id = ?,
+        endpoint_b_kind = "human",
+        endpoint_b_id = ?,
+        created_at = 0,
+        updated_at = 0,
+    ))
     .bind(PAIR)
     .bind(CALLER)
     .bind(USER)

@@ -226,14 +226,21 @@ mod tests {
         let mut db = SqliteConnection::connect_with(&options).await.unwrap();
         db.execute(sqlx::raw_sql(CURRENT_SCHEMA)).await.unwrap();
         db.execute(sqlx::raw_sql(
-            "INSERT INTO users (id,name,display_name,created_at,updated_at) \
-             VALUES ('owner','owner','Owner',1,1); \
-             INSERT INTO hosts \
-             (id,name,kind,user_id,created_at,activated_at,finalized_at,provisioning_source) \
-             VALUES ('host-1','stable','remote','owner',1,2,NULL,'user_invite'); \
-             INSERT INTO agents \
-             (id,name,display_name,runtime,host_id,created_by_user_id,materialization_status,created_at,updated_at) \
-             VALUES ('agent-1','helper','Helper','codex','host-1','owner','active',3,4);",
+            concat!(
+                "INSERT INTO users (id,name,display_name,created_at,updated_at) VALUES ('owner','owner','Owner',1,1); ",
+                "INSERT INTO hosts (id,name,kind,user_id,created_at,activated_at,finalized_at,provisioning_source) VALUES ('host-1','stable','remote','owner',1,2,NULL,'user_invite'); ",
+                seed_agent!(
+                    id = "agent-1",
+                    name = "helper",
+                    display_name = "Helper",
+                    runtime = "codex",
+                    host_id = "host-1",
+                    created_by_user_id = "owner",
+                    created_at = 3,
+                    updated_at = 4,
+                ),
+                "; ",
+            ),
         ))
         .await
         .unwrap();

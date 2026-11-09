@@ -52,7 +52,7 @@ async fn fixture() -> (tempfile::TempDir, std::path::PathBuf) {
         (PUBLIC, "Public", "public", "public"),
     ] {
         sqlx::query(
-            "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, visibility, created_at, updated_at) VALUES (?, ?, 'workspace', 'open', ?, ?, ?, 1, 1)",
+            seed_channel!(id = ?, workspace_id = ?, title = ?, title_key = ?, visibility = ?),
         )
         .bind(id)
         .bind(WORKSPACE)
@@ -71,9 +71,13 @@ async fn fixture() -> (tempfile::TempDir, std::path::PathBuf) {
     .execute(&mut db)
     .await
     .unwrap();
-    sqlx::query(
-        "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, visibility, created_at, updated_at) VALUES (?, ?, 'workspace', 'fixed', 'Fixed', 'fixed', 'private', 1, 1)",
-    )
+    sqlx::query(seed_channel!(
+        id = ?,
+        workspace_id = ?,
+        roster_policy = "fixed",
+        title = "Fixed",
+        title_key = "fixed",
+    ))
     .bind(FIXED)
     .bind(WORKSPACE)
     .execute(&mut db)
@@ -87,9 +91,13 @@ async fn fixture() -> (tempfile::TempDir, std::path::PathBuf) {
     .execute(&mut db)
     .await
     .unwrap();
-    sqlx::query(
-        "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, title, visibility, created_at, updated_at) VALUES (?, NULL, 'direct_pair', 'fixed', 'human', ?, 'human', ?, '', 'private', 1, 1)",
-    )
+    sqlx::query(seed_direct_pair!(
+        id = ?,
+        endpoint_a_kind = "human",
+        endpoint_a_id = ?,
+        endpoint_b_kind = "human",
+        endpoint_b_id = ?,
+    ))
     .bind(PAIR)
     .bind(USER)
     .bind(OTHER)

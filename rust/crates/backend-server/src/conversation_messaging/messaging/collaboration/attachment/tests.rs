@@ -209,16 +209,19 @@ async fn seeded() -> (
     let database = directory.path().join("attachments.sqlite");
     let mut db = crate::current_schema::create_current_schema(&database).await;
     db.execute(sqlx::raw_sql(
-        "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES \
-           ('owner','owner','Owner',1,1),('other','other','Other',1,1); \
-         INSERT INTO workspaces(id,name,name_key,created_at,updated_at) VALUES \
-           ('w','Workspace','workspace',1,1); \
-         INSERT INTO workspace_users(workspace_id,user_id,joined_at,role) VALUES \
-           ('w','owner',1,'member'),('w','other',1,'member'); \
-         INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES \
-           ('c','w','workspace','open','General','general','private',1,1); \
-         INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES \
-           ('c','owner',1);",
+        concat!(
+            "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES ('owner','owner','Owner',1,1),('other','other','Other',1,1); ",
+            "INSERT INTO workspaces(id,name,name_key,created_at,updated_at) VALUES ('w','Workspace','workspace',1,1); ",
+            "INSERT INTO workspace_users(workspace_id,user_id,joined_at,role) VALUES ('w','owner',1,'member'),('w','other',1,'member'); ",
+            seed_channel!(
+                id = "c",
+                workspace_id = "w",
+                title = "General",
+                title_key = "general",
+            ),
+            "; ",
+            "INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES ('c','owner',1); ",
+        ),
     ))
     .await
     .unwrap();

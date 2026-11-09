@@ -300,12 +300,18 @@ mod tests {
     // occupying that handle, and a user occupying the id the first entropy draw
     // produces (to force the retry path). The agent occupies `bender` so a signup
     // for that handle is a HandleConflict even though no USER holds it.
-    const SEED_SQL: &str = "\
-INSERT INTO users (id, name, display_name, email, created_at, updated_at) \
-  VALUES ('user-carol', 'carol', 'Carol', 'carol@example.com', 1, 1); \
-INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-1', 'Host', 'local', 1); \
-INSERT INTO agents (id, name, display_name, runtime, host_id, created_by_user_id, created_at, updated_at) \
-  VALUES ('agent-1', 'bender', 'Bender', 'claude', 'host-1', 'user-carol', 1, 1);";
+    const SEED_SQL: &str = concat!(
+        "INSERT INTO users (id, name, display_name, email, created_at, updated_at) VALUES ('user-carol', 'carol', 'Carol', 'carol@example.com', 1, 1); ",
+        "INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-1', 'Host', 'local', 1); ",
+        seed_agent!(
+            id = "agent-1",
+            name = "bender",
+            display_name = "Bender",
+            host_id = "host-1",
+            created_by_user_id = "user-carol",
+        ),
+        "; ",
+    );
 
     /// A deterministic entropy source dispensing a scripted queue of bytes so the
     /// allocated ids are exact and reproducible.

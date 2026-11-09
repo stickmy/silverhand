@@ -597,10 +597,21 @@ async fn real_store() -> (
     for sql in [
         "INSERT INTO hosts(id,name,kind,created_at) VALUES('h','Host','local',1)",
         "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES('local','lifecycle-route','Local',1,1)",
-        "INSERT INTO agents(id,name,runtime,host_id,created_by_user_id,created_at,updated_at) VALUES('a','route-agent','codex','h','local',1,1)",
+        seed_agent!(
+            id = "a",
+            name = "route-agent",
+            runtime = "codex",
+            host_id = "h",
+            created_by_user_id = "local",
+        ),
         "INSERT INTO workspaces(id,name,name_key,created_at,updated_at) VALUES('w','Workspace','lifecycle-route',1,1)",
         "INSERT INTO workspace_users(workspace_id,user_id,joined_at,role) VALUES('w','local',1,'admin')",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES('c','w','workspace','open','General','general','private',1,1)",
+        seed_channel!(
+            id = "c",
+            workspace_id = "w",
+            title = "General",
+            title_key = "general"
+        ),
         "INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES('c','a',1)",
     ] {
         db.execute(sql).await.unwrap();

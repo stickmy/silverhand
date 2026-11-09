@@ -65,9 +65,21 @@ async fn seed(path: &std::path::Path) {
          ('u','create-viewer','Viewer',1,1),('v','create-member','Member',1,1),\
          ('x','create-outsider','Outsider',1,1)",
         "INSERT INTO hosts(id,name,kind,created_at) VALUES('h','Create Host','local',1)",
-        "INSERT INTO agents(id,name,runtime,host_id,created_at,updated_at,created_by_user_id) VALUES \
-         ('a','create-agent-a','claude','h',1,1,'u'),\
-         ('b','create-agent-b','claude','h',1,1,'u')",
+        concat!(
+            seed_agent!(
+                id = "a",
+                name = "create-agent-a",
+                host_id = "h",
+                created_by_user_id = "u",
+            ),
+            "; ",
+            seed_agent!(
+                id = "b",
+                name = "create-agent-b",
+                host_id = "h",
+                created_by_user_id = "u",
+            ),
+        ),
         "INSERT INTO workspaces(id,name,name_key,owner_agent_id,created_at,updated_at) VALUES \
          ('w','Create Workspace','create-workspace',NULL,1,1),\
          ('forbidden','Forbidden Workspace','forbidden-workspace',NULL,1,1),\
@@ -75,9 +87,7 @@ async fn seed(path: &std::path::Path) {
         "INSERT INTO workspace_users(workspace_id,user_id,joined_at,role) VALUES \
          ('w','u',1,'admin'),('w','v',1,'member'),('home','u',1,'admin')",
         "INSERT INTO workspace_members(workspace_id,agent_id,joined_at) VALUES('w','a',1)",
-        "INSERT INTO conversations(\
-           id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at\
-         ) VALUES('taken','w','workspace','open','Taken','taken','private',1,1)",
+        seed_channel!(id = "taken", workspace_id = "w", title = "Taken"),
     ] {
         db.execute(sql).await.unwrap();
     }
@@ -404,11 +414,14 @@ async fn successful_path_waits_for_writer_then_revalidates_each_changed_authorit
     wait_for_preflight(&environment, 3).await;
     assert!(!pending.is_finished());
     writer
-        .execute(
-            "INSERT INTO conversations(\
-               id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at\
-             ) VALUES('racing-title','w','workspace','open','Title Race','title race','private',2,2)",
-        )
+        .execute(seed_channel!(
+            id = "racing-title",
+            workspace_id = "w",
+            title = "Title Race",
+            title_key = "title race",
+            created_at = 2,
+            updated_at = 2,
+        ))
         .await
         .unwrap();
     writer.execute("COMMIT").await.unwrap();

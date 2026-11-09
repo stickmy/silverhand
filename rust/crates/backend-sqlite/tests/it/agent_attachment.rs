@@ -74,26 +74,56 @@ async fn seed(path: &std::path::Path) {
         "INSERT INTO hosts(id,name,kind,created_at) VALUES('h','Attachment Host','local',1)",
         "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES \
          ('owner','agent-attachment-owner','Owner',1,1)",
-        "INSERT INTO agents(id,name,runtime,host_id,created_by_user_id,created_at,updated_at,display_name,session_scope) VALUES \
-         ('a','agent-attachment-a','codex','h','owner',1,1,'A','agent'),\
-         ('b','agent-attachment-b','codex','h','owner',1,1,'B','agent')",
+        concat!(
+            seed_agent!(
+                id = "a",
+                name = "agent-attachment-a",
+                runtime = "codex",
+                host_id = "h",
+                created_by_user_id = "owner",
+                display_name = "A",
+                session_scope = "agent",
+            ),
+            "; ",
+            seed_agent!(
+                id = "b",
+                name = "agent-attachment-b",
+                runtime = "codex",
+                host_id = "h",
+                created_by_user_id = "owner",
+                display_name = "B",
+                session_scope = "agent",
+            ),
+        ),
         "INSERT INTO workspaces(id,name,name_key,created_at,updated_at) VALUES \
          ('w','Agent Attachment Workspace','agent-attachment-workspace',1,1)",
         "INSERT INTO workspace_members(workspace_id,agent_id,joined_at) VALUES('w','a',1)",
         "INSERT INTO workspace_agent_capabilities(workspace_id,agent_id,capability) VALUES \
          ('w','a','read_attachments'),('w','a','upload_attachments')",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES \
-         ('source','w','workspace','open','Source','source','private',1,1),\
-         ('target','w','workspace','open','Target','target','private',1,1)",
+        concat!(
+            seed_channel!(id = "source", workspace_id = "w", title = "Source"),
+            "; ",
+            seed_channel!(id = "target", workspace_id = "w", title = "Target"),
+        ),
         "INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES \
          ('source','a',1),('target','a',1)",
         "INSERT INTO workspaces(id,name,name_key,owner_agent_id,created_at,updated_at) VALUES \
          ('home','Agent Home',NULL,'a',1,1)",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES \
-         ('home-channel','home','workspace','fixed','Home','home','private',1,1)",
+        seed_channel!(
+            id = "home-channel",
+            workspace_id = "home",
+            roster_policy = "fixed",
+            title = "Home",
+            title_key = "home",
+        ),
         "INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES('home-channel','a',1)",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,visibility,created_at,updated_at) VALUES \
-         ('pair',NULL,'direct_pair','fixed','agent','a','human','owner','',NULL,'private',1,1)",
+        seed_direct_pair!(
+            id = "pair",
+            endpoint_a_kind = "agent",
+            endpoint_a_id = "a",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "owner",
+        ),
         "INSERT INTO attachments(id,channel_id,source_conversation_id,filename,size,content_type,storage,storage_key,created_by_kind,created_by_id,created_at,content_revision) VALUES \
          ('existing','target','target','mockup.png',4,'image/png','local','attachments/target/old.png','agent','a',10,1)",
     ] {

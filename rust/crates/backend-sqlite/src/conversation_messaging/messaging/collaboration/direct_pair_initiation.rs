@@ -202,23 +202,76 @@ mod tests {
                 "INSERT INTO hosts(id,name,kind,created_at) VALUES('host-1','host','local',0)",
                 "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES\
                  ('user-1','one','One',0,0),('user-2','two','Two',0,0)",
-                "INSERT INTO agents(id,name,runtime,host_id,display_name,created_by_user_id,\
-                 session_scope,materialization_status,created_at,updated_at) VALUES\
-                 ('agent-owner','owner','claude','host-1','Owner','user-1','agent','active',0,0),\
-                 ('agent-frame','frame','claude','host-1','Frame','user-1','conversation','active',0,0),\
-                 ('agent-hidden','hidden','claude','host-1','Hidden','user-2','agent','active',0,0),\
-                 ('agent-workspace','workspace','claude','host-1','Workspace','user-2','agent','active',0,0),\
-                 ('agent-pair','pair','claude','host-1','Pair','user-2','agent','active',0,0)",
+                concat!(
+                    seed_agent!(
+                        id = "agent-owner",
+                        name = "owner",
+                        host_id = "host-1",
+                        display_name = "Owner",
+                        created_by_user_id = "user-1",
+                        session_scope = "agent",
+                        created_at = 0,
+                        updated_at = 0,
+                    ),
+                    "; ",
+                    seed_agent!(
+                        id = "agent-frame",
+                        name = "frame",
+                        host_id = "host-1",
+                        display_name = "Frame",
+                        created_by_user_id = "user-1",
+                        created_at = 0,
+                        updated_at = 0,
+                    ),
+                    "; ",
+                    seed_agent!(
+                        id = "agent-hidden",
+                        name = "hidden",
+                        host_id = "host-1",
+                        display_name = "Hidden",
+                        created_by_user_id = "user-2",
+                        session_scope = "agent",
+                        created_at = 0,
+                        updated_at = 0,
+                    ),
+                    "; ",
+                    seed_agent!(
+                        id = "agent-workspace",
+                        name = "workspace",
+                        host_id = "host-1",
+                        display_name = "Workspace",
+                        created_by_user_id = "user-2",
+                        session_scope = "agent",
+                        created_at = 0,
+                        updated_at = 0,
+                    ),
+                    "; ",
+                    seed_agent!(
+                        id = "agent-pair",
+                        name = "pair",
+                        host_id = "host-1",
+                        display_name = "Pair",
+                        created_by_user_id = "user-2",
+                        session_scope = "agent",
+                        created_at = 0,
+                        updated_at = 0,
+                    ),
+                ),
                 "INSERT INTO workspaces(id,name,name_key,created_at,updated_at) \
                  VALUES('workspace-1','W','w',0,0)",
                 "INSERT INTO workspace_members(workspace_id,agent_id,joined_at) \
                  VALUES('workspace-1','agent-workspace',0)",
                 "INSERT INTO workspace_users(workspace_id,user_id,role,joined_at) \
                  VALUES('workspace-1','user-1','member',0)",
-                "INSERT INTO conversations(id,placement_kind,roster_policy,title,visibility,\
-                 endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,created_at,updated_at) \
-                 VALUES('existing-pair','direct_pair','fixed','','private','agent','agent-pair',\
-                 'human','user-1',0,0)",
+                seed_direct_pair!(
+                    id = "existing-pair",
+                    endpoint_a_kind = "agent",
+                    endpoint_a_id = "agent-pair",
+                    endpoint_b_kind = "human",
+                    endpoint_b_id = "user-1",
+                    created_at = 0,
+                    updated_at = 0,
+                ),
             ] {
                 sqlx::query(statement).execute(&mut db).await.unwrap();
             }

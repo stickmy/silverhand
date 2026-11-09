@@ -94,24 +94,26 @@ mod tests {
 
     const CURRENT_SCHEMA: &str =
         include_str!("../../../../../rust/test-fixtures/migration-baseline/schema-current.sql");
-    const SEED_SQL: &str = "\
-INSERT INTO users (id, name, display_name, created_at, updated_at) \
-  VALUES ('user-1', 'one', 'One', 1, 1); \
-INSERT INTO users (id, name, display_name, created_at, updated_at) \
-  VALUES ('user-2', 'two', 'Two', 2, 2); \
-INSERT INTO users (id, name, display_name, created_at, updated_at) \
-  VALUES ('user-3', 'three', 'Three', 3, 3); \
-INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-1', 'Host', 'local', 1); \
-INSERT INTO agents (id, name, display_name, runtime, host_id, created_by_user_id, created_at, updated_at) \
-  VALUES ('agent-1', 'alice', 'Alice', 'claude', 'host-1', 'user-1', 1, 1); \
-INSERT INTO workspaces (id, name, name_key, description, owner_agent_id, owner_user_id, archived_at, created_at, updated_at) \
-  VALUES ('ws-1', 'Regular', 'regular', 'desc', NULL, 'user-1', NULL, 1, 300); \
-INSERT INTO workspaces (id, name, name_key, description, owner_agent_id, owner_user_id, archived_at, created_at, updated_at) \
-  VALUES ('ws-empty', 'Empty', 'empty', NULL, NULL, 'user-1', NULL, 1, 400); \
-INSERT INTO workspace_users (workspace_id, user_id, joined_at, role) VALUES ('ws-1', 'user-2', 5, 'member'); \
-INSERT INTO workspace_users (workspace_id, user_id, joined_at, role) VALUES ('ws-1', 'user-1', 1, 'owner'); \
-INSERT INTO workspace_users (workspace_id, user_id, joined_at, role) VALUES ('ws-1', 'user-3', 9, 'admin'); \
-INSERT INTO workspace_members (workspace_id, agent_id, joined_at) VALUES ('ws-1', 'agent-1', 1);";
+    const SEED_SQL: &str = concat!(
+        "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-1', 'one', 'One', 1, 1); ",
+        "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-2', 'two', 'Two', 2, 2); ",
+        "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-3', 'three', 'Three', 3, 3); ",
+        "INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-1', 'Host', 'local', 1); ",
+        seed_agent!(
+            id = "agent-1",
+            name = "alice",
+            display_name = "Alice",
+            host_id = "host-1",
+            created_by_user_id = "user-1",
+        ),
+        "; ",
+        "INSERT INTO workspaces (id, name, name_key, description, owner_agent_id, owner_user_id, archived_at, created_at, updated_at) VALUES ('ws-1', 'Regular', 'regular', 'desc', NULL, 'user-1', NULL, 1, 300); ",
+        "INSERT INTO workspaces (id, name, name_key, description, owner_agent_id, owner_user_id, archived_at, created_at, updated_at) VALUES ('ws-empty', 'Empty', 'empty', NULL, NULL, 'user-1', NULL, 1, 400); ",
+        "INSERT INTO workspace_users (workspace_id, user_id, joined_at, role) VALUES ('ws-1', 'user-2', 5, 'member'); ",
+        "INSERT INTO workspace_users (workspace_id, user_id, joined_at, role) VALUES ('ws-1', 'user-1', 1, 'owner'); ",
+        "INSERT INTO workspace_users (workspace_id, user_id, joined_at, role) VALUES ('ws-1', 'user-3', 9, 'admin'); ",
+        "INSERT INTO workspace_members (workspace_id, agent_id, joined_at) VALUES ('ws-1', 'agent-1', 1); ",
+    );
 
     async fn open_seeded() -> (tempfile::TempDir, SqliteWorkspaceAudienceRead) {
         let directory = tempfile::tempdir().unwrap();

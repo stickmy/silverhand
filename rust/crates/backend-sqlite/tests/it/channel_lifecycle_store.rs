@@ -22,10 +22,14 @@ async fn seed(path: &std::path::Path) {
     )
     .await
     .unwrap();
-    db.execute(
-        "INSERT INTO agents(id,name,runtime,host_id,created_by_user_id,created_at,updated_at,display_name) \
-         VALUES('agent','life-agent','codex','h','member',1,1,'Agent')",
-    )
+    db.execute(seed_agent!(
+        id = "agent",
+        name = "life-agent",
+        runtime = "codex",
+        host_id = "h",
+        created_by_user_id = "member",
+        display_name = "Agent",
+    ))
     .await
     .unwrap();
     db.execute(
@@ -40,13 +44,30 @@ async fn seed(path: &std::path::Path) {
     )
     .await
     .unwrap();
-    db.execute(
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES \
-         ('private','w','workspace','open','Private','private','private',1,1),\
-         ('public','w','workspace','open','Public','public','public',1,1),\
-         ('archived','w','workspace','open','Archived','archived','public',1,1),\
-         ('fixed','w','workspace','fixed','Fixed','fixed','private',1,1)",
-    )
+    db.execute(concat!(
+        seed_channel!(id = "private", workspace_id = "w", title = "Private"),
+        "; ",
+        seed_channel!(
+            id = "public",
+            workspace_id = "w",
+            title = "Public",
+            visibility = "public",
+        ),
+        "; ",
+        seed_channel!(
+            id = "archived",
+            workspace_id = "w",
+            title = "Archived",
+            visibility = "public",
+        ),
+        "; ",
+        seed_channel!(
+            id = "fixed",
+            workspace_id = "w",
+            roster_policy = "fixed",
+            title = "Fixed",
+        ),
+    ))
     .await
     .unwrap();
     db.execute("UPDATE conversations SET archived_at=9 WHERE id='archived'")
@@ -58,11 +79,23 @@ async fn seed(path: &std::path::Path) {
     )
     .await
     .unwrap();
-    db.execute(
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,visibility,created_at,updated_at) \
-         VALUES('pair',NULL,'direct_pair','fixed','agent','agent','human','member','',NULL,'private',1,1),\
-         ('foreign-pair',NULL,'direct_pair','fixed','agent','agent','human','other','',NULL,'private',1,1)",
-    )
+    db.execute(concat!(
+        seed_direct_pair!(
+            id = "pair",
+            endpoint_a_kind = "agent",
+            endpoint_a_id = "agent",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "member",
+        ),
+        "; ",
+        seed_direct_pair!(
+            id = "foreign-pair",
+            endpoint_a_kind = "agent",
+            endpoint_a_id = "agent",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "other",
+        ),
+    ))
     .await
     .unwrap();
     db.close().await.unwrap();

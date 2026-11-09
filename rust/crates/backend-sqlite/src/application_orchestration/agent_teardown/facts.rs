@@ -354,21 +354,21 @@ mod tests {
                 // read back through the decoder.
                 "INSERT INTO hosts (id, name, kind, created_at) \
                  VALUES ('h-bad', 'h-bad', 'orbital', 1)",
-                "INSERT INTO agents \
-                 (id, name, runtime, host_id, created_by_user_id, created_at, updated_at, \
-                  materialization_status, session_scope) \
-                 VALUES ('a-agent', 'a-agent', 'claude', 'h-good', 'u1', 1, 1, 'active', 'agent')",
-                "INSERT INTO agents \
-                 (id, name, runtime, host_id, created_by_user_id, created_at, updated_at, \
-                  materialization_status, session_scope) \
-                 VALUES ('a-conv', 'a-conv', 'claude', 'h-good', 'u1', 1, 1, 'active', \
-                  'conversation')",
+                seed_agent!(
+                    id = "a-agent",
+                    host_id = "h-good",
+                    created_by_user_id = "u1",
+                    session_scope = "agent",
+                ),
+                seed_agent!(id = "a-conv", host_id = "h-good", created_by_user_id = "u1"),
                 "INSERT INTO workspaces (id, name, name_key, created_at, updated_at) \
                  VALUES ('w1', 'w1', 'w1', 1, 1)",
-                "INSERT INTO conversations \
-                 (id, workspace_id, placement_kind, roster_policy, title, title_key, \
-                  created_at, updated_at) \
-                 VALUES ('c1', 'w1', 'workspace', 'open', 'chan', 'chan', 1, 1)",
+                seed_channel!(
+                    id = "c1",
+                    workspace_id = "w1",
+                    title = "chan",
+                    title_key = "chan",
+                ),
                 "INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) \
                  VALUES ('c1', 'a-conv', 1)",
             ],

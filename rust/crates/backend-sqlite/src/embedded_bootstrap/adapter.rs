@@ -317,16 +317,24 @@ mod tests {
 
     /// A host, one regular workspace (unowned), and two conversations in it — so
     /// the backfill has real workspace + conversation rows to claim.
-    const SEED_TOPOLOGY: &str = "\
-INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-1', 'Host', 'local', 1); \
-INSERT INTO workspaces (id, name, name_key, created_at, updated_at) \
-  VALUES ('ws-regular', 'Team', 'team', 1, 1); \
-INSERT INTO conversations \
-  (id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at) \
-  VALUES ('conv-1', 'ws-regular', 'workspace', 'open', 'general', 'general', 1, 1); \
-INSERT INTO conversations \
-  (id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at) \
-  VALUES ('conv-2', 'ws-regular', 'workspace', 'open', 'random', 'random', 1, 1);";
+    const SEED_TOPOLOGY: &str = concat!(
+        "INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-1', 'Host', 'local', 1); ",
+        "INSERT INTO workspaces (id, name, name_key, created_at, updated_at) VALUES ('ws-regular', 'Team', 'team', 1, 1); ",
+        seed_channel!(
+            id = "conv-1",
+            workspace_id = "ws-regular",
+            title = "general",
+            title_key = "general",
+        ),
+        "; ",
+        seed_channel!(
+            id = "conv-2",
+            workspace_id = "ws-regular",
+            title = "random",
+            title_key = "random",
+        ),
+        "; ",
+    );
 
     #[derive(Clone)]
     struct ScriptedEntropy {

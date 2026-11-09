@@ -490,26 +490,62 @@ mod tests {
 
     // ws-1 (agent-a member+create_channels, agent-b member) with source `src`
     // (agents a+b, user u1). ws-2 for the mismatch + per-ws-title arms. home-x agent-home.
-    const SEED: &str = "\
-INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES('u1','owner','Owner',1,1); \
-INSERT INTO hosts(id,name,kind,created_at) VALUES('h1','H','local',1); \
-INSERT INTO agents(id,name,display_name,runtime,host_id,created_by_user_id,created_at,updated_at,session_scope) VALUES('agent-a','alice','Alice','claude','h1','u1',1,1,'conversation'); \
-INSERT INTO agents(id,name,display_name,runtime,host_id,created_by_user_id,created_at,updated_at,session_scope) VALUES('agent-b','bob','Bob','codex','h1','u1',1,1,'conversation'); \
-INSERT INTO agents(id,name,display_name,runtime,host_id,created_by_user_id,created_at,updated_at,session_scope) VALUES('agent-x','carol','Carol','codex','h1','u1',1,1,'conversation'); \
-INSERT INTO workspaces(id,name,name_key,owner_agent_id,created_at,updated_at,owner_user_id) VALUES('ws-1','Team','team',NULL,1,1,'u1'); \
-INSERT INTO workspaces(id,name,name_key,owner_agent_id,created_at,updated_at,owner_user_id) VALUES('ws-2','Other','other',NULL,1,1,'u1'); \
-INSERT INTO workspaces(id,name,name_key,owner_agent_id,created_at,updated_at) VALUES('home-x',' ',NULL,'agent-x',1,1); \
-INSERT INTO workspace_members(workspace_id,agent_id,joined_at) VALUES('ws-1','agent-a',1); \
-INSERT INTO workspace_members(workspace_id,agent_id,joined_at) VALUES('ws-1','agent-b',1); \
-INSERT INTO workspace_members(workspace_id,agent_id,joined_at) VALUES('ws-2','agent-a',1); \
-INSERT INTO workspace_agent_capabilities(workspace_id,agent_id,capability) VALUES('ws-1','agent-a','create_channels'); \
-INSERT INTO workspace_agent_capabilities(workspace_id,agent_id,capability) VALUES('ws-2','agent-a','create_channels'); \
-INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES('src','ws-1','workspace','open','Source','source','private',1,1); \
-INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES('src','agent-a',1); \
-INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES('src','agent-b',1); \
-INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('src','u1',1); \
-INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES('src2','ws-2','workspace','open','Source2','source2','private',1,1); \
-INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES('src2','agent-a',1);";
+    const SEED: &str = concat!(
+        "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES('u1','owner','Owner',1,1); ",
+        "INSERT INTO hosts(id,name,kind,created_at) VALUES('h1','H','local',1); ",
+        seed_agent!(
+            id = "agent-a",
+            name = "alice",
+            display_name = "Alice",
+            host_id = "h1",
+            created_by_user_id = "u1",
+        ),
+        "; ",
+        seed_agent!(
+            id = "agent-b",
+            name = "bob",
+            display_name = "Bob",
+            runtime = "codex",
+            host_id = "h1",
+            created_by_user_id = "u1",
+        ),
+        "; ",
+        seed_agent!(
+            id = "agent-x",
+            name = "carol",
+            display_name = "Carol",
+            runtime = "codex",
+            host_id = "h1",
+            created_by_user_id = "u1",
+        ),
+        "; ",
+        "INSERT INTO workspaces(id,name,name_key,owner_agent_id,created_at,updated_at,owner_user_id) VALUES('ws-1','Team','team',NULL,1,1,'u1'); ",
+        "INSERT INTO workspaces(id,name,name_key,owner_agent_id,created_at,updated_at,owner_user_id) VALUES('ws-2','Other','other',NULL,1,1,'u1'); ",
+        "INSERT INTO workspaces(id,name,name_key,owner_agent_id,created_at,updated_at) VALUES('home-x',' ',NULL,'agent-x',1,1); ",
+        "INSERT INTO workspace_members(workspace_id,agent_id,joined_at) VALUES('ws-1','agent-a',1); ",
+        "INSERT INTO workspace_members(workspace_id,agent_id,joined_at) VALUES('ws-1','agent-b',1); ",
+        "INSERT INTO workspace_members(workspace_id,agent_id,joined_at) VALUES('ws-2','agent-a',1); ",
+        "INSERT INTO workspace_agent_capabilities(workspace_id,agent_id,capability) VALUES('ws-1','agent-a','create_channels'); ",
+        "INSERT INTO workspace_agent_capabilities(workspace_id,agent_id,capability) VALUES('ws-2','agent-a','create_channels'); ",
+        seed_channel!(
+            id = "src",
+            workspace_id = "ws-1",
+            title = "Source",
+            title_key = "source",
+        ),
+        "; ",
+        "INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES('src','agent-a',1); ",
+        "INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES('src','agent-b',1); ",
+        "INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('src','u1',1); ",
+        seed_channel!(
+            id = "src2",
+            workspace_id = "ws-2",
+            title = "Source2",
+            title_key = "source2",
+        ),
+        "; ",
+        "INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES('src2','agent-a',1); ",
+    );
 
     // Deterministic entropy so ids are stable per call (distinct per invocation via a seed).
     struct SeededEntropy(std::sync::atomic::AtomicU8);
@@ -743,8 +779,17 @@ INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES('src2
         let (_d, pool) = open_seeded().await;
         // Seed an agent with an EMPTY id (AgentId::parse rejects ""), make it a ws-1
         // member, and add it to the source roster so the writer reads it back.
-        sqlx::query("INSERT INTO agents(id,name,display_name,runtime,host_id,created_by_user_id,created_at,updated_at,session_scope) VALUES('','ghost','Ghost','codex','h1','u1',1,1,'conversation')")
-            .execute(&pool).await.unwrap();
+        sqlx::query(seed_agent!(
+            id = "",
+            name = "ghost",
+            display_name = "Ghost",
+            runtime = "codex",
+            host_id = "h1",
+            created_by_user_id = "u1",
+        ))
+        .execute(&pool)
+        .await
+        .unwrap();
         sqlx::query(
             "INSERT INTO workspace_members(workspace_id,agent_id,joined_at) VALUES('ws-1','',1)",
         )

@@ -85,16 +85,57 @@ async fn seeded() -> (tempfile::TempDir, SqliteAgentAuditRead) {
         "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES \
          ('u-owner','audit-owner','Owner',1,1)",
         "INSERT INTO hosts(id,name,kind,created_at) VALUES('h1','Audit Host','local',1)",
-        "INSERT INTO agents(id,name,runtime,host_id,created_by_user_id,created_at,updated_at,materialization_status) VALUES \
-         ('a1','audit-agent-one','codex','h1','u-owner',1,1,'active'),\
-         ('a2','audit-agent-two','codex','h1','u-owner',1,1,'active'),\
-         ('a3','audit-agent-three','codex','h1','u-owner',1,1,'failed')",
+        concat!(
+            seed_agent!(
+                id = "a1",
+                name = "audit-agent-one",
+                runtime = "codex",
+                host_id = "h1",
+                created_by_user_id = "u-owner",
+            ),
+            "; ",
+            seed_agent!(
+                id = "a2",
+                name = "audit-agent-two",
+                runtime = "codex",
+                host_id = "h1",
+                created_by_user_id = "u-owner",
+            ),
+            "; ",
+            seed_agent!(
+                id = "a3",
+                name = "audit-agent-three",
+                runtime = "codex",
+                host_id = "h1",
+                created_by_user_id = "u-owner",
+                materialization_status = "failed",
+            ),
+        ),
         "INSERT INTO workspaces(id,name,name_key,created_at,updated_at) VALUES \
          ('w1','Audit Workspace','audit-workspace',1,1)",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,latest_message_seq,created_at,updated_at) VALUES \
-         ('joined','w1','workspace','open','Joined','joined','private',1,1,1),\
-         ('other','w1','workspace','open','Other','other','private',1,1,1),\
-         ('','w1','workspace','open','Corrupt','corrupt','private',1,1,1)",
+        concat!(
+            seed_channel!(
+                id = "joined",
+                workspace_id = "w1",
+                title = "Joined",
+                latest_message_seq = 1,
+            ),
+            "; ",
+            seed_channel!(
+                id = "other",
+                workspace_id = "w1",
+                title = "Other",
+                latest_message_seq = 1,
+            ),
+            "; ",
+            seed_channel!(
+                id = "",
+                workspace_id = "w1",
+                title = "Corrupt",
+                title_key = "corrupt",
+                latest_message_seq = 1,
+            ),
+        ),
         // a1 audits only `joined`; a2 and the non-active a3 both join `other`; a2 and a3
         // also join the corrupt-`''` chat so a chat-list read of either would decode it.
         "INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES \

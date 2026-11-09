@@ -1,6 +1,10 @@
 //! The crate's integration tests, linked as one binary. Suites that install a global
 //! tracing subscriber or depend on span callsite interest stay as their own binaries.
 
+#[macro_use]
+#[path = "../support/seed_rows.rs"]
+mod seed_rows;
+
 #[path = "../support/current_schema_snapshot.rs"]
 mod current_schema;
 

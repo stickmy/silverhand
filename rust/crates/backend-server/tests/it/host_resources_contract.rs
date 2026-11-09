@@ -40,16 +40,33 @@ use crate::current_schema;
 
 /// Two users, and one computer owned by the first. Shared by both vectors so the
 /// admitted and refused answers differ only in WHO is asking.
-const SEED: &str = "\
-    INSERT INTO users (id, name, display_name, created_at, updated_at) \
-    VALUES ('u-owner', 'owner', 'Owner', 1000, 1000), \
-           ('u-stranger', 'stranger', 'Stranger', 1000, 1000); \
-    INSERT INTO hosts (id, name, kind, created_at, user_id) \
-    VALUES ('h1', 'host-one', 'desktop', 1000, 'u-owner'); \
-    INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, display_name, \
-      created_by_user_id, materialization_status) \
-    VALUES ('a-late', 'late', 'codex', 'h1', 3000, 3000, 'Late One', 'u-owner', 'failed'), \
-           ('a-early', 'early', 'qoder', 'h1', 1000, 1000, 'Early One', 'u-owner', 'active');";
+const SEED: &str = concat!(
+    "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('u-owner', 'owner', 'Owner', 1000, 1000), ('u-stranger', 'stranger', 'Stranger', 1000, 1000); ",
+    "INSERT INTO hosts (id, name, kind, created_at, user_id) VALUES ('h1', 'host-one', 'desktop', 1000, 'u-owner'); ",
+    seed_agent!(
+        id = "a-late",
+        name = "late",
+        runtime = "codex",
+        host_id = "h1",
+        created_at = 3000,
+        updated_at = 3000,
+        display_name = "Late One",
+        created_by_user_id = "u-owner",
+        materialization_status = "failed",
+    ),
+    "; ",
+    seed_agent!(
+        id = "a-early",
+        name = "early",
+        runtime = "qoder",
+        host_id = "h1",
+        created_at = 1000,
+        updated_at = 1000,
+        display_name = "Early One",
+        created_by_user_id = "u-owner",
+    ),
+    "; ",
+);
 
 /// Materialize a fresh current-schema database, load [`SEED`], then drive the real
 /// adapter and router for `viewer` asking about `host_id`. The `application/json`

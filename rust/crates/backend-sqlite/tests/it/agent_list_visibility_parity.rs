@@ -139,8 +139,17 @@ fn build_seed(fixture: &Fixture) -> String {
 
     for agent in &fixture.agents {
         stmts.push(format!(
-            "INSERT INTO agents (id, name, display_name, runtime, host_id, created_at, updated_at, created_by_user_id, materialization_status) \
-             VALUES ({id}, {name}, {name}, 'qoder', 'h1', {created_at}, {created_at}, {creator}, {status})",
+            seed_agent!(
+                id = ["{id}"],
+                name = ["{name}"],
+                display_name = ["{name}"],
+                runtime = "qoder",
+                host_id = "h1",
+                created_at = ["{created_at}"],
+                updated_at = ["{created_at}"],
+                created_by_user_id = ["{creator}"],
+                materialization_status = ["{status}"],
+            ),
             id = sql_str(&agent.reference),
             name = sql_str(&format!("agent-{}", agent.reference)),
             created_at = agent.created_at,
@@ -151,8 +160,14 @@ fn build_seed(fixture: &Fixture) -> String {
 
     for pair in &fixture.direct_pairs {
         stmts.push(format!(
-            "INSERT INTO conversations (id, workspace_id, endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, placement_kind, roster_policy, title, created_at, updated_at) \
-             VALUES ({id}, NULL, 'agent', {agent}, 'human', {human}, 'direct_pair', 'fixed', 'dm', 1, 1)",
+            seed_direct_pair!(
+                id = ["{id}"],
+                endpoint_a_kind = "agent",
+                endpoint_a_id = ["{agent}"],
+                endpoint_b_kind = "human",
+                endpoint_b_id = ["{human}"],
+                title = "dm",
+            ),
             id = sql_str(&format!("c-{}", pair.agent)),
             agent = sql_str(&pair.agent),
             human = sql_str(&pair.human),

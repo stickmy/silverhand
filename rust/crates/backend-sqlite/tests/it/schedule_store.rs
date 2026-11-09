@@ -109,13 +109,14 @@ async fn seed_owner(connection: &mut SqliteConnection) {
     .execute(&mut *connection)
     .await
     .unwrap();
-    sqlx::query(
-        "INSERT INTO agents (
-            id, name, runtime, host_id, created_at, updated_at,
-            display_name, created_by_user_id, session_scope
-         ) VALUES (?, 'agent-sched', 'codex', 'host-1', 1, 1,
-             'Schedule Agent', 'user-1', 'conversation')",
-    )
+    sqlx::query(seed_agent!(
+        id = ?,
+        name = "agent-sched",
+        runtime = "codex",
+        host_id = "host-1",
+        display_name = "Schedule Agent",
+        created_by_user_id = "user-1",
+    ))
     .bind(AGENT)
     .execute(&mut *connection)
     .await

@@ -82,19 +82,58 @@ async fn seed(path: &std::path::Path) {
         "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES \
          ('admin','lifecycle-admin','Admin',1,1),('owner','lifecycle-owner','Owner',1,1),\
          ('member','lifecycle-member','Member',1,1)",
-        "INSERT INTO agents(id,name,runtime,host_id,created_by_user_id,created_at,updated_at,display_name) VALUES \
-         ('a','lifecycle-agent-a','codex','h','admin',1,1,'A'),\
-         ('b','lifecycle-agent-b','codex','h','admin',1,1,'B')",
+        concat!(
+            seed_agent!(
+                id = "a",
+                name = "lifecycle-agent-a",
+                runtime = "codex",
+                host_id = "h",
+                created_by_user_id = "admin",
+                display_name = "A",
+            ),
+            "; ",
+            seed_agent!(
+                id = "b",
+                name = "lifecycle-agent-b",
+                runtime = "codex",
+                host_id = "h",
+                created_by_user_id = "admin",
+                display_name = "B",
+            ),
+        ),
         "INSERT INTO workspaces(id,name,name_key,created_at,updated_at) VALUES \
          ('w','Lifecycle Workspace','lifecycle-workspace',1,1)",
         "INSERT INTO workspace_users(workspace_id,user_id,joined_at,role) VALUES \
          ('w','admin',1,'admin'),('w','owner',1,'owner'),('w','member',1,'member')",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES \
-         ('c','w','workspace','open','General','general','private',1,1),\
-         ('fixed','w','workspace','fixed','Fixed','fixed','private',1,1),\
-         ('taken','w','workspace','open','Roadmap','roadmap','private',1,1)",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,visibility,created_at,updated_at) VALUES \
-         ('pair',NULL,'direct_pair','fixed','human','admin','human','member','',NULL,'private',1,1)",
+        concat!(
+            seed_channel!(
+                id = "c",
+                workspace_id = "w",
+                title = "General",
+                title_key = "general",
+            ),
+            "; ",
+            seed_channel!(
+                id = "fixed",
+                workspace_id = "w",
+                roster_policy = "fixed",
+                title = "Fixed",
+            ),
+            "; ",
+            seed_channel!(
+                id = "taken",
+                workspace_id = "w",
+                title = "Roadmap",
+                title_key = "roadmap",
+            ),
+        ),
+        seed_direct_pair!(
+            id = "pair",
+            endpoint_a_kind = "human",
+            endpoint_a_id = "admin",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "member",
+        ),
         "INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES \
          ('c','b',2),('c','a',1)",
     ] {

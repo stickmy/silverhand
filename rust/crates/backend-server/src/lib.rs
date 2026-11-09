@@ -2,6 +2,11 @@
 #![deny(rustdoc::broken_intra_doc_links)]
 //! HTTP, WebSocket and wire projection boundary.
 
+#[cfg(test)]
+#[macro_use]
+#[path = "../../backend-sqlite/tests/support/seed_rows.rs"]
+mod seed_rows;
+
 pub mod application_orchestration;
 pub mod conversation_messaging;
 pub mod embedded_bootstrap;

@@ -50,8 +50,12 @@ async fn seeded() -> (TempDir, SqliteAccessStore) {
         "INSERT INTO users (id, name, display_name, created_at, updated_at) \
          VALUES ('user-creator', 'creator', 'Creator', 1, 1)",
         "INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-1', 'host-1', 'desktop', 1)",
-        "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id) \
-         VALUES ('agent-target', 'target', 'claude', 'host-1', 1, 1, 'user-creator')",
+        seed_agent!(
+            id = "agent-target",
+            name = "target",
+            host_id = "host-1",
+            created_by_user_id = "user-creator",
+        ),
         // A regular workspace (owner_agent_id NULL requires a non-null name_key).
         "INSERT INTO workspaces (id, name, name_key, created_at, updated_at) \
          VALUES ('ws-regular', 'Regular', 'ws-regular', 1, 1)",

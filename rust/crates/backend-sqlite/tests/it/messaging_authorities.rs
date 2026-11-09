@@ -193,8 +193,29 @@ async fn seed(db: &mut SqliteConnection, scoped: Option<&str>) {
         (PEER, "peer", USER, "agent"),
         (HIDDEN, "hidden", OTHER_USER, "agent"),
     ] {
-        sqlx::query("INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, display_name, created_by_user_id, materialization_status, session_scope) VALUES (?, ?, 'codex', 'host-1', 0, 0, ?, ?, 'active', ?)")
-            .bind(id).bind(name).bind(name).bind(creator).bind(if scoped == Some(id) { "conversation" } else { scope }).execute(&mut *db).await.unwrap();
+        sqlx::query(seed_agent!(
+            id = ?,
+            name = ?,
+            runtime = "codex",
+            host_id = "host-1",
+            created_at = 0,
+            updated_at = 0,
+            display_name = ?,
+            created_by_user_id = ?,
+            session_scope = ?,
+        ))
+        .bind(id)
+        .bind(name)
+        .bind(name)
+        .bind(creator)
+        .bind(if scoped == Some(id) {
+            "conversation"
+        } else {
+            scope
+        })
+        .execute(&mut *db)
+        .await
+        .unwrap();
     }
     sqlx::query("INSERT INTO workspaces (id, name, name_key, owner_user_id, created_at, updated_at) VALUES (?, 'Product Space', 'product space', ?, 0, 0)")
         .bind(WORKSPACE).bind(USER).execute(&mut *db).await.unwrap();
@@ -210,8 +231,20 @@ async fn seed(db: &mut SqliteConnection, scoped: Option<&str>) {
         .await
         .unwrap();
     }
-    sqlx::query("INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, visibility, created_at, updated_at, latest_message_seq) VALUES (?, ?, 'workspace', 'open', 'General Chat', 'general chat', 'private', 0, 0, 1)")
-        .bind(CHANNEL).bind(WORKSPACE).execute(&mut *db).await.unwrap();
+    sqlx::query(seed_channel!(
+        id = ?,
+        workspace_id = ?,
+        title = "General Chat",
+        title_key = "general chat",
+        created_at = 0,
+        updated_at = 0,
+        latest_message_seq = 1,
+    ))
+    .bind(CHANNEL)
+    .bind(WORKSPACE)
+    .execute(&mut *db)
+    .await
+    .unwrap();
     sqlx::query(
         "INSERT INTO conversation_users (conversation_id, user_id, joined_at) VALUES (?, ?, 0)",
     )
@@ -511,11 +544,14 @@ async fn named_resolution_refuses_an_ambiguous_root_before_looking_at_titles() {
 #[tokio::test]
 async fn store_derived_conversation_ids_must_be_addressable() {
     let mut named = Fixture::new().await;
-    sqlx::query(
-        "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-         title_key, visibility, created_at, updated_at) VALUES \
-         ('bad/id', ?, 'workspace', 'open', 'Broken', 'broken', 'private', 0, 0)",
-    )
+    sqlx::query(seed_channel!(
+        id = "bad/id",
+        workspace_id = ?,
+        title = "Broken",
+        title_key = "broken",
+        created_at = 0,
+        updated_at = 0,
+    ))
     .bind(WORKSPACE)
     .execute(&mut named.db)
     .await
@@ -544,11 +580,15 @@ async fn store_derived_conversation_ids_must_be_addressable() {
     assert!(format_source_chain(&error).contains("conversations.id"));
 
     let mut pair = Fixture::new().await;
-    sqlx::query(
-        "INSERT INTO conversations (id, placement_kind, roster_policy, endpoint_a_kind, \
-         endpoint_a_id, endpoint_b_kind, endpoint_b_id, title, visibility, created_at, \
-         updated_at) VALUES ('bad/id', 'direct_pair', 'fixed', 'agent', ?, 'agent', ?, '', 'private', 0, 0)",
-    )
+    sqlx::query(seed_direct_pair!(
+        id = "bad/id",
+        endpoint_a_kind = "agent",
+        endpoint_a_id = ?,
+        endpoint_b_kind = "agent",
+        endpoint_b_id = ?,
+        created_at = 0,
+        updated_at = 0,
+    ))
     .bind(AGENT)
     .bind(PEER)
     .execute(&mut pair.db)
@@ -744,12 +784,15 @@ async fn a_deleting_but_present_direct_pair_endpoint_remains_addressable_until_d
 
     const PAIR: &str = "pair000000000001";
     let mut fixture = Fixture::new().await;
-    sqlx::query(
-        "INSERT INTO conversations (id, placement_kind, roster_policy, endpoint_a_kind, \
-         endpoint_a_id, endpoint_b_kind, endpoint_b_id, title, visibility, created_at, \
-         updated_at) VALUES (?, 'direct_pair', 'fixed', 'agent', ?, 'human', ?, '', \
-         'private', 0, 0)",
-    )
+    sqlx::query(seed_direct_pair!(
+        id = ?,
+        endpoint_a_kind = "agent",
+        endpoint_a_id = ?,
+        endpoint_b_kind = "human",
+        endpoint_b_id = ?,
+        created_at = 0,
+        updated_at = 0,
+    ))
     .bind(PAIR)
     .bind(PEER)
     .bind(USER)
@@ -1022,8 +1065,19 @@ async fn readable_task_workspaces_folds_a_mixed_set_in_one_read() {
 async fn agent_participating_conversations_folds_a_mixed_set_in_one_read() {
     let mut fixture = Fixture::new().await;
     // A second workspace channel AGENT is NOT rostered into.
-    sqlx::query("INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, visibility, created_at, updated_at, latest_message_seq) VALUES ('chan-2', ?, 'workspace', 'open', 'Other', 'other', 'private', 0, 0, 1)")
-        .bind(WORKSPACE).execute(&mut fixture.db).await.unwrap();
+    sqlx::query(seed_channel!(
+        id = "chan-2",
+        workspace_id = ?,
+        title = "Other",
+        title_key = "other",
+        created_at = 0,
+        updated_at = 0,
+        latest_message_seq = 1,
+    ))
+    .bind(WORKSPACE)
+    .execute(&mut fixture.db)
+    .await
+    .unwrap();
     let mut store = fixture.store().await;
 
     let participating = store
@@ -1216,12 +1270,15 @@ async fn frame_conversation_resolves_a_workspace_board_from_its_placement() {
 async fn frame_conversation_resolves_a_pair_board_and_denies_the_unknown() {
     let mut fixture = Fixture::new().await;
     const PAIR: &str = "pair000000000009";
-    sqlx::query(
-        "INSERT INTO conversations (id, placement_kind, roster_policy, endpoint_a_kind, \
-         endpoint_a_id, endpoint_b_kind, endpoint_b_id, title, visibility, created_at, \
-         updated_at) VALUES (?, 'direct_pair', 'fixed', 'agent', ?, 'human', ?, '', \
-         'private', 0, 0)",
-    )
+    sqlx::query(seed_direct_pair!(
+        id = ?,
+        endpoint_a_kind = "agent",
+        endpoint_a_id = ?,
+        endpoint_b_kind = "human",
+        endpoint_b_id = ?,
+        created_at = 0,
+        updated_at = 0,
+    ))
     .bind(PAIR)
     .bind(AGENT)
     .bind(USER)
@@ -1395,11 +1452,15 @@ async fn readable_boards_unions_member_workspaces_owner_home_and_endpoint_pairs(
     // A direct pair AGENT is an endpoint of, and one it is NOT (PEER↔USER) — the second
     // proves the endpoint predicate, not "every pair".
     for (id, a_kind, a_id) in [("conv-pair", "agent", AGENT), ("conv-other", "agent", PEER)] {
-        sqlx::query(
-            "INSERT INTO conversations (id, placement_kind, roster_policy, title, \
-             endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, created_at, \
-             updated_at) VALUES (?, 'direct_pair', 'fixed', '', ?, ?, 'human', ?, 0, 0)",
-        )
+        sqlx::query(seed_direct_pair!(
+            id = ?,
+            endpoint_a_kind = ?,
+            endpoint_a_id = ?,
+            endpoint_b_kind = "human",
+            endpoint_b_id = ?,
+            created_at = 0,
+            updated_at = 0,
+        ))
         .bind(id)
         .bind(a_kind)
         .bind(a_id)
@@ -1482,8 +1543,20 @@ async fn historical_pair_remains_resolvable_for_reads_but_loses_send_capability(
     let mut fixture = Fixture::with_conversation_agent(Some(PEER)).await;
     let store = fixture.store().await;
     let target = store.target_address(Opened::default(), Refusals::default());
-    sqlx::query("INSERT INTO conversations (id, placement_kind, roster_policy, endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, title, created_at, updated_at) VALUES ('pair000000000001', 'direct_pair', 'fixed', 'agent', ?, 'agent', ?, '', 0, 0)")
-        .bind(AGENT).bind(PEER).execute(&mut fixture.db).await.unwrap();
+    sqlx::query(seed_direct_pair!(
+        id = "pair000000000001",
+        endpoint_a_kind = "agent",
+        endpoint_a_id = ?,
+        endpoint_b_kind = "agent",
+        endpoint_b_id = ?,
+        created_at = 0,
+        updated_at = 0,
+    ))
+    .bind(AGENT)
+    .bind(PEER)
+    .execute(&mut fixture.db)
+    .await
+    .unwrap();
     let read = target
         .resolve(
             &agent(),

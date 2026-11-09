@@ -31,9 +31,16 @@ const CREATOR: &str = "INSERT INTO users (id, name, display_name, created_at, up
      VALUES ('u-creator', 'creator', 'Creator', 1000, 1000)";
 const HOST_H1: &str =
     "INSERT INTO hosts (id, name, kind, created_at) VALUES ('h1', 'host-one', 'desktop', 1000)";
-const AGENT_WITH_STAMP: &str = "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, \
-     created_by_user_id, materialization_status, last_activity_at) \
-     VALUES ('a1', 'agent-one', 'qoder', 'h1', 1000, 1000, 'u-creator', 'active', ?)";
+const AGENT_WITH_STAMP: &str = seed_agent!(
+    id = "a1",
+    name = "agent-one",
+    runtime = "qoder",
+    host_id = "h1",
+    created_at = 1000,
+    updated_at = 1000,
+    created_by_user_id = "u-creator",
+    last_activity_at = ?,
+);
 
 /// The database file name inside the temp dir, shared so an in-place updater can reopen
 /// the exact file the adapter holds open.

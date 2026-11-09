@@ -52,8 +52,14 @@ async fn seed(path: &std::path::Path) {
         "INSERT INTO workspaces(id,name,name_key,created_at,updated_at) VALUES \
          ('w','Observe','observe-w',1,1),('wrong-copy','Wrong','wrong-copy',1,1)",
         "INSERT INTO workspace_users(workspace_id,user_id,joined_at) VALUES('w','u',1)",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,created_at,updated_at,latest_message_seq) VALUES \
-         ('c','w','workspace','fixed','General','general-observe',1,1,3)",
+        seed_channel!(
+            id = "c",
+            workspace_id = "w",
+            roster_policy = "fixed",
+            title = "General",
+            title_key = "general-observe",
+            latest_message_seq = 3,
+        ),
         "INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('c','u',1)",
         "INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,seq,created_at) VALUES \
          ('m1','c','user','other','one',1,1),('root','c','user','other','root',2,2),\
@@ -65,9 +71,16 @@ async fn seed(path: &std::path::Path) {
          ('n1','mention_self','u','w','c','m1','{}',1),\
          ('n2','mention_self','u','wrong-copy','c','reply','{}',2),\
          ('foreign','mention_self','other','w','c','m1','{}',3)",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,\
-         created_at,updated_at,latest_message_seq,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id) VALUES \
-         ('pair',NULL,'direct_pair','fixed','',NULL,2,2,1,'human','other','human','u')",
+        seed_direct_pair!(
+            id = "pair",
+            created_at = 2,
+            updated_at = 2,
+            latest_message_seq = 1,
+            endpoint_a_kind = "human",
+            endpoint_a_id = "other",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "u",
+        ),
         "INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,seq,created_at) VALUES \
          ('pair-m','pair','user','other','pair',1,1)",
         "INSERT INTO conversation_stream_heads(conversation_id,thread_root_id,latest_seq) VALUES('pair',NULL,1)",

@@ -1,5 +1,10 @@
 //! Inspect the adapter's executed SQL, not a second hand-written query.
 //! This binary owns one global subscriber so SQLite worker events are captured.
+
+#[macro_use]
+#[path = "../../backend-sqlite/tests/support/seed_rows.rs"]
+mod seed_rows;
+
 use silverhand_backend_core::{
     foundation::identity::{AgentId, Principal, UserId},
     identity_access::profile_message_counts::{MessageCountYear, ProfileMessageCountRead},
@@ -50,11 +55,18 @@ async fn million_row_adapter_uses_bounded_day_ranges_and_indexed_earliest_lookup
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("scale.sqlite");
     let mut db = current_schema::create_current_schema(&path).await;
-    db.execute(sqlx::raw_sql("INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES('u','user','User',1,1),('v','viewer','Viewer',1,1);
-    INSERT INTO conversations(id,placement_kind,roster_policy,title,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,created_at,updated_at) VALUES('private','direct_pair','fixed','','human','u','human','v',1,1);
-    WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<1000000)
-    INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,seq,created_at)
-    SELECT 'm'||x,'private','user',CASE WHEN x%100=0 THEN 'u' ELSE 'v' END,'',x,1672502400000+(x%1096)*86400000 FROM n;" )).await.unwrap();
+    db.execute(sqlx::raw_sql(concat!(
+                                 "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES('u','user','User',1,1),('v','viewer','Viewer',1,1); ",
+                                 seed_direct_pair!(
+                                     id = "private",
+                                     endpoint_a_kind = "human",
+                                     endpoint_a_id = "u",
+                                     endpoint_b_kind = "human",
+                                     endpoint_b_id = "v",
+                                 ),
+                                 "; ",
+                                 "WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<1000000) INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,seq,created_at) SELECT 'm'||x,'private','user',CASE WHEN x%100=0 THEN 'u' ELSE 'v' END,'',x,1672502400000+(x%1096)*86400000 FROM n; ",
+                             ) )).await.unwrap();
     let year = MessageCountYear::new(2024).unwrap();
     let store = MessagingStore::open(&path).await.unwrap();
     for subject in [

@@ -55,23 +55,27 @@ const CURRENT_SCHEMA: &str =
 // user-1 owns ws-1, user-2 is its admin, user-3 a member, user-9 a stranger. ws-2
 // holds the fold key `taken` for the collision case; ws-home is an agent-home
 // workspace that must read as NoSuchWorkspace through the regular door.
-const SEED_SQL: &str = "\
-INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-1', 'owner', 'Owner', 1, 1); \
-INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-2', 'admin', 'Admin', 1, 1); \
-INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-3', 'member', 'Member', 1, 1); \
-INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-9', 'stranger', 'Stranger', 1, 1); \
-INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-1', 'Host', 'local', 1); \
-INSERT INTO agents (id, name, display_name, runtime, host_id, created_by_user_id, created_at, updated_at) \
-  VALUES ('agent-1', 'alice', 'Alice', 'claude', 'host-1', 'user-1', 1, 1); \
-INSERT INTO workspaces (id, name, name_key, description, owner_agent_id, owner_user_id, archived_at, created_at, updated_at) \
-  VALUES ('ws-1', 'Original', 'original', 'first', NULL, 'user-1', NULL, 10, 100); \
-INSERT INTO workspaces (id, name, name_key, description, owner_agent_id, owner_user_id, archived_at, created_at, updated_at) \
-  VALUES ('ws-2', 'Taken', 'taken', NULL, NULL, 'user-1', NULL, 10, 100); \
-INSERT INTO workspaces (id, name, name_key, description, owner_agent_id, owner_user_id, archived_at, created_at, updated_at) \
-  VALUES ('ws-home', 'Agent Home', NULL, NULL, 'agent-1', NULL, NULL, 10, 100); \
-INSERT INTO workspace_users (workspace_id, user_id, joined_at, role) VALUES ('ws-1', 'user-1', 1, 'owner'); \
-INSERT INTO workspace_users (workspace_id, user_id, joined_at, role) VALUES ('ws-1', 'user-2', 1, 'admin'); \
-INSERT INTO workspace_users (workspace_id, user_id, joined_at, role) VALUES ('ws-1', 'user-3', 1, 'member');";
+const SEED_SQL: &str = concat!(
+    "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-1', 'owner', 'Owner', 1, 1); ",
+    "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-2', 'admin', 'Admin', 1, 1); ",
+    "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-3', 'member', 'Member', 1, 1); ",
+    "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-9', 'stranger', 'Stranger', 1, 1); ",
+    "INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-1', 'Host', 'local', 1); ",
+    seed_agent!(
+        id = "agent-1",
+        name = "alice",
+        display_name = "Alice",
+        host_id = "host-1",
+        created_by_user_id = "user-1",
+    ),
+    "; ",
+    "INSERT INTO workspaces (id, name, name_key, description, owner_agent_id, owner_user_id, archived_at, created_at, updated_at) VALUES ('ws-1', 'Original', 'original', 'first', NULL, 'user-1', NULL, 10, 100); ",
+    "INSERT INTO workspaces (id, name, name_key, description, owner_agent_id, owner_user_id, archived_at, created_at, updated_at) VALUES ('ws-2', 'Taken', 'taken', NULL, NULL, 'user-1', NULL, 10, 100); ",
+    "INSERT INTO workspaces (id, name, name_key, description, owner_agent_id, owner_user_id, archived_at, created_at, updated_at) VALUES ('ws-home', 'Agent Home', NULL, NULL, 'agent-1', NULL, NULL, 10, 100); ",
+    "INSERT INTO workspace_users (workspace_id, user_id, joined_at, role) VALUES ('ws-1', 'user-1', 1, 'owner'); ",
+    "INSERT INTO workspace_users (workspace_id, user_id, joined_at, role) VALUES ('ws-1', 'user-2', 1, 'admin'); ",
+    "INSERT INTO workspace_users (workspace_id, user_id, joined_at, role) VALUES ('ws-1', 'user-3', 1, 'member'); ",
+);
 
 /// A stand-in adapter error, opaque like the production ones.
 #[derive(Debug)]

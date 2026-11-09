@@ -553,24 +553,57 @@ mod tests {
 
     // ws with channel `chan` (agent-a member+cap, agent-c member no-cap, agent-x
     // nonmember); messages: m1 "straße rules" (fold hit for SS), m2 "plain".
-    const SEED: &str = "\
-INSERT INTO users (id,name,display_name,created_at,updated_at) VALUES ('u1','u','U',1,1); \
-INSERT INTO hosts (id,name,kind,created_at) VALUES ('h1','H','local',1); \
-INSERT INTO agents (id,name,display_name,runtime,host_id,created_by_user_id,created_at,updated_at,session_scope) VALUES ('agent-a','alice','Alice','claude','h1','u1',1,1,'conversation'); \
-INSERT INTO agents (id,name,display_name,runtime,host_id,created_by_user_id,created_at,updated_at,session_scope) VALUES ('agent-c','dave','Dave','codex','h1','u1',1,1,'conversation'); \
-INSERT INTO agents (id,name,display_name,runtime,host_id,created_by_user_id,created_at,updated_at,session_scope) VALUES ('agent-x','carol','Carol','codex','h1','u1',1,1,'conversation'); \
-INSERT INTO agents (id,name,display_name,runtime,host_id,created_by_user_id,created_at,updated_at,session_scope) VALUES ('agent-y','erin','Erin','codex','h1','u1',1,1,'conversation'); \
-INSERT INTO workspaces (id,name,name_key,owner_agent_id,created_at,updated_at) VALUES ('ws','Team','team',NULL,1,1); \
-INSERT INTO workspace_members (workspace_id,agent_id,joined_at) VALUES ('ws','agent-a',1); \
-INSERT INTO workspace_members (workspace_id,agent_id,joined_at) VALUES ('ws','agent-c',1); \
-INSERT INTO workspace_members (workspace_id,agent_id,joined_at) VALUES ('ws','agent-y',1); \
-INSERT INTO workspace_agent_capabilities (workspace_id,agent_id,capability) VALUES ('ws','agent-a','read_messages'); \
-INSERT INTO workspace_agent_capabilities (workspace_id,agent_id,capability) VALUES ('ws','agent-y','read_messages'); \
-INSERT INTO conversations (id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES ('chan','ws','workspace','open','Chan','chan','private',1,1); \
-INSERT INTO conversation_agents (conversation_id,agent_id,joined_at) VALUES ('chan','agent-a',1); \
-INSERT INTO conversation_agents (conversation_id,agent_id,joined_at) VALUES ('chan','agent-c',1); \
-INSERT INTO messages (id,conversation_id,from_kind,from_agent_id,content,seq,created_at,author_id,author_name,author_display_name) VALUES ('m1','chan','agent','agent-a','the straße rules',1,10,'agent-a','alice','Alice'); \
-INSERT INTO messages (id,conversation_id,from_kind,from_agent_id,content,seq,created_at,author_id,author_name,author_display_name) VALUES ('m2','chan','agent','agent-a','plain text',2,20,'agent-a','alice','Alice');";
+    const SEED: &str = concat!(
+        "INSERT INTO users (id,name,display_name,created_at,updated_at) VALUES ('u1','u','U',1,1); ",
+        "INSERT INTO hosts (id,name,kind,created_at) VALUES ('h1','H','local',1); ",
+        seed_agent!(
+            id = "agent-a",
+            name = "alice",
+            display_name = "Alice",
+            host_id = "h1",
+            created_by_user_id = "u1",
+        ),
+        "; ",
+        seed_agent!(
+            id = "agent-c",
+            name = "dave",
+            display_name = "Dave",
+            runtime = "codex",
+            host_id = "h1",
+            created_by_user_id = "u1",
+        ),
+        "; ",
+        seed_agent!(
+            id = "agent-x",
+            name = "carol",
+            display_name = "Carol",
+            runtime = "codex",
+            host_id = "h1",
+            created_by_user_id = "u1",
+        ),
+        "; ",
+        seed_agent!(
+            id = "agent-y",
+            name = "erin",
+            display_name = "Erin",
+            runtime = "codex",
+            host_id = "h1",
+            created_by_user_id = "u1",
+        ),
+        "; ",
+        "INSERT INTO workspaces (id,name,name_key,owner_agent_id,created_at,updated_at) VALUES ('ws','Team','team',NULL,1,1); ",
+        "INSERT INTO workspace_members (workspace_id,agent_id,joined_at) VALUES ('ws','agent-a',1); ",
+        "INSERT INTO workspace_members (workspace_id,agent_id,joined_at) VALUES ('ws','agent-c',1); ",
+        "INSERT INTO workspace_members (workspace_id,agent_id,joined_at) VALUES ('ws','agent-y',1); ",
+        "INSERT INTO workspace_agent_capabilities (workspace_id,agent_id,capability) VALUES ('ws','agent-a','read_messages'); ",
+        "INSERT INTO workspace_agent_capabilities (workspace_id,agent_id,capability) VALUES ('ws','agent-y','read_messages'); ",
+        seed_channel!(id = "chan", workspace_id = "ws", title = "Chan"),
+        "; ",
+        "INSERT INTO conversation_agents (conversation_id,agent_id,joined_at) VALUES ('chan','agent-a',1); ",
+        "INSERT INTO conversation_agents (conversation_id,agent_id,joined_at) VALUES ('chan','agent-c',1); ",
+        "INSERT INTO messages (id,conversation_id,from_kind,from_agent_id,content,seq,created_at,author_id,author_name,author_display_name) VALUES ('m1','chan','agent','agent-a','the straße rules',1,10,'agent-a','alice','Alice'); ",
+        "INSERT INTO messages (id,conversation_id,from_kind,from_agent_id,content,seq,created_at,author_id,author_name,author_display_name) VALUES ('m2','chan','agent','agent-a','plain text',2,20,'agent-a','alice','Alice'); ",
+    );
 
     async fn seeded() -> (tempfile::TempDir, SqliteAgentSearch) {
         let dir = tempfile::tempdir().unwrap();
@@ -982,8 +1015,15 @@ INSERT INTO messages (id,conversation_id,from_kind,from_agent_id,content,seq,cre
             .await
             .unwrap();
         // A second channel agent-a can read.
-        sqlx::query("INSERT INTO conversations (id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES ('chan2','ws','workspace','open','C2','c2','private',1,1)")
-            .execute(&pool).await.unwrap();
+        sqlx::query(seed_channel!(
+            id = "chan2",
+            workspace_id = "ws",
+            title = "C2",
+            title_key = "c2",
+        ))
+        .execute(&pool)
+        .await
+        .unwrap();
         sqlx::query("INSERT INTO conversation_agents (conversation_id,agent_id,joined_at) VALUES ('chan2','agent-a',1)")
             .execute(&pool).await.unwrap();
         // chan2 gets EXACTLY 256 fillers (seq 1..=256, created_at=500), filling the
@@ -1008,8 +1048,15 @@ INSERT INTO messages (id,conversation_id,from_kind,from_agent_id,content,seq,cre
         // boundary. An (created_at, seq)-only cursor advancing past (500,1) at the
         // boundary emits `< (500,1)` and SKIPS this tied match; the (created_at, seq,
         // id) keyset emits `< (500,1,hi-000001)` and still returns it.
-        sqlx::query("INSERT INTO conversations (id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES ('chan3','ws','workspace','open','C3','c3','private',1,1)")
-            .execute(&pool).await.unwrap();
+        sqlx::query(seed_channel!(
+            id = "chan3",
+            workspace_id = "ws",
+            title = "C3",
+            title_key = "c3",
+        ))
+        .execute(&pool)
+        .await
+        .unwrap();
         sqlx::query("INSERT INTO conversation_agents (conversation_id,agent_id,joined_at) VALUES ('chan3','agent-a',1)")
             .execute(&pool).await.unwrap();
         sqlx::query(

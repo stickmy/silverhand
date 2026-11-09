@@ -265,12 +265,34 @@ mod tests {
         for statement in [
             "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES('viewer','runtime-wire-viewer','Viewer',1,1)",
             "INSERT INTO hosts(id,name,kind,created_at) VALUES('h','Host','local',1)",
-            "INSERT INTO agents(id,name,runtime,host_id,created_by_user_id,created_at,updated_at,display_name,session_scope) VALUES \
-             ('a-conversation','runtime-wire-conversation','codex','h','viewer',1,1,'Conversation','conversation'),\
-             ('z-global','runtime-wire-global','codex','h','viewer',1,1,'Global','agent')",
+            concat!(
+                seed_agent!(
+                    id = "a-conversation",
+                    name = "runtime-wire-conversation",
+                    runtime = "codex",
+                    host_id = "h",
+                    created_by_user_id = "viewer",
+                    display_name = "Conversation",
+                ),
+                "; ",
+                seed_agent!(
+                    id = "z-global",
+                    name = "runtime-wire-global",
+                    runtime = "codex",
+                    host_id = "h",
+                    created_by_user_id = "viewer",
+                    display_name = "Global",
+                    session_scope = "agent",
+                ),
+            ),
             "INSERT INTO workspaces(id,name,name_key,created_at,updated_at) VALUES('w','Workspace','runtime-wire-workspace',1,1)",
             "INSERT INTO workspace_users(workspace_id,user_id,joined_at) VALUES('w','viewer',1)",
-            "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES('c','w','workspace','open','Runtime','runtime','private',1,1)",
+            seed_channel!(
+                id = "c",
+                workspace_id = "w",
+                title = "Runtime",
+                title_key = "runtime",
+            ),
             "INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('c','viewer',1)",
             "INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES('c','z-global',1),('c','a-conversation',1)",
             "UPDATE agent_runtime_slots SET observed_status='active',observed_pid=12,cli_session_id='conversation-cli' WHERE agent_id='a-conversation' AND conversation_id='c'",

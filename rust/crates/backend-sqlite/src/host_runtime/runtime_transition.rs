@@ -462,21 +462,22 @@ mod tests {
     const HOST: &str =
         "INSERT INTO hosts (id, name, kind, created_at) VALUES ('h1', 'h1', 'local', 1)";
     /// Active, runtime `claude`, no lock and no tuning columns set, mtime at 1.
-    const ACTIVE_A1: &str = "INSERT INTO agents \
-         (id, name, runtime, host_id, created_by_user_id, created_at, updated_at, \
-          materialization_status, session_scope) \
-         VALUES ('a1', 'a1', 'claude', 'h1', 'u1', 1, 1, 'active', 'conversation')";
+    const ACTIVE_A1: &str = seed_agent!(id = "a1", host_id = "h1", created_by_user_id = "u1");
     /// Active but a transition to `codex` already holds the lock.
-    const TRANSITION_A1: &str = "INSERT INTO agents \
-         (id, name, runtime, host_id, created_by_user_id, created_at, updated_at, \
-          materialization_status, session_scope, \
-          runtime_transition_target, runtime_transition_started_at) \
-         VALUES ('a1', 'a1', 'claude', 'h1', 'u1', 1, 1, 'active', 'conversation', 'codex', 1)";
+    const TRANSITION_A1: &str = seed_agent!(
+        id = "a1",
+        host_id = "h1",
+        created_by_user_id = "u1",
+        runtime_transition_target = "codex",
+        runtime_transition_started_at = 1,
+    );
     /// Active but a deletion marker holds the row.
-    const DELETING_A1: &str = "INSERT INTO agents \
-         (id, name, runtime, host_id, created_by_user_id, created_at, updated_at, \
-          materialization_status, session_scope, deletion_started_at) \
-         VALUES ('a1', 'a1', 'claude', 'h1', 'u1', 1, 1, 'active', 'conversation', 7)";
+    const DELETING_A1: &str = seed_agent!(
+        id = "a1",
+        host_id = "h1",
+        created_by_user_id = "u1",
+        deletion_started_at = 7,
+    );
 
     async fn lock_columns(store: &SqliteHostAgentStore) -> (Option<String>, Option<i64>) {
         let row = sqlx::query(
@@ -729,11 +730,14 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         // Seed a row whose tuning columns are already set, to prove `complete` overwrites
         // them with NULLs rather than leaving the previous values.
-        let seeded = "INSERT INTO agents \
-             (id, name, runtime, host_id, created_by_user_id, created_at, updated_at, \
-              materialization_status, session_scope, model, reasoning_effort, fast_mode) \
-             VALUES ('a1', 'a1', 'claude', 'h1', 'u1', 1, 1, 'active', 'conversation', \
-                     'old', 'low', 1)";
+        let seeded = seed_agent!(
+            id = "a1",
+            host_id = "h1",
+            created_by_user_id = "u1",
+            model = "old",
+            reasoning_effort = "low",
+            fast_mode = 1,
+        );
         let path = seed_schema(&dir, "complete-null.db", &[USER, HOST, seeded]).await;
         let store = SqliteHostAgentStore::open(&path).await.unwrap();
 

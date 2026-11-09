@@ -1098,10 +1098,35 @@ mod tests {
             .execute("INSERT INTO hosts(id,name,kind,created_at) VALUES('host','host','local',1)")
             .await
             .unwrap();
-        connection.execute("INSERT INTO agents(id,name,runtime,host_id,created_at,updated_at,created_by_user_id,display_name,session_scope) VALUES('agent','agent','codex','host',1,1,'member','Agent','conversation')").await.unwrap();
+        connection
+            .execute(seed_agent!(
+                id = "agent",
+                runtime = "codex",
+                host_id = "host",
+                created_by_user_id = "member",
+                display_name = "Agent",
+            ))
+            .await
+            .unwrap();
         connection.execute("INSERT INTO workspaces(id,name,name_key,created_at,updated_at,owner_user_id) VALUES('workspace','Workspace','workspace',1,1,'owner')").await.unwrap();
         connection.execute("INSERT INTO workspace_users(workspace_id,user_id,joined_at,role) VALUES('workspace','owner',1,'owner'),('workspace','member',2,'member')").await.unwrap();
-        connection.execute("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,created_at,updated_at,visibility) VALUES('public','workspace','workspace','open','Public','public',1,1,'public'),('private','workspace','workspace','open','Private','private',1,1,'private')").await.unwrap();
+        connection
+            .execute(concat!(
+                seed_channel!(
+                    id = "public",
+                    workspace_id = "workspace",
+                    title = "Public",
+                    visibility = "public",
+                ),
+                "; ",
+                seed_channel!(
+                    id = "private",
+                    workspace_id = "workspace",
+                    title = "Private",
+                ),
+            ))
+            .await
+            .unwrap();
         connection.execute("INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('public','owner',1),('private','member',1)").await.unwrap();
         connection.close().await.unwrap();
         (dir, path)
@@ -1272,7 +1297,17 @@ mod tests {
             .await
             .unwrap();
         db.execute("INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES('same-human','same','Same Human',1,1)").await.unwrap();
-        db.execute("INSERT INTO agents(id,name,runtime,host_id,created_at,updated_at,created_by_user_id,display_name,session_scope) VALUES('same-agent','same','codex','host',1,1,'member','Same Agent','agent')").await.unwrap();
+        db.execute(seed_agent!(
+            id = "same-agent",
+            name = "same",
+            runtime = "codex",
+            host_id = "host",
+            created_by_user_id = "member",
+            display_name = "Same Agent",
+            session_scope = "agent",
+        ))
+        .await
+        .unwrap();
         db.execute("INSERT INTO workspace_members(workspace_id,agent_id,joined_at) VALUES('workspace','same-agent',1)").await.unwrap();
         db.execute("INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('public','member',2)").await.unwrap();
         db.close().await.unwrap();
@@ -1326,7 +1361,16 @@ mod tests {
             .await
             .unwrap();
         db.execute("INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES('outside','outside','Outside',1,1)").await.unwrap();
-        db.execute("INSERT INTO agents(id,name,runtime,host_id,created_at,updated_at,created_by_user_id,display_name,session_scope) VALUES('peer','peer','codex','host',1,1,'owner','Peer','agent')").await.unwrap();
+        db.execute(seed_agent!(
+            id = "peer",
+            runtime = "codex",
+            host_id = "host",
+            created_by_user_id = "owner",
+            display_name = "Peer",
+            session_scope = "agent",
+        ))
+        .await
+        .unwrap();
         db.execute("INSERT INTO workspace_members(workspace_id,agent_id,joined_at) VALUES('workspace','agent',1),('workspace','peer',2)").await.unwrap();
         db.execute("INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES('public','agent',1)").await.unwrap();
         db.close().await.unwrap();
@@ -1380,7 +1424,15 @@ mod tests {
         let mut db = SqliteConnection::connect_with(&SqliteConnectOptions::new().filename(&path))
             .await
             .unwrap();
-        db.execute("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,created_at,updated_at,visibility) VALUES('fixed',NULL,'direct_pair','fixed','agent','agent','human','member','',1,1,'private')").await.unwrap();
+        db.execute(seed_direct_pair!(
+            id = "fixed",
+            endpoint_a_kind = "agent",
+            endpoint_a_id = "agent",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "member",
+        ))
+        .await
+        .unwrap();
         db.close().await.unwrap();
         let store = MessagingStore::open(&path).await.unwrap();
 

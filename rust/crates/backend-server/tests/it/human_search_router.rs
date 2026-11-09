@@ -33,19 +33,31 @@ async fn seed(path: &std::path::Path) {
         "INSERT INTO hosts(id,name,kind,created_at) VALUES('h','host','local',1)",
         "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES \
          ('local','local','Local',1,1),('gone','gone','Gone',1,1)",
-        "INSERT INTO agents(id,name,runtime,host_id,created_by_user_id,created_at,updated_at,display_name) \
-         VALUES('pair-agent','pair-agent','codex','h','local',1,1,'Pair Agent')",
+        seed_agent!(
+            id = "pair-agent",
+            runtime = "codex",
+            host_id = "h",
+            created_by_user_id = "local",
+            display_name = "Pair Agent",
+        ),
         "INSERT INTO workspaces(id,name,name_key,description,created_at,updated_at) \
          VALUES('w','cap-needle workspace','cap-needle-workspace','cap discovery',1,2)",
         "INSERT OR IGNORE INTO workspace_users(workspace_id,user_id,joined_at,role) \
          VALUES('w','local',1,'member')",
-        "INSERT INTO conversations( \
-         id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at \
-         ) VALUES('c','w','workspace','open','Cap-Needle Channel','cap-needle-channel','private',1,2)",
-        "INSERT INTO conversations( \
-         id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id, \
-         title,visibility,created_at,updated_at \
-         ) VALUES('pair','direct_pair','fixed','agent','pair-agent','human','local','','private',1,1)",
+        seed_channel!(
+            id = "c",
+            workspace_id = "w",
+            title = "Cap-Needle Channel",
+            title_key = "cap-needle-channel",
+            updated_at = 2,
+        ),
+        seed_direct_pair!(
+            id = "pair",
+            endpoint_a_kind = "agent",
+            endpoint_a_id = "pair-agent",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "local",
+        ),
         "INSERT OR IGNORE INTO conversation_users(conversation_id,user_id,joined_at) \
          VALUES('c','local',1)",
         "INSERT INTO messages(id,conversation_id,from_kind,content,seq,created_at) VALUES \
@@ -173,9 +185,13 @@ async fn seed_identity_discovery(db: &mut SqliteConnection) {
         seed_discovery_agent(db, id, id, &format!("Discover {id}"), creator, stage, scope).await;
     }
     for statement in [
-        "INSERT INTO conversations(id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,\
-         endpoint_b_kind,endpoint_b_id,title,visibility,created_at,updated_at) \
-         VALUES('other-pair','direct_pair','fixed','agent','via-dm','human','local','','private',1,1)",
+        seed_direct_pair!(
+            id = "other-pair",
+            endpoint_a_kind = "agent",
+            endpoint_a_id = "via-dm",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "local",
+        ),
         "INSERT INTO workspace_members(workspace_id,agent_id,joined_at) VALUES('w','via-workspace',1)",
         "INSERT INTO workspaces(id,name,name_key,owner_agent_id,created_at,updated_at) \
          VALUES('space','Space',NULL,'via-space',1,1)",
@@ -194,11 +210,16 @@ async fn seed_discovery_agent(
     stage: &str,
     scope: &str,
 ) {
-    sqlx::query(
-        "INSERT INTO agents(id,name,display_name,runtime,host_id,created_by_user_id,\
-         materialization_status,session_scope,created_at,updated_at) \
-         VALUES(?,?,?,'codex','h',?,?,?,1,1)",
-    )
+    sqlx::query(seed_agent!(
+        id = ?,
+        name = ?,
+        display_name = ?,
+        runtime = "codex",
+        host_id = "h",
+        created_by_user_id = ?,
+        materialization_status = ?,
+        session_scope = ?,
+    ))
     .bind(id)
     .bind(name)
     .bind(display_name)

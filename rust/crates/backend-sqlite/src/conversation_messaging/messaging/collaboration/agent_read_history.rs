@@ -879,23 +879,68 @@ mod tests {
     // read_messages; agent-b is a member WITHOUT read_messages; agent-x is not a
     // member. One message `m1` at seq 1 with agent-a's reaction. Plus a direct_pair
     // `dm` (endpoint agent-a).
-    const SEED: &str = "\
-INSERT INTO users (id,name,display_name,created_at,updated_at) VALUES ('u1','u','U',1,1); \
-INSERT INTO hosts (id,name,kind,created_at) VALUES ('h1','H','local',1); \
-INSERT INTO agents (id,name,display_name,runtime,host_id,created_by_user_id,created_at,updated_at,session_scope) VALUES ('agent-a','alice','Alice','claude','h1','u1',1,1,'conversation'); \
-INSERT INTO agents (id,name,display_name,runtime,host_id,created_by_user_id,created_at,updated_at,session_scope) VALUES ('agent-b','bob','Bob','codex','h1','u1',1,1,'conversation'); \
-INSERT INTO agents (id,name,display_name,runtime,host_id,created_by_user_id,created_at,updated_at,session_scope) VALUES ('agent-x','carol','Carol','codex','h1','u1',1,1,'conversation'); INSERT INTO agents (id,name,display_name,runtime,host_id,created_by_user_id,created_at,updated_at,session_scope) VALUES ('agent-c','dave','Dave','codex','h1','u1',1,1,'conversation'); \
-INSERT INTO workspaces (id,name,name_key,owner_agent_id,created_at,updated_at) VALUES ('ws','Team','team',NULL,1,1); \
-INSERT INTO workspace_members (workspace_id,agent_id,joined_at) VALUES ('ws','agent-a',1); \
-INSERT INTO workspace_members (workspace_id,agent_id,joined_at) VALUES ('ws','agent-b',1); INSERT INTO workspace_members (workspace_id,agent_id,joined_at) VALUES ('ws','agent-c',1); \
-INSERT INTO workspace_agent_capabilities (workspace_id,agent_id,capability) VALUES ('ws','agent-a','read_messages'); INSERT INTO workspace_agent_capabilities (workspace_id,agent_id,capability) VALUES ('ws','agent-b','read_messages'); \
-INSERT INTO conversations (id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES ('chan','ws','workspace','open','Chan','chan','private',1,1); \
-INSERT INTO conversation_agents (conversation_id,agent_id,joined_at) VALUES ('chan','agent-a',1); \
-INSERT INTO conversation_agents (conversation_id,agent_id,joined_at) VALUES ('chan','agent-b',1); INSERT INTO conversation_agents (conversation_id,agent_id,joined_at) VALUES ('chan','agent-c',1); \
-INSERT INTO messages (id,conversation_id,from_kind,content,metadata,seq,created_at) VALUES ('m1','chan','agent','hello',NULL,1,10); \
-INSERT INTO message_reactions (id,message_id,reactor_kind,reactor_id,emoji,created_at) VALUES ('r1','m1','agent','agent-a','👍',5); \
-INSERT INTO message_reactions (id,message_id,reactor_kind,reactor_id,emoji,created_at) VALUES ('r2','m1','agent','agent-b','🎉',6); \
-INSERT INTO conversations (id,placement_kind,roster_policy,title,visibility,created_at,updated_at,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id) VALUES ('dm','direct_pair','fixed','DM','private',1,1,'agent','agent-a','human','u1');";
+    const SEED: &str = concat!(
+        "INSERT INTO users (id,name,display_name,created_at,updated_at) VALUES ('u1','u','U',1,1); ",
+        "INSERT INTO hosts (id,name,kind,created_at) VALUES ('h1','H','local',1); ",
+        seed_agent!(
+            id = "agent-a",
+            name = "alice",
+            display_name = "Alice",
+            host_id = "h1",
+            created_by_user_id = "u1",
+        ),
+        "; ",
+        seed_agent!(
+            id = "agent-b",
+            name = "bob",
+            display_name = "Bob",
+            runtime = "codex",
+            host_id = "h1",
+            created_by_user_id = "u1",
+        ),
+        "; ",
+        seed_agent!(
+            id = "agent-x",
+            name = "carol",
+            display_name = "Carol",
+            runtime = "codex",
+            host_id = "h1",
+            created_by_user_id = "u1",
+        ),
+        "; ",
+        seed_agent!(
+            id = "agent-c",
+            name = "dave",
+            display_name = "Dave",
+            runtime = "codex",
+            host_id = "h1",
+            created_by_user_id = "u1",
+        ),
+        "; ",
+        "INSERT INTO workspaces (id,name,name_key,owner_agent_id,created_at,updated_at) VALUES ('ws','Team','team',NULL,1,1); ",
+        "INSERT INTO workspace_members (workspace_id,agent_id,joined_at) VALUES ('ws','agent-a',1); ",
+        "INSERT INTO workspace_members (workspace_id,agent_id,joined_at) VALUES ('ws','agent-b',1); ",
+        "INSERT INTO workspace_members (workspace_id,agent_id,joined_at) VALUES ('ws','agent-c',1); ",
+        "INSERT INTO workspace_agent_capabilities (workspace_id,agent_id,capability) VALUES ('ws','agent-a','read_messages'); ",
+        "INSERT INTO workspace_agent_capabilities (workspace_id,agent_id,capability) VALUES ('ws','agent-b','read_messages'); ",
+        seed_channel!(id = "chan", workspace_id = "ws", title = "Chan"),
+        "; ",
+        "INSERT INTO conversation_agents (conversation_id,agent_id,joined_at) VALUES ('chan','agent-a',1); ",
+        "INSERT INTO conversation_agents (conversation_id,agent_id,joined_at) VALUES ('chan','agent-b',1); ",
+        "INSERT INTO conversation_agents (conversation_id,agent_id,joined_at) VALUES ('chan','agent-c',1); ",
+        "INSERT INTO messages (id,conversation_id,from_kind,content,metadata,seq,created_at) VALUES ('m1','chan','agent','hello',NULL,1,10); ",
+        "INSERT INTO message_reactions (id,message_id,reactor_kind,reactor_id,emoji,created_at) VALUES ('r1','m1','agent','agent-a','👍',5); ",
+        "INSERT INTO message_reactions (id,message_id,reactor_kind,reactor_id,emoji,created_at) VALUES ('r2','m1','agent','agent-b','🎉',6); ",
+        seed_direct_pair!(
+            id = "dm",
+            title = "DM",
+            endpoint_a_kind = "agent",
+            endpoint_a_id = "agent-a",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "u1",
+        ),
+        "; ",
+    );
 
     async fn seeded() -> (tempfile::TempDir, SqliteAgentReadHistory) {
         let dir = tempfile::tempdir().unwrap();

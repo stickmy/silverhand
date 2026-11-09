@@ -256,12 +256,14 @@ async fn seed_runtime_agent(path: &Path, agent_id: &str) {
     .execute(&pool)
     .await
     .unwrap();
-    sqlx::query(
-        "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, \
-         created_by_user_id, materialization_status, session_scope) \
-         VALUES (?, 'registry-probe', 'qoder', 'h-registry-probe', 1, 1, \
-         'user-1', 'active', 'agent')",
-    )
+    sqlx::query(seed_agent!(
+        id = ?,
+        name = "registry-probe",
+        runtime = "qoder",
+        host_id = "h-registry-probe",
+        created_by_user_id = "user-1",
+        session_scope = "agent",
+    ))
     .bind(agent_id)
     .execute(&pool)
     .await
@@ -360,9 +362,7 @@ async fn seed_workspace_conversation(path: &Path) {
         .execute(&pool)
         .await
         .unwrap();
-    sqlx::query(
-            "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, visibility, created_at, updated_at) VALUES (?, ?, 'workspace', 'open', 'General', 'general', 'private', 1, 1)",
-        )
+    sqlx::query(seed_channel!(id = ?, workspace_id = ?, title = "General", title_key = "general"))
         .bind(CONVERSATION_ID)
         .bind(WORKSPACE_ID)
         .execute(&pool)
@@ -394,18 +394,20 @@ async fn seed_channel_directory(path: &Path) {
         .await
         .unwrap();
     sqlx::raw_sql(
-            "INSERT INTO workspaces(id,name,name_key,created_at,updated_at) VALUES \
-               ('workspace0000001','Workspace','workspace',1,1); \
-             INSERT INTO workspace_users(workspace_id,user_id,joined_at,role) VALUES \
-               ('workspace0000001','user-1',1,'owner'); \
-             INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,archived_at,created_at,updated_at) VALUES \
-               ('conv000000000001','workspace0000001','workspace','open','General','general','private',NULL,1,1); \
-             INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES \
-               ('conv000000000001','user-1',1); \
-             INSERT INTO user_list_sort_mode(user_id,list_key,scope,mode,updated_at) VALUES \
-               ('user-1','channels:workspace0000001','','manual',1); \
-             INSERT INTO user_sort_entry(user_id,list_key,entity_id,rank,last_accessed_at,starred_at) VALUES \
-               ('user-1','channels:workspace0000001','conv000000000001',1,4,5);",
+            concat!(
+                "INSERT INTO workspaces(id,name,name_key,created_at,updated_at) VALUES ('workspace0000001','Workspace','workspace',1,1); ",
+                "INSERT INTO workspace_users(workspace_id,user_id,joined_at,role) VALUES ('workspace0000001','user-1',1,'owner'); ",
+                seed_channel!(
+                    id = "conv000000000001",
+                    workspace_id = "workspace0000001",
+                    title = "General",
+                    title_key = "general",
+                ),
+                "; ",
+                "INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES ('conv000000000001','user-1',1); ",
+                "INSERT INTO user_list_sort_mode(user_id,list_key,scope,mode,updated_at) VALUES ('user-1','channels:workspace0000001','','manual',1); ",
+                "INSERT INTO user_sort_entry(user_id,list_key,entity_id,rank,last_accessed_at,starred_at) VALUES ('user-1','channels:workspace0000001','conv000000000001',1,4,5); ",
+            ),
         )
         .execute(&pool)
         .await
@@ -444,18 +446,26 @@ async fn seed_reachable_agents(path: &Path) {
         .execute(&pool)
         .await
         .unwrap();
-    sqlx::query(
-            "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id) VALUES ('a-online', 'agent-online', 'qoder', 'h-online', 1, 1, 'user-1')",
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
-    sqlx::query(
-            "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id) VALUES ('a-offline', 'agent-offline', 'qoder', 'h-offline', 1, 1, 'user-1')",
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
+    sqlx::query(seed_agent!(
+        id = "a-online",
+        name = "agent-online",
+        runtime = "qoder",
+        host_id = "h-online",
+        created_by_user_id = "user-1",
+    ))
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query(seed_agent!(
+        id = "a-offline",
+        name = "agent-offline",
+        runtime = "qoder",
+        host_id = "h-offline",
+        created_by_user_id = "user-1",
+    ))
+    .execute(&pool)
+    .await
+    .unwrap();
     pool.close().await;
 }
 
@@ -489,18 +499,28 @@ async fn seed_presence_agents(path: &Path) {
         .execute(&pool)
         .await
         .unwrap();
-    sqlx::query(
-            "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id, materialization_status, last_activity_at) VALUES ('a-presence', 'agent-presence', 'qoder', 'h-presence', 1, 1, 'user-1', 'active', 1000)",
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
-    sqlx::query(
-            "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id, materialization_status, last_activity_at) VALUES ('a-stranger', 'agent-stranger', 'qoder', 'h-other', 1, 1, 'u-other', 'active', 1000)",
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
+    sqlx::query(seed_agent!(
+        id = "a-presence",
+        name = "agent-presence",
+        runtime = "qoder",
+        host_id = "h-presence",
+        created_by_user_id = "user-1",
+        last_activity_at = 1000,
+    ))
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query(seed_agent!(
+        id = "a-stranger",
+        name = "agent-stranger",
+        runtime = "qoder",
+        host_id = "h-other",
+        created_by_user_id = "u-other",
+        last_activity_at = 1000,
+    ))
+    .execute(&pool)
+    .await
+    .unwrap();
     pool.close().await;
 }
 
@@ -702,10 +722,13 @@ async fn prepared_routes_drain_into_disjoint_cli_and_agent_audit_files() {
     for statement in [
         "INSERT INTO hosts (id, name, kind, created_at, user_id) \
              VALUES ('h-cli-audit', 'host-cli-audit', 'remote', 1, 'user-1')",
-        "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, \
-             created_by_user_id, materialization_status, session_scope) \
-             VALUES ('agent-cli-audit', 'agent-cli-audit', 'qoder', 'h-cli-audit', \
-                     1, 1, 'user-1', 'active', 'agent')",
+        seed_agent!(
+            id = "agent-cli-audit",
+            runtime = "qoder",
+            host_id = "h-cli-audit",
+            created_by_user_id = "user-1",
+            session_scope = "agent",
+        ),
     ] {
         sqlx::query(statement).execute(&pool).await.unwrap();
     }
@@ -2996,17 +3019,77 @@ async fn agent_scoped_dm_control_admits_only_the_creator_endpoint_and_keeps_one_
         .await
         .unwrap();
     sqlx::raw_sql(
-        "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES('dm-other','dm-other','Other',1,1); \
-         INSERT INTO agents(id,name,runtime,host_id,created_at,updated_at,created_by_user_id,materialization_status,session_scope) VALUES \
-         ('dm-conv','dm-conv','qoder','h-registry-probe',1,1,'user-1','active','conversation'), \
-         ('dm-human-deleted','dm-human-deleted','qoder','h-registry-probe',1,1,'user-1','active','agent'), \
-         ('dm-foreign','dm-foreign','qoder','h-registry-probe',1,1,'dm-other','active','agent'); \
-         INSERT INTO conversations(id,title,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,visibility,created_at,updated_at) VALUES \
-         ('dm-control-pair','DM','direct_pair','fixed','agent','dm-control','human','user-1','private',1,1), \
-         ('dm-foreign-pair','DM','direct_pair','fixed','agent','dm-foreign','human','user-1','private',1,1), \
-         ('dm-conv-pair','DM','direct_pair','fixed','agent','dm-conv','human','user-1','private',1,1), \
-         ('dm-human-deleted-pair','DM','direct_pair','fixed','agent','dm-human-deleted','human','user-1','private',1,1), \
-         ('dm-other-pair','DM','direct_pair','fixed','agent','dm-control','human','dm-other','private',1,1);"
+        concat!(
+            "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES('dm-other','dm-other','Other',1,1); ",
+            seed_agent!(
+                id = "dm-conv",
+                runtime = "qoder",
+                host_id = "h-registry-probe",
+                created_by_user_id = "user-1",
+            ),
+            "; ",
+            seed_agent!(
+                id = "dm-human-deleted",
+                runtime = "qoder",
+                host_id = "h-registry-probe",
+                created_by_user_id = "user-1",
+                session_scope = "agent",
+            ),
+            "; ",
+            seed_agent!(
+                id = "dm-foreign",
+                runtime = "qoder",
+                host_id = "h-registry-probe",
+                created_by_user_id = "dm-other",
+                session_scope = "agent",
+            ),
+            "; ",
+            seed_direct_pair!(
+                id = "dm-control-pair",
+                title = "DM",
+                endpoint_a_kind = "agent",
+                endpoint_a_id = "dm-control",
+                endpoint_b_kind = "human",
+                endpoint_b_id = "user-1",
+            ),
+            "; ",
+            seed_direct_pair!(
+                id = "dm-foreign-pair",
+                title = "DM",
+                endpoint_a_kind = "agent",
+                endpoint_a_id = "dm-foreign",
+                endpoint_b_kind = "human",
+                endpoint_b_id = "user-1",
+            ),
+            "; ",
+            seed_direct_pair!(
+                id = "dm-conv-pair",
+                title = "DM",
+                endpoint_a_kind = "agent",
+                endpoint_a_id = "dm-conv",
+                endpoint_b_kind = "human",
+                endpoint_b_id = "user-1",
+            ),
+            "; ",
+            seed_direct_pair!(
+                id = "dm-human-deleted-pair",
+                title = "DM",
+                endpoint_a_kind = "agent",
+                endpoint_a_id = "dm-human-deleted",
+                endpoint_b_kind = "human",
+                endpoint_b_id = "user-1",
+            ),
+            "; ",
+            seed_direct_pair!(
+                id = "dm-other-pair",
+                title = "DM",
+                endpoint_a_kind = "agent",
+                endpoint_a_id = "dm-control",
+                endpoint_b_kind = "human",
+                endpoint_b_id = "dm-other",
+            ),
+            "; ",
+        )
     ).execute(&pool).await.unwrap();
     pool.close().await;
     let app = prepare(&config(fixture.path.clone())).await.unwrap();
@@ -3189,10 +3272,13 @@ async fn the_composed_schedule_driver_delivers_and_settles_a_due_occurrence() {
         .connect(fixture.path.to_str().unwrap())
         .await
         .unwrap();
-    sqlx::query(
-        "INSERT INTO agents(id,name,runtime,host_id,created_at,updated_at,created_by_user_id,materialization_status,session_scope) \
-         VALUES('schedule-peer','schedule-peer','qoder','h-registry-probe',1,1,'user-1','active','agent')",
-    )
+    sqlx::query(seed_agent!(
+        id = "schedule-peer",
+        runtime = "qoder",
+        host_id = "h-registry-probe",
+        created_by_user_id = "user-1",
+        session_scope = "agent",
+    ))
     .execute(&pool)
     .await
     .unwrap();
@@ -3526,32 +3612,46 @@ async fn dead_schedule_target_notifies_the_owner_home_and_keeps_original_failure
         .await
         .unwrap();
     sqlx::raw_sql(
-        "INSERT INTO agents(id,name,runtime,host_id,created_at,updated_at,created_by_user_id,materialization_status,session_scope) VALUES \
-           ('no-home-owner','no-home-owner','qoder','h-registry-probe',1,1,'user-1','active','agent'); \
-         INSERT INTO workspaces(id,name,owner_agent_id,created_at,updated_at) VALUES \
-           ('home-dead-target','Home','dead-target-owner',1,1); \
-         INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES \
-           ('homedmdeadtarget','home-dead-target','workspace','fixed','Onboarding','onboarding','private',1,1); \
-         INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES \
-           ('homedmdeadtarget','dead-target-owner',1); \
-         INSERT INTO workspaces(id,name,name_key,owner_user_id,created_at,updated_at) VALUES \
-           ('wsdeadrearm00001','Rearm Space','rearm space','user-1',1,1); \
-         INSERT INTO workspace_users(workspace_id,user_id,joined_at,role) VALUES \
-           ('wsdeadrearm00001','user-1',1,'owner'); \
-         INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES \
-           ('convdeadrearm001','wsdeadrearm00001','workspace','open','Rearm','rearm','private',1,1); \
-         INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES \
-           ('convdeadrearm001','dead-target-owner',1); \
-         INSERT INTO workspace_members(workspace_id,agent_id,joined_at) VALUES \
-           ('wsdeadrearm00001','dead-target-owner',1); \
-         INSERT INTO workspace_agent_capabilities(workspace_id,agent_id,capability) VALUES \
-           ('wsdeadrearm00001','dead-target-owner','manage_schedules'); \
-         INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES \
-           ('left-target','home-dead-target','workspace','open','Left','left','private',1,1); \
-         INSERT INTO schedules(id,owner_agent_id,target_conversation_id,title,message,spec_json,next_fire_at,status,fired_count,max_occurrences,until_at,consecutive_failure_count,created_at,updated_at) VALUES \
-           ('schedule-dead','dead-target-owner','missing-target','Missing','wake now','{\"kind\":\"once\",\"fire_at\":1}',9000000000000000,'pending',0,NULL,NULL,0,1,1), \
-           ('schedule-left','dead-target-owner','left-target','Left','wake now','{\"kind\":\"once\",\"fire_at\":1}',9000000000000000,'pending',0,NULL,NULL,0,1,1), \
-           ('schedule-no-home','no-home-owner','missing-target','No Home','wake now','{\"kind\":\"once\",\"fire_at\":1}',9000000000000000,'pending',0,NULL,NULL,0,1,1);",
+        concat!(
+            seed_agent!(
+                id = "no-home-owner",
+                runtime = "qoder",
+                host_id = "h-registry-probe",
+                created_by_user_id = "user-1",
+                session_scope = "agent",
+            ),
+            "; ",
+            "INSERT INTO workspaces(id,name,owner_agent_id,created_at,updated_at) VALUES ('home-dead-target','Home','dead-target-owner',1,1); ",
+            seed_channel!(
+                id = "homedmdeadtarget",
+                workspace_id = "home-dead-target",
+                roster_policy = "fixed",
+                title = "Onboarding",
+                title_key = "onboarding",
+            ),
+            "; ",
+            "INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES ('homedmdeadtarget','dead-target-owner',1); ",
+            "INSERT INTO workspaces(id,name,name_key,owner_user_id,created_at,updated_at) VALUES ('wsdeadrearm00001','Rearm Space','rearm space','user-1',1,1); ",
+            "INSERT INTO workspace_users(workspace_id,user_id,joined_at,role) VALUES ('wsdeadrearm00001','user-1',1,'owner'); ",
+            seed_channel!(
+                id = "convdeadrearm001",
+                workspace_id = "wsdeadrearm00001",
+                title = "Rearm",
+                title_key = "rearm",
+            ),
+            "; ",
+            "INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES ('convdeadrearm001','dead-target-owner',1); ",
+            "INSERT INTO workspace_members(workspace_id,agent_id,joined_at) VALUES ('wsdeadrearm00001','dead-target-owner',1); ",
+            "INSERT INTO workspace_agent_capabilities(workspace_id,agent_id,capability) VALUES ('wsdeadrearm00001','dead-target-owner','manage_schedules'); ",
+            seed_channel!(
+                id = "left-target",
+                workspace_id = "home-dead-target",
+                title = "Left",
+                title_key = "left",
+            ),
+            "; ",
+            "INSERT INTO schedules(id,owner_agent_id,target_conversation_id,title,message,spec_json,next_fire_at,status,fired_count,max_occurrences,until_at,consecutive_failure_count,created_at,updated_at) VALUES ('schedule-dead','dead-target-owner','missing-target','Missing','wake now','{\"kind\":\"once\",\"fire_at\":1}',9000000000000000,'pending',0,NULL,NULL,0,1,1), ('schedule-left','dead-target-owner','left-target','Left','wake now','{\"kind\":\"once\",\"fire_at\":1}',9000000000000000,'pending',0,NULL,NULL,0,1,1), ('schedule-no-home','no-home-owner','missing-target','No Home','wake now','{\"kind\":\"once\",\"fire_at\":1}',9000000000000000,'pending',0,NULL,NULL,0,1,1); ",
+        ),
     )
     .execute(&pool)
     .await
@@ -3848,10 +3948,13 @@ async fn the_composed_membership_join_publishes_both_production_invalidations() 
         .connect(fixture.path.to_str().unwrap())
         .await
         .unwrap();
-    sqlx::query(
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES(?,?,'workspace','open','Public',\
-         'public','public',1,1)",
-    )
+    sqlx::query(seed_channel!(
+        id = ?,
+        workspace_id = ?,
+        title = "Public",
+        title_key = "public",
+        visibility = "public",
+    ))
     .bind(PUBLIC_CHANNEL)
     .bind(WORKSPACE_ID)
     .execute(&pool)
@@ -4634,9 +4737,13 @@ async fn notification_reaction_and_attachment_routes_enforce_auth_and_dispatch_m
     for statement in [
         "INSERT INTO hosts (id, name, kind, created_at, user_id) VALUES \
              ('h-2262', 'host-2262', 'remote', 1, 'user-1')",
-        "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, \
-             created_by_user_id, materialization_status, session_scope) VALUES \
-             ('agent-2262', 'agent-2262', 'qoder', 'h-2262', 1, 1, 'user-1', 'active', 'agent')",
+        seed_agent!(
+            id = "agent-2262",
+            runtime = "qoder",
+            host_id = "h-2262",
+            created_by_user_id = "user-1",
+            session_scope = "agent",
+        ),
     ] {
         sqlx::query(statement).execute(&pool).await.unwrap();
     }
@@ -5093,20 +5200,26 @@ async fn the_composition_host_rename_publishes_agent_changed_for_only_the_hosts_
         .execute(&pool)
         .await
         .unwrap();
-    sqlx::query(
-            "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id) \
-             VALUES ('agent-on-mgmt', 'on-mgmt', 'qoder', 'h-mgmt', 1, 1, 'user-1')",
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
-    sqlx::query(
-            "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id) \
-             VALUES ('agent-on-peer', 'on-peer', 'qoder', 'h-peer', 1, 1, 'user-1')",
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
+    sqlx::query(seed_agent!(
+        id = "agent-on-mgmt",
+        name = "on-mgmt",
+        runtime = "qoder",
+        host_id = "h-mgmt",
+        created_by_user_id = "user-1",
+    ))
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query(seed_agent!(
+        id = "agent-on-peer",
+        name = "on-peer",
+        runtime = "qoder",
+        host_id = "h-peer",
+        created_by_user_id = "user-1",
+    ))
+    .execute(&pool)
+    .await
+    .unwrap();
     pool.close().await;
 
     let app = prepare(&config(fixture.path.clone())).await.unwrap();
@@ -5270,13 +5383,16 @@ async fn the_composition_agent_write_faces_share_one_profile_authority_and_avata
         .execute(&pool)
         .await
         .unwrap();
-    sqlx::query(
-            "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id, materialization_status) \
-             VALUES ('a-cp2', 'agent-cp2', 'qoder', 'h-cp2', 1, 1, 'user-1', 'active')",
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
+    sqlx::query(seed_agent!(
+        id = "a-cp2",
+        name = "agent-cp2",
+        runtime = "qoder",
+        host_id = "h-cp2",
+        created_by_user_id = "user-1",
+    ))
+    .execute(&pool)
+    .await
+    .unwrap();
     pool.close().await;
 
     let app = prepare(&config(fixture.path.clone())).await.unwrap();
@@ -5576,9 +5692,14 @@ async fn the_composition_internal_self_scope_family_reaches_and_effects_over_one
     for statement in [
         "INSERT INTO hosts (id, name, kind, created_at, user_id) \
              VALUES ('h-cp7a', 'host-cp7a', 'remote', 1, 'user-1')",
-        "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, \
-             created_by_user_id, materialization_status, session_scope) \
-             VALUES ('agent-1', 'agent-one', 'qoder', 'h-cp7a', 1, 1, 'user-1', 'active', 'agent')",
+        seed_agent!(
+            id = "agent-1",
+            name = "agent-one",
+            runtime = "qoder",
+            host_id = "h-cp7a",
+            created_by_user_id = "user-1",
+            session_scope = "agent",
+        ),
         "INSERT INTO workspaces (id, name, name_key, owner_user_id, created_at, updated_at) \
              VALUES ('workspace0000001', 'Product Space', 'product space', 'user-1', 0, 0)",
         "INSERT INTO workspace_members (workspace_id, agent_id, joined_at) \
@@ -6030,12 +6151,22 @@ async fn the_composition_internal_profile_mcp_family_reaches_the_daemon_wire() {
     for statement in [
         "INSERT INTO hosts (id, name, kind, created_at, user_id) \
              VALUES ('h-detached', 'host-detached', 'remote', 1, 'user-1')",
-        "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, \
-             created_by_user_id, materialization_status, session_scope) \
-             VALUES ('agent-1', 'agent-one', 'qoder', 'h-online', 1, 1, 'user-1', 'active', 'agent')",
-        "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, \
-             created_by_user_id, materialization_status, session_scope) \
-             VALUES ('agent-2', 'agent-two', 'qoder', 'h-detached', 1, 1, 'user-1', 'active', 'agent')",
+        seed_agent!(
+            id = "agent-1",
+            name = "agent-one",
+            runtime = "qoder",
+            host_id = "h-online",
+            created_by_user_id = "user-1",
+            session_scope = "agent",
+        ),
+        seed_agent!(
+            id = "agent-2",
+            name = "agent-two",
+            runtime = "qoder",
+            host_id = "h-detached",
+            created_by_user_id = "user-1",
+            session_scope = "agent",
+        ),
     ] {
         sqlx::query(statement).execute(&pool).await.unwrap();
     }
@@ -6342,16 +6473,20 @@ async fn seed_deletable_agents(path: &Path, agents: &[(&str, Option<i64>)]) {
         .await
         .unwrap();
     for (id, marker) in agents {
-        sqlx::query(
-                "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id, materialization_status, deletion_started_at) \
-                 VALUES (?, ?, 'qoder', 'h-online', 1, 1, 'user-1', 'active', ?)",
-            )
-            .bind(id)
-            .bind(format!("agent-{id}"))
-            .bind(marker)
-            .execute(&pool)
-            .await
-            .unwrap();
+        sqlx::query(seed_agent!(
+            id = ?,
+            name = ?,
+            runtime = "qoder",
+            host_id = "h-online",
+            created_by_user_id = "user-1",
+            deletion_started_at = ?,
+        ))
+        .bind(id)
+        .bind(format!("agent-{id}"))
+        .bind(marker)
+        .execute(&pool)
+        .await
+        .unwrap();
     }
     pool.close().await;
 }
@@ -6757,22 +6892,40 @@ async fn seed_runtime_control_agents(path: &Path) {
         .execute(&pool)
         .await
         .unwrap();
+    sqlx::query(concat!(
+        seed_agent!(
+            id = "a-clear",
+            host_id = "h-online",
+            display_name = "Clear",
+            created_by_user_id = "user-1",
+            session_scope = "agent",
+        ),
+        "; ",
+        seed_agent!(
+            id = "a-switch",
+            host_id = "h-online",
+            display_name = "Switch",
+            created_by_user_id = "user-1",
+        ),
+    ))
+    .execute(&pool)
+    .await
+    .unwrap();
     sqlx::query(
-            "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, display_name, \
-                 created_by_user_id, materialization_status, session_scope) VALUES \
-                 ('a-clear', 'a-clear', 'claude', 'h-online', 1, 1, 'Clear', 'user-1', 'active', 'agent'), \
-                 ('a-switch', 'a-switch', 'claude', 'h-online', 1, 1, 'Switch', 'user-1', 'active', 'conversation')",
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
-    sqlx::query(
-            "INSERT INTO workspaces (id, name, name_key, owner_user_id, created_at, updated_at) \
-                 VALUES ('ws-cp4', 'Space', 'space', 'user-1', 0, 0); \
-             INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, visibility, created_at, updated_at, latest_message_seq) \
-                 VALUES ('conv-cp4', 'ws-cp4', 'workspace', 'open', 'General', 'general', 'private', 0, 0, 1); \
-             INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) \
-                 VALUES ('conv-cp4', 'a-switch', 0);",
+            concat!(
+                "INSERT INTO workspaces (id, name, name_key, owner_user_id, created_at, updated_at) VALUES ('ws-cp4', 'Space', 'space', 'user-1', 0, 0); ",
+                seed_channel!(
+                    id = "conv-cp4",
+                    workspace_id = "ws-cp4",
+                    title = "General",
+                    title_key = "general",
+                    created_at = 0,
+                    updated_at = 0,
+                    latest_message_seq = 1,
+                ),
+                "; ",
+                "INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES ('conv-cp4', 'a-switch', 0); ",
+            ),
         )
         .execute(&pool)
         .await
@@ -7089,24 +7242,51 @@ async fn seed_agent_stop_agent(path: &Path) {
         .execute(&pool)
         .await
         .unwrap();
-    sqlx::query(
-            "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, display_name, \
-                 created_by_user_id, materialization_status, session_scope) VALUES \
-                 ('a-stop', 'a-stop', 'claude', 'h-online', 1, 1, 'Stop', 'user-1', 'active', 'conversation')",
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
+    sqlx::query(seed_agent!(
+        id = "a-stop",
+        host_id = "h-online",
+        display_name = "Stop",
+        created_by_user_id = "user-1",
+    ))
+    .execute(&pool)
+    .await
+    .unwrap();
     // Three workspace conversations; each membership trigger-materializes one seat.
     sqlx::query(
-            "INSERT INTO workspaces (id, name, name_key, owner_user_id, created_at, updated_at) \
-                 VALUES ('ws-stop', 'Space', 'space', 'user-1', 0, 0); \
-             INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, visibility, created_at, updated_at, latest_message_seq) VALUES \
-                 ('conv-s1', 'ws-stop', 'workspace', 'open', 'One', 'one', 'private', 0, 0, 1), \
-                 ('conv-s2', 'ws-stop', 'workspace', 'open', 'Two', 'two', 'private', 0, 0, 1), \
-                 ('conv-s3', 'ws-stop', 'workspace', 'open', 'Three', 'three', 'private', 0, 0, 1); \
-             INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES \
-                 ('conv-s1', 'a-stop', 0), ('conv-s2', 'a-stop', 0), ('conv-s3', 'a-stop', 0);",
+            concat!(
+                "INSERT INTO workspaces (id, name, name_key, owner_user_id, created_at, updated_at) VALUES ('ws-stop', 'Space', 'space', 'user-1', 0, 0); ",
+                seed_channel!(
+                    id = "conv-s1",
+                    workspace_id = "ws-stop",
+                    title = "One",
+                    title_key = "one",
+                    created_at = 0,
+                    updated_at = 0,
+                    latest_message_seq = 1,
+                ),
+                "; ",
+                seed_channel!(
+                    id = "conv-s2",
+                    workspace_id = "ws-stop",
+                    title = "Two",
+                    title_key = "two",
+                    created_at = 0,
+                    updated_at = 0,
+                    latest_message_seq = 1,
+                ),
+                "; ",
+                seed_channel!(
+                    id = "conv-s3",
+                    workspace_id = "ws-stop",
+                    title = "Three",
+                    title_key = "three",
+                    created_at = 0,
+                    updated_at = 0,
+                    latest_message_seq = 1,
+                ),
+                "; ",
+                "INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES ('conv-s1', 'a-stop', 0), ('conv-s2', 'a-stop', 0), ('conv-s3', 'a-stop', 0); ",
+            ),
         )
         .execute(&pool)
         .await
@@ -8534,10 +8714,24 @@ async fn seed_list_agents(path: &Path) {
         .unwrap();
     for statement in [
         "INSERT INTO hosts (id, name, kind, created_at, user_id) VALUES ('h-list', 'host-list', 'remote', 1, 'user-1')",
-        "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id, materialization_status) \
-             VALUES ('al-1', 'agent-list-one', 'qoder', 'h-list', 100, 100, 'user-1', 'active')",
-        "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id, materialization_status) \
-             VALUES ('al-2', 'agent-list-two', 'qoder', 'h-list', 200, 200, 'user-1', 'active')",
+        seed_agent!(
+            id = "al-1",
+            name = "agent-list-one",
+            runtime = "qoder",
+            host_id = "h-list",
+            created_at = 100,
+            updated_at = 100,
+            created_by_user_id = "user-1",
+        ),
+        seed_agent!(
+            id = "al-2",
+            name = "agent-list-two",
+            runtime = "qoder",
+            host_id = "h-list",
+            created_at = 200,
+            updated_at = 200,
+            created_by_user_id = "user-1",
+        ),
         "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-stranger', 'stranger', 'Stranger', 1, 1)",
     ] {
         sqlx::query(statement).execute(&pool).await.unwrap();
@@ -8632,8 +8826,16 @@ async fn seed_direct_pair_target(path: &Path) {
         .unwrap();
     for statement in [
         "INSERT INTO hosts (id, name, kind, created_at, user_id) VALUES ('h-dp', 'host-dp', 'remote', 1, 'user-1')",
-        "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id, session_scope, materialization_status) \
-             VALUES ('dp-target-1', 'pair-target', 'qoder', 'h-dp', 100, 100, 'user-1', 'agent', 'active')",
+        seed_agent!(
+            id = "dp-target-1",
+            name = "pair-target",
+            runtime = "qoder",
+            host_id = "h-dp",
+            created_at = 100,
+            updated_at = 100,
+            created_by_user_id = "user-1",
+            session_scope = "agent",
+        ),
     ] {
         sqlx::query(statement).execute(&pool).await.unwrap();
     }
@@ -9320,11 +9522,16 @@ mod runtime_activity_activation {
             .await
             .unwrap();
         sqlx::raw_sql(
-                "INSERT INTO hosts(id,name,kind,created_at) VALUES ('host-1','host-1','app',1); \
-                 INSERT INTO agents(id,name,runtime,host_id,created_at,updated_at,created_by_user_id) \
-                   VALUES ('agent-1','agent-1','claude','host-1',1,1,'user-1'); \
-                 INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES \
-                   ('conv000000000001','agent-1',1);",
+                concat!(
+                    "INSERT INTO hosts(id,name,kind,created_at) VALUES ('host-1','host-1','app',1); ",
+                    seed_agent!(
+                        id = "agent-1",
+                        host_id = "host-1",
+                        created_by_user_id = "user-1",
+                    ),
+                    "; ",
+                    "INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES ('conv000000000001','agent-1',1); ",
+                ),
             )
             .execute(&pool)
             .await
@@ -10100,10 +10307,27 @@ mod host_resources_activation {
             "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-other', 'other', 'Other', 1, 1)",
             "INSERT INTO hosts (id, name, kind, created_at, user_id) VALUES ('h-res', 'host-res', 'desktop', 1, 'user-1')",
             "INSERT INTO hosts (id, name, kind, created_at, user_id) VALUES ('h-other', 'host-other', 'desktop', 1, 'user-other')",
-            "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, display_name, created_by_user_id, materialization_status) \
-                 VALUES ('res-late', 'late', 'codex', 'h-res', 3000, 3000, 'Late One', 'user-1', 'failed')",
-            "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, display_name, created_by_user_id, materialization_status) \
-                 VALUES ('res-early', 'early', 'qoder', 'h-res', 1000, 1000, 'Early One', 'user-1', 'active')",
+            seed_agent!(
+                id = "res-late",
+                name = "late",
+                runtime = "codex",
+                host_id = "h-res",
+                created_at = 3000,
+                updated_at = 3000,
+                display_name = "Late One",
+                created_by_user_id = "user-1",
+                materialization_status = "failed",
+            ),
+            seed_agent!(
+                id = "res-early",
+                name = "early",
+                runtime = "qoder",
+                host_id = "h-res",
+                created_at = 1000,
+                updated_at = 1000,
+                display_name = "Early One",
+                created_by_user_id = "user-1",
+            ),
         ] {
             sqlx::query(statement).execute(&pool).await.unwrap();
         }

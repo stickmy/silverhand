@@ -77,10 +77,19 @@ async fn a_present_row_projects_the_narrow_fact_from_its_own_columns() {
     let (_dir, cold_read) = seeded(&[
         HOST,
         CREATOR,
-        "INSERT INTO agents (id, name, display_name, runtime, host_id, created_at, updated_at, \
-             created_by_user_id, description, avatar_storage_key, avatar_content_type) \
-         VALUES ('a1', 'agent-one', 'Agent One', 'qoder', 'h1', 1000, 2500, 'u-creator', \
-             'a bio', 'avatars/a1.png', 'image/png')",
+        seed_agent!(
+            id = "a1",
+            name = "agent-one",
+            display_name = "Agent One",
+            runtime = "qoder",
+            host_id = "h1",
+            created_at = 1000,
+            updated_at = 2500,
+            created_by_user_id = "u-creator",
+            description = "a bio",
+            avatar_storage_key = "avatars/a1.png",
+            avatar_content_type = "image/png",
+        ),
     ])
     .await;
 
@@ -107,12 +116,30 @@ async fn distinct_rows_keep_their_own_name_and_avatar_revision() {
     let (_dir, cold_read) = seeded(&[
         HOST,
         CREATOR,
-        "INSERT INTO agents (id, name, display_name, runtime, host_id, created_at, updated_at, \
-             created_by_user_id, avatar_storage_key, avatar_content_type) \
-         VALUES ('a1', 'first', 'First', 'qoder', 'h1', 1000, 1111, 'u-creator', 'avatars/a1.png', 'image/png')",
-        "INSERT INTO agents (id, name, display_name, runtime, host_id, created_at, updated_at, \
-             created_by_user_id, avatar_storage_key, avatar_content_type) \
-         VALUES ('a2', 'second', 'Second', 'qoder', 'h1', 1000, 2222, 'u-creator', 'avatars/a2.png', 'image/png')",
+        seed_agent!(
+            id = "a1",
+            name = "first",
+            display_name = "First",
+            runtime = "qoder",
+            host_id = "h1",
+            created_at = 1000,
+            updated_at = 1111,
+            created_by_user_id = "u-creator",
+            avatar_storage_key = "avatars/a1.png",
+            avatar_content_type = "image/png",
+        ),
+        seed_agent!(
+            id = "a2",
+            name = "second",
+            display_name = "Second",
+            runtime = "qoder",
+            host_id = "h1",
+            created_at = 1000,
+            updated_at = 2222,
+            created_by_user_id = "u-creator",
+            avatar_storage_key = "avatars/a2.png",
+            avatar_content_type = "image/png",
+        ),
     ])
     .await;
 
@@ -133,14 +160,30 @@ async fn an_empty_or_absent_avatar_key_is_no_avatar() {
         HOST,
         CREATOR,
         // NULL avatar (both avatar columns omitted → the paired-NULL arm).
-        "INSERT INTO agents (id, name, display_name, runtime, host_id, created_at, updated_at, \
-             created_by_user_id) \
-         VALUES ('none', 'no-avatar', 'No Avatar', 'qoder', 'h1', 1000, 3000, 'u-creator')",
+        seed_agent!(
+            id = "none",
+            name = "no-avatar",
+            display_name = "No Avatar",
+            runtime = "qoder",
+            host_id = "h1",
+            created_at = 1000,
+            updated_at = 3000,
+            created_by_user_id = "u-creator",
+        ),
         // Empty-string avatar key (paired with a content type to satisfy the CHECK) —
         // truthiness, not IS NOT NULL, so still no avatar.
-        "INSERT INTO agents (id, name, display_name, runtime, host_id, created_at, updated_at, \
-             created_by_user_id, avatar_storage_key, avatar_content_type) \
-         VALUES ('empty', 'empty-key', 'Empty Key', 'qoder', 'h1', 1000, 3000, 'u-creator', '', 'image/png')",
+        seed_agent!(
+            id = "empty",
+            name = "empty-key",
+            display_name = "Empty Key",
+            runtime = "qoder",
+            host_id = "h1",
+            created_at = 1000,
+            updated_at = 3000,
+            created_by_user_id = "u-creator",
+            avatar_storage_key = "",
+            avatar_content_type = "image/png",
+        ),
     ])
     .await;
 
@@ -164,10 +207,18 @@ async fn by_handle_resolves_the_row_and_matches_name_exactly() {
     let (_dir, cold_read) = seeded(&[
         HOST,
         CREATOR,
-        "INSERT INTO agents (id, name, display_name, runtime, host_id, created_at, updated_at, \
-             created_by_user_id, avatar_storage_key, avatar_content_type) \
-         VALUES ('a1', 'agent-one', 'Agent One', 'qoder', 'h1', 1000, 2500, 'u-creator', \
-             'avatars/a1.png', 'image/png')",
+        seed_agent!(
+            id = "a1",
+            name = "agent-one",
+            display_name = "Agent One",
+            runtime = "qoder",
+            host_id = "h1",
+            created_at = 1000,
+            updated_at = 2500,
+            created_by_user_id = "u-creator",
+            avatar_storage_key = "avatars/a1.png",
+            avatar_content_type = "image/png",
+        ),
     ])
     .await;
 

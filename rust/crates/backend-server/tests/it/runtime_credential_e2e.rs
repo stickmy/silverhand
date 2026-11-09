@@ -127,16 +127,24 @@ async fn seed_runtime_slots(connection: &mut SqliteConnection) {
     .execute(&mut *connection)
     .await
     .unwrap();
-    sqlx::query(
-        "INSERT INTO agents (
-            id, name, runtime, host_id, created_at, updated_at,
-            display_name, created_by_user_id, session_scope
-         ) VALUES
-            ('agent-conversation', 'agent-conversation', 'codex', 'host-1', 1, 1,
-             'Conversation Agent', 'user-1', 'conversation'),
-            ('agent-global', 'agent-global', 'codex', 'host-1', 1, 1,
-             'Global Agent', 'user-1', 'agent')",
-    )
+    sqlx::query(concat!(
+        seed_agent!(
+            id = "agent-conversation",
+            runtime = "codex",
+            host_id = "host-1",
+            display_name = "Conversation Agent",
+            created_by_user_id = "user-1",
+        ),
+        "; ",
+        seed_agent!(
+            id = "agent-global",
+            runtime = "codex",
+            host_id = "host-1",
+            display_name = "Global Agent",
+            created_by_user_id = "user-1",
+            session_scope = "agent",
+        ),
+    ))
     .execute(&mut *connection)
     .await
     .unwrap();
@@ -148,15 +156,21 @@ async fn seed_runtime_slots(connection: &mut SqliteConnection) {
     .execute(&mut *connection)
     .await
     .unwrap();
-    sqlx::query(
-        "INSERT INTO conversations (
-            id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at
-         ) VALUES
-            ('source-1', 'workspace-1', 'workspace', 'open', 'Source One',
-             'source one', 1, 1),
-            ('target-2', 'workspace-1', 'workspace', 'open', 'Target Two',
-             'target two', 1, 1)",
-    )
+    sqlx::query(concat!(
+        seed_channel!(
+            id = "source-1",
+            workspace_id = "workspace-1",
+            title = "Source One",
+            title_key = "source one",
+        ),
+        "; ",
+        seed_channel!(
+            id = "target-2",
+            workspace_id = "workspace-1",
+            title = "Target Two",
+            title_key = "target two",
+        ),
+    ))
     .execute(&mut *connection)
     .await
     .unwrap();

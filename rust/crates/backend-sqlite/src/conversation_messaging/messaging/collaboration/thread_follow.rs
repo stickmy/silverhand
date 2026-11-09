@@ -847,21 +847,48 @@ mod tests {
 
     // ws channel `chan` (agent-a member+cap; agent-c member no-cap; agent-x nonmember),
     // one root message `m1`.
-    const FOLLOW_SEED: &str = "\
-INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES('u1','u','U',1,1); \
-INSERT INTO hosts(id,name,kind,created_at) VALUES('h1','H','local',1); \
-INSERT INTO agents(id,name,runtime,host_id,created_at,updated_at,created_by_user_id) VALUES('agent-a','alice','claude','h1',1,1,'u1'); \
-INSERT INTO agents(id,name,runtime,host_id,created_at,updated_at,created_by_user_id) VALUES('agent-c','dave','codex','h1',1,1,'u1'); \
-INSERT INTO agents(id,name,runtime,host_id,created_at,updated_at,created_by_user_id) VALUES('agent-x','carol','codex','h1',1,1,'u1'); \
-INSERT INTO workspaces(id,name,name_key,owner_agent_id,created_at,updated_at) VALUES('ws','Team','fteam',NULL,1,1); \
-INSERT INTO workspace_members(workspace_id,agent_id,joined_at) VALUES('ws','agent-a',1); \
-INSERT INTO workspace_members(workspace_id,agent_id,joined_at) VALUES('ws','agent-c',1); \
-INSERT INTO workspace_agent_capabilities(workspace_id,agent_id,capability) VALUES('ws','agent-a','read_messages'); \
-INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES('chan','ws','workspace','open','Chan','fchan','private',1,1); \
-INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES('chan','agent-a',1); \
-INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES('chan','agent-c',1); \
-INSERT INTO messages(id,conversation_id,from_kind,from_agent_id,content,seq,created_at) VALUES('m1','chan','agent','agent-a','root',1,10); \
-INSERT INTO messages(id,conversation_id,from_kind,from_agent_id,content,seq,created_at,thread_root_id) VALUES('m2','chan','agent','agent-c','reply',2,11,'m1');";
+    const FOLLOW_SEED: &str = concat!(
+        "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES('u1','u','U',1,1); ",
+        "INSERT INTO hosts(id,name,kind,created_at) VALUES('h1','H','local',1); ",
+        seed_agent!(
+            id = "agent-a",
+            name = "alice",
+            host_id = "h1",
+            created_by_user_id = "u1",
+        ),
+        "; ",
+        seed_agent!(
+            id = "agent-c",
+            name = "dave",
+            runtime = "codex",
+            host_id = "h1",
+            created_by_user_id = "u1",
+        ),
+        "; ",
+        seed_agent!(
+            id = "agent-x",
+            name = "carol",
+            runtime = "codex",
+            host_id = "h1",
+            created_by_user_id = "u1",
+        ),
+        "; ",
+        "INSERT INTO workspaces(id,name,name_key,owner_agent_id,created_at,updated_at) VALUES('ws','Team','fteam',NULL,1,1); ",
+        "INSERT INTO workspace_members(workspace_id,agent_id,joined_at) VALUES('ws','agent-a',1); ",
+        "INSERT INTO workspace_members(workspace_id,agent_id,joined_at) VALUES('ws','agent-c',1); ",
+        "INSERT INTO workspace_agent_capabilities(workspace_id,agent_id,capability) VALUES('ws','agent-a','read_messages'); ",
+        seed_channel!(
+            id = "chan",
+            workspace_id = "ws",
+            title = "Chan",
+            title_key = "fchan",
+        ),
+        "; ",
+        "INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES('chan','agent-a',1); ",
+        "INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES('chan','agent-c',1); ",
+        "INSERT INTO messages(id,conversation_id,from_kind,from_agent_id,content,seq,created_at) VALUES('m1','chan','agent','agent-a','root',1,10); ",
+        "INSERT INTO messages(id,conversation_id,from_kind,from_agent_id,content,seq,created_at,thread_root_id) VALUES('m2','chan','agent','agent-c','reply',2,11,'m1'); ",
+    );
 
     async fn follow_store() -> (
         tempfile::TempDir,

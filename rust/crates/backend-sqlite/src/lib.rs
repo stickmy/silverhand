@@ -7,6 +7,11 @@
 //! facts and `PersistenceFailure`, so no driver type reaches the application or
 //! the wire.
 
+#[cfg(test)]
+#[macro_use]
+#[path = "../tests/support/seed_rows.rs"]
+mod seed_rows;
+
 pub mod application_orchestration;
 pub mod conversation_messaging;
 pub mod embedded_bootstrap;

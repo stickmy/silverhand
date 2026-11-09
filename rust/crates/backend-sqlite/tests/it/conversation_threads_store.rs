@@ -23,17 +23,39 @@ async fn seed(path: &std::path::Path) {
          ('reply-a','reply-a','Reply A',1,1),('reply-b','reply-b','Reply B',1,1),\
          ('reply-c','reply-c','Reply C',1,1),('reply-d','reply-d','Reply D',1,1),\
          ('outsider','outsider','Outsider',1,1)",
-        "INSERT INTO agents(id,name,runtime,host_id,created_by_user_id,created_at,updated_at,display_name) \
-         VALUES('root-agent','root-agent','codex','h','viewer',1,1,'Root Agent')",
+        seed_agent!(
+            id = "root-agent",
+            runtime = "codex",
+            host_id = "h",
+            created_by_user_id = "viewer",
+            display_name = "Root Agent",
+        ),
         "INSERT INTO workspaces(id,name,name_key,created_at,updated_at) VALUES \
          ('w','Workspace','workspace',1,1)",
         "INSERT INTO workspace_users(workspace_id,user_id,joined_at,role) VALUES \
          ('w','viewer',1,'member'),('w','outsider',1,'member')",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) \
-         VALUES('c','w','workspace','open','Channel','channel','private',1,1),\
-         ('public','w','workspace','open','Public','public','public',1,1)",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,visibility,created_at,updated_at) VALUES \
-         ('pair',NULL,'direct_pair','fixed','agent','root-agent','human','viewer','',NULL,'private',1,1)",
+        concat!(
+            seed_channel!(
+                id = "c",
+                workspace_id = "w",
+                title = "Channel",
+                title_key = "channel",
+            ),
+            "; ",
+            seed_channel!(
+                id = "public",
+                workspace_id = "w",
+                title = "Public",
+                visibility = "public",
+            ),
+        ),
+        seed_direct_pair!(
+            id = "pair",
+            endpoint_a_kind = "agent",
+            endpoint_a_id = "root-agent",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "viewer",
+        ),
         "INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('c','viewer',1)",
         "INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,seq,created_at,author_id,author_name,author_display_name) VALUES \
          ('root-1','c','user','root-user','root one',1,10,'root-user','root-user','Root User')",

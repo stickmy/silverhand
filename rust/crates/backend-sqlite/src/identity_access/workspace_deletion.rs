@@ -310,32 +310,68 @@ mod tests {
     // session_scope='conversation') and an attachment blob; `conv-b` has an
     // AgentSlot agent (`agent-slot`, session_scope='agent') that must NOT be a
     // captured seat. An agent-home `ws-home` (owner agent) is the not-deletable kind.
-    const SEED_SQL: &str = "\
-INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-1','owner','Owner',1,1); \
-INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-2','member','Member',1,1); \
-INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-1','Host','local',1); \
-INSERT INTO agents (id, name, display_name, runtime, host_id, created_by_user_id, created_at, updated_at, session_scope) \
-  VALUES ('agent-conv','conv','Conv','claude','host-1','user-1',1,1,'conversation'); \
-INSERT INTO agents (id, name, display_name, runtime, host_id, created_by_user_id, created_at, updated_at, session_scope) \
-  VALUES ('agent-slot','slot','Slot','claude','host-1','user-1',1,1,'agent'); \
-INSERT INTO agents (id, name, display_name, runtime, host_id, created_by_user_id, created_at, updated_at, session_scope) \
-  VALUES ('agent-home-owner','home','Home','claude','host-1','user-1',1,1,'agent'); \
-INSERT INTO workspaces (id, name, name_key, description, owner_agent_id, owner_user_id, archived_at, created_at, updated_at) \
-  VALUES ('ws-1','Original','original',NULL,NULL,'user-1',NULL,10,100); \
-INSERT INTO workspaces (id, name, name_key, description, owner_agent_id, owner_user_id, archived_at, created_at, updated_at) \
-  VALUES ('ws-home','Agent Home',NULL,NULL,'agent-home-owner',NULL,NULL,10,100); \
-INSERT INTO workspace_users (workspace_id, user_id, joined_at, role) VALUES ('ws-1','user-1',1,'owner'); \
-INSERT INTO workspace_users (workspace_id, user_id, joined_at, role) VALUES ('ws-1','user-2',1,'member'); \
-INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, visibility, created_at, updated_at) \
-  VALUES ('conv-a','ws-1','workspace','open','A','a','public',1,1); \
-INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, visibility, created_at, updated_at) \
-  VALUES ('conv-b','ws-1','workspace','open','B','b','public',1,1); \
-INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, visibility, created_at, updated_at) \
-  VALUES ('conv-c','ws-1','workspace','open','C','c','public',1,1); \
-INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES ('conv-a','agent-conv',1); \
-INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES ('conv-b','agent-slot',1); \
-INSERT INTO attachments (id, channel_id, filename, size, content_type, storage, storage_key, created_by_kind, created_by_id, created_at) \
-  VALUES ('att-1','conv-a','f.txt',4,'text/plain','local','attachments/blob-1.bin','user','user-1',1);";
+    const SEED_SQL: &str = concat!(
+        "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-1','owner','Owner',1,1); ",
+        "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-2','member','Member',1,1); ",
+        "INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-1','Host','local',1); ",
+        seed_agent!(
+            id = "agent-conv",
+            name = "conv",
+            display_name = "Conv",
+            host_id = "host-1",
+            created_by_user_id = "user-1",
+        ),
+        "; ",
+        seed_agent!(
+            id = "agent-slot",
+            name = "slot",
+            display_name = "Slot",
+            host_id = "host-1",
+            created_by_user_id = "user-1",
+            session_scope = "agent",
+        ),
+        "; ",
+        seed_agent!(
+            id = "agent-home-owner",
+            name = "home",
+            display_name = "Home",
+            host_id = "host-1",
+            created_by_user_id = "user-1",
+            session_scope = "agent",
+        ),
+        "; ",
+        "INSERT INTO workspaces (id, name, name_key, description, owner_agent_id, owner_user_id, archived_at, created_at, updated_at) VALUES ('ws-1','Original','original',NULL,NULL,'user-1',NULL,10,100); ",
+        "INSERT INTO workspaces (id, name, name_key, description, owner_agent_id, owner_user_id, archived_at, created_at, updated_at) VALUES ('ws-home','Agent Home',NULL,NULL,'agent-home-owner',NULL,NULL,10,100); ",
+        "INSERT INTO workspace_users (workspace_id, user_id, joined_at, role) VALUES ('ws-1','user-1',1,'owner'); ",
+        "INSERT INTO workspace_users (workspace_id, user_id, joined_at, role) VALUES ('ws-1','user-2',1,'member'); ",
+        seed_channel!(
+            id = "conv-a",
+            workspace_id = "ws-1",
+            title = "A",
+            title_key = "a",
+            visibility = "public",
+        ),
+        "; ",
+        seed_channel!(
+            id = "conv-b",
+            workspace_id = "ws-1",
+            title = "B",
+            title_key = "b",
+            visibility = "public",
+        ),
+        "; ",
+        seed_channel!(
+            id = "conv-c",
+            workspace_id = "ws-1",
+            title = "C",
+            title_key = "c",
+            visibility = "public",
+        ),
+        "; ",
+        "INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES ('conv-a','agent-conv',1); ",
+        "INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES ('conv-b','agent-slot',1); ",
+        "INSERT INTO attachments (id, channel_id, filename, size, content_type, storage, storage_key, created_by_kind, created_by_id, created_at) VALUES ('att-1','conv-a','f.txt',4,'text/plain','local','attachments/blob-1.bin','user','user-1',1); ",
+    );
 
     async fn open_seeded() -> (tempfile::TempDir, SqliteWorkspaceDeletion) {
         let directory = tempfile::tempdir().unwrap();

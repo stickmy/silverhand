@@ -311,12 +311,19 @@ async fn sqlite_admission(
     )
     .await
     .unwrap();
-    sqlx::query("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,archived_at,created_at,updated_at) VALUES('c','w','workspace','open','General','general',?,?,1,1)")
-        .bind(visibility)
-        .bind(archived_at)
-        .execute(&mut db)
-        .await
-        .unwrap();
+    sqlx::query(seed_channel!(
+        id = "c",
+        workspace_id = "w",
+        title = "General",
+        title_key = "general",
+        visibility = ?,
+        archived_at = ?,
+    ))
+    .bind(visibility)
+    .bind(archived_at)
+    .execute(&mut db)
+    .await
+    .unwrap();
     if conversation_member {
         db.execute("INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('c','viewer',1)")
             .await

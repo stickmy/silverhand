@@ -47,36 +47,79 @@ async fn seeded() -> (tempfile::TempDir, MessagingStore) {
     let path = directory.path().join("channel-directory-wire.sqlite");
     let mut db = crate::current_schema::create_current_schema(&path).await;
     db.execute(sqlx::raw_sql(
-        "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES \
-           ('local','channel-directory-local','Local',1,1); \
-         INSERT INTO hosts(id,name,kind,created_at) VALUES \
-           ('directory-host','Directory Host','local',1); \
-         INSERT INTO agents(id,name,runtime,host_id,created_at,updated_at,created_by_user_id) VALUES \
-           ('directory-agent','directory-agent','claude','directory-host',1,1,'local'); \
-         INSERT INTO workspaces(id,name,name_key,created_at,updated_at) VALUES \
-           ('workspace-1','Workspace','channel-directory-wire',1,1), \
-           ('workspace-2','Forbidden','channel-directory-forbidden',1,1); \
-         INSERT INTO workspaces(id,name,name_key,owner_agent_id,created_at,updated_at) VALUES \
-           ('workspace-home','directory-agent',NULL,'directory-agent',1,1); \
-         INSERT INTO workspace_users(workspace_id,user_id,joined_at) VALUES \
-           ('workspace-1','local',1),('workspace-home','local',1); \
-         INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key, \
-           visibility,archived_at,created_at,updated_at) VALUES \
-           ('conversation-public','workspace-1','workspace','open','Public','directory-public','public',NULL,1,1), \
-           ('conversation-member','workspace-1','workspace','open','Member','directory-member','private',NULL,2,2), \
-           ('conversation-hidden','workspace-1','workspace','open','Hidden','directory-hidden','private',NULL,4,4), \
-           ('conversation-archived','workspace-1','workspace','open','Archived','directory-archived','private',10,3,10), \
-           ('home-active','workspace-home','workspace','fixed','Onboarding','directory-home-active','private',NULL,5,5), \
-           ('home-archived','workspace-home','workspace','fixed','Home Archived','directory-home-archived','private',20,6,20); \
-         INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES \
-           ('conversation-member','local',1),('conversation-archived','local',1), \
-           ('home-active','local',1),('home-archived','local',1); \
-         INSERT INTO user_list_sort_mode(user_id,list_key,scope,mode,updated_at) VALUES \
-           ('local','channels:workspace-1','','manual',1); \
-         INSERT INTO user_sort_entry(user_id,list_key,entity_id,rank,last_accessed_at,starred_at) VALUES \
-           ('local','channels:workspace-1','conversation-member',1,4,5), \
-           ('local','channels:workspace-1','conversation-public',2,3,NULL), \
-           ('local','channels:workspace-1','conversation-hidden',0,9,NULL);",
+        concat!(
+            "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES ('local','channel-directory-local','Local',1,1); ",
+            "INSERT INTO hosts(id,name,kind,created_at) VALUES ('directory-host','Directory Host','local',1); ",
+            seed_agent!(
+                id = "directory-agent",
+                host_id = "directory-host",
+                created_by_user_id = "local",
+            ),
+            "; ",
+            "INSERT INTO workspaces(id,name,name_key,created_at,updated_at) VALUES ('workspace-1','Workspace','channel-directory-wire',1,1), ('workspace-2','Forbidden','channel-directory-forbidden',1,1); ",
+            "INSERT INTO workspaces(id,name,name_key,owner_agent_id,created_at,updated_at) VALUES ('workspace-home','directory-agent',NULL,'directory-agent',1,1); ",
+            "INSERT INTO workspace_users(workspace_id,user_id,joined_at) VALUES ('workspace-1','local',1),('workspace-home','local',1); ",
+            seed_channel!(
+                id = "conversation-public",
+                workspace_id = "workspace-1",
+                title = "Public",
+                title_key = "directory-public",
+                visibility = "public",
+            ),
+            "; ",
+            seed_channel!(
+                id = "conversation-member",
+                workspace_id = "workspace-1",
+                title = "Member",
+                title_key = "directory-member",
+                created_at = 2,
+                updated_at = 2,
+            ),
+            "; ",
+            seed_channel!(
+                id = "conversation-hidden",
+                workspace_id = "workspace-1",
+                title = "Hidden",
+                title_key = "directory-hidden",
+                created_at = 4,
+                updated_at = 4,
+            ),
+            "; ",
+            seed_channel!(
+                id = "conversation-archived",
+                workspace_id = "workspace-1",
+                title = "Archived",
+                title_key = "directory-archived",
+                archived_at = 10,
+                created_at = 3,
+                updated_at = 10,
+            ),
+            "; ",
+            seed_channel!(
+                id = "home-active",
+                workspace_id = "workspace-home",
+                roster_policy = "fixed",
+                title = "Onboarding",
+                title_key = "directory-home-active",
+                created_at = 5,
+                updated_at = 5,
+            ),
+            "; ",
+            seed_channel!(
+                id = "home-archived",
+                workspace_id = "workspace-home",
+                roster_policy = "fixed",
+                title = "Home Archived",
+                title_key = "directory-home-archived",
+                archived_at = 20,
+                created_at = 6,
+                updated_at = 20,
+            ),
+            "; ",
+            "INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES ('conversation-member','local',1),('conversation-archived','local',1), ('home-active','local',1),('home-archived','local',1); ",
+            "INSERT INTO user_list_sort_mode(user_id,list_key,scope,mode,updated_at) VALUES ('local','channels:workspace-1','','manual',1); ",
+            "INSERT INTO user_sort_entry(user_id,list_key,entity_id,rank,last_accessed_at,starred_at) VALUES ('local','channels:workspace-1','conversation-member',1,4,5), ('local','channels:workspace-1','conversation-public',2,3,NULL), ('local','channels:workspace-1','conversation-hidden',0,9,NULL); ",
+        ),
     ))
     .await
     .unwrap();

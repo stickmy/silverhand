@@ -226,20 +226,45 @@ mod tests {
     /// Two users, two computers, and agents whose insertion order is deliberately
     /// NOT their `created_at` order, so a missing `ORDER BY` cannot pass by luck.
     /// `a-late` also proves the registration view keeps a non-active stage.
-    const SEED: &str = "\
-        INSERT INTO users (id, name, display_name, created_at, updated_at) \
-        VALUES ('u-owner', 'owner', 'Owner', 1, 1), ('u-other', 'other', 'Other', 1, 1); \
-        INSERT INTO hosts (id, name, kind, created_at, user_id) \
-        VALUES ('h-owned', 'owned', 'desktop', 1, 'u-owner'), \
-               ('h-theirs', 'theirs', 'desktop', 1, 'u-other'); \
-        INSERT INTO hosts (id, name, kind, created_at) \
-        VALUES ('h-ownerless', 'ownerless', 'desktop', 1); \
-        INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, display_name, \
-          created_by_user_id, materialization_status) \
-        VALUES ('a-late', 'late', 'codex', 'h-owned', 300, 300, 'Late', 'u-owner', 'failed'), \
-               ('a-early', 'early', 'qoder', 'h-owned', 100, 100, 'Early', 'u-owner', 'active'), \
-               ('a-elsewhere', 'elsewhere', 'qoder', 'h-theirs', 100, 100, 'Elsewhere', \
-                'u-other', 'active');";
+    const SEED: &str = concat!(
+        "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('u-owner', 'owner', 'Owner', 1, 1), ('u-other', 'other', 'Other', 1, 1); ",
+        "INSERT INTO hosts (id, name, kind, created_at, user_id) VALUES ('h-owned', 'owned', 'desktop', 1, 'u-owner'), ('h-theirs', 'theirs', 'desktop', 1, 'u-other'); ",
+        "INSERT INTO hosts (id, name, kind, created_at) VALUES ('h-ownerless', 'ownerless', 'desktop', 1); ",
+        seed_agent!(
+            id = "a-late",
+            name = "late",
+            runtime = "codex",
+            host_id = "h-owned",
+            created_at = 300,
+            updated_at = 300,
+            display_name = "Late",
+            created_by_user_id = "u-owner",
+            materialization_status = "failed",
+        ),
+        "; ",
+        seed_agent!(
+            id = "a-early",
+            name = "early",
+            runtime = "qoder",
+            host_id = "h-owned",
+            created_at = 100,
+            updated_at = 100,
+            display_name = "Early",
+            created_by_user_id = "u-owner",
+        ),
+        "; ",
+        seed_agent!(
+            id = "a-elsewhere",
+            name = "elsewhere",
+            runtime = "qoder",
+            host_id = "h-theirs",
+            created_at = 100,
+            updated_at = 100,
+            display_name = "Elsewhere",
+            created_by_user_id = "u-other",
+        ),
+        "; ",
+    );
 
     async fn seeded() -> (tempfile::TempDir, SqliteHostResourcesColdRead) {
         seeded_with("").await

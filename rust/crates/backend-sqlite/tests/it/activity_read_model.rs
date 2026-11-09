@@ -18,8 +18,13 @@ async fn seed(path: &std::path::Path) {
         "INSERT INTO workspaces(id,name,name_key,created_at,updated_at) VALUES \
          ('w','Workspace','workspace-activity',1,1)",
         "INSERT INTO workspace_users(workspace_id,user_id,joined_at) VALUES('w','u',1)",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,created_at,updated_at,latest_message_seq) VALUES \
-         ('c','w','workspace','open','General','general-activity',1,1,2)",
+        seed_channel!(
+            id = "c",
+            workspace_id = "w",
+            title = "General",
+            title_key = "general-activity",
+            latest_message_seq = 2,
+        ),
         "INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('c','u',1)",
         "INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,seq,created_at,\
          author_id,author_name,author_display_name) VALUES \
@@ -30,9 +35,16 @@ async fn seed(path: &std::path::Path) {
          ('n-old','mention_self','u','w','c','m-mention','{}',2),\
          ('n-new','mention_self','u','w','c','m-mention','{}',3),\
          ('n-fail','agent_start_failed','u','w','c',NULL,'{\"agent_name\":\"Alice\",\"error\":\"runtime down\"}',4)",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,created_at,updated_at,latest_message_seq,endpoint_a_kind,endpoint_a_id,\
-         endpoint_b_kind,endpoint_b_id) VALUES \
-         ('pair',NULL,'direct_pair','fixed','',NULL,2,2,1,'human','other','human','u')",
+        seed_direct_pair!(
+            id = "pair",
+            created_at = 2,
+            updated_at = 2,
+            latest_message_seq = 1,
+            endpoint_a_kind = "human",
+            endpoint_a_id = "other",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "u",
+        ),
         "INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,seq,created_at,\
          author_id,author_name,author_display_name) VALUES \
          ('m-pair','pair','user','other','pair unread',1,2,'other','other-activity','Other')",
@@ -121,10 +133,20 @@ async fn mixed_archive_rows_preserve_activity_and_complete_publication() {
         .await
         .unwrap();
     // A non-NULL zero is archived too; do not replace IS NULL with truthiness.
-    sqlx::raw_sql("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,created_at,updated_at,latest_message_seq,archived_at) VALUES('hidden','w','workspace','open','Hidden','hidden-archive',1,1,1,0);
-        INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('hidden','u',1);
-        INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,seq,created_at,author_id,author_name,author_display_name) VALUES('m-hidden','hidden','user','other','hidden unread',1,1,'other','other-activity','Other');
-        INSERT INTO conversation_stream_heads(conversation_id,thread_root_id,latest_seq) VALUES('hidden',NULL,1);")
+    sqlx::raw_sql(concat!(
+                      seed_channel!(
+                          id = "hidden",
+                          workspace_id = "w",
+                          title = "Hidden",
+                          title_key = "hidden-archive",
+                          latest_message_seq = 1,
+                          archived_at = 0,
+                      ),
+                      "; ",
+                      "INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('hidden','u',1); ",
+                      "INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,seq,created_at,author_id,author_name,author_display_name) VALUES('m-hidden','hidden','user','other','hidden unread',1,1,'other','other-activity','Other'); ",
+                      "INSERT INTO conversation_stream_heads(conversation_id,thread_root_id,latest_seq) VALUES('hidden',NULL,1); ",
+                  ))
         .execute(&mut db).await.unwrap();
     assert_eq!(
         read.list_activity(&viewer, Some(&workspace)).await.unwrap(),
@@ -295,10 +317,19 @@ async fn duplicate_winner_and_timestamp_ties_use_persistent_coordinates() {
             .execute(&mut db)
             .await
             .unwrap();
-        sqlx::query("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,created_at,updated_at,latest_message_seq,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id) VALUES('pair-b',NULL,'direct_pair','fixed','',NULL,2,2,1,'human','other-b','human','u')")
-            .execute(&mut db)
-            .await
-            .unwrap();
+        sqlx::query(seed_direct_pair!(
+            id = "pair-b",
+            created_at = 2,
+            updated_at = 2,
+            latest_message_seq = 1,
+            endpoint_a_kind = "human",
+            endpoint_a_id = "other-b",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "u",
+        ))
+        .execute(&mut db)
+        .await
+        .unwrap();
         sqlx::query("INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,seq,created_at,author_id,author_name,author_display_name) VALUES('m-pair-b','pair-b','user','other-b','pair b unread',1,2,'other-b','other-b-activity','Other B')")
             .execute(&mut db)
             .await

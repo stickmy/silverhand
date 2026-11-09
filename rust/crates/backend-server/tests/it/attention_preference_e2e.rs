@@ -65,11 +65,18 @@ async fn seed(path: &std::path::Path) {
     for sql in [
         "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES('u','u','U',1,1)",
         "INSERT INTO hosts(id,name,kind,created_at,user_id) VALUES('h','H','local',1,'u')",
-        "INSERT INTO agents(id,name,runtime,host_id,display_name,created_by_user_id,created_at,updated_at,materialization_status,session_scope) VALUES('a','a','codex','h','A','u',1,1,'active','agent')",
+        seed_agent!(
+            id = "a",
+            runtime = "codex",
+            host_id = "h",
+            display_name = "A",
+            created_by_user_id = "u",
+            session_scope = "agent",
+        ),
         "INSERT INTO workspaces(id,name,name_key,created_at,owner_user_id,updated_at) VALUES('w','W','w',1,'u',1)",
         "INSERT INTO workspaces(id,name,name_key,owner_agent_id,created_at,owner_user_id,updated_at) VALUES('home','Home',NULL,'a',1,'u',1)",
         "INSERT INTO workspace_users(workspace_id,user_id,joined_at) VALUES('w','u',1),('home','u',1)",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,created_at,updated_at) VALUES('c','w','workspace','open','C','c',1,1)",
+        seed_channel!(id = "c", workspace_id = "w", title = "C"),
         "INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('c','u',1)",
     ] {
         sqlx::query(sql).execute(&mut db).await.unwrap();

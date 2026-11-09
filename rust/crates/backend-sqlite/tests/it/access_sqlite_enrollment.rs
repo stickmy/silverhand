@@ -78,16 +78,13 @@ async fn schema_with_fixtures() -> (TempDir, std::path::PathBuf) {
     .await
     .unwrap();
 
-    sqlx::query(
-        "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id) \
-         VALUES (?, ?, 'claude', 'host-1', 1, 1, ?)",
-    )
-    .bind(AGENT)
-    .bind(AGENT)
-    .bind(OWNER)
-    .execute(&mut connection)
-    .await
-    .unwrap();
+    sqlx::query(seed_agent!(id = ?, name = ?, host_id = "host-1", created_by_user_id = ?))
+        .bind(AGENT)
+        .bind(AGENT)
+        .bind(OWNER)
+        .execute(&mut connection)
+        .await
+        .unwrap();
 
     // A regular workspace: owner_agent_id NULL requires a non-null name_key.
     sqlx::query(

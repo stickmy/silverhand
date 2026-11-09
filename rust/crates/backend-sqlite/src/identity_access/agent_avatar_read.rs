@@ -104,18 +104,56 @@ mod tests {
     //  - `a-badmime`: a valid key with a content type outside the allowlist.
     // A half-NULL pair is unreachable (the schema CHECK rejects it), so that decode
     // arm is proven at the core unit layer instead.
-    const SEED_SQL: &str = "\
-INSERT INTO users (id, name, display_name, created_at, updated_at) \
-  VALUES ('user-1', 'owner', 'Owner', 1, 1); \
-INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-1', 'Host', 'local', 1); \
-INSERT INTO agents (id, name, display_name, runtime, host_id, created_by_user_id, avatar_storage_key, avatar_content_type, created_at, updated_at) \
-  VALUES ('a-present', 'p', 'P', 'claude', 'host-1', 'user-1', 'agents/a-present/avatars/blob-0.png', 'image/png', 10, 100); \
-INSERT INTO agents (id, name, display_name, runtime, host_id, created_by_user_id, created_at, updated_at) \
-  VALUES ('a-absent', 'ab', 'Ab', 'claude', 'host-1', 'user-1', 10, 100); \
-INSERT INTO agents (id, name, display_name, runtime, host_id, created_by_user_id, avatar_storage_key, avatar_content_type, created_at, updated_at) \
-  VALUES ('a-empty', 'e', 'E', 'claude', 'host-1', 'user-1', '', 'image/png', 10, 100); \
-INSERT INTO agents (id, name, display_name, runtime, host_id, created_by_user_id, avatar_storage_key, avatar_content_type, created_at, updated_at) \
-  VALUES ('a-badmime', 'b', 'B', 'claude', 'host-1', 'user-1', 'agents/a-badmime/avatars/blob-0', 'application/pdf', 10, 100);";
+    const SEED_SQL: &str = concat!(
+        "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-1', 'owner', 'Owner', 1, 1); ",
+        "INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-1', 'Host', 'local', 1); ",
+        seed_agent!(
+            id = "a-present",
+            name = "p",
+            display_name = "P",
+            host_id = "host-1",
+            created_by_user_id = "user-1",
+            avatar_storage_key = "agents/a-present/avatars/blob-0.png",
+            avatar_content_type = "image/png",
+            created_at = 10,
+            updated_at = 100,
+        ),
+        "; ",
+        seed_agent!(
+            id = "a-absent",
+            name = "ab",
+            display_name = "Ab",
+            host_id = "host-1",
+            created_by_user_id = "user-1",
+            created_at = 10,
+            updated_at = 100,
+        ),
+        "; ",
+        seed_agent!(
+            id = "a-empty",
+            name = "e",
+            display_name = "E",
+            host_id = "host-1",
+            created_by_user_id = "user-1",
+            avatar_storage_key = "",
+            avatar_content_type = "image/png",
+            created_at = 10,
+            updated_at = 100,
+        ),
+        "; ",
+        seed_agent!(
+            id = "a-badmime",
+            name = "b",
+            display_name = "B",
+            host_id = "host-1",
+            created_by_user_id = "user-1",
+            avatar_storage_key = "agents/a-badmime/avatars/blob-0",
+            avatar_content_type = "application/pdf",
+            created_at = 10,
+            updated_at = 100,
+        ),
+        "; ",
+    );
 
     async fn open_seeded() -> (tempfile::TempDir, SqliteAgentAvatarRead) {
         let directory = tempfile::tempdir().unwrap();

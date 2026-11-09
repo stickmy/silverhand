@@ -17,6 +17,10 @@
 //! The production router now REQUIRES an aftermath, and the real multi-port outcome→frame
 //! proof lives beside `ScopeEventHub`; this suite does not duplicate that proof.
 
+#[macro_use]
+#[path = "../../backend-sqlite/tests/support/seed_rows.rs"]
+mod seed_rows;
+
 // The checked-in schema's fail-closed materializer, reused as test-only source rather than
 // copied: it is the one authority for what a current database looks like, and a second copy
 // would start answering questions the real schema refuses. Private to this test.
@@ -103,9 +107,15 @@ async fn seed_minimal_scenario(db: &mut SqliteConnection) {
             vec![USER_ID],
         ),
         (
-            "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, \
-             display_name, created_by_user_id) \
-             VALUES (?, 'lio', 'claude', ?, 0, 0, 'Lio', ?)",
+            seed_agent!(
+                id = ?,
+                name = "lio",
+                host_id = ?,
+                created_at = 0,
+                updated_at = 0,
+                display_name = "Lio",
+                created_by_user_id = ?,
+            ),
             vec![AGENT_ID, HOST_ID, USER_ID],
         ),
         (
@@ -118,9 +128,14 @@ async fn seed_minimal_scenario(db: &mut SqliteConnection) {
             vec![WORKSPACE_ID, USER_ID],
         ),
         (
-            "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-             title_key, created_at, updated_at) \
-             VALUES (?, ?, 'workspace', 'open', 'General', 'general', 0, 0)",
+            seed_channel!(
+                id = ?,
+                workspace_id = ?,
+                title = "General",
+                title_key = "general",
+                created_at = 0,
+                updated_at = 0,
+            ),
             vec![CHANNEL_ID, WORKSPACE_ID],
         ),
         (
@@ -145,9 +160,16 @@ async fn seed_minimal_scenario(db: &mut SqliteConnection) {
         // In the workspace, deliberately NOT in the conversation: a mention is the only way it
         // could be reached.
         (
-            "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, \
-             display_name, created_by_user_id) \
-             VALUES (?, 'outside', 'codex', ?, 0, 0, 'Outside', ?)",
+            seed_agent!(
+                id = ?,
+                name = "outside",
+                runtime = "codex",
+                host_id = ?,
+                created_at = 0,
+                updated_at = 0,
+                display_name = "Outside",
+                created_by_user_id = ?,
+            ),
             vec![OUTSIDE_AGENT_ID, HOST_ID, USER_ID],
         ),
         (
@@ -564,10 +586,14 @@ async fn a_real_authority_driver_failure_is_one_safe_500_before_the_real_uow() {
         (
             "named-non-addressable-id",
             &[
-                "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, \
-                 title, title_key, visibility, created_at, updated_at) VALUES \
-                 ('bad/id', 'workspace-1', 'workspace', 'open', 'Broken', 'broken', \
-                 'private', 0, 0)",
+                seed_channel!(
+                    id = "bad/id",
+                    workspace_id = "workspace-1",
+                    title = "Broken",
+                    title_key = "broken",
+                    created_at = 0,
+                    updated_at = 0,
+                ),
                 "INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) \
                  VALUES ('bad/id', 'agent-1', 0)",
             ],
@@ -577,12 +603,15 @@ async fn a_real_authority_driver_failure_is_one_safe_500_before_the_real_uow() {
         ),
         (
             "direct-pair-non-addressable-id",
-            &[
-                "INSERT INTO conversations (id, placement_kind, roster_policy, endpoint_a_kind, \
-                 endpoint_a_id, endpoint_b_kind, endpoint_b_id, title, visibility, \
-                 created_at, updated_at) VALUES ('bad/id', 'direct_pair', 'fixed', 'agent', \
-                 'agent-1', 'agent', 'agent-2', '', 'private', 0, 0)",
-            ],
+            &[seed_direct_pair!(
+                id = "bad/id",
+                endpoint_a_kind = "agent",
+                endpoint_a_id = "agent-1",
+                endpoint_b_kind = "agent",
+                endpoint_b_id = "agent-2",
+                created_at = 0,
+                updated_at = 0,
+            )],
             false,
             "conversations.id",
             "dm:@outside",
@@ -1429,8 +1458,22 @@ async fn visible_conversation_scoped_dm_target_has_actionable_refusal_without_al
         ("dm-hidden", "conversation"),
         ("dm-legal", "agent"),
     ] {
-        sqlx::query("INSERT INTO agents(id,name,runtime,host_id,created_at,updated_at,display_name,created_by_user_id,session_scope) VALUES(?,?,'codex','host-1',1,1,?,'user-1',?)")
-            .bind(id).bind(id).bind(id).bind(scope).execute(&mut db).await.unwrap();
+        sqlx::query(seed_agent!(
+            id = ?,
+            name = ?,
+            runtime = "codex",
+            host_id = "host-1",
+            display_name = ?,
+            created_by_user_id = "user-1",
+            session_scope = ?,
+        ))
+        .bind(id)
+        .bind(id)
+        .bind(id)
+        .bind(scope)
+        .execute(&mut db)
+        .await
+        .unwrap();
         if id != "dm-hidden" {
             sqlx::query("INSERT INTO workspace_members(workspace_id,agent_id,joined_at) VALUES('workspace-1',?,1)").bind(id).execute(&mut db).await.unwrap();
         }

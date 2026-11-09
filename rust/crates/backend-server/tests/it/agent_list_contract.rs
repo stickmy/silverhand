@@ -34,32 +34,49 @@ use crate::current_schema;
 /// A viewer who creates `a1` and reaches `a2` through workspace `w1`; `a2` is created
 /// by someone else, so `?scope=owned` must drop it. `a1` and `a2` sit on different
 /// hosts to exercise both `host_label` arms across rows.
-const SEED: &str = "\
-    INSERT INTO users (id, name, display_name, created_at, updated_at) \
-    VALUES ('u-viewer', 'viewer', 'Viewer', 1, 1); \
-    INSERT INTO users (id, name, display_name, created_at, updated_at) \
-    VALUES ('u-other', 'other', 'Other', 1, 1); \
-    INSERT INTO users (id, name, display_name, created_at, updated_at) \
-    VALUES ('u-stranger', 'stranger', 'Stranger', 1, 1); \
-    INSERT INTO hosts (id, name, kind, created_at, display_label) \
-    VALUES ('h1', 'host-one', 'desktop', 1, 'Prod Box'); \
-    INSERT INTO hosts (id, name, kind, created_at) \
-    VALUES ('h2', 'host-two', 'desktop', 1); \
-    INSERT INTO agents (id, name, runtime, model, host_id, description, created_at, updated_at, \
-      display_name, reasoning_effort, fast_mode, created_by_user_id, \
-      avatar_storage_key, avatar_content_type, materialization_status) \
-    VALUES ('a1', 'agent-one', 'qoder', 'opus', 'h1', 'the first agent', 3000, 4000, \
-      'Agent One', 'high', 1, 'u-viewer', 'blob-key', 'image/png', 'active'); \
-    INSERT INTO agents (id, name, runtime, model, host_id, description, created_at, updated_at, \
-      display_name, reasoning_effort, fast_mode, created_by_user_id, session_scope, \
-      materialization_status) \
-    VALUES ('a2', 'agent-two', 'codex', 'sonnet', 'h2', 'the second agent', 2000, 2100, \
-      'Agent Two', 'low', 0, 'u-other', 'agent', 'active'); \
-    INSERT INTO workspaces \
-      (id, name, name_key, description, owner_agent_id, archived_at, created_at, updated_at) \
-    VALUES ('w1', 'Workspace One', 'workspace-one', NULL, NULL, NULL, 1, 1); \
-    INSERT INTO workspace_members (workspace_id, agent_id, joined_at) VALUES ('w1', 'a2', 1); \
-    INSERT INTO workspace_users (workspace_id, user_id, joined_at) VALUES ('w1', 'u-viewer', 1);";
+const SEED: &str = concat!(
+    "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('u-viewer', 'viewer', 'Viewer', 1, 1); ",
+    "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('u-other', 'other', 'Other', 1, 1); ",
+    "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('u-stranger', 'stranger', 'Stranger', 1, 1); ",
+    "INSERT INTO hosts (id, name, kind, created_at, display_label) VALUES ('h1', 'host-one', 'desktop', 1, 'Prod Box'); ",
+    "INSERT INTO hosts (id, name, kind, created_at) VALUES ('h2', 'host-two', 'desktop', 1); ",
+    seed_agent!(
+        id = "a1",
+        name = "agent-one",
+        runtime = "qoder",
+        model = "opus",
+        host_id = "h1",
+        description = "the first agent",
+        created_at = 3000,
+        updated_at = 4000,
+        display_name = "Agent One",
+        reasoning_effort = "high",
+        fast_mode = 1,
+        created_by_user_id = "u-viewer",
+        avatar_storage_key = "blob-key",
+        avatar_content_type = "image/png",
+    ),
+    "; ",
+    seed_agent!(
+        id = "a2",
+        name = "agent-two",
+        runtime = "codex",
+        model = "sonnet",
+        host_id = "h2",
+        description = "the second agent",
+        created_at = 2000,
+        updated_at = 2100,
+        display_name = "Agent Two",
+        reasoning_effort = "low",
+        fast_mode = 0,
+        created_by_user_id = "u-other",
+        session_scope = "agent",
+    ),
+    "; ",
+    "INSERT INTO workspaces (id, name, name_key, description, owner_agent_id, archived_at, created_at, updated_at) VALUES ('w1', 'Workspace One', 'workspace-one', NULL, NULL, NULL, 1, 1); ",
+    "INSERT INTO workspace_members (workspace_id, agent_id, joined_at) VALUES ('w1', 'a2', 1); ",
+    "INSERT INTO workspace_users (workspace_id, user_id, joined_at) VALUES ('w1', 'u-viewer', 1); ",
+);
 
 /// Materialize a fresh current-schema database, seed it, then drive the real adapter
 /// and router for `viewer` with the given query string. The `application/json`

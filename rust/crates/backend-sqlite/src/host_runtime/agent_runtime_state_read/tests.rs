@@ -31,82 +31,92 @@ const DATABASE_FILE: &str = "agent-runtime-state.sqlite";
 /// `workspace_users` AND `conversation_users` row), `u-dp` reads `c-dp` through the
 /// direct-pair endpoint, and `c-hidden` (workspace `w2`, which `u-member` is not in)
 /// is readable by neither.
-const SEED: &str = "\
-INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES \
-  ('u-creator','u-creator','Creator',1,1), \
-  ('u-member','u-member','Member',1,1), \
-  ('u-dp','u-dp','DirectPair',1,1), \
-  ('u-outsider','u-outsider','Outsider',1,1); \
-INSERT INTO hosts (id, name, kind, created_at, user_id, provisioning_source) VALUES \
-  ('h1','h1','local',1,'u-creator','app_install'); \
-INSERT INTO agents (id, name, display_name, runtime, host_id, created_at, updated_at, \
-    created_by_user_id, materialization_status, session_scope) VALUES \
-  ('a-agentscope','a-agentscope','AgentScope','claude','h1',1,1,'u-creator','active','agent'), \
-  ('a-convscope','a-convscope','ConvScope','claude','h1',1,1,'u-creator','active','conversation'); \
-INSERT INTO workspaces (id, name, name_key, created_at, updated_at) VALUES \
-  ('w1','W1','w1',1,1), \
-  ('w2','W2','w2',1,1); \
-INSERT INTO workspace_users (workspace_id, user_id, joined_at) VALUES \
-  ('w1','u-member',1), \
-  ('w1','u-creator',1), \
-  ('w2','u-outsider',1); \
-INSERT INTO workspace_members (workspace_id, agent_id, joined_at) VALUES \
-  ('w1','a-agentscope',1), \
-  ('w2','a-agentscope',1), \
-  ('w1','a-convscope',1); \
-INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, \
-    created_at, updated_at, archived_at) VALUES \
-  ('c-ws','w1','workspace','open','General','general',1,300,NULL), \
-  ('c-arch','w1','workspace','open','Archived','archived-ch',1,200,50), \
-  ('c-recent','w1','workspace','open','Recent','recent-ch',1,400,NULL), \
-  ('c-hidden','w2','workspace','open','Hidden','hidden-ch',1,350,NULL), \
-  ('c-cv1','w1','workspace','open','Conv One','conv-one',1,110,NULL), \
-  ('c-cv2','w1','workspace','open','Conv Two','conv-two',1,120,NULL); \
-INSERT INTO conversations (id, workspace_id, endpoint_a_kind, endpoint_a_id, endpoint_b_kind, \
-    endpoint_b_id, placement_kind, roster_policy, title, visibility, created_at, updated_at) \
-  VALUES \
-  ('c-dp',NULL,'agent','a-agentscope','human','u-dp','direct_pair','fixed','','private',1,500); \
-INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES \
-  ('c-ws','a-agentscope',1), \
-  ('c-arch','a-agentscope',1), \
-  ('c-recent','a-agentscope',1), \
-  ('c-hidden','a-agentscope',1), \
-  ('c-cv1','a-convscope',1), \
-  ('c-cv2','a-convscope',1); \
-INSERT INTO conversation_users (conversation_id, user_id, joined_at) VALUES \
-  ('c-ws','u-member',1), \
-  ('c-arch','u-member',1), \
-  ('c-recent','u-member',1), \
-  ('c-cv1','u-member',1), \
-  ('c-cv1','u-creator',1), \
-  ('c-cv2','u-creator',1); \
-INSERT INTO messages (id, conversation_id, from_kind, content, seq, created_at) VALUES \
-  ('m1','c-ws','user','one',1,1), \
-  ('m2','c-ws','user','two',2,1), \
-  ('m3','c-arch','user','three',3,1), \
-  ('m4','c-hidden','user','four',4,1), \
-  ('m5','c-cv1','user','five',5,1), \
-  ('m6','c-cv1','user','six',6,1), \
-  ('m7','c-cv1','user','seven',7,1), \
-  ('m8','c-cv2','user','eight',8,1), \
-  ('m9','c-hidden','user','nine',9,1); \
-INSERT INTO conversation_inboxes (conversation_id, agent_id, message_id, delivered_at, failed_at, created_at) \
-  VALUES \
-  ('c-ws','a-agentscope','m1',NULL,NULL,1), \
-  ('c-ws','a-agentscope','m2',NULL,NULL,1), \
-  ('c-arch','a-agentscope','m3',10,NULL,1), \
-  ('c-hidden','a-agentscope','m4',NULL,20,1), \
-  ('c-hidden','a-agentscope','m9',NULL,NULL,1), \
-  ('c-cv1','a-convscope','m5',NULL,NULL,1), \
-  ('c-cv1','a-convscope','m6',NULL,NULL,1), \
-  ('c-cv1','a-convscope','m7',30,NULL,1), \
-  ('c-cv2','a-convscope','m8',NULL,NULL,1); \
-DELETE FROM agent_runtime_slots; \
-INSERT INTO agent_runtime_slots (agent_id, conversation_id, generation, observed_status, \
-    observed_pid, cli_session_id) VALUES \
-  ('a-agentscope',NULL,5,'active',999,'cli-a'), \
-  ('a-convscope','c-cv1',3,'idle',NULL,NULL), \
-  ('a-convscope','c-cv2',4,'starting',NULL,NULL);";
+const SEED: &str = concat!(
+    "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('u-creator','u-creator','Creator',1,1), ('u-member','u-member','Member',1,1), ('u-dp','u-dp','DirectPair',1,1), ('u-outsider','u-outsider','Outsider',1,1); ",
+    "INSERT INTO hosts (id, name, kind, created_at, user_id, provisioning_source) VALUES ('h1','h1','local',1,'u-creator','app_install'); ",
+    seed_agent!(
+        id = "a-agentscope",
+        display_name = "AgentScope",
+        host_id = "h1",
+        created_by_user_id = "u-creator",
+        session_scope = "agent",
+    ),
+    "; ",
+    seed_agent!(
+        id = "a-convscope",
+        display_name = "ConvScope",
+        host_id = "h1",
+        created_by_user_id = "u-creator",
+    ),
+    "; ",
+    "INSERT INTO workspaces (id, name, name_key, created_at, updated_at) VALUES ('w1','W1','w1',1,1), ('w2','W2','w2',1,1); ",
+    "INSERT INTO workspace_users (workspace_id, user_id, joined_at) VALUES ('w1','u-member',1), ('w1','u-creator',1), ('w2','u-outsider',1); ",
+    "INSERT INTO workspace_members (workspace_id, agent_id, joined_at) VALUES ('w1','a-agentscope',1), ('w2','a-agentscope',1), ('w1','a-convscope',1); ",
+    seed_channel!(
+        id = "c-ws",
+        workspace_id = "w1",
+        title = "General",
+        title_key = "general",
+        updated_at = 300,
+    ),
+    "; ",
+    seed_channel!(
+        id = "c-arch",
+        workspace_id = "w1",
+        title = "Archived",
+        title_key = "archived-ch",
+        updated_at = 200,
+        archived_at = 50,
+    ),
+    "; ",
+    seed_channel!(
+        id = "c-recent",
+        workspace_id = "w1",
+        title = "Recent",
+        title_key = "recent-ch",
+        updated_at = 400,
+    ),
+    "; ",
+    seed_channel!(
+        id = "c-hidden",
+        workspace_id = "w2",
+        title = "Hidden",
+        title_key = "hidden-ch",
+        updated_at = 350,
+    ),
+    "; ",
+    seed_channel!(
+        id = "c-cv1",
+        workspace_id = "w1",
+        title = "Conv One",
+        title_key = "conv-one",
+        updated_at = 110,
+    ),
+    "; ",
+    seed_channel!(
+        id = "c-cv2",
+        workspace_id = "w1",
+        title = "Conv Two",
+        title_key = "conv-two",
+        updated_at = 120,
+    ),
+    "; ",
+    seed_direct_pair!(
+        id = "c-dp",
+        endpoint_a_kind = "agent",
+        endpoint_a_id = "a-agentscope",
+        endpoint_b_kind = "human",
+        endpoint_b_id = "u-dp",
+        updated_at = 500,
+    ),
+    "; ",
+    "INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES ('c-ws','a-agentscope',1), ('c-arch','a-agentscope',1), ('c-recent','a-agentscope',1), ('c-hidden','a-agentscope',1), ('c-cv1','a-convscope',1), ('c-cv2','a-convscope',1); ",
+    "INSERT INTO conversation_users (conversation_id, user_id, joined_at) VALUES ('c-ws','u-member',1), ('c-arch','u-member',1), ('c-recent','u-member',1), ('c-cv1','u-member',1), ('c-cv1','u-creator',1), ('c-cv2','u-creator',1); ",
+    "INSERT INTO messages (id, conversation_id, from_kind, content, seq, created_at) VALUES ('m1','c-ws','user','one',1,1), ('m2','c-ws','user','two',2,1), ('m3','c-arch','user','three',3,1), ('m4','c-hidden','user','four',4,1), ('m5','c-cv1','user','five',5,1), ('m6','c-cv1','user','six',6,1), ('m7','c-cv1','user','seven',7,1), ('m8','c-cv2','user','eight',8,1), ('m9','c-hidden','user','nine',9,1); ",
+    "INSERT INTO conversation_inboxes (conversation_id, agent_id, message_id, delivered_at, failed_at, created_at) VALUES ('c-ws','a-agentscope','m1',NULL,NULL,1), ('c-ws','a-agentscope','m2',NULL,NULL,1), ('c-arch','a-agentscope','m3',10,NULL,1), ('c-hidden','a-agentscope','m4',NULL,20,1), ('c-hidden','a-agentscope','m9',NULL,NULL,1), ('c-cv1','a-convscope','m5',NULL,NULL,1), ('c-cv1','a-convscope','m6',NULL,NULL,1), ('c-cv1','a-convscope','m7',30,NULL,1), ('c-cv2','a-convscope','m8',NULL,NULL,1); ",
+    "DELETE FROM agent_runtime_slots; ",
+    "INSERT INTO agent_runtime_slots (agent_id, conversation_id, generation, observed_status, observed_pid, cli_session_id) VALUES ('a-agentscope',NULL,5,'active',999,'cli-a'), ('a-convscope','c-cv1',3,'idle',NULL,NULL), ('a-convscope','c-cv2',4,'starting',NULL,NULL); ",
+);
 
 async fn seeded() -> (tempfile::TempDir, SqliteAgentRuntimeStateColdRead) {
     let directory = tempfile::tempdir().unwrap();

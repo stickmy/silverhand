@@ -115,9 +115,12 @@ mod tests {
              created_at, updated_at) VALUES ('ws-1', 'One', 'one', NULL, 'user-1', 1, 1)",
             "INSERT INTO workspaces (id, name, name_key, owner_agent_id, owner_user_id, \
              created_at, updated_at) VALUES ('ws-2', 'Two', 'two', NULL, 'user-1', 1, 1)",
-            "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-             title_key, created_at, updated_at) \
-             VALUES ('conv-ws', 'ws-1', 'workspace', 'open', 'General', 'general', 1, 1)",
+            seed_channel!(
+                id = "conv-ws",
+                workspace_id = "ws-1",
+                title = "General",
+                title_key = "general",
+            ),
             "INSERT INTO tasks (id, workspace_id, task_number, conversation_id, title, status, \
              creator_kind, created_at, board_key) \
              VALUES ('task-1', 'ws-1', 1, 'conv-ws', 'hello world', 'todo', 'system', 100, \
@@ -190,10 +193,13 @@ mod tests {
              VALUES ('user-1', 'user-1', 'One', 1, 1)",
             "INSERT INTO users (id, name, display_name, created_at, updated_at) \
              VALUES ('user-2', 'user-2', 'Two', 2, 2)",
-            "INSERT INTO conversations (id, placement_kind, roster_policy, title, \
-             endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, created_at, \
-             updated_at) VALUES ('conv-pair', 'direct_pair', 'fixed', '', 'human', \
-             'user-1', 'human', 'user-2', 1, 1)",
+            seed_direct_pair!(
+                id = "conv-pair",
+                endpoint_a_kind = "human",
+                endpoint_a_id = "user-1",
+                endpoint_b_kind = "human",
+                endpoint_b_id = "user-2",
+            ),
         ] {
             sqlx::query(statement).execute(&mut db).await.unwrap();
         }

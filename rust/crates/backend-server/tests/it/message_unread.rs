@@ -43,8 +43,16 @@ async fn store(setup: &str) -> (tempfile::TempDir, MessagingStore) {
         return (dir, MessagingStore::open(path).await.unwrap());
     }
     if setup == "direct_pair_endpoint" {
-        sqlx::query("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,visibility,created_at,updated_at) VALUES('c',NULL,'direct_pair','fixed','human','local','human','other','',NULL,'private',1,1)")
-            .execute(&mut db).await.unwrap();
+        sqlx::query(seed_direct_pair!(
+            id = "c",
+            endpoint_a_kind = "human",
+            endpoint_a_id = "local",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "other",
+        ))
+        .execute(&mut db)
+        .await
+        .unwrap();
         seed_messages(&mut db, "c").await;
         drop(db);
         return (dir, MessagingStore::open(path).await.unwrap());
@@ -58,8 +66,19 @@ async fn store(setup: &str) -> (tempfile::TempDir, MessagingStore) {
     } else {
         "private"
     };
-    sqlx::query("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,archived_at,created_at,updated_at) VALUES('c','w','workspace','open','General','general-message-unread',?,?,1,1)")
-        .bind(visibility).bind(archived).execute(&mut db).await.unwrap();
+    sqlx::query(seed_channel!(
+        id = "c",
+        workspace_id = "w",
+        title = "General",
+        title_key = "general-message-unread",
+        visibility = ?,
+        archived_at = ?,
+    ))
+    .bind(visibility)
+    .bind(archived)
+    .execute(&mut db)
+    .await
+    .unwrap();
     if setup != "workspace_forbidden" {
         sqlx::query(
             "INSERT INTO workspace_users(workspace_id,user_id,joined_at) VALUES('w','local',1)",
@@ -74,8 +93,17 @@ async fn store(setup: &str) -> (tempfile::TempDir, MessagingStore) {
         seed_messages(&mut db, "c").await;
     }
     if setup == "workspace_member" {
-        sqlx::query("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES('c2','w','workspace','open','Second','second-message-unread','private',2,2)")
-            .execute(&mut db).await.unwrap();
+        sqlx::query(seed_channel!(
+            id = "c2",
+            workspace_id = "w",
+            title = "Second",
+            title_key = "second-message-unread",
+            created_at = 2,
+            updated_at = 2,
+        ))
+        .execute(&mut db)
+        .await
+        .unwrap();
         sqlx::query("INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('c2','local',2)")
             .execute(&mut db).await.unwrap();
         sqlx::query("INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,seq,created_at) VALUES('c2-message','c2','user','other','other conversation',1,9)")
@@ -560,7 +588,20 @@ async fn publication_combines_workspace_counts_and_keeps_tier_rules() {
             Some(7),
         ),
         (
-            "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES('c3','w','workspace','fixed','Fixed','fixed','private',3,3); INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('c3','local',3); INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,seq,created_at) VALUES('fixed-message','c3','user','other','fixed',1,3)",
+            concat!(
+                seed_channel!(
+                    id = "c3",
+                    workspace_id = "w",
+                    roster_policy = "fixed",
+                    title = "Fixed",
+                    title_key = "fixed",
+                    created_at = 3,
+                    updated_at = 3,
+                ),
+                "; ",
+                "INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('c3','local',3); ",
+                "INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,seq,created_at) VALUES('fixed-message','c3','user','other','fixed',1,3)",
+            ),
             4,
             2,
             Some(7),

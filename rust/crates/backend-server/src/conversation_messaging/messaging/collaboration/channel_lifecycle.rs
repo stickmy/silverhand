@@ -287,8 +287,19 @@ mod tests {
                 } else {
                     ("other", "teammate")
                 };
-                sqlx::query("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,visibility,created_at,updated_at) VALUES('c',NULL,'direct_pair','fixed','human',?,'human',?,'',NULL,'private',1,2)")
-                    .bind(a).bind(b).execute(&mut db).await.unwrap();
+                sqlx::query(seed_direct_pair!(
+                    id = "c",
+                    endpoint_a_kind = "human",
+                    endpoint_a_id = ?,
+                    endpoint_b_kind = "human",
+                    endpoint_b_id = ?,
+                    updated_at = 2,
+                ))
+                .bind(a)
+                .bind(b)
+                .execute(&mut db)
+                .await
+                .unwrap();
             }
             other => {
                 let roster = if other == "fixed_member" {
@@ -309,8 +320,22 @@ mod tests {
                 } else {
                     None
                 };
-                sqlx::query("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,archived_at,created_at,updated_at) VALUES('c','w','workspace',?,'General','general',?,?,1,2)")
-                    .bind(roster).bind(visibility).bind(archived).execute(&mut db).await.unwrap();
+                sqlx::query(seed_channel!(
+                    id = "c",
+                    workspace_id = "w",
+                    roster_policy = ?,
+                    title = "General",
+                    title_key = "general",
+                    visibility = ?,
+                    archived_at = ?,
+                    updated_at = 2,
+                ))
+                .bind(roster)
+                .bind(visibility)
+                .bind(archived)
+                .execute(&mut db)
+                .await
+                .unwrap();
                 if other != "public_nonmember_admin" && other != "private_nonmember" {
                     sqlx::query("INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('c','local',1)")
                         .execute(&mut db).await.unwrap();

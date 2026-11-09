@@ -75,11 +75,30 @@ async fn seed(path: &std::path::Path) {
     for statement in [
         "INSERT INTO workspaces(id,name,name_key,created_at,updated_at) VALUES \
          ('w','Old Workspace','old-workspace',1,1),('other','Other','other',1,1)",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES \
-         ('active-b','w','workspace','open','B','b','private',1,1),\
-         ('active-a','w','workspace','open','A','a','private',1,1),\
-         ('fixed','w','workspace','fixed','Fixed','fixed','private',1,1),\
-         ('foreign','other','workspace','open','Foreign','foreign','private',1,1)",
+        concat!(
+            seed_channel!(
+                id = "active-b",
+                workspace_id = "w",
+                title = "B",
+                title_key = "b"
+            ),
+            "; ",
+            seed_channel!(
+                id = "active-a",
+                workspace_id = "w",
+                title = "A",
+                title_key = "a"
+            ),
+            "; ",
+            seed_channel!(
+                id = "fixed",
+                workspace_id = "w",
+                roster_policy = "fixed",
+                title = "Fixed",
+            ),
+            "; ",
+            seed_channel!(id = "foreign", workspace_id = "other", title = "Foreign"),
+        ),
         "UPDATE conversations SET archived_at=9 WHERE id='active-b'",
     ] {
         db.execute(statement).await.unwrap();
@@ -283,10 +302,31 @@ async fn conversation_agents_are_the_ungated_ordered_membership_of_that_conversa
     for statement in [
         "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES ('u','u','U',1,1)",
         "INSERT INTO hosts(id,name,kind,created_at) VALUES ('h','H','local',1)",
-        "INSERT INTO agents(id,name,display_name,runtime,host_id,created_by_user_id,created_at,updated_at) VALUES \
-         ('agent-b','b','B','claude','h','u',1,1),\
-         ('agent-a','a','A','claude','h','u',1,1),\
-         ('agent-z','z','Z','claude','h','u',1,1)",
+        concat!(
+            seed_agent!(
+                id = "agent-b",
+                name = "b",
+                display_name = "B",
+                host_id = "h",
+                created_by_user_id = "u",
+            ),
+            "; ",
+            seed_agent!(
+                id = "agent-a",
+                name = "a",
+                display_name = "A",
+                host_id = "h",
+                created_by_user_id = "u",
+            ),
+            "; ",
+            seed_agent!(
+                id = "agent-z",
+                name = "z",
+                display_name = "Z",
+                host_id = "h",
+                created_by_user_id = "u",
+            ),
+        ),
         // active-a holds agent-b and agent-a; active-b holds only agent-z. The read
         // must return active-a's pair ordered by id and never bleed active-b's agent.
         "INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES \

@@ -139,43 +139,63 @@ async fn seeded() -> (
     let path = directory.path().join("reactions.sqlite");
     let mut db = crate::current_schema::create_current_schema(&path).await;
     db.execute(sqlx::raw_sql(
-        "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES \
-           ('user-1', 'owner', 'Owner', 0, 0), ('user-2', 'outsider', 'Outsider', 0, 0); \
-         INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-1', 'Host', 'local', 0); \
-         INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, display_name, \
-           created_by_user_id, materialization_status, session_scope) VALUES \
-           ('agent-1', 'agent', 'codex', 'host-1', 0, 0, 'Agent', 'user-1', 'active', 'conversation'); \
-         INSERT INTO workspaces (id, name, name_key, owner_user_id, created_at, updated_at) \
-           VALUES ('workspace-1', 'Space', 'space', 'user-1', 0, 0); \
-         INSERT INTO workspace_users (workspace_id, user_id, joined_at, role) VALUES \
-           ('workspace-1', 'user-1', 0, 'owner'), ('workspace-1', 'user-2', 0, 'member'); \
-         INSERT INTO workspace_members (workspace_id, agent_id, joined_at) VALUES \
-           ('workspace-1', 'agent-1', 0); \
-         INSERT INTO workspace_agent_capabilities (workspace_id, agent_id, capability) VALUES \
-           ('workspace-1', 'agent-1', 'send_messages'); \
-         INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-           title_key, visibility, created_at, updated_at, latest_message_seq) VALUES \
-           ('conversation-1', 'workspace-1', 'workspace', 'open', 'General', 'general', 'private', 0, 0, 2), \
-           ('conversation-archived', 'workspace-1', 'workspace', 'open', 'Archived', 'archived', 'private', 0, 0, 1); \
-         INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-           title_key, visibility, endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, \
-           created_at, updated_at, latest_message_seq) VALUES \
-           ('pair-1', NULL, 'direct_pair', 'fixed', 'Pair', NULL, 'private', \
-            'agent', 'agent-1', 'human', 'user-1', 0, 0, 1); \
-         UPDATE conversations SET archived_at = 1 WHERE id = 'conversation-archived'; \
-         INSERT INTO conversation_users (conversation_id, user_id, joined_at) VALUES \
-           ('conversation-1', 'user-1', 0), ('conversation-archived', 'user-1', 0); \
-         INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES \
-           ('conversation-1', 'agent-1', 0); \
-         INSERT INTO messages (id, conversation_id, from_kind, from_user_id, content, seq, created_at) VALUES \
-           ('message-1', 'conversation-1', 'user', 'user-1', 'hello', 1, 1), \
-           ('system-1', 'conversation-1', 'system', NULL, 'notice', 2, 2), \
-           ('reply-1', 'conversation-1', 'user', 'user-1', 'reply', 3, 3), \
-           ('archived-message', 'conversation-archived', 'user', 'user-1', 'old', 1, 1), \
-           ('pair-message', 'pair-1', 'user', 'user-1', 'dm', 1, 1); \
-         UPDATE messages SET thread_root_id='message-1' WHERE id='reply-1'; \
-         INSERT INTO conversation_stream_heads (conversation_id, thread_root_id, latest_seq) VALUES \
-           ('conversation-1', NULL, 2), ('conversation-1', 'message-1', 3);"
+        concat!(
+            "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-1', 'owner', 'Owner', 0, 0), ('user-2', 'outsider', 'Outsider', 0, 0); ",
+            "INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-1', 'Host', 'local', 0); ",
+            seed_agent!(
+                id = "agent-1",
+                name = "agent",
+                runtime = "codex",
+                host_id = "host-1",
+                created_at = 0,
+                updated_at = 0,
+                display_name = "Agent",
+                created_by_user_id = "user-1",
+            ),
+            "; ",
+            "INSERT INTO workspaces (id, name, name_key, owner_user_id, created_at, updated_at) VALUES ('workspace-1', 'Space', 'space', 'user-1', 0, 0); ",
+            "INSERT INTO workspace_users (workspace_id, user_id, joined_at, role) VALUES ('workspace-1', 'user-1', 0, 'owner'), ('workspace-1', 'user-2', 0, 'member'); ",
+            "INSERT INTO workspace_members (workspace_id, agent_id, joined_at) VALUES ('workspace-1', 'agent-1', 0); ",
+            "INSERT INTO workspace_agent_capabilities (workspace_id, agent_id, capability) VALUES ('workspace-1', 'agent-1', 'send_messages'); ",
+            seed_channel!(
+                id = "conversation-1",
+                workspace_id = "workspace-1",
+                title = "General",
+                title_key = "general",
+                created_at = 0,
+                updated_at = 0,
+                latest_message_seq = 2,
+            ),
+            "; ",
+            seed_channel!(
+                id = "conversation-archived",
+                workspace_id = "workspace-1",
+                title = "Archived",
+                title_key = "archived",
+                created_at = 0,
+                updated_at = 0,
+                latest_message_seq = 1,
+            ),
+            "; ",
+            seed_direct_pair!(
+                id = "pair-1",
+                title = "Pair",
+                endpoint_a_kind = "agent",
+                endpoint_a_id = "agent-1",
+                endpoint_b_kind = "human",
+                endpoint_b_id = "user-1",
+                created_at = 0,
+                updated_at = 0,
+                latest_message_seq = 1,
+            ),
+            "; ",
+            "UPDATE conversations SET archived_at = 1 WHERE id = 'conversation-archived'; ",
+            "INSERT INTO conversation_users (conversation_id, user_id, joined_at) VALUES ('conversation-1', 'user-1', 0), ('conversation-archived', 'user-1', 0); ",
+            "INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES ('conversation-1', 'agent-1', 0); ",
+            "INSERT INTO messages (id, conversation_id, from_kind, from_user_id, content, seq, created_at) VALUES ('message-1', 'conversation-1', 'user', 'user-1', 'hello', 1, 1), ('system-1', 'conversation-1', 'system', NULL, 'notice', 2, 2), ('reply-1', 'conversation-1', 'user', 'user-1', 'reply', 3, 3), ('archived-message', 'conversation-archived', 'user', 'user-1', 'old', 1, 1), ('pair-message', 'pair-1', 'user', 'user-1', 'dm', 1, 1); ",
+            "UPDATE messages SET thread_root_id='message-1' WHERE id='reply-1'; ",
+            "INSERT INTO conversation_stream_heads (conversation_id, thread_root_id, latest_seq) VALUES ('conversation-1', NULL, 2), ('conversation-1', 'message-1', 3); ",
+        )
     )).await.unwrap();
     db.close().await.unwrap();
     let store = MessagingStore::open(&path).await.unwrap();
@@ -536,9 +556,18 @@ async fn production_routes_consume_the_shared_fixture_cases_and_every_case_is_ac
         .await
         .unwrap();
     db.execute(sqlx::raw_sql(
-        "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, visibility, created_at, updated_at) \
-         VALUES ('conversation-other', 'workspace-1', 'workspace', 'open', 'Other', 'other', 'private', 0, 0); \
-         INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES ('conversation-other', 'agent-1', 0);"
+        concat!(
+            seed_channel!(
+                id = "conversation-other",
+                workspace_id = "workspace-1",
+                title = "Other",
+                title_key = "other",
+                created_at = 0,
+                updated_at = 0,
+            ),
+            "; ",
+            "INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES ('conversation-other', 'agent-1', 0); ",
+        )
     )).await.unwrap();
 
     for (name, method, uri, body) in [

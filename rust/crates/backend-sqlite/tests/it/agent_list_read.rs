@@ -103,20 +103,53 @@ const FIXTURE: &[&str] = &[
        ('u-delta', 'delta', 'Delta', 1, 1), \
        ('u-stranger', 'stranger', 'Stranger', 1, 1)",
     "INSERT INTO hosts (id, name, kind, created_at) VALUES ('h1', 'host-one', 'desktop', 1)",
-    "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id) VALUES \
-       ('a1', 'agent-one', 'qoder', 'h1', 100, 100, 'u-alpha')",
-    "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id) VALUES \
-       ('a2', 'agent-two', 'qoder', 'h1', 200, 200, 'u-beta')",
-    "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id) VALUES \
-       ('a3', 'agent-three', 'qoder', 'h1', 300, 300, 'u-gamma')",
-    "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id) VALUES \
-       ('a4', 'agent-four', 'qoder', 'h1', 400, 400, 'u-alpha')",
+    seed_agent!(
+        id = "a1",
+        name = "agent-one",
+        runtime = "qoder",
+        host_id = "h1",
+        created_at = 100,
+        updated_at = 100,
+        created_by_user_id = "u-alpha",
+    ),
+    seed_agent!(
+        id = "a2",
+        name = "agent-two",
+        runtime = "qoder",
+        host_id = "h1",
+        created_at = 200,
+        updated_at = 200,
+        created_by_user_id = "u-beta",
+    ),
+    seed_agent!(
+        id = "a3",
+        name = "agent-three",
+        runtime = "qoder",
+        host_id = "h1",
+        created_at = 300,
+        updated_at = 300,
+        created_by_user_id = "u-gamma",
+    ),
+    seed_agent!(
+        id = "a4",
+        name = "agent-four",
+        runtime = "qoder",
+        host_id = "h1",
+        created_at = 400,
+        updated_at = 400,
+        created_by_user_id = "u-alpha",
+    ),
     // a2 <-> u-alpha direct pair: 'agent' < 'human', so the agent is endpoint_a.
-    "INSERT INTO conversations \
-       (id, workspace_id, endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, \
-        placement_kind, roster_policy, title, created_at, updated_at) \
-     VALUES ('c-pair', NULL, 'agent', 'a2', 'human', 'u-alpha', \
-        'direct_pair', 'fixed', 'dm', 200, 200)",
+    seed_direct_pair!(
+        id = "c-pair",
+        endpoint_a_kind = "agent",
+        endpoint_a_id = "a2",
+        endpoint_b_kind = "human",
+        endpoint_b_id = "u-alpha",
+        title = "dm",
+        created_at = 200,
+        updated_at = 200,
+    ),
     // a4 in regular workspace w1 (owner_agent_id NULL), whose only user is u-delta.
     "INSERT INTO workspaces \
        (id, name, name_key, description, owner_agent_id, archived_at, created_at, updated_at) \
@@ -139,8 +172,15 @@ async fn a_non_numeric_created_at_is_a_read_error_not_a_default() {
         "INSERT INTO users (id, name, display_name, created_at, updated_at) \
          VALUES ('u-alpha', 'alpha', 'Alpha', 1, 1)",
         "INSERT INTO hosts (id, name, kind, created_at) VALUES ('h1', 'host-one', 'desktop', 1)",
-        "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id) \
-         VALUES ('a1', 'agent-one', 'qoder', 'h1', 'soon', 100, 'u-alpha')",
+        seed_agent!(
+            id = "a1",
+            name = "agent-one",
+            runtime = "qoder",
+            host_id = "h1",
+            created_at = "soon",
+            updated_at = 100,
+            created_by_user_id = "u-alpha",
+        ),
     ];
     let (_bad_guard, bad, _bad_detail) = seeded(corrupt).await;
     assert!(try_candidates(&bad, "u-alpha").await.is_err());
@@ -149,8 +189,15 @@ async fn a_non_numeric_created_at_is_a_read_error_not_a_default() {
         "INSERT INTO users (id, name, display_name, created_at, updated_at) \
          VALUES ('u-alpha', 'alpha', 'Alpha', 1, 1)",
         "INSERT INTO hosts (id, name, kind, created_at) VALUES ('h1', 'host-one', 'desktop', 1)",
-        "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id) \
-         VALUES ('a1', 'agent-one', 'qoder', 'h1', 100, 100, 'u-alpha')",
+        seed_agent!(
+            id = "a1",
+            name = "agent-one",
+            runtime = "qoder",
+            host_id = "h1",
+            created_at = 100,
+            updated_at = 100,
+            created_by_user_id = "u-alpha",
+        ),
     ];
     let (_good_guard, good, _good_detail) = seeded(repaired).await;
     assert!(try_candidates(&good, "u-alpha").await.is_ok());

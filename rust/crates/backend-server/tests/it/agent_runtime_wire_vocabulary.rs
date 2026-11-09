@@ -41,18 +41,34 @@ const PRINCIPALS: &str = "\
 
 /// A committed row whose runtime is outside the closed set. Nothing in the schema
 /// bars it, which is why it is a read-side invariant.
-const AGENT_WITH_UNKNOWN_RUNTIME: &str = "\
-    INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id, \
-      display_name, materialization_status) \
-    VALUES ('a1', 'agent-one', 'future-runtime', 'h1', 1000, 2000, 'u-creator', \
-      'Agent One', 'active');";
+const AGENT_WITH_UNKNOWN_RUNTIME: &str = concat!(
+    seed_agent!(
+        id = "a1",
+        name = "agent-one",
+        runtime = "future-runtime",
+        host_id = "h1",
+        created_at = 1000,
+        updated_at = 2000,
+        created_by_user_id = "u-creator",
+        display_name = "Agent One",
+    ),
+    "; ",
+);
 
 /// The same row with the runtime column — and only it — repaired.
-const AGENT_WITH_KNOWN_RUNTIME: &str = "\
-    INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id, \
-      display_name, materialization_status) \
-    VALUES ('a1', 'agent-one', 'qoder', 'h1', 1000, 2000, 'u-creator', \
-      'Agent One', 'active');";
+const AGENT_WITH_KNOWN_RUNTIME: &str = concat!(
+    seed_agent!(
+        id = "a1",
+        name = "agent-one",
+        runtime = "qoder",
+        host_id = "h1",
+        created_at = 1000,
+        updated_at = 2000,
+        created_by_user_id = "u-creator",
+        display_name = "Agent One",
+    ),
+    "; ",
+);
 
 /// One fresh current-schema database seeded with `agent_row`, then asked the same
 /// question through BOTH real faces: `(list, detail)` as `(status, body text)`.

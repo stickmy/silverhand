@@ -211,10 +211,16 @@ async fn seed(db: &mut SqliteConnection, scope: &str) {
     .execute(&mut *db)
     .await
     .unwrap();
-    sqlx::query(
-        "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, display_name, \
-         created_by_user_id, session_scope) VALUES (?, 'lio', 'claude', ?, 0, 0, 'Lio', ?, ?)",
-    )
+    sqlx::query(seed_agent!(
+        id = ?,
+        name = "lio",
+        host_id = ?,
+        created_at = 0,
+        updated_at = 0,
+        display_name = "Lio",
+        created_by_user_id = ?,
+        session_scope = ?,
+    ))
     .bind(AGENT_ID)
     .bind(HOST_ID)
     .bind(USER_ID)
@@ -222,21 +228,31 @@ async fn seed(db: &mut SqliteConnection, scope: &str) {
     .execute(&mut *db)
     .await
     .unwrap();
-    sqlx::query(
-        "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, display_name, \
-         created_by_user_id, session_scope) VALUES (?, 'broad', 'claude', ?, 0, 0, 'Broad', ?, \
-         'agent')",
-    )
+    sqlx::query(seed_agent!(
+        id = ?,
+        name = "broad",
+        host_id = ?,
+        created_at = 0,
+        updated_at = 0,
+        display_name = "Broad",
+        created_by_user_id = ?,
+        session_scope = "agent",
+    ))
     .bind(BROAD_AGENT_ID)
     .bind(HOST_ID)
     .bind(USER_ID)
     .execute(&mut *db)
     .await
     .unwrap();
-    sqlx::query(
-        "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, display_name, \
-         created_by_user_id) VALUES (?, 'outsider', 'claude', ?, 0, 0, 'Outsider', ?)",
-    )
+    sqlx::query(seed_agent!(
+        id = ?,
+        name = "outsider",
+        host_id = ?,
+        created_at = 0,
+        updated_at = 0,
+        display_name = "Outsider",
+        created_by_user_id = ?,
+    ))
     .bind(OUTSIDER_AGENT_ID)
     .bind(HOST_ID)
     .bind(USER_ID)
@@ -260,11 +276,14 @@ async fn seed(db: &mut SqliteConnection, scope: &str) {
         .unwrap();
 
     for (id, title_key) in [(CHANNEL_ID, "general"), (OTHER_CHANNEL_ID, "other")] {
-        sqlx::query(
-            "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-             title_key, created_at, updated_at) VALUES (?, ?, 'workspace', 'open', \
-             'Channel', ?, 0, 0)",
-        )
+        sqlx::query(seed_channel!(
+            id = ?,
+            workspace_id = ?,
+            title = "Channel",
+            title_key = ?,
+            created_at = 0,
+            updated_at = 0,
+        ))
         .bind(id)
         .bind(WORKSPACE_ID)
         .bind(title_key)
@@ -294,11 +313,16 @@ async fn seed(db: &mut SqliteConnection, scope: &str) {
 
     // A direct pair carries its participants on the row: no roster rows exist for
     // it by construction.
-    sqlx::query(
-        "INSERT INTO conversations (id, placement_kind, roster_policy, title, \
-         endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, created_at, updated_at) \
-         VALUES (?, 'direct_pair', 'fixed', 'DM', 'agent', ?, 'human', ?, 0, 0)",
-    )
+    sqlx::query(seed_direct_pair!(
+        id = ?,
+        title = "DM",
+        endpoint_a_kind = "agent",
+        endpoint_a_id = ?,
+        endpoint_b_kind = "human",
+        endpoint_b_id = ?,
+        created_at = 0,
+        updated_at = 0,
+    ))
     .bind(PAIR_ID)
     .bind(AGENT_ID)
     .bind(USER_ID)
@@ -2526,11 +2550,15 @@ fn skip_reasons(
 async fn production_mention_authority_only_copies_agent_scoped_targets() {
     for scope in ["conversation", "agent"] {
         let mut fixture = Fixture::new().await;
-        sqlx::query(
-            "INSERT INTO agents (id,name,runtime,host_id,created_at,updated_at,display_name, \
-             created_by_user_id,session_scope) VALUES \
-             ('scope-target','scope-target','claude',?,0,0,'Scope target',?,?)",
-        )
+        sqlx::query(seed_agent!(
+            id = "scope-target",
+            host_id = ?,
+            created_at = 0,
+            updated_at = 0,
+            display_name = "Scope target",
+            created_by_user_id = ?,
+            session_scope = ?,
+        ))
         .bind(HOST_ID)
         .bind(USER_ID)
         .bind(scope)

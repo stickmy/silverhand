@@ -577,19 +577,36 @@ async fn seeded_store() -> (
     let path = directory.path().join("direct-pair-initiation-wire.sqlite");
     let mut db = crate::current_schema::create_current_schema(&path).await;
     db.execute(sqlx::raw_sql(
-        "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES \
-           ('local','local-test','Local Test User',1,1), \
-           ('other','other-test','Other Test User',1,1); \
-         INSERT INTO hosts(id,name,kind,created_at) VALUES \
-           ('host-1','Host','local',1); \
-         INSERT INTO agents(id,name,runtime,host_id,display_name,created_by_user_id, \
-           session_scope,materialization_status,created_at,updated_at) VALUES \
-           ('agent-1','assistant','claude','host-1','Assistant','local', \
-           'agent','active',1,1), \
-           ('agent-frame','frame','claude','host-1','Frame','local', \
-           'conversation','active',1,1), \
-           ('agent-hidden','hidden','claude','host-1','Hidden','other', \
-           'agent','active',1,1);",
+        concat!(
+            "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES ('local','local-test','Local Test User',1,1), ('other','other-test','Other Test User',1,1); ",
+            "INSERT INTO hosts(id,name,kind,created_at) VALUES ('host-1','Host','local',1); ",
+            seed_agent!(
+                id = "agent-1",
+                name = "assistant",
+                host_id = "host-1",
+                display_name = "Assistant",
+                created_by_user_id = "local",
+                session_scope = "agent",
+            ),
+            "; ",
+            seed_agent!(
+                id = "agent-frame",
+                name = "frame",
+                host_id = "host-1",
+                display_name = "Frame",
+                created_by_user_id = "local",
+            ),
+            "; ",
+            seed_agent!(
+                id = "agent-hidden",
+                name = "hidden",
+                host_id = "host-1",
+                display_name = "Hidden",
+                created_by_user_id = "other",
+                session_scope = "agent",
+            ),
+            "; ",
+        ),
     ))
     .await
     .unwrap();

@@ -277,29 +277,66 @@ mod tests {
         let path = directory.path().join("runtime-control.sqlite");
         let mut db = crate::current_schema::create_current_schema(&path).await;
         db.execute(sqlx::raw_sql(
-            "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES \
-                 ('user-1', 'owner', 'Owner', 0, 0), ('user-2', 'other', 'Other', 0, 0); \
-             INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-1', 'Host', 'local', 0); \
-             INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, \
-                 display_name, created_by_user_id, materialization_status, session_scope) VALUES \
-                 ('agent-1', 'agent', 'codex', 'host-1', 0, 0, 'Agent', 'user-1', 'active', 'conversation'), \
-                 ('agent-2', 'agent-two', 'codex', 'host-1', 0, 0, 'Agent Two', 'user-1', 'active', 'conversation'); \
-             INSERT INTO workspaces (id, name, name_key, owner_user_id, created_at, updated_at) \
-                 VALUES ('workspace-1', 'Space', 'space', 'user-1', 0, 0); \
-             INSERT INTO workspace_users (workspace_id, user_id, joined_at, role) VALUES \
-                 ('workspace-1', 'user-1', 0, 'owner'), ('workspace-1', 'user-2', 0, 'member'); \
-             INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-                 title_key, visibility, created_at, updated_at) VALUES \
-                 ('conversation-1', 'workspace-1', 'workspace', 'open', 'General', 'general', 'private', 0, 0), \
-                 ('conversation-fixed', 'workspace-1', 'workspace', 'fixed', 'Fixed', 'fixed', 'private', 0, 0); \
-             INSERT INTO conversations (id, workspace_id, endpoint_a_kind, endpoint_a_id, \
-                 endpoint_b_kind, endpoint_b_id, placement_kind, roster_policy, title, title_key, visibility, created_at, updated_at) VALUES \
-                 ('pair-1', NULL, 'agent', 'agent-2', 'human', 'user-1', 'direct_pair', 'fixed', \
-                  'Direct Pair', NULL, 'private', 0, 0); \
-             INSERT INTO conversation_users (conversation_id, user_id, joined_at) VALUES \
-                 ('conversation-1', 'user-1', 0), ('conversation-fixed', 'user-1', 0); \
-             INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES \
-                 ('conversation-1', 'agent-1', 0), ('conversation-fixed', 'agent-1', 0);",
+            concat!(
+                "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-1', 'owner', 'Owner', 0, 0), ('user-2', 'other', 'Other', 0, 0); ",
+                "INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-1', 'Host', 'local', 0); ",
+                seed_agent!(
+                    id = "agent-1",
+                    name = "agent",
+                    runtime = "codex",
+                    host_id = "host-1",
+                    created_at = 0,
+                    updated_at = 0,
+                    display_name = "Agent",
+                    created_by_user_id = "user-1",
+                ),
+                "; ",
+                seed_agent!(
+                    id = "agent-2",
+                    name = "agent-two",
+                    runtime = "codex",
+                    host_id = "host-1",
+                    created_at = 0,
+                    updated_at = 0,
+                    display_name = "Agent Two",
+                    created_by_user_id = "user-1",
+                ),
+                "; ",
+                "INSERT INTO workspaces (id, name, name_key, owner_user_id, created_at, updated_at) VALUES ('workspace-1', 'Space', 'space', 'user-1', 0, 0); ",
+                "INSERT INTO workspace_users (workspace_id, user_id, joined_at, role) VALUES ('workspace-1', 'user-1', 0, 'owner'), ('workspace-1', 'user-2', 0, 'member'); ",
+                seed_channel!(
+                    id = "conversation-1",
+                    workspace_id = "workspace-1",
+                    title = "General",
+                    title_key = "general",
+                    created_at = 0,
+                    updated_at = 0,
+                ),
+                "; ",
+                seed_channel!(
+                    id = "conversation-fixed",
+                    workspace_id = "workspace-1",
+                    roster_policy = "fixed",
+                    title = "Fixed",
+                    title_key = "fixed",
+                    created_at = 0,
+                    updated_at = 0,
+                ),
+                "; ",
+                seed_direct_pair!(
+                    id = "pair-1",
+                    endpoint_a_kind = "agent",
+                    endpoint_a_id = "agent-2",
+                    endpoint_b_kind = "human",
+                    endpoint_b_id = "user-1",
+                    title = "Direct Pair",
+                    created_at = 0,
+                    updated_at = 0,
+                ),
+                "; ",
+                "INSERT INTO conversation_users (conversation_id, user_id, joined_at) VALUES ('conversation-1', 'user-1', 0), ('conversation-fixed', 'user-1', 0); ",
+                "INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES ('conversation-1', 'agent-1', 0), ('conversation-fixed', 'agent-1', 0); ",
+            ),
         ))
         .await
         .unwrap();

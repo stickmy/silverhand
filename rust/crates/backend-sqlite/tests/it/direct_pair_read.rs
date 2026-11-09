@@ -28,30 +28,58 @@ async fn seeded_scope(path: &std::path::Path, scope: &str) {
         "INSERT INTO users (id, name, display_name, created_at, updated_at) \
          VALUES ('user-3', 'foreign', 'Foreign', 3, 13)",
         "INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-1', 'Host', 'local', 1)",
-        "INSERT INTO agents (id, name, display_name, runtime, host_id, avatar_storage_key, \
-         avatar_content_type, created_by_user_id, created_at, updated_at, session_scope) VALUES \
-         ('agent-1', 'agent', 'Agent One', 'codex', 'host-1', 'agent-key', 'image/png', \
-         'user-1', 1, 21, ?)",
+        seed_agent!(
+            id = "agent-1",
+            name = "agent",
+            display_name = "Agent One",
+            runtime = "codex",
+            host_id = "host-1",
+            avatar_storage_key = "agent-key",
+            avatar_content_type = "image/png",
+            created_by_user_id = "user-1",
+            updated_at = 21,
+            session_scope = ?,
+        ),
         // Oldest, viewer in slot B, agent counterpart.
-        "INSERT INTO conversations (id, placement_kind, roster_policy, title, \
-         endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, created_at, updated_at) \
-         VALUES ('pair-agent', 'direct_pair', 'fixed', '', 'agent', 'agent-1', 'human', \
-         'user-1', 100, 100)",
+        seed_direct_pair!(
+            id = "pair-agent",
+            endpoint_a_kind = "agent",
+            endpoint_a_id = "agent-1",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "user-1",
+            created_at = 100,
+            updated_at = 100,
+        ),
         // Same creation time as the next row; id is the deterministic tie-break.
-        "INSERT INTO conversations (id, placement_kind, roster_policy, title, \
-         endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, created_at, updated_at) \
-         VALUES ('pair-a-human', 'direct_pair', 'fixed', '', 'human', 'user-1', 'human', \
-         'user-2', 200, 200)",
+        seed_direct_pair!(
+            id = "pair-a-human",
+            endpoint_a_kind = "human",
+            endpoint_a_id = "user-1",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "user-2",
+            created_at = 200,
+            updated_at = 200,
+        ),
         // A second row at the same millisecond exercises the id tie-break.
-        "INSERT INTO conversations (id, placement_kind, roster_policy, title, \
-         endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, created_at, updated_at) \
-         VALUES ('pair-b-human', 'direct_pair', 'fixed', '', 'human', 'user-1', 'human', \
-         'user-3', 200, 200)",
+        seed_direct_pair!(
+            id = "pair-b-human",
+            endpoint_a_kind = "human",
+            endpoint_a_id = "user-1",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "user-3",
+            created_at = 200,
+            updated_at = 200,
+        ),
         // A foreign viewer's row must never leak onto user-1's complete face.
-        "INSERT INTO conversations (id, placement_kind, roster_policy, title, \
-         endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, created_at, updated_at) \
-         VALUES ('pair-foreign', 'direct_pair', 'fixed', '', 'agent', 'agent-1', 'human', \
-         'user-3', 50, 50)",
+        seed_direct_pair!(
+            id = "pair-foreign",
+            endpoint_a_kind = "agent",
+            endpoint_a_id = "agent-1",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "user-3",
+            created_at = 50,
+            updated_at = 50,
+        ),
         "INSERT INTO messages (id, conversation_id, from_kind, from_agent_id, content, seq, \
          created_at) VALUES ('message-1', 'pair-agent', 'agent', 'agent-1', 'one', 1, 1)",
         "INSERT INTO messages (id, conversation_id, from_kind, from_agent_id, content, seq, \
@@ -123,10 +151,15 @@ async fn the_complete_face_has_no_hidden_page_or_activity_cap() {
     for index in 0..120 {
         let agent = format!("agent-{index:03}");
         let pair = format!("pair-{index:03}");
-        sqlx::query(
-            "INSERT INTO agents (id, name, display_name, runtime, host_id, created_by_user_id, \
-             created_at, updated_at) VALUES (?, ?, ?, 'claude', 'host-1', 'user-1', ?, ?)",
-        )
+        sqlx::query(seed_agent!(
+            id = ?,
+            name = ?,
+            display_name = ?,
+            host_id = "host-1",
+            created_by_user_id = "user-1",
+            created_at = ?,
+            updated_at = ?,
+        ))
         .bind(&agent)
         .bind(&agent)
         .bind(&agent)
@@ -135,12 +168,15 @@ async fn the_complete_face_has_no_hidden_page_or_activity_cap() {
         .execute(&mut db)
         .await
         .unwrap();
-        sqlx::query(
-            "INSERT INTO conversations (id, placement_kind, roster_policy, title, \
-             endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, created_at, \
-             updated_at) VALUES (?, 'direct_pair', 'fixed', '', 'agent', ?, 'human', \
-             'user-1', ?, ?)",
-        )
+        sqlx::query(seed_direct_pair!(
+            id = ?,
+            endpoint_a_kind = "agent",
+            endpoint_a_id = ?,
+            endpoint_b_kind = "human",
+            endpoint_b_id = "user-1",
+            created_at = ?,
+            updated_at = ?,
+        ))
         .bind(&pair)
         .bind(&agent)
         .bind(index)
@@ -245,10 +281,13 @@ async fn malformed_endpoint_and_driver_failures_preserve_their_distinct_sources(
     for statement in [
         "INSERT INTO users (id, name, display_name, created_at, updated_at) \
          VALUES ('user-1', 'viewer', 'Viewer', 1, 1)",
-        "INSERT INTO conversations (id, placement_kind, roster_policy, title, \
-         endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, created_at, updated_at) \
-         VALUES ('pair-corrupt', 'direct_pair', 'fixed', '', 'human', 'user-1', \
-         'machine', 'x', 1, 1)",
+        seed_direct_pair!(
+            id = "pair-corrupt",
+            endpoint_a_kind = "human",
+            endpoint_a_id = "user-1",
+            endpoint_b_kind = "machine",
+            endpoint_b_id = "x",
+        ),
     ] {
         sqlx::query(statement).execute(&mut db).await.unwrap();
     }
@@ -280,10 +319,13 @@ async fn malformed_endpoint_and_driver_failures_preserve_their_distinct_sources(
     for statement in [
         "INSERT INTO users (id, name, display_name, created_at, updated_at) \
          VALUES ('user-1', 'viewer', 'Viewer', 1, 1)",
-        "INSERT INTO conversations (id, placement_kind, roster_policy, title, \
-         endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, created_at, updated_at) \
-         VALUES ('pair-corrupt', 'direct_pair', 'fixed', '', 'human', '', \
-         'human', 'user-1', 1, 1)",
+        seed_direct_pair!(
+            id = "pair-corrupt",
+            endpoint_a_kind = "human",
+            endpoint_a_id = "",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "user-1",
+        ),
     ] {
         sqlx::query(statement).execute(&mut db).await.unwrap();
     }

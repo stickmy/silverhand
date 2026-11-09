@@ -283,8 +283,21 @@ async fn production_router_reads_the_current_schema_snapshot() {
     for statement in [
         "INSERT INTO hosts(id,name,kind,created_at) VALUES('h','host','local',1)",
         "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES('viewer','activity-wire-viewer','Viewer',1,1)",
-        "INSERT INTO agents(id,name,runtime,host_id,created_by_user_id,created_at,updated_at,display_name) VALUES('a','activity-wire-agent','codex','h','viewer',1,1,'Agent')",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,visibility,created_at,updated_at) VALUES('c',NULL,'direct_pair','fixed','agent','a','human','viewer','',NULL,'private',1,1)",
+        seed_agent!(
+            id = "a",
+            name = "activity-wire-agent",
+            runtime = "codex",
+            host_id = "h",
+            created_by_user_id = "viewer",
+            display_name = "Agent",
+        ),
+        seed_direct_pair!(
+            id = "c",
+            endpoint_a_kind = "agent",
+            endpoint_a_id = "a",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "viewer",
+        ),
         "INSERT INTO conversation_events(id,conversation_id,agent_id,kind,payload,created_at) VALUES(1,'c','a','text','{\"text\":\"one\"}',11),(2,'c','a','turn_end','[]',12)",
     ] {
         db.execute(statement).await.unwrap();

@@ -156,11 +156,26 @@ async fn composed_avatar_design_lifecycle_for_users_and_agents() {
         .await
         .unwrap();
     sqlx::query(
-        "INSERT INTO hosts (id, name, kind, created_at, user_id) VALUES ('h-d', 'host-d', 'remote', 1, 'user-1'); \
-         INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-2', 'other', 'Other', 1, 1); \
-         INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id, materialization_status) \
-           VALUES ('a-d', 'agent-d', 'qoder', 'h-d', 1, 1, 'user-1', 'active'), \
-                  ('a-other', 'agent-other', 'qoder', 'h-d', 1, 1, 'user-2', 'active');",
+        concat!(
+            "INSERT INTO hosts (id, name, kind, created_at, user_id) VALUES ('h-d', 'host-d', 'remote', 1, 'user-1'); ",
+            "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-2', 'other', 'Other', 1, 1); ",
+            seed_agent!(
+                id = "a-d",
+                name = "agent-d",
+                runtime = "qoder",
+                host_id = "h-d",
+                created_by_user_id = "user-1",
+            ),
+            "; ",
+            seed_agent!(
+                id = "a-other",
+                name = "agent-other",
+                runtime = "qoder",
+                host_id = "h-d",
+                created_by_user_id = "user-2",
+            ),
+            "; ",
+        ),
     )
     .execute(&pool)
     .await

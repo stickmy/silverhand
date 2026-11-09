@@ -565,16 +565,18 @@ mod tests {
             // does not.  Direct-pair participation alone must not turn this
             // broken post-validation identity into an idempotent success.
             db.execute(sqlx::raw_sql(
-                "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES
-                 ('local','local-thread-follow','Local',1,1),
-                 ('other','other-thread-follow','Other',1,1);
-                 INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,
-                    endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,
-                    title,title_key,visibility,created_at,updated_at)
-                 VALUES('c',NULL,'direct_pair','fixed','human','local','human','other',
-                    '',NULL,'private',1,1);
-                 INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,seq,created_at,thread_root_id)
-                 VALUES('root','c','user','other','root',1,1,NULL);",
+                concat!(
+                    "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES ('local','local-thread-follow','Local',1,1), ('other','other-thread-follow','Other',1,1); ",
+                    seed_direct_pair!(
+                        id = "c",
+                        endpoint_a_kind = "human",
+                        endpoint_a_id = "local",
+                        endpoint_b_kind = "human",
+                        endpoint_b_id = "other",
+                    ),
+                    "; ",
+                    "INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,seq,created_at,thread_root_id) VALUES('root','c','user','other','root',1,1,NULL); ",
+                ),
             ))
             .await
             .unwrap();
@@ -585,17 +587,40 @@ mod tests {
                 .unwrap();
         } else if setup != "missing_conversation" {
             db.execute(sqlx::raw_sql(
-            "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES
-             ('local','local-thread-follow','Local',1,1),('other','other-thread-follow','Other',1,1);
-             INSERT INTO hosts(id,name,kind,created_at) VALUES('host','Host','local',1);
-             INSERT INTO agents(id,name,runtime,host_id,created_at,updated_at,created_by_user_id) VALUES
-             ('agent-a','agent-a-thread-follow','claude','host',1,1,'local'),
-             ('agent-b','agent-b-thread-follow','claude','host',1,1,'local'),
-             ('agent-x','agent-x-thread-follow','claude','host',1,1,'local');
-             INSERT INTO workspaces(id,name,name_key,created_at,updated_at) VALUES('w','Workspace','thread-follow',1,1);
-             INSERT INTO workspace_users(workspace_id,user_id,joined_at) VALUES('w','local',1);
-             INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at)
-             VALUES('c','w','workspace','open','General','thread-follow','private',1,1);"
+            concat!(
+                "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES ('local','local-thread-follow','Local',1,1),('other','other-thread-follow','Other',1,1); ",
+                "INSERT INTO hosts(id,name,kind,created_at) VALUES('host','Host','local',1); ",
+                seed_agent!(
+                    id = "agent-a",
+                    name = "agent-a-thread-follow",
+                    host_id = "host",
+                    created_by_user_id = "local",
+                ),
+                "; ",
+                seed_agent!(
+                    id = "agent-b",
+                    name = "agent-b-thread-follow",
+                    host_id = "host",
+                    created_by_user_id = "local",
+                ),
+                "; ",
+                seed_agent!(
+                    id = "agent-x",
+                    name = "agent-x-thread-follow",
+                    host_id = "host",
+                    created_by_user_id = "local",
+                ),
+                "; ",
+                "INSERT INTO workspaces(id,name,name_key,created_at,updated_at) VALUES('w','Workspace','thread-follow',1,1); ",
+                "INSERT INTO workspace_users(workspace_id,user_id,joined_at) VALUES('w','local',1); ",
+                seed_channel!(
+                    id = "c",
+                    workspace_id = "w",
+                    title = "General",
+                    title_key = "thread-follow",
+                ),
+                "; ",
+            )
             )).await.unwrap();
             if setup == "forbidden" {
                 sqlx::query(

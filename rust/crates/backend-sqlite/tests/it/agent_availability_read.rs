@@ -58,8 +58,15 @@ const CREATOR: &str = "INSERT INTO users (id, name, display_name, created_at, up
      VALUES ('u-creator', 'creator', 'Creator', 1000, 1000)";
 const HOST_H1: &str =
     "INSERT INTO hosts (id, name, kind, created_at) VALUES ('h1', 'host-one', 'desktop', 1000)";
-const AGENT_A1: &str = "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id) \
-     VALUES ('a1', 'agent-one', 'qoder', 'h1', 1000, 1000, 'u-creator')";
+const AGENT_A1: &str = seed_agent!(
+    id = "a1",
+    name = "agent-one",
+    runtime = "qoder",
+    host_id = "h1",
+    created_at = 1000,
+    updated_at = 1000,
+    created_by_user_id = "u-creator",
+);
 
 /// The admitting view every arm case shares: agent `a1` on host `h1`, active, not
 /// being deleted, with the given union of admitted viewers.
@@ -121,11 +128,16 @@ async fn the_direct_pair_human_endpoint_arm_resolves() {
          VALUES ('u-pair', 'pair', 'Pair Human', 1000, 1000)",
         HOST_H1,
         AGENT_A1,
-        "INSERT INTO conversations \
-           (id, workspace_id, endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, \
-            placement_kind, roster_policy, title, created_at, updated_at) \
-         VALUES ('c-pair', NULL, 'agent', 'a1', 'human', 'u-pair', \
-            'direct_pair', 'fixed', 'dm', 1000, 1000)",
+        seed_direct_pair!(
+            id = "c-pair",
+            endpoint_a_kind = "agent",
+            endpoint_a_id = "a1",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "u-pair",
+            title = "dm",
+            created_at = 1000,
+            updated_at = 1000,
+        ),
     ])
     .await;
 
@@ -149,14 +161,26 @@ async fn an_agent_to_agent_pair_contributes_no_viewer() {
         CREATOR,
         HOST_H1,
         AGENT_A1,
-        "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id) \
-         VALUES ('a2', 'agent-two', 'qoder', 'h1', 1000, 1000, 'u-creator')",
+        seed_agent!(
+            id = "a2",
+            name = "agent-two",
+            runtime = "qoder",
+            host_id = "h1",
+            created_at = 1000,
+            updated_at = 1000,
+            created_by_user_id = "u-creator",
+        ),
         // 'a1' < 'a2', so a1 is endpoint_a and a2 endpoint_b: an agent↔agent pair.
-        "INSERT INTO conversations \
-           (id, workspace_id, endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, \
-            placement_kind, roster_policy, title, created_at, updated_at) \
-         VALUES ('c-aa', NULL, 'agent', 'a1', 'agent', 'a2', \
-            'direct_pair', 'fixed', 'dm', 1000, 1000)",
+        seed_direct_pair!(
+            id = "c-aa",
+            endpoint_a_kind = "agent",
+            endpoint_a_id = "a1",
+            endpoint_b_kind = "agent",
+            endpoint_b_id = "a2",
+            title = "dm",
+            created_at = 1000,
+            updated_at = 1000,
+        ),
     ])
     .await;
 
@@ -240,10 +264,17 @@ async fn the_reachability_inputs_and_stage_decode_off_the_agent_row() {
     let (_guard, cold_read) = seeded(&[
         CREATOR,
         HOST_H1,
-        "INSERT INTO agents \
-           (id, name, runtime, host_id, created_at, updated_at, created_by_user_id, \
-            materialization_status, deletion_started_at) \
-         VALUES ('a1', 'agent-one', 'qoder', 'h1', 1000, 1000, 'u-creator', 'failed', 5000)",
+        seed_agent!(
+            id = "a1",
+            name = "agent-one",
+            runtime = "qoder",
+            host_id = "h1",
+            created_at = 1000,
+            updated_at = 1000,
+            created_by_user_id = "u-creator",
+            materialization_status = "failed",
+            deletion_started_at = 5000,
+        ),
     ])
     .await;
 
@@ -313,12 +344,26 @@ async fn a_host_row_decodes_its_revocation_and_an_absent_host_is_no_row() {
 /// `INTEGER`-affinity columns keep a non-numeric text verbatim, so `'soon'` is a
 /// committed-but-undecodable timestamp — distinct from a numeric string, which
 /// affinity would coerce to an integer and hide the gate.
-const CORRUPT_DELETION_AGENT: &str = "INSERT INTO agents \
-       (id, name, runtime, host_id, created_at, updated_at, created_by_user_id, deletion_started_at) \
-     VALUES ('a1', 'agent-one', 'qoder', 'h1', 1000, 1000, 'u-creator', 'soon')";
-const REPAIRED_DELETION_AGENT: &str = "INSERT INTO agents \
-       (id, name, runtime, host_id, created_at, updated_at, created_by_user_id, deletion_started_at) \
-     VALUES ('a1', 'agent-one', 'qoder', 'h1', 1000, 1000, 'u-creator', 5000)";
+const CORRUPT_DELETION_AGENT: &str = seed_agent!(
+    id = "a1",
+    name = "agent-one",
+    runtime = "qoder",
+    host_id = "h1",
+    created_at = 1000,
+    updated_at = 1000,
+    created_by_user_id = "u-creator",
+    deletion_started_at = "soon",
+);
+const REPAIRED_DELETION_AGENT: &str = seed_agent!(
+    id = "a1",
+    name = "agent-one",
+    runtime = "qoder",
+    host_id = "h1",
+    created_at = 1000,
+    updated_at = 1000,
+    created_by_user_id = "u-creator",
+    deletion_started_at = 5000,
+);
 
 #[tokio::test]
 async fn a_non_numeric_agent_deletion_marker_is_a_read_error_not_a_default() {
@@ -362,9 +407,15 @@ async fn an_empty_host_id_on_the_agent_row_is_a_read_error() {
     let (_bad_guard, bad) = seeded(&[
         CREATOR,
         EMPTY_HOST,
-        "INSERT INTO agents \
-           (id, name, runtime, host_id, created_at, updated_at, created_by_user_id) \
-         VALUES ('a1', 'agent-one', 'qoder', '', 1000, 1000, 'u-creator')",
+        seed_agent!(
+            id = "a1",
+            name = "agent-one",
+            runtime = "qoder",
+            host_id = "",
+            created_at = 1000,
+            updated_at = 1000,
+            created_by_user_id = "u-creator",
+        ),
     ])
     .await;
     assert!(try_view(&bad, "a1").await.is_err());
@@ -384,9 +435,15 @@ async fn an_empty_creator_id_on_the_agent_row_is_a_read_error() {
         CREATOR,
         EMPTY_USER,
         HOST_H1,
-        "INSERT INTO agents \
-           (id, name, runtime, host_id, created_at, updated_at, created_by_user_id) \
-         VALUES ('a1', 'agent-one', 'qoder', 'h1', 1000, 1000, '')",
+        seed_agent!(
+            id = "a1",
+            name = "agent-one",
+            runtime = "qoder",
+            host_id = "h1",
+            created_at = 1000,
+            updated_at = 1000,
+            created_by_user_id = "",
+        ),
     ])
     .await;
     assert!(try_view(&bad, "a1").await.is_err());
@@ -406,11 +463,16 @@ async fn an_empty_direct_pair_human_endpoint_is_a_read_error() {
         EMPTY_USER,
         HOST_H1,
         AGENT_A1,
-        "INSERT INTO conversations \
-           (id, workspace_id, endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, \
-            placement_kind, roster_policy, title, created_at, updated_at) \
-         VALUES ('c-pair', NULL, 'agent', 'a1', 'human', '', \
-            'direct_pair', 'fixed', 'dm', 1000, 1000)",
+        seed_direct_pair!(
+            id = "c-pair",
+            endpoint_a_kind = "agent",
+            endpoint_a_id = "a1",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "",
+            title = "dm",
+            created_at = 1000,
+            updated_at = 1000,
+        ),
     ])
     .await;
     assert!(try_view(&bad, "a1").await.is_err());
@@ -421,11 +483,16 @@ async fn an_empty_direct_pair_human_endpoint_is_a_read_error() {
          VALUES ('u-pair', 'pair', 'Pair Human', 1000, 1000)",
         HOST_H1,
         AGENT_A1,
-        "INSERT INTO conversations \
-           (id, workspace_id, endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, \
-            placement_kind, roster_policy, title, created_at, updated_at) \
-         VALUES ('c-pair', NULL, 'agent', 'a1', 'human', 'u-pair', \
-            'direct_pair', 'fixed', 'dm', 1000, 1000)",
+        seed_direct_pair!(
+            id = "c-pair",
+            endpoint_a_kind = "agent",
+            endpoint_a_id = "a1",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "u-pair",
+            title = "dm",
+            created_at = 1000,
+            updated_at = 1000,
+        ),
     ])
     .await;
     assert!(try_view(&good, "a1").await.is_ok());

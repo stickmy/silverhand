@@ -589,10 +589,13 @@ async fn sqlite_fixture(setup: &str) -> (tempfile::TempDir, SqliteAdmission) {
         )
         .await
         .unwrap();
-        db.execute(
-            "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES \
-             ('c','w','workspace','open','General','general-log-debug','public',1,1)",
-        )
+        db.execute(seed_channel!(
+            id = "c",
+            workspace_id = "w",
+            title = "General",
+            title_key = "general-log-debug",
+            visibility = "public",
+        ))
         .await
         .unwrap();
         if setup == "workspace-member" {
@@ -603,11 +606,13 @@ async fn sqlite_fixture(setup: &str) -> (tempfile::TempDir, SqliteAdmission) {
             .unwrap();
         }
     } else if setup == "direct-pair-endpoint" {
-        db.execute(
-            "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,\
-             endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,visibility,created_at,updated_at) \
-             VALUES('c',NULL,'direct_pair','fixed','human','peer','human','viewer','',NULL,'private',1,1)",
-        )
+        db.execute(seed_direct_pair!(
+            id = "c",
+            endpoint_a_kind = "human",
+            endpoint_a_id = "peer",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "viewer",
+        ))
         .await
         .unwrap();
     }

@@ -206,22 +206,38 @@ async fn seeded() -> (
     let database = directory.path().join("agent-attachments.sqlite");
     let mut db = crate::current_schema::create_current_schema(&database).await;
     db.execute(sqlx::raw_sql(
-        "INSERT INTO hosts(id,name,kind,created_at) VALUES('h','Attachment Host','local',1); \
-         INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES \
-           ('owner','agent-attachment-owner','Owner',1,1); \
-         INSERT INTO agents(id,name,runtime,host_id,created_by_user_id,created_at,updated_at,display_name,session_scope) VALUES \
-           ('a','agent-attachment-a','codex','h','owner',1,1,'A','agent'), \
-           ('b','agent-attachment-b','codex','h','owner',1,1,'B','agent'); \
-         INSERT INTO workspaces(id,name,name_key,created_at,updated_at) VALUES \
-           ('w','Agent Attachment Workspace','agent-attachment-workspace',1,1); \
-         INSERT INTO workspace_members(workspace_id,agent_id,joined_at) VALUES('w','a',1); \
-         INSERT INTO workspace_agent_capabilities(workspace_id,agent_id,capability) VALUES \
-           ('w','a','read_attachments'),('w','a','upload_attachments'); \
-         INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES \
-           ('source','w','workspace','open','Source','source','private',1,1), \
-           ('target','w','workspace','open','Target','target','private',1,1); \
-         INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES \
-           ('source','a',1),('target','a',1);",
+        concat!(
+            "INSERT INTO hosts(id,name,kind,created_at) VALUES('h','Attachment Host','local',1); ",
+            "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES ('owner','agent-attachment-owner','Owner',1,1); ",
+            seed_agent!(
+                id = "a",
+                name = "agent-attachment-a",
+                runtime = "codex",
+                host_id = "h",
+                created_by_user_id = "owner",
+                display_name = "A",
+                session_scope = "agent",
+            ),
+            "; ",
+            seed_agent!(
+                id = "b",
+                name = "agent-attachment-b",
+                runtime = "codex",
+                host_id = "h",
+                created_by_user_id = "owner",
+                display_name = "B",
+                session_scope = "agent",
+            ),
+            "; ",
+            "INSERT INTO workspaces(id,name,name_key,created_at,updated_at) VALUES ('w','Agent Attachment Workspace','agent-attachment-workspace',1,1); ",
+            "INSERT INTO workspace_members(workspace_id,agent_id,joined_at) VALUES('w','a',1); ",
+            "INSERT INTO workspace_agent_capabilities(workspace_id,agent_id,capability) VALUES ('w','a','read_attachments'),('w','a','upload_attachments'); ",
+            seed_channel!(id = "source", workspace_id = "w", title = "Source"),
+            "; ",
+            seed_channel!(id = "target", workspace_id = "w", title = "Target"),
+            "; ",
+            "INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES ('source','a',1),('target','a',1); ",
+        ),
     ))
     .await
     .unwrap();

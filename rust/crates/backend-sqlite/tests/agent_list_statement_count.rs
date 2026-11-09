@@ -21,6 +21,10 @@
 //! (`reads_for_one > 0`) makes a broken counter fail LOUD rather than pass green: if sqlx
 //! emitted nothing we would otherwise "prove" boundedness by counting zero against zero.
 
+#[macro_use]
+#[path = "support/seed_rows.rs"]
+mod seed_rows;
+
 use silverhand_backend_core::{
     foundation::identity::UserId, identity_access::agent_list_read::AgentListReadModel,
 };
@@ -47,14 +51,42 @@ const FIXTURE: &[&str] = &[
        ('u-solo', 'solo', 'Solo', 1, 1), \
        ('u-many', 'many', 'Many', 1, 1)",
     "INSERT INTO hosts (id, name, kind, created_at) VALUES ('h1', 'host-one', 'desktop', 1)",
-    "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id) VALUES \
-       ('a-solo', 'agent-solo', 'qoder', 'h1', 100, 100, 'u-solo')",
-    "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id) VALUES \
-       ('a-m1', 'agent-m1', 'qoder', 'h1', 200, 200, 'u-many')",
-    "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id) VALUES \
-       ('a-m2', 'agent-m2', 'qoder', 'h1', 300, 300, 'u-many')",
-    "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id) VALUES \
-       ('a-m3', 'agent-m3', 'qoder', 'h1', 400, 400, 'u-many')",
+    seed_agent!(
+        id = "a-solo",
+        name = "agent-solo",
+        runtime = "qoder",
+        host_id = "h1",
+        created_at = 100,
+        updated_at = 100,
+        created_by_user_id = "u-solo",
+    ),
+    seed_agent!(
+        id = "a-m1",
+        name = "agent-m1",
+        runtime = "qoder",
+        host_id = "h1",
+        created_at = 200,
+        updated_at = 200,
+        created_by_user_id = "u-many",
+    ),
+    seed_agent!(
+        id = "a-m2",
+        name = "agent-m2",
+        runtime = "qoder",
+        host_id = "h1",
+        created_at = 300,
+        updated_at = 300,
+        created_by_user_id = "u-many",
+    ),
+    seed_agent!(
+        id = "a-m3",
+        name = "agent-m3",
+        runtime = "qoder",
+        host_id = "h1",
+        created_at = 400,
+        updated_at = 400,
+        created_by_user_id = "u-many",
+    ),
 ];
 
 #[tokio::test]

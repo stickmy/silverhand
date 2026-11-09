@@ -198,27 +198,25 @@ mod tests {
         include_str!("../../../../../rust/test-fixtures/migration-baseline/schema-current.sql");
 
     // user-1 is deleted; user-2 is the bystander whose content must survive.
-    const SEED_SQL: &str = "\
-INSERT INTO users (id,name,display_name,email,avatar_storage_key,avatar_content_type,created_at,updated_at) \
-  VALUES ('user-1','alice','Alice','a@example.com','avatars/a.png','image/png',1,1), \
-         ('user-2','bob','Bob','b@example.com',NULL,NULL,1,1); \
-INSERT INTO user_password_credentials (user_id,password_hash,password_hash_params,password_updated_at) \
-  VALUES ('user-1','phc-1','{}',1),('user-2','phc-2','{}',1); \
-INSERT INTO auth_sessions (id,user_id,token_hash,created_at,last_used_at) \
-  VALUES ('s1','user-1','tok-1',1,1),('s1b','user-1','tok-1b',1,1),('s2','user-2','tok-2',1,1); \
-INSERT INTO hosts (id,name,kind,created_at,user_id,provisioning_source) VALUES ('h1','h1','remote',1,'user-1','user_invite'); \
-INSERT INTO workspaces (id,name,name_key,owner_user_id,created_at,updated_at) VALUES ('ws','WS','ws','user-2',1,1); \
-INSERT INTO workspace_users (workspace_id,user_id,joined_at,role) VALUES ('ws','user-2',1,'owner'),('ws','user-1',1,'member'); \
-INSERT INTO conversations (id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) \
-  VALUES ('c','ws','workspace','open','C','c','public',1,1); \
-INSERT INTO conversation_users (conversation_id,user_id,joined_at) VALUES ('c','user-1',1),('c','user-2',1); \
-INSERT INTO messages (id,conversation_id,from_kind,from_user_id,content,seq,created_at,author_id,author_name,author_display_name) \
-  VALUES ('m1','c','user','user-1','hello from alice',1,1,'user-1','alice','Alice'), \
-         ('m2','c','user','user-2','hello from bob',2,2,'user-2','bob','Bob'); \
-INSERT INTO message_reactions (id,message_id,reactor_kind,reactor_id,emoji,created_at) \
-  VALUES ('r1','m2','user','user-1','+1',1),('r2','m1','user','user-2','+1',1); \
-INSERT INTO attachments (id,channel_id,filename,size,content_type,storage,storage_key,created_by_kind,created_by_id,created_at) \
-  VALUES ('att','c','f.txt',1,'text/plain','local','attachments/f.bin','user','user-1',1);";
+    const SEED_SQL: &str = concat!(
+        "INSERT INTO users (id,name,display_name,email,avatar_storage_key,avatar_content_type,created_at,updated_at) VALUES ('user-1','alice','Alice','a@example.com','avatars/a.png','image/png',1,1), ('user-2','bob','Bob','b@example.com',NULL,NULL,1,1); ",
+        "INSERT INTO user_password_credentials (user_id,password_hash,password_hash_params,password_updated_at) VALUES ('user-1','phc-1','{}',1),('user-2','phc-2','{}',1); ",
+        "INSERT INTO auth_sessions (id,user_id,token_hash,created_at,last_used_at) VALUES ('s1','user-1','tok-1',1,1),('s1b','user-1','tok-1b',1,1),('s2','user-2','tok-2',1,1); ",
+        "INSERT INTO hosts (id,name,kind,created_at,user_id,provisioning_source) VALUES ('h1','h1','remote',1,'user-1','user_invite'); ",
+        "INSERT INTO workspaces (id,name,name_key,owner_user_id,created_at,updated_at) VALUES ('ws','WS','ws','user-2',1,1); ",
+        "INSERT INTO workspace_users (workspace_id,user_id,joined_at,role) VALUES ('ws','user-2',1,'owner'),('ws','user-1',1,'member'); ",
+        seed_channel!(
+            id = "c",
+            workspace_id = "ws",
+            title = "C",
+            visibility = "public",
+        ),
+        "; ",
+        "INSERT INTO conversation_users (conversation_id,user_id,joined_at) VALUES ('c','user-1',1),('c','user-2',1); ",
+        "INSERT INTO messages (id,conversation_id,from_kind,from_user_id,content,seq,created_at,author_id,author_name,author_display_name) VALUES ('m1','c','user','user-1','hello from alice',1,1,'user-1','alice','Alice'), ('m2','c','user','user-2','hello from bob',2,2,'user-2','bob','Bob'); ",
+        "INSERT INTO message_reactions (id,message_id,reactor_kind,reactor_id,emoji,created_at) VALUES ('r1','m2','user','user-1','+1',1),('r2','m1','user','user-2','+1',1); ",
+        "INSERT INTO attachments (id,channel_id,filename,size,content_type,storage,storage_key,created_by_kind,created_by_id,created_at) VALUES ('att','c','f.txt',1,'text/plain','local','attachments/f.bin','user','user-1',1); ",
+    );
 
     async fn open_seeded() -> (tempfile::TempDir, SqliteUserStore, std::path::PathBuf) {
         let directory = tempfile::tempdir().unwrap();
@@ -368,10 +366,19 @@ INSERT INTO attachments (id,channel_id,filename,size,content_type,storage,storag
         let (_dir, store, _) = open_seeded().await;
         let session = seat_token(&store, "s1", "plain-1").await;
         sqlx::raw_sql(
-            "INSERT INTO agents (id,name,display_name,runtime,host_id,created_by_user_id,created_at,updated_at,session_scope) \
-               VALUES ('ag','helper','Helper','claude','h1','user-1',1,1,'agent'); \
-             INSERT INTO workspaces (id,name,name_key,owner_user_id,created_at,updated_at) VALUES ('mine','Mine','mine','user-1',2,2); \
-             INSERT INTO workspace_users (workspace_id,user_id,joined_at,role) VALUES ('mine','user-1',1,'owner');",
+            concat!(
+                seed_agent!(
+                    id = "ag",
+                    name = "helper",
+                    display_name = "Helper",
+                    host_id = "h1",
+                    created_by_user_id = "user-1",
+                    session_scope = "agent",
+                ),
+                "; ",
+                "INSERT INTO workspaces (id,name,name_key,owner_user_id,created_at,updated_at) VALUES ('mine','Mine','mine','user-1',2,2); ",
+                "INSERT INTO workspace_users (workspace_id,user_id,joined_at,role) VALUES ('mine','user-1',1,'owner'); ",
+            ),
         )
         .execute(store.pool())
         .await

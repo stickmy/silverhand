@@ -94,18 +94,40 @@ mod tests {
 
     const CURRENT_SCHEMA: &str =
         include_str!("../../../../../rust/test-fixtures/migration-baseline/schema-current.sql");
-    const SEED_SQL: &str = "\
-INSERT INTO users (id, name, display_name, created_at, updated_at) \
-  VALUES ('user-1', 'one', 'One', 1, 1); \
-INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-1', 'One', 'local', 1); \
-INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-2', 'Two', 'local', 1); \
-INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-empty', 'Empty', 'local', 1); \
-INSERT INTO agents (id, name, display_name, runtime, host_id, created_by_user_id, created_at, updated_at) \
-  VALUES ('agent-b', 'b', 'B', 'claude', 'host-1', 'user-1', 2, 2); \
-INSERT INTO agents (id, name, display_name, runtime, host_id, created_by_user_id, created_at, updated_at) \
-  VALUES ('agent-a', 'a', 'A', 'claude', 'host-1', 'user-1', 1, 1); \
-INSERT INTO agents (id, name, display_name, runtime, host_id, created_by_user_id, created_at, updated_at) \
-  VALUES ('agent-c', 'c', 'C', 'claude', 'host-2', 'user-1', 3, 3);";
+    const SEED_SQL: &str = concat!(
+        "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-1', 'one', 'One', 1, 1); ",
+        "INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-1', 'One', 'local', 1); ",
+        "INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-2', 'Two', 'local', 1); ",
+        "INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-empty', 'Empty', 'local', 1); ",
+        seed_agent!(
+            id = "agent-b",
+            name = "b",
+            display_name = "B",
+            host_id = "host-1",
+            created_by_user_id = "user-1",
+            created_at = 2,
+            updated_at = 2,
+        ),
+        "; ",
+        seed_agent!(
+            id = "agent-a",
+            name = "a",
+            display_name = "A",
+            host_id = "host-1",
+            created_by_user_id = "user-1",
+        ),
+        "; ",
+        seed_agent!(
+            id = "agent-c",
+            name = "c",
+            display_name = "C",
+            host_id = "host-2",
+            created_by_user_id = "user-1",
+            created_at = 3,
+            updated_at = 3,
+        ),
+        "; ",
+    );
 
     async fn open_seeded() -> (tempfile::TempDir, SqliteComputerAgentsRead) {
         let directory = tempfile::tempdir().unwrap();

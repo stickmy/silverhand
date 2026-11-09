@@ -206,19 +206,30 @@ const SEED: &[&str] = &[
     "INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-1', 'host', 'local', 0)",
     "INSERT INTO users (id, name, display_name, created_at, updated_at) \
      VALUES ('user-1', 'user-1', 'User One', 0, 0)",
-    "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, display_name, \
-     created_by_user_id, materialization_status, session_scope) \
-     VALUES ('agent-1', 'lio', 'claude', 'host-1', 0, 0, 'Lio', 'user-1', 'active', 'agent')",
+    seed_agent!(
+        id = "agent-1",
+        name = "lio",
+        host_id = "host-1",
+        created_at = 0,
+        updated_at = 0,
+        display_name = "Lio",
+        created_by_user_id = "user-1",
+        session_scope = "agent",
+    ),
     "INSERT INTO workspaces (id, name, name_key, owner_user_id, created_at, updated_at) \
      VALUES ('workspace', 'Product Space', 'product space', 'user-1', 0, 0)",
     "INSERT INTO workspace_members (workspace_id, agent_id, joined_at) \
      VALUES ('workspace', 'agent-1', 0)",
     "INSERT INTO workspace_agent_capabilities (workspace_id, agent_id, capability) \
      VALUES ('workspace', 'agent-1', 'send_messages')",
-    "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-     title_key, visibility, created_at, updated_at, latest_message_seq) \
-     VALUES ('conversation-1', 'workspace', 'workspace', 'open', 'General Chat', \
-     'general chat', 'private', 0, 0, 0)",
+    seed_channel!(
+        id = "conversation-1",
+        workspace_id = "workspace",
+        title = "General Chat",
+        title_key = "general chat",
+        created_at = 0,
+        updated_at = 0,
+    ),
     "INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) \
      VALUES ('conversation-1', 'agent-1', 0)",
 ];

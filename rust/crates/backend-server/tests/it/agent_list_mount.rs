@@ -66,33 +66,37 @@ const STRANGER_TOKEN: &str = "admin-token";
 /// `u-viewer` creates `a1` (created_at 1000) and reaches `a2` (created_at 2000, created
 /// by `u-other`) through workspace `w1`; `u-stranger` is a registered human in no arm.
 /// Two seeded sessions bind each real bearer to its user id.
-const SEED: &str = "\
-    INSERT INTO users (id, name, display_name, created_at, updated_at) \
-    VALUES ('u-viewer', 'viewer', 'Viewer', 1, 1); \
-    INSERT INTO users (id, name, display_name, created_at, updated_at) \
-    VALUES ('u-other', 'other', 'Other', 1, 1); \
-    INSERT INTO users (id, name, display_name, created_at, updated_at) \
-    VALUES ('u-stranger', 'stranger', 'Stranger', 1, 1); \
-    INSERT INTO hosts (id, name, kind, created_at) VALUES ('h1', 'host-one', 'desktop', 1); \
-    INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id, \
-      materialization_status) \
-    VALUES ('a1', 'agent-one', 'qoder', 'h1', 1000, 1000, 'u-viewer', 'active'); \
-    INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id, \
-      materialization_status) \
-    VALUES ('a2', 'agent-two', 'codex', 'h1', 2000, 2000, 'u-other', 'active'); \
-    INSERT INTO workspaces \
-      (id, name, name_key, description, owner_agent_id, archived_at, created_at, updated_at) \
-    VALUES ('w1', 'Workspace One', 'workspace-one', NULL, NULL, NULL, 1, 1); \
-    INSERT INTO workspace_members (workspace_id, agent_id, joined_at) VALUES ('w1', 'a2', 1); \
-    INSERT INTO workspace_users (workspace_id, user_id, joined_at) VALUES ('w1', 'u-viewer', 1); \
-    INSERT INTO auth_sessions \
-      (id, user_id, token_hash, created_at, last_used_at, revoked_at, user_agent, ip_first_seen) \
-    VALUES ('s-viewer', 'u-viewer', 'OXoqnFv14szsOMJZa2grsb0F_m5OzqbBDPQnVf8iVAM', \
-      1, 9500, NULL, NULL, NULL); \
-    INSERT INTO auth_sessions \
-      (id, user_id, token_hash, created_at, last_used_at, revoked_at, user_agent, ip_first_seen) \
-    VALUES ('s-stranger', 'u-stranger', 'EKTHyfxSBtbzbcaUSoG7b0o8sOJQFK47EubD5ScSKSo', \
-      1, 9500, NULL, NULL, NULL);";
+const SEED: &str = concat!(
+    "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('u-viewer', 'viewer', 'Viewer', 1, 1); ",
+    "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('u-other', 'other', 'Other', 1, 1); ",
+    "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('u-stranger', 'stranger', 'Stranger', 1, 1); ",
+    "INSERT INTO hosts (id, name, kind, created_at) VALUES ('h1', 'host-one', 'desktop', 1); ",
+    seed_agent!(
+        id = "a1",
+        name = "agent-one",
+        runtime = "qoder",
+        host_id = "h1",
+        created_at = 1000,
+        updated_at = 1000,
+        created_by_user_id = "u-viewer",
+    ),
+    "; ",
+    seed_agent!(
+        id = "a2",
+        name = "agent-two",
+        runtime = "codex",
+        host_id = "h1",
+        created_at = 2000,
+        updated_at = 2000,
+        created_by_user_id = "u-other",
+    ),
+    "; ",
+    "INSERT INTO workspaces (id, name, name_key, description, owner_agent_id, archived_at, created_at, updated_at) VALUES ('w1', 'Workspace One', 'workspace-one', NULL, NULL, NULL, 1, 1); ",
+    "INSERT INTO workspace_members (workspace_id, agent_id, joined_at) VALUES ('w1', 'a2', 1); ",
+    "INSERT INTO workspace_users (workspace_id, user_id, joined_at) VALUES ('w1', 'u-viewer', 1); ",
+    "INSERT INTO auth_sessions (id, user_id, token_hash, created_at, last_used_at, revoked_at, user_agent, ip_first_seen) VALUES ('s-viewer', 'u-viewer', 'OXoqnFv14szsOMJZa2grsb0F_m5OzqbBDPQnVf8iVAM', 1, 9500, NULL, NULL, NULL); ",
+    "INSERT INTO auth_sessions (id, user_id, token_hash, created_at, last_used_at, revoked_at, user_agent, ip_first_seen) VALUES ('s-stranger', 'u-stranger', 'EKTHyfxSBtbzbcaUSoG7b0o8sOJQFK47EubD5ScSKSo', 1, 9500, NULL, NULL, NULL); ",
+);
 
 /// A clock frozen at the instant the seeded sessions are valid under.
 #[derive(Clone)]

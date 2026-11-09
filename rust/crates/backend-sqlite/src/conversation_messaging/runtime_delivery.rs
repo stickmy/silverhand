@@ -2916,26 +2916,55 @@ mod runtime_control_seat_tests {
         let path = directory.path().join("runtime-control-seat.sqlite");
         let mut db = crate::current_schema::create_current_schema(&path).await;
         db.execute(sqlx::raw_sql(
-            "INSERT INTO users(id,name,display_name,created_at,updated_at) \
-                 VALUES('user-1','owner','Owner',0,0); \
-             INSERT INTO hosts(id,name,kind,created_at) VALUES('host-1','Host','local',0); \
-             INSERT INTO agents(id,name,runtime,host_id,created_at,updated_at,display_name,\
-                 created_by_user_id,materialization_status,session_scope) VALUES \
-                 ('agent-conv','conv-agent','codex','host-1',0,0,'Conv','user-1','active','conversation'), \
-                 ('agent-seat','seat-agent','codex','host-1',0,0,'Seat','user-1','active','agent'); \
-             INSERT INTO workspaces(id,name,name_key,owner_user_id,created_at,updated_at) \
-                 VALUES('workspace-1','Space','space','user-1',0,0); \
-             INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at,latest_message_seq) VALUES \
-                 ('conversation-1','workspace-1','workspace','open','General','general','private',0,0,0), \
-                 ('conversation-2','workspace-1','workspace','open','Other','other','private',0,0,0); \
-             INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) \
-                 VALUES('conversation-1','agent-conv',0),('conversation-1','agent-seat',0); \
-             UPDATE agent_runtime_slots SET generation=1,claimed_by_daemon_instance_id='daemon-1',\
-                 observed_status='active',cli_session_id='session-conv' \
-               WHERE agent_id='agent-conv' AND conversation_id='conversation-1'; \
-             UPDATE agent_runtime_slots SET generation=1,claimed_by_daemon_instance_id='daemon-1',\
-                 observed_status='starting',cli_session_id='session-seat' \
-               WHERE agent_id='agent-seat' AND conversation_id IS NULL;",
+            concat!(
+                "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES('user-1','owner','Owner',0,0); ",
+                "INSERT INTO hosts(id,name,kind,created_at) VALUES('host-1','Host','local',0); ",
+                seed_agent!(
+                    id = "agent-conv",
+                    name = "conv-agent",
+                    runtime = "codex",
+                    host_id = "host-1",
+                    created_at = 0,
+                    updated_at = 0,
+                    display_name = "Conv",
+                    created_by_user_id = "user-1",
+                ),
+                "; ",
+                seed_agent!(
+                    id = "agent-seat",
+                    name = "seat-agent",
+                    runtime = "codex",
+                    host_id = "host-1",
+                    created_at = 0,
+                    updated_at = 0,
+                    display_name = "Seat",
+                    created_by_user_id = "user-1",
+                    session_scope = "agent",
+                ),
+                "; ",
+                "INSERT INTO workspaces(id,name,name_key,owner_user_id,created_at,updated_at) VALUES('workspace-1','Space','space','user-1',0,0); ",
+                seed_channel!(
+                    id = "conversation-1",
+                    workspace_id = "workspace-1",
+                    title = "General",
+                    title_key = "general",
+                    created_at = 0,
+                    updated_at = 0,
+                ),
+                "; ",
+                seed_channel!(
+                    id = "conversation-2",
+                    workspace_id = "workspace-1",
+                    title = "Other",
+                    title_key = "other",
+                    created_at = 0,
+                    updated_at = 0,
+                ),
+                "; ",
+                "INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES('conversation-1','agent-conv',0),('conversation-1','agent-seat',0); ",
+                "UPDATE agent_runtime_slots SET generation=1,claimed_by_daemon_instance_id='daemon-1',observed_status='active',cli_session_id='session-conv' WHERE agent_id='agent-conv' AND conversation_id='conversation-1'; ",
+                "UPDATE agent_runtime_slots SET generation=1,claimed_by_daemon_instance_id='daemon-1',observed_status='starting',cli_session_id='session-seat' WHERE agent_id='agent-seat' AND conversation_id IS NULL; ",
+            ),
         ))
         .await
         .unwrap();

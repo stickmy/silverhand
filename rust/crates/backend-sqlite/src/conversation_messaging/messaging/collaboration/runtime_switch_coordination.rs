@@ -137,34 +137,109 @@ mod tests {
         let path = directory.path().join("switch-coordination.sqlite");
         let mut db = crate::current_schema::create_current_schema(&path).await;
         db.execute(sqlx::raw_sql(
-            "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES \
-                 ('user-1', 'owner', 'Owner', 0, 0); \
-             INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-1', 'Host', 'local', 0); \
-             INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, \
-                 display_name, created_by_user_id, materialization_status, session_scope) VALUES \
-                 ('agent-1', 'agent', 'codex', 'host-1', 0, 0, 'Agent', 'user-1', 'active', 'conversation'), \
-                 ('agent-2', 'agent-two', 'codex', 'host-1', 0, 0, 'Agent Two', 'user-1', 'active', 'conversation'); \
-             INSERT INTO workspaces (id, name, name_key, owner_user_id, created_at, updated_at) \
-                 VALUES ('workspace-1', 'Space', 'space', 'user-1', 0, 0); \
-             INSERT INTO workspace_users (workspace_id, user_id, joined_at, role) VALUES \
-                 ('workspace-1', 'user-1', 0, 'owner'); \
-             INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-                 title_key, visibility, created_at, updated_at) VALUES \
-                 ('c-1', 'workspace-1', 'workspace', 'open', 'One', 'one', 'private', 0, 0), \
-                 ('c-2', 'workspace-1', 'workspace', 'open', 'Two', 'two', 'private', 0, 0), \
-                 ('c-3', 'workspace-1', 'workspace', 'open', 'Three', 'three', 'private', 0, 0), \
-                 ('c-claimed', 'workspace-1', 'workspace', 'open', 'Claimed', 'claimed', 'private', 0, 0), \
-                 ('c-delivered', 'workspace-1', 'workspace', 'open', 'Delivered', 'delivered', 'private', 0, 0), \
-                 ('c-failed', 'workspace-1', 'workspace', 'open', 'Failed', 'failed', 'private', 0, 0), \
-                 ('c-other', 'workspace-1', 'workspace', 'open', 'Other', 'other', 'private', 0, 0); \
-             INSERT INTO conversations (id, workspace_id, endpoint_a_kind, endpoint_a_id, \
-                 endpoint_b_kind, endpoint_b_id, placement_kind, roster_policy, title, title_key, visibility, created_at, updated_at) VALUES \
-                 ('pair-1', NULL, 'agent', 'agent-1', 'human', 'user-1', 'direct_pair', 'fixed', \
-                  'Direct Pair', NULL, 'private', 0, 0); \
-             INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES \
-                 ('c-1', 'agent-1', 0), ('c-2', 'agent-1', 0), ('c-3', 'agent-1', 0), \
-                 ('c-claimed', 'agent-1', 0), ('c-delivered', 'agent-1', 0), \
-                 ('c-failed', 'agent-1', 0), ('c-other', 'agent-2', 0);",
+            concat!(
+                "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-1', 'owner', 'Owner', 0, 0); ",
+                "INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-1', 'Host', 'local', 0); ",
+                seed_agent!(
+                    id = "agent-1",
+                    name = "agent",
+                    runtime = "codex",
+                    host_id = "host-1",
+                    created_at = 0,
+                    updated_at = 0,
+                    display_name = "Agent",
+                    created_by_user_id = "user-1",
+                ),
+                "; ",
+                seed_agent!(
+                    id = "agent-2",
+                    name = "agent-two",
+                    runtime = "codex",
+                    host_id = "host-1",
+                    created_at = 0,
+                    updated_at = 0,
+                    display_name = "Agent Two",
+                    created_by_user_id = "user-1",
+                ),
+                "; ",
+                "INSERT INTO workspaces (id, name, name_key, owner_user_id, created_at, updated_at) VALUES ('workspace-1', 'Space', 'space', 'user-1', 0, 0); ",
+                "INSERT INTO workspace_users (workspace_id, user_id, joined_at, role) VALUES ('workspace-1', 'user-1', 0, 'owner'); ",
+                seed_channel!(
+                    id = "c-1",
+                    workspace_id = "workspace-1",
+                    title = "One",
+                    title_key = "one",
+                    created_at = 0,
+                    updated_at = 0,
+                ),
+                "; ",
+                seed_channel!(
+                    id = "c-2",
+                    workspace_id = "workspace-1",
+                    title = "Two",
+                    title_key = "two",
+                    created_at = 0,
+                    updated_at = 0,
+                ),
+                "; ",
+                seed_channel!(
+                    id = "c-3",
+                    workspace_id = "workspace-1",
+                    title = "Three",
+                    title_key = "three",
+                    created_at = 0,
+                    updated_at = 0,
+                ),
+                "; ",
+                seed_channel!(
+                    id = "c-claimed",
+                    workspace_id = "workspace-1",
+                    title = "Claimed",
+                    title_key = "claimed",
+                    created_at = 0,
+                    updated_at = 0,
+                ),
+                "; ",
+                seed_channel!(
+                    id = "c-delivered",
+                    workspace_id = "workspace-1",
+                    title = "Delivered",
+                    title_key = "delivered",
+                    created_at = 0,
+                    updated_at = 0,
+                ),
+                "; ",
+                seed_channel!(
+                    id = "c-failed",
+                    workspace_id = "workspace-1",
+                    title = "Failed",
+                    title_key = "failed",
+                    created_at = 0,
+                    updated_at = 0,
+                ),
+                "; ",
+                seed_channel!(
+                    id = "c-other",
+                    workspace_id = "workspace-1",
+                    title = "Other",
+                    title_key = "other",
+                    created_at = 0,
+                    updated_at = 0,
+                ),
+                "; ",
+                seed_direct_pair!(
+                    id = "pair-1",
+                    endpoint_a_kind = "agent",
+                    endpoint_a_id = "agent-1",
+                    endpoint_b_kind = "human",
+                    endpoint_b_id = "user-1",
+                    title = "Direct Pair",
+                    created_at = 0,
+                    updated_at = 0,
+                ),
+                "; ",
+                "INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES ('c-1', 'agent-1', 0), ('c-2', 'agent-1', 0), ('c-3', 'agent-1', 0), ('c-claimed', 'agent-1', 0), ('c-delivered', 'agent-1', 0), ('c-failed', 'agent-1', 0), ('c-other', 'agent-2', 0); ",
+            ),
         ))
         .await
         .unwrap();

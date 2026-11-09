@@ -66,13 +66,14 @@ async fn seed_owner(connection: &mut SqliteConnection) {
     .execute(&mut *connection)
     .await
     .unwrap();
-    sqlx::query(
-        "INSERT INTO agents (
-            id, name, runtime, host_id, created_at, updated_at,
-            display_name, created_by_user_id, session_scope
-         ) VALUES (?, 'agent-sched', 'codex', 'host-1', 1, 1,
-             'Schedule Agent', 'user-1', 'conversation')",
-    )
+    sqlx::query(seed_agent!(
+        id = ?,
+        name = "agent-sched",
+        runtime = "codex",
+        host_id = "host-1",
+        display_name = "Schedule Agent",
+        created_by_user_id = "user-1",
+    ))
     .bind(OWNER)
     .execute(&mut *connection)
     .await
@@ -133,31 +134,28 @@ async fn seed_workspace_conversation(
     workspace_id: &str,
     title: &str,
 ) {
-    sqlx::query(
-        "INSERT INTO conversations
-            (id, workspace_id, placement_kind, roster_policy, title, title_key,
-             created_at, updated_at)
-         VALUES (?, ?, 'workspace', 'open', ?, ?, 1, 1)",
-    )
-    .bind(id)
-    .bind(workspace_id)
-    .bind(title)
-    .bind(id)
-    .execute(&mut *connection)
-    .await
-    .unwrap();
+    sqlx::query(seed_channel!(id = ?, workspace_id = ?, title = ?, title_key = ?))
+        .bind(id)
+        .bind(workspace_id)
+        .bind(title)
+        .bind(id)
+        .execute(&mut *connection)
+        .await
+        .unwrap();
 }
 
 /// A direct-pair conversation (NULL workspace, roster `fixed` → `@title`). Its
 /// endpoints must name existing principals (a schema trigger enforces it), so it
 /// pairs the seeded agent with the seeded user.
 async fn seed_direct_pair_conversation(connection: &mut SqliteConnection, id: &str, title: &str) {
-    sqlx::query(
-        "INSERT INTO conversations
-            (id, placement_kind, roster_policy, title,
-             endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, created_at, updated_at)
-         VALUES (?, 'direct_pair', 'fixed', ?, 'agent', ?, 'human', 'user-1', 1, 1)",
-    )
+    sqlx::query(seed_direct_pair!(
+        id = ?,
+        title = ?,
+        endpoint_a_kind = "agent",
+        endpoint_a_id = ?,
+        endpoint_b_kind = "human",
+        endpoint_b_id = "user-1",
+    ))
     .bind(id)
     .bind(title)
     .bind(OWNER)

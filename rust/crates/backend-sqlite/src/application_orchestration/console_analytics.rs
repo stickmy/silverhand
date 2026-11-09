@@ -231,16 +231,30 @@ mod tests {
 
         database
             .execute(sqlx::raw_sql(
-                "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES \
-                   ('u1','one','One',0,0),('u2','two','Two',0,0); \
-                 INSERT INTO hosts(id,name,kind,created_at,user_id,revoked_at) VALUES \
-                   ('h1','host-one','desktop',0,'u1',NULL),('h2','host-two','desktop',0,'u2',1); \
-                 INSERT INTO agents(id,name,runtime,host_id,created_at,updated_at,created_by_user_id) \
-                   VALUES ('a1','agent-one','pi','h1',0,0,'u1'); \
-                 INSERT INTO workspaces(id,name,name_key,created_at,updated_at,owner_user_id) \
-                   VALUES ('w1','Work','work',0,0,'u1'); \
-                 INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,created_at,updated_at) \
-                   VALUES ('c1','w1','workspace','open','General','general',0,0);",
+                concat!(
+                    "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES ('u1','one','One',0,0),('u2','two','Two',0,0); ",
+                    "INSERT INTO hosts(id,name,kind,created_at,user_id,revoked_at) VALUES ('h1','host-one','desktop',0,'u1',NULL),('h2','host-two','desktop',0,'u2',1); ",
+                    seed_agent!(
+                        id = "a1",
+                        name = "agent-one",
+                        runtime = "pi",
+                        host_id = "h1",
+                        created_at = 0,
+                        updated_at = 0,
+                        created_by_user_id = "u1",
+                    ),
+                    "; ",
+                    "INSERT INTO workspaces(id,name,name_key,created_at,updated_at,owner_user_id) VALUES ('w1','Work','work',0,0,'u1'); ",
+                    seed_channel!(
+                        id = "c1",
+                        workspace_id = "w1",
+                        title = "General",
+                        title_key = "general",
+                        created_at = 0,
+                        updated_at = 0,
+                    ),
+                    "; ",
+                ),
             ))
             .await
             .unwrap();

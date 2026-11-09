@@ -27,13 +27,38 @@ async fn seed(path: &std::path::Path) {
     db.execute("INSERT INTO workspace_users(workspace_id,user_id,joined_at) VALUES('w','u',1)")
         .await
         .unwrap();
-    db.execute(
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES \
-         ('member','w','workspace','open','Member','member-ref','private',1,1),\
-         ('public','w','workspace','open','Public','public-ref','public',1,1),\
-         ('archived','w','workspace','open','Archived','archived-ref','public',1,1),\
-         ('fixed','w','workspace','fixed','Fixed','fixed-ref','private',1,1)",
-    )
+    db.execute(concat!(
+        seed_channel!(
+            id = "member",
+            workspace_id = "w",
+            title = "Member",
+            title_key = "member-ref",
+        ),
+        "; ",
+        seed_channel!(
+            id = "public",
+            workspace_id = "w",
+            title = "Public",
+            title_key = "public-ref",
+            visibility = "public",
+        ),
+        "; ",
+        seed_channel!(
+            id = "archived",
+            workspace_id = "w",
+            title = "Archived",
+            title_key = "archived-ref",
+            visibility = "public",
+        ),
+        "; ",
+        seed_channel!(
+            id = "fixed",
+            workspace_id = "w",
+            roster_policy = "fixed",
+            title = "Fixed",
+            title_key = "fixed-ref",
+        ),
+    ))
     .await
     .unwrap();
     db.execute("UPDATE conversations SET archived_at=9 WHERE id='archived'")
@@ -44,12 +69,23 @@ async fn seed(path: &std::path::Path) {
     )
     .await
     .unwrap();
-    db.execute(
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,\
-         endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,visibility,created_at,updated_at) \
-         VALUES('pair',NULL,'direct_pair','fixed','human','other','human','u','',NULL,'private',1,1),\
-         ('foreign-pair',NULL,'direct_pair','fixed','human','other','human','teammate','',NULL,'private',1,1)",
-    )
+    db.execute(concat!(
+        seed_direct_pair!(
+            id = "pair",
+            endpoint_a_kind = "human",
+            endpoint_a_id = "other",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "u",
+        ),
+        "; ",
+        seed_direct_pair!(
+            id = "foreign-pair",
+            endpoint_a_kind = "human",
+            endpoint_a_id = "other",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "teammate",
+        ),
+    ))
     .await
     .unwrap();
     db.close().await.unwrap();
@@ -111,8 +147,15 @@ async fn missing_workspace_is_forbidden_by_acl_before_the_workspace_face_can_404
     db.execute("PRAGMA foreign_keys=OFF").await.unwrap();
     db.execute("INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES('u','orphan-u','U',1,1)")
         .await.unwrap();
-    db.execute("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES('orphan','gone','workspace','open','Orphan','orphan-ref','public',1,1)")
-        .await.unwrap();
+    db.execute(seed_channel!(
+        id = "orphan",
+        workspace_id = "gone",
+        title = "Orphan",
+        title_key = "orphan-ref",
+        visibility = "public",
+    ))
+    .await
+    .unwrap();
     db.execute(
         "INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('orphan','u',1)",
     )

@@ -37,8 +37,14 @@ async fn seed(path: &std::path::Path) {
          ('window-w','Window Workspace','window-workspace',1,1)",
         "INSERT INTO workspace_users(workspace_id,user_id,joined_at,role) VALUES \
          ('window-w','local',1,'member')",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,latest_message_seq,created_at,updated_at) VALUES \
-         ('c','window-w','workspace','open','Window','window','public',5,1,1)",
+        seed_channel!(
+            id = "c",
+            workspace_id = "window-w",
+            title = "Window",
+            title_key = "window",
+            visibility = "public",
+            latest_message_seq = 5,
+        ),
         "INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('c','local',1)",
         "INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,seq,created_at,\
          author_id,author_name,author_display_name) VALUES \

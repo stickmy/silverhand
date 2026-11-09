@@ -66,10 +66,12 @@ mod tests {
              VALUES ('u1', 'u1', 'U1', 1, 1)",
             "INSERT INTO hosts (id, name, kind, created_at, user_id, provisioning_source) \
              VALUES ('h-good', 'h-good', 'remote', 1, 'u1', 'system')",
-            "INSERT INTO agents \
-             (id, name, runtime, host_id, created_by_user_id, created_at, updated_at, \
-              materialization_status, session_scope) \
-             VALUES ('a-agent', 'a-agent', 'claude', 'h-good', 'u1', 1, 1, 'active', 'agent')",
+            seed_agent!(
+                id = "a-agent",
+                host_id = "h-good",
+                created_by_user_id = "u1",
+                session_scope = "agent",
+            ),
         ] {
             sqlx::query(statement)
                 .execute(&mut connection)

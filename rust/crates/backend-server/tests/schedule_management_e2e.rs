@@ -7,6 +7,10 @@
 //! and counts the line in a captured operator log across three cases: a committed
 //! cancel, a terminal CAS-miss, and a gate 404.
 
+#[macro_use]
+#[path = "../../backend-sqlite/tests/support/seed_rows.rs"]
+mod seed_rows;
+
 use std::sync::OnceLock;
 
 use axum::{
@@ -145,12 +149,14 @@ async fn seed_agent(connection: &mut SqliteConnection) {
     .execute(&mut *connection)
     .await
     .unwrap();
-    sqlx::query(
-        "INSERT INTO agents (
-            id, name, runtime, host_id, created_at, updated_at,
-            display_name, created_by_user_id, session_scope
-         ) VALUES (?, 'a1', 'codex', 'host-1', 1, 1, 'Agent', 'user-1', 'conversation')",
-    )
+    sqlx::query(seed_agent!(
+        id = ?,
+        name = "a1",
+        runtime = "codex",
+        host_id = "host-1",
+        display_name = "Agent",
+        created_by_user_id = "user-1",
+    ))
     .bind(AGENT)
     .execute(&mut *connection)
     .await

@@ -144,10 +144,7 @@ mod tests {
          VALUES ('u1', 'u1', 'U1', 1, 1)";
     const HOST: &str =
         "INSERT INTO hosts (id, name, kind, created_at) VALUES ('h1', 'h1', 'local', 1)";
-    const ACTIVE_AGENT: &str = "INSERT INTO agents \
-         (id, name, runtime, host_id, created_by_user_id, created_at, updated_at, \
-          materialization_status, session_scope) \
-         VALUES ('a1', 'a1', 'claude', 'h1', 'u1', 1, 1, 'active', 'conversation')";
+    const ACTIVE_AGENT: &str = seed_agent!(id = "a1", host_id = "h1", created_by_user_id = "u1");
 
     /// The deterministic writer-reservation gate. A no-write answer (`Moved`, from a
     /// mismatched eligibility) succeeds while nothing is held, then fails at the very
@@ -258,26 +255,38 @@ mod tests {
         "INSERT INTO users (id, name, display_name, created_at, updated_at) \
          VALUES ('u1', 'u1', 'U1', 1, 1)",
         "INSERT INTO hosts (id, name, kind, created_at) VALUES ('h1', 'h1', 'local', 1)",
-        "INSERT INTO agents \
-         (id, name, runtime, host_id, created_by_user_id, created_at, updated_at, \
-          materialization_status, session_scope) \
-         VALUES ('a1', 'a1', 'claude', 'h1', 'u1', 1, 1, 'active', 'conversation')",
+        seed_agent!(id = "a1", host_id = "h1", created_by_user_id = "u1"),
         "INSERT INTO workspaces (id, name, name_key, owner_agent_id, created_at, updated_at) \
          VALUES ('w-home', 'a1 home', NULL, 'a1', 1, 1)",
         "INSERT INTO workspaces (id, name, name_key, created_at, updated_at) \
          VALUES ('w-reg', 'Regular', 'reg', 1, 1)",
-        "INSERT INTO conversations \
-         (id, workspace_id, placement_kind, roster_policy, title, title_key, \
-          created_at, updated_at) \
-         VALUES ('ch-general', 'w-home', 'workspace', 'fixed', 'general', 'general', 100, 100)",
-        "INSERT INTO conversations \
-         (id, workspace_id, placement_kind, roster_policy, title, title_key, \
-          created_at, updated_at) \
-         VALUES ('ch-dm', 'w-home', 'workspace', 'fixed', 'dm-a1', 'dma1', 200, 200)",
-        "INSERT INTO conversations \
-         (id, workspace_id, placement_kind, roster_policy, title, title_key, \
-          created_at, updated_at) \
-         VALUES ('ch-onboarding', 'w-home', 'workspace', 'fixed', 'Onboarding', 'onboarding', 300, 300)",
+        seed_channel!(
+            id = "ch-general",
+            workspace_id = "w-home",
+            roster_policy = "fixed",
+            title = "general",
+            title_key = "general",
+            created_at = 100,
+            updated_at = 100,
+        ),
+        seed_channel!(
+            id = "ch-dm",
+            workspace_id = "w-home",
+            roster_policy = "fixed",
+            title = "dm-a1",
+            title_key = "dma1",
+            created_at = 200,
+            updated_at = 200,
+        ),
+        seed_channel!(
+            id = "ch-onboarding",
+            workspace_id = "w-home",
+            roster_policy = "fixed",
+            title = "Onboarding",
+            title_key = "onboarding",
+            created_at = 300,
+            updated_at = 300,
+        ),
         "INSERT INTO attachments \
          (id, channel_id, filename, size, content_type, storage, storage_key, \
           created_by_kind, created_by_id, created_at) \

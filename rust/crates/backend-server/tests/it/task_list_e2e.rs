@@ -65,9 +65,16 @@ async fn seed(directory: &TempDir) -> std::path::PathBuf {
         "INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-1', 'host', 'local', 0)",
         "INSERT INTO users (id, name, display_name, created_at, updated_at) \
          VALUES ('user-1', 'user-1', 'User One', 0, 0)",
-        "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, display_name, \
-         created_by_user_id, materialization_status, session_scope) \
-         VALUES ('agent-1', 'lio', 'claude', 'host-1', 0, 0, 'Lio', 'user-1', 'active', 'agent')",
+        seed_agent!(
+            id = "agent-1",
+            name = "lio",
+            host_id = "host-1",
+            created_at = 0,
+            updated_at = 0,
+            display_name = "Lio",
+            created_by_user_id = "user-1",
+            session_scope = "agent",
+        ),
         "INSERT INTO workspaces (id, name, name_key, owner_user_id, created_at, updated_at) \
          VALUES ('workspace-1', 'Product Space', 'product space', 'user-1', 0, 0)",
         "INSERT INTO workspaces (id, name, name_key, owner_user_id, created_at, updated_at) \
@@ -80,10 +87,14 @@ async fn seed(directory: &TempDir) -> std::path::PathBuf {
          VALUES ('workspace-3', 'agent-1', 0)",
         "INSERT INTO workspace_agent_capabilities (workspace_id, agent_id, capability) \
          VALUES ('workspace-1', 'agent-1', 'read_tasks')",
-        "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-         title_key, visibility, created_at, updated_at, latest_message_seq) \
-         VALUES ('conv000000000001', 'workspace-1', 'workspace', 'open', 'General Chat', \
-         'general chat', 'private', 0, 0, 0)",
+        seed_channel!(
+            id = "conv000000000001",
+            workspace_id = "workspace-1",
+            title = "General Chat",
+            title_key = "general chat",
+            created_at = 0,
+            updated_at = 0,
+        ),
         "INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) \
          VALUES ('conv000000000001', 'agent-1', 0)",
         "INSERT INTO tasks (id, workspace_id, task_number, conversation_id, title, status, \
@@ -276,10 +287,14 @@ async fn add_second_channel(path: &std::path::Path) {
         .await
         .unwrap();
     for statement in [
-        "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-         title_key, visibility, created_at, updated_at, latest_message_seq) \
-         VALUES ('conv000000000002', 'workspace-1', 'workspace', 'open', 'Second', \
-         'second', 'private', 0, 0, 0)",
+        seed_channel!(
+            id = "conv000000000002",
+            workspace_id = "workspace-1",
+            title = "Second",
+            title_key = "second",
+            created_at = 0,
+            updated_at = 0,
+        ),
         "INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) \
          VALUES ('conv000000000002', 'agent-1', 0)",
         "INSERT INTO tasks (id, workspace_id, task_number, conversation_id, title, status, \

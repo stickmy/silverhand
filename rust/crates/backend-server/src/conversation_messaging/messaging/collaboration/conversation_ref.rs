@@ -235,12 +235,28 @@ mod tests {
         }
         match setup {
             "direct_pair_endpoint" => {
-                sqlx::query("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,visibility,created_at,updated_at) VALUES('c',NULL,'direct_pair','fixed','human','local','human','other','',NULL,'private',1,1)")
-                    .execute(&mut db).await.unwrap();
+                sqlx::query(seed_direct_pair!(
+                    id = "c",
+                    endpoint_a_kind = "human",
+                    endpoint_a_id = "local",
+                    endpoint_b_kind = "human",
+                    endpoint_b_id = "other",
+                ))
+                .execute(&mut db)
+                .await
+                .unwrap();
             }
             "direct_pair_nonendpoint" => {
-                sqlx::query("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,visibility,created_at,updated_at) VALUES('c',NULL,'direct_pair','fixed','human','other','human','teammate','',NULL,'private',1,1)")
-                    .execute(&mut db).await.unwrap();
+                sqlx::query(seed_direct_pair!(
+                    id = "c",
+                    endpoint_a_kind = "human",
+                    endpoint_a_id = "other",
+                    endpoint_b_kind = "human",
+                    endpoint_b_id = "teammate",
+                ))
+                .execute(&mut db)
+                .await
+                .unwrap();
             }
             "missing_conversation" => {}
             other => {
@@ -262,8 +278,21 @@ mod tests {
                 } else {
                     None
                 };
-                sqlx::query("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,archived_at,created_at,updated_at) VALUES('c','w','workspace',?,'General','general-ref-wire',?,?,1,1)")
-                    .bind(roster).bind(visibility).bind(archived).execute(&mut db).await.unwrap();
+                sqlx::query(seed_channel!(
+                    id = "c",
+                    workspace_id = "w",
+                    roster_policy = ?,
+                    title = "General",
+                    title_key = "general-ref-wire",
+                    visibility = ?,
+                    archived_at = ?,
+                ))
+                .bind(roster)
+                .bind(visibility)
+                .bind(archived)
+                .execute(&mut db)
+                .await
+                .unwrap();
                 if matches!(other, "member_active_open" | "archived_member") {
                     sqlx::query("INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('c','local',1)")
                         .execute(&mut db).await.unwrap();

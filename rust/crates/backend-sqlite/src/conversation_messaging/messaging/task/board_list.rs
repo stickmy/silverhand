@@ -168,26 +168,44 @@ mod tests {
             "INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-1', 'host', 'local', 0)",
             "INSERT INTO users (id, name, display_name, created_at, updated_at) \
              VALUES ('user-1', 'user-1', 'User One', 1, 1)",
-            "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, display_name, \
-             created_by_user_id) VALUES ('agent-1', 'lio', 'claude', 'host-1', 0, 0, 'Lio', \
-             'user-1')",
+            seed_agent!(
+                id = "agent-1",
+                name = "lio",
+                host_id = "host-1",
+                created_at = 0,
+                updated_at = 0,
+                display_name = "Lio",
+                created_by_user_id = "user-1",
+            ),
             "INSERT INTO workspaces (id, name, name_key, owner_agent_id, owner_user_id, \
              created_at, updated_at) VALUES ('ws-1', 'One', 'one', NULL, 'user-1', 1, 1)",
             "INSERT INTO workspaces (id, name, name_key, owner_agent_id, owner_user_id, \
              created_at, updated_at) VALUES ('ws-2', 'Two', 'two', NULL, 'user-1', 1, 1)",
-            "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-             title_key, created_at, updated_at) \
-             VALUES ('conv-a', 'ws-1', 'workspace', 'open', 'A', 'a', 1, 1)",
-            "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-             title_key, created_at, updated_at) \
-             VALUES ('conv-b', 'ws-1', 'workspace', 'open', 'B', 'b', 1, 1)",
-            "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-             title_key, created_at, updated_at) \
-             VALUES ('conv-c', 'ws-2', 'workspace', 'open', 'C', 'c', 1, 1)",
-            "INSERT INTO conversations (id, placement_kind, roster_policy, title, \
-             endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, created_at, \
-             updated_at) VALUES ('conv-d', 'direct_pair', 'fixed', '', 'agent', \
-             'agent-1', 'human', 'user-1', 1, 1)",
+            seed_channel!(
+                id = "conv-a",
+                workspace_id = "ws-1",
+                title = "A",
+                title_key = "a"
+            ),
+            seed_channel!(
+                id = "conv-b",
+                workspace_id = "ws-1",
+                title = "B",
+                title_key = "b"
+            ),
+            seed_channel!(
+                id = "conv-c",
+                workspace_id = "ws-2",
+                title = "C",
+                title_key = "c"
+            ),
+            seed_direct_pair!(
+                id = "conv-d",
+                endpoint_a_kind = "agent",
+                endpoint_a_id = "agent-1",
+                endpoint_b_kind = "human",
+                endpoint_b_id = "user-1",
+            ),
             "INSERT INTO tasks (id, workspace_id, task_number, conversation_id, title, status, \
              creator_kind, created_at, board_key) \
              VALUES ('task-1', 'ws-1', 1, 'conv-a', 'first', 'todo', 'system', 100, 'ws:ws-1')",

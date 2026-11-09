@@ -201,10 +201,7 @@ mod tests {
     /// A user-managed remote, but owned by someone other than the requester.
     const OTHER_OWNED_REMOTE: &str = "INSERT INTO hosts (id, name, kind, created_at, user_id, provisioning_source) \
          VALUES ('h1', 'h1', 'remote', 1, 'u2', 'user_invite')";
-    const DEPENDENT: &str = "INSERT INTO agents \
-         (id, name, runtime, host_id, created_by_user_id, created_at, updated_at, \
-          materialization_status, session_scope) \
-         VALUES ('a1', 'a1', 'claude', 'h1', 'u1', 1, 1, 'active', 'conversation')";
+    const DEPENDENT: &str = seed_agent!(id = "a1", host_id = "h1", created_by_user_id = "u1");
 
     async fn count(store: &SqliteHostAgentStore, statement: &'static str) -> i64 {
         sqlx::query_scalar(statement)

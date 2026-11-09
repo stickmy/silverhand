@@ -122,35 +122,46 @@ async fn seeded() -> (
     let path = directory.path().join("saved.sqlite");
     let mut db = crate::current_schema::create_current_schema(&path).await;
     db.execute(sqlx::raw_sql(
-        "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES \
-           ('user-1', 'local-test', 'Local Test User', 0, 0), ('user-2', 'peer', 'Peer', 0, 0), \
-           ('user-3', 'stale', 'Stale', 0, 0); \
-         INSERT INTO workspaces (id, name, name_key, owner_user_id, created_at, updated_at) \
-           VALUES ('workspace-1', 'Space', 'space', 'user-1', 0, 0); \
-         INSERT INTO workspace_users (workspace_id, user_id, joined_at, role) VALUES \
-           ('workspace-1', 'user-1', 0, 'owner'), ('workspace-1', 'user-2', 0, 'member'); \
-         INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-           title_key, visibility, created_at, updated_at, latest_message_seq) VALUES \
-           ('conversation-1', 'workspace-1', 'workspace', 'open', 'saved-main', 'saved-main', 'private', 0, 0, 2), \
-           ('conversation-public', 'workspace-1', 'workspace', 'open', 'Public', 'public', 'public', 0, 0, 1); \
-         INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-           title_key, visibility, endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, \
-           created_at, updated_at, latest_message_seq) VALUES \
-           ('pair-1', NULL, 'direct_pair', 'fixed', 'Pair', NULL, 'private', \
-            'human', 'user-1', 'human', 'user-2', 0, 0, 1); \
-         INSERT INTO conversation_users (conversation_id, user_id, joined_at) VALUES \
-           ('conversation-1', 'user-1', 0), ('conversation-1', 'user-2', 0), \
-           ('conversation-1', 'user-3', 0); \
-         INSERT INTO messages (id, conversation_id, from_kind, from_user_id, author_id, author_name, \
-           author_display_name, content, metadata, seq, created_at, thread_root_id) VALUES \
-           ('message-1', 'conversation-1', 'user', 'user-1', 'user-1', 'owner', 'Owner', \
-            'saved parity', NULL, 1, 100, NULL), \
-           ('reply-1', 'conversation-1', 'user', 'user-2', 'user-2', 'peer', 'Peer', \
-            'reply', NULL, 2, 200, 'message-1'), \
-           ('pair-message', 'pair-1', 'user', 'user-2', 'user-2', 'peer', 'Peer', \
-            'dm', NULL, 1, 300, NULL), \
-           ('public-message', 'conversation-public', 'user', 'user-1', 'user-1', 'local-test', \
-            'Local Test User', 'public', NULL, 1, 400, NULL);",
+        concat!(
+            "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-1', 'local-test', 'Local Test User', 0, 0), ('user-2', 'peer', 'Peer', 0, 0), ('user-3', 'stale', 'Stale', 0, 0); ",
+            "INSERT INTO workspaces (id, name, name_key, owner_user_id, created_at, updated_at) VALUES ('workspace-1', 'Space', 'space', 'user-1', 0, 0); ",
+            "INSERT INTO workspace_users (workspace_id, user_id, joined_at, role) VALUES ('workspace-1', 'user-1', 0, 'owner'), ('workspace-1', 'user-2', 0, 'member'); ",
+            seed_channel!(
+                id = "conversation-1",
+                workspace_id = "workspace-1",
+                title = "saved-main",
+                title_key = "saved-main",
+                created_at = 0,
+                updated_at = 0,
+                latest_message_seq = 2,
+            ),
+            "; ",
+            seed_channel!(
+                id = "conversation-public",
+                workspace_id = "workspace-1",
+                title = "Public",
+                title_key = "public",
+                visibility = "public",
+                created_at = 0,
+                updated_at = 0,
+                latest_message_seq = 1,
+            ),
+            "; ",
+            seed_direct_pair!(
+                id = "pair-1",
+                title = "Pair",
+                endpoint_a_kind = "human",
+                endpoint_a_id = "user-1",
+                endpoint_b_kind = "human",
+                endpoint_b_id = "user-2",
+                created_at = 0,
+                updated_at = 0,
+                latest_message_seq = 1,
+            ),
+            "; ",
+            "INSERT INTO conversation_users (conversation_id, user_id, joined_at) VALUES ('conversation-1', 'user-1', 0), ('conversation-1', 'user-2', 0), ('conversation-1', 'user-3', 0); ",
+            "INSERT INTO messages (id, conversation_id, from_kind, from_user_id, author_id, author_name, author_display_name, content, metadata, seq, created_at, thread_root_id) VALUES ('message-1', 'conversation-1', 'user', 'user-1', 'user-1', 'owner', 'Owner', 'saved parity', NULL, 1, 100, NULL), ('reply-1', 'conversation-1', 'user', 'user-2', 'user-2', 'peer', 'Peer', 'reply', NULL, 2, 200, 'message-1'), ('pair-message', 'pair-1', 'user', 'user-2', 'user-2', 'peer', 'Peer', 'dm', NULL, 1, 300, NULL), ('public-message', 'conversation-public', 'user', 'user-1', 'user-1', 'local-test', 'Local Test User', 'public', NULL, 1, 400, NULL); ",
+        ),
     ))
     .await
     .unwrap();

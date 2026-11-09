@@ -45,12 +45,14 @@ async fn seed_agents(connection: &mut SqliteConnection) {
     .await
     .unwrap();
     for id in [OWNER, OTHER] {
-        sqlx::query(
-            "INSERT INTO agents (
-                id, name, runtime, host_id, created_at, updated_at,
-                display_name, created_by_user_id, session_scope
-             ) VALUES (?, ?, 'codex', 'host-1', 1, 1, 'Agent', 'user-1', 'conversation')",
-        )
+        sqlx::query(seed_agent!(
+            id = ?,
+            name = ?,
+            runtime = "codex",
+            host_id = "host-1",
+            display_name = "Agent",
+            created_by_user_id = "user-1",
+        ))
         .bind(id)
         .bind(id)
         .execute(&mut *connection)
@@ -251,12 +253,12 @@ async fn the_target_label_reflects_the_joined_board_or_falls_back() {
     .execute(&mut connection)
     .await
     .unwrap();
-    sqlx::query(
-        "INSERT INTO conversations
-            (id, workspace_id, placement_kind, roster_policy, title, title_key,
-             created_at, updated_at)
-         VALUES ('c-open', 'ws-1', 'workspace', 'open', 'ops', 'ops', 1, 1)",
-    )
+    sqlx::query(seed_channel!(
+        id = "c-open",
+        workspace_id = "ws-1",
+        title = "ops",
+        title_key = "ops"
+    ))
     .execute(&mut connection)
     .await
     .unwrap();

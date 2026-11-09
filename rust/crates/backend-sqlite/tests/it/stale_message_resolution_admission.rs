@@ -29,12 +29,14 @@ async fn seed(path: &std::path::Path) {
     )
     .await
     .unwrap();
-    db.execute(
-        "INSERT INTO agents(id,name,runtime,host_id,created_at,updated_at,display_name,\
-         created_by_user_id,materialization_status,session_scope) VALUES \
-         ('stale-agent','stale-agent','codex','stale-host',1,1,'Stale Agent','stale-peer',\
-          'active','agent')",
-    )
+    db.execute(seed_agent!(
+        id = "stale-agent",
+        runtime = "codex",
+        host_id = "stale-host",
+        display_name = "Stale Agent",
+        created_by_user_id = "stale-peer",
+        session_scope = "agent",
+    ))
     .await
     .unwrap();
     db.execute(
@@ -43,11 +45,12 @@ async fn seed(path: &std::path::Path) {
     )
     .await
     .unwrap();
-    db.execute(
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES \
-         ('stale-workspace','stale-workspace-id','workspace','open','Stale Channel',\
-          'stale channel','private',1,1)",
-    )
+    db.execute(seed_channel!(
+        id = "stale-workspace",
+        workspace_id = "stale-workspace-id",
+        title = "Stale Channel",
+        title_key = "stale channel",
+    ))
     .await
     .unwrap();
     db.execute(
@@ -56,15 +59,23 @@ async fn seed(path: &std::path::Path) {
     )
     .await
     .unwrap();
-    db.execute(
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,\
-         endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,visibility,created_at,\
-         updated_at) VALUES \
-         ('stale-pair',NULL,'direct_pair','fixed','agent','stale-agent','human','stale-peer','',\
-          NULL,'private',1,1),\
-         ('stale-missing-peer',NULL,'direct_pair','fixed','agent','stale-agent','human',\
-          'stale-ghost','',NULL,'private',1,1)",
-    )
+    db.execute(concat!(
+        seed_direct_pair!(
+            id = "stale-pair",
+            endpoint_a_kind = "agent",
+            endpoint_a_id = "stale-agent",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "stale-peer",
+        ),
+        "; ",
+        seed_direct_pair!(
+            id = "stale-missing-peer",
+            endpoint_a_kind = "agent",
+            endpoint_a_id = "stale-agent",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "stale-ghost",
+        ),
+    ))
     .await
     .unwrap();
     db.close().await.unwrap();

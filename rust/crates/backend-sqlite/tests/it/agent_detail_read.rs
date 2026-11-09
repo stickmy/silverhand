@@ -75,8 +75,15 @@ const CREATOR: &str = "INSERT INTO users (id, name, display_name, created_at, up
      VALUES ('u-creator', 'creator', 'Creator', 1000, 1000)";
 const HOST_H1: &str =
     "INSERT INTO hosts (id, name, kind, created_at) VALUES ('h1', 'host-one', 'desktop', 1000)";
-const AGENT_A1: &str = "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id) \
-     VALUES ('a1', 'agent-one', 'qoder', 'h1', 1000, 1000, 'u-creator')";
+const AGENT_A1: &str = seed_agent!(
+    id = "a1",
+    name = "agent-one",
+    runtime = "qoder",
+    host_id = "h1",
+    created_at = 1000,
+    updated_at = 1000,
+    created_by_user_id = "u-creator",
+);
 
 // --- ACL arm resolution: the visibility union the detail read carries. ------------
 
@@ -111,11 +118,16 @@ async fn the_direct_pair_human_endpoint_arm_resolves() {
          VALUES ('u-pair', 'pair', 'Pair Human', 1000, 1000)",
         HOST_H1,
         AGENT_A1,
-        "INSERT INTO conversations \
-           (id, workspace_id, endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, \
-            placement_kind, roster_policy, title, created_at, updated_at) \
-         VALUES ('c-pair', NULL, 'agent', 'a1', 'human', 'u-pair', \
-            'direct_pair', 'fixed', 'dm', 1000, 1000)",
+        seed_direct_pair!(
+            id = "c-pair",
+            endpoint_a_kind = "agent",
+            endpoint_a_id = "a1",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "u-pair",
+            title = "dm",
+            created_at = 1000,
+            updated_at = 1000,
+        ),
     ])
     .await;
 
@@ -140,14 +152,26 @@ async fn an_agent_to_agent_pair_contributes_no_viewer() {
         CREATOR,
         HOST_H1,
         AGENT_A1,
-        "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id) \
-         VALUES ('a2', 'agent-two', 'qoder', 'h1', 1000, 1000, 'u-creator')",
+        seed_agent!(
+            id = "a2",
+            name = "agent-two",
+            runtime = "qoder",
+            host_id = "h1",
+            created_at = 1000,
+            updated_at = 1000,
+            created_by_user_id = "u-creator",
+        ),
         // 'a1' < 'a2', so a1 is endpoint_a and a2 endpoint_b: an agent↔agent pair.
-        "INSERT INTO conversations \
-           (id, workspace_id, endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, \
-            placement_kind, roster_policy, title, created_at, updated_at) \
-         VALUES ('c-aa', NULL, 'agent', 'a1', 'agent', 'a2', \
-            'direct_pair', 'fixed', 'dm', 1000, 1000)",
+        seed_direct_pair!(
+            id = "c-aa",
+            endpoint_a_kind = "agent",
+            endpoint_a_id = "a1",
+            endpoint_b_kind = "agent",
+            endpoint_b_id = "a2",
+            title = "dm",
+            created_at = 1000,
+            updated_at = 1000,
+        ),
     ])
     .await;
 
@@ -234,13 +258,27 @@ async fn the_projection_decodes_every_wire_column() {
         CREATOR,
         "INSERT INTO hosts (id, name, kind, created_at, display_label) \
          VALUES ('h1', 'host-one', 'desktop', 1000, 'Host One Label')",
-        "INSERT INTO agents \
-           (id, name, runtime, model, host_id, description, created_at, updated_at, display_name, \
-            reasoning_effort, fast_mode, created_by_user_id, avatar_storage_key, avatar_content_type, \
-            materialization_status, materialization_failed_code, materialization_failed_at, \
-            deletion_started_at, session_scope) \
-         VALUES ('a1', 'agent-one', 'qoder', 'sonnet', 'h1', 'a description', 1000, 2000, 'Agent One', \
-            'high', 1, 'u-creator', 'avatars/a1.png', 'image/png', 'failed', 'boom', 3000, 4000, 'agent')",
+        seed_agent!(
+            id = "a1",
+            name = "agent-one",
+            runtime = "qoder",
+            model = "sonnet",
+            host_id = "h1",
+            description = "a description",
+            created_at = 1000,
+            updated_at = 2000,
+            display_name = "Agent One",
+            reasoning_effort = "high",
+            fast_mode = 1,
+            created_by_user_id = "u-creator",
+            avatar_storage_key = "avatars/a1.png",
+            avatar_content_type = "image/png",
+            materialization_status = "failed",
+            materialization_failed_code = "boom",
+            materialization_failed_at = 3000,
+            deletion_started_at = 4000,
+            session_scope = "agent",
+        ),
     ])
     .await;
 
@@ -320,9 +358,16 @@ async fn fast_mode_maps_zero_to_false() {
     let (_guard, cold_read) = seeded(&[
         CREATOR,
         HOST_H1,
-        "INSERT INTO agents \
-           (id, name, runtime, host_id, created_at, updated_at, created_by_user_id, fast_mode) \
-         VALUES ('a1', 'agent-one', 'qoder', 'h1', 1000, 1000, 'u-creator', 0)",
+        seed_agent!(
+            id = "a1",
+            name = "agent-one",
+            runtime = "qoder",
+            host_id = "h1",
+            created_at = 1000,
+            updated_at = 1000,
+            created_by_user_id = "u-creator",
+            fast_mode = 0,
+        ),
     ])
     .await;
 
@@ -355,36 +400,98 @@ async fn fast_mode_maps_zero_to_false() {
 const NUMERIC_FALSIFIERS: &[(&str, &str, &str)] = &[
     (
         "created_at",
-        "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id) \
-         VALUES ('a1', 'agent-one', 'qoder', 'h1', 'soon', 1000, 'u-creator')",
+        seed_agent!(
+            id = "a1",
+            name = "agent-one",
+            runtime = "qoder",
+            host_id = "h1",
+            created_at = "soon",
+            updated_at = 1000,
+            created_by_user_id = "u-creator",
+        ),
         AGENT_A1,
     ),
     (
         "updated_at",
-        "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id) \
-         VALUES ('a1', 'agent-one', 'qoder', 'h1', 1000, 'soon', 'u-creator')",
+        seed_agent!(
+            id = "a1",
+            name = "agent-one",
+            runtime = "qoder",
+            host_id = "h1",
+            created_at = 1000,
+            updated_at = "soon",
+            created_by_user_id = "u-creator",
+        ),
         AGENT_A1,
     ),
     (
         "fast_mode",
-        "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id, fast_mode) \
-         VALUES ('a1', 'agent-one', 'qoder', 'h1', 1000, 1000, 'u-creator', 'yes')",
-        "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id, fast_mode) \
-         VALUES ('a1', 'agent-one', 'qoder', 'h1', 1000, 1000, 'u-creator', 1)",
+        seed_agent!(
+            id = "a1",
+            name = "agent-one",
+            runtime = "qoder",
+            host_id = "h1",
+            created_at = 1000,
+            updated_at = 1000,
+            created_by_user_id = "u-creator",
+            fast_mode = "yes",
+        ),
+        seed_agent!(
+            id = "a1",
+            name = "agent-one",
+            runtime = "qoder",
+            host_id = "h1",
+            created_at = 1000,
+            updated_at = 1000,
+            created_by_user_id = "u-creator",
+            fast_mode = 1,
+        ),
     ),
     (
         "materialization_failed_at",
-        "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id, materialization_failed_at) \
-         VALUES ('a1', 'agent-one', 'qoder', 'h1', 1000, 1000, 'u-creator', 'soon')",
-        "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id, materialization_failed_at) \
-         VALUES ('a1', 'agent-one', 'qoder', 'h1', 1000, 1000, 'u-creator', 3000)",
+        seed_agent!(
+            id = "a1",
+            name = "agent-one",
+            runtime = "qoder",
+            host_id = "h1",
+            created_at = 1000,
+            updated_at = 1000,
+            created_by_user_id = "u-creator",
+            materialization_failed_at = "soon",
+        ),
+        seed_agent!(
+            id = "a1",
+            name = "agent-one",
+            runtime = "qoder",
+            host_id = "h1",
+            created_at = 1000,
+            updated_at = 1000,
+            created_by_user_id = "u-creator",
+            materialization_failed_at = 3000,
+        ),
     ),
     (
         "deletion_started_at",
-        "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id, deletion_started_at) \
-         VALUES ('a1', 'agent-one', 'qoder', 'h1', 1000, 1000, 'u-creator', 'soon')",
-        "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id, deletion_started_at) \
-         VALUES ('a1', 'agent-one', 'qoder', 'h1', 1000, 1000, 'u-creator', 4000)",
+        seed_agent!(
+            id = "a1",
+            name = "agent-one",
+            runtime = "qoder",
+            host_id = "h1",
+            created_at = 1000,
+            updated_at = 1000,
+            created_by_user_id = "u-creator",
+            deletion_started_at = "soon",
+        ),
+        seed_agent!(
+            id = "a1",
+            name = "agent-one",
+            runtime = "qoder",
+            host_id = "h1",
+            created_at = 1000,
+            updated_at = 1000,
+            created_by_user_id = "u-creator",
+            deletion_started_at = 4000,
+        ),
     ),
 ];
 
@@ -416,9 +523,15 @@ async fn an_empty_creator_id_on_the_agent_row_is_a_read_error() {
         CREATOR,
         EMPTY_USER,
         HOST_H1,
-        "INSERT INTO agents \
-           (id, name, runtime, host_id, created_at, updated_at, created_by_user_id) \
-         VALUES ('a1', 'agent-one', 'qoder', 'h1', 1000, 1000, '')",
+        seed_agent!(
+            id = "a1",
+            name = "agent-one",
+            runtime = "qoder",
+            host_id = "h1",
+            created_at = 1000,
+            updated_at = 1000,
+            created_by_user_id = "",
+        ),
     ])
     .await;
     assert!(try_detail(&bad, "a1").await.is_err());
@@ -438,11 +551,16 @@ async fn an_empty_direct_pair_human_endpoint_is_a_read_error() {
         EMPTY_USER,
         HOST_H1,
         AGENT_A1,
-        "INSERT INTO conversations \
-           (id, workspace_id, endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, \
-            placement_kind, roster_policy, title, created_at, updated_at) \
-         VALUES ('c-pair', NULL, 'agent', 'a1', 'human', '', \
-            'direct_pair', 'fixed', 'dm', 1000, 1000)",
+        seed_direct_pair!(
+            id = "c-pair",
+            endpoint_a_kind = "agent",
+            endpoint_a_id = "a1",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "",
+            title = "dm",
+            created_at = 1000,
+            updated_at = 1000,
+        ),
     ])
     .await;
     assert!(try_detail(&bad, "a1").await.is_err());
@@ -453,11 +571,16 @@ async fn an_empty_direct_pair_human_endpoint_is_a_read_error() {
          VALUES ('u-pair', 'pair', 'Pair Human', 1000, 1000)",
         HOST_H1,
         AGENT_A1,
-        "INSERT INTO conversations \
-           (id, workspace_id, endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, \
-            placement_kind, roster_policy, title, created_at, updated_at) \
-         VALUES ('c-pair', NULL, 'agent', 'a1', 'human', 'u-pair', \
-            'direct_pair', 'fixed', 'dm', 1000, 1000)",
+        seed_direct_pair!(
+            id = "c-pair",
+            endpoint_a_kind = "agent",
+            endpoint_a_id = "a1",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "u-pair",
+            title = "dm",
+            created_at = 1000,
+            updated_at = 1000,
+        ),
     ])
     .await;
     assert!(try_detail(&good, "a1").await.is_ok());

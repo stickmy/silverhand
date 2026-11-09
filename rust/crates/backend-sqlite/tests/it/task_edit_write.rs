@@ -30,14 +30,21 @@ async fn open_db() -> (TempDir, PathBuf) {
          VALUES ('user-1', 'user-1', 'User One', 1, 1)",
         "INSERT INTO hosts (id, name, kind, created_at, user_id)
          VALUES ('host-1', 'host-1', 'remote', 1, 'user-1')",
-        "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at,
-            display_name, created_by_user_id, session_scope)
-         VALUES ('agent-1', 'agent-1', 'codex', 'host-1', 1, 1, 'Agent', 'user-1', 'conversation')",
+        seed_agent!(
+            id = "agent-1",
+            runtime = "codex",
+            host_id = "host-1",
+            display_name = "Agent",
+            created_by_user_id = "user-1",
+        ),
         "INSERT INTO workspaces (id, name, name_key, created_at, updated_at)
          VALUES ('ws-1', 'ws', 'ws', 1, 1)",
-        "INSERT INTO conversations
-            (id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at)
-         VALUES ('conv-1', 'ws-1', 'workspace', 'open', 'general', 'general', 1, 1)",
+        seed_channel!(
+            id = "conv-1",
+            workspace_id = "ws-1",
+            title = "general",
+            title_key = "general",
+        ),
         "INSERT INTO conversation_agents (conversation_id, agent_id, joined_at)
          VALUES ('conv-1', 'agent-1', 1)",
         "INSERT INTO workspace_members (workspace_id, agent_id, joined_at)
@@ -52,7 +59,10 @@ async fn open_db() -> (TempDir, PathBuf) {
          VALUES ('task-1', 'ws-1', 1, 'conv-1', 'Old title', 'old body', 'todo',
              'agent', 'agent-1', 1, 'ws:ws-1')",
     ] {
-        sqlx::query(statement).execute(&mut connection).await.unwrap();
+        sqlx::query(statement)
+            .execute(&mut connection)
+            .await
+            .unwrap();
     }
     connection.close().await.unwrap();
     (directory, path)
@@ -183,9 +193,12 @@ async fn a_human_editor_shares_the_gate_and_stamps_a_user_triple() {
          VALUES ('ws-1', 'ws', 'ws', 1, 1)",
         "INSERT INTO workspace_users (workspace_id, user_id, role, joined_at)
          VALUES ('ws-1', 'user-1', 'member', 1)",
-        "INSERT INTO conversations
-            (id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at)
-         VALUES ('conv-1', 'ws-1', 'workspace', 'open', 'general', 'general', 1, 1)",
+        seed_channel!(
+            id = "conv-1",
+            workspace_id = "ws-1",
+            title = "general",
+            title_key = "general",
+        ),
         "INSERT INTO conversation_users (conversation_id, user_id, joined_at)
          VALUES ('conv-1', 'user-1', 1)",
         "INSERT INTO tasks
@@ -194,7 +207,10 @@ async fn a_human_editor_shares_the_gate_and_stamps_a_user_triple() {
          VALUES ('task-1', 'ws-1', 1, 'conv-1', 'Old title', 'old body', 'todo',
              'user', 'user-1', 1, 'ws:ws-1')",
     ] {
-        sqlx::query(statement).execute(&mut connection).await.unwrap();
+        sqlx::query(statement)
+            .execute(&mut connection)
+            .await
+            .unwrap();
     }
     connection.close().await.unwrap();
 

@@ -18,21 +18,50 @@ async fn seed(path: &std::path::Path) {
         "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES \
          ('member','runtime-member','Member',1,1),('browser','runtime-browser','Browser',1,1),\
          ('other','runtime-other','Other',1,1)",
-        "INSERT INTO agents(id,name,runtime,host_id,created_by_user_id,created_at,updated_at,display_name,session_scope) VALUES \
-         ('a-conversation','runtime-conversation','codex','h','member',1,1,'Conversation','conversation'),\
-         ('z-global','runtime-global','codex','h','member',1,1,'Global','agent')",
+        concat!(
+            seed_agent!(
+                id = "a-conversation",
+                name = "runtime-conversation",
+                runtime = "codex",
+                host_id = "h",
+                created_by_user_id = "member",
+                display_name = "Conversation",
+            ),
+            "; ",
+            seed_agent!(
+                id = "z-global",
+                name = "runtime-global",
+                runtime = "codex",
+                host_id = "h",
+                created_by_user_id = "member",
+                display_name = "Global",
+                session_scope = "agent",
+            ),
+        ),
         "INSERT INTO workspaces(id,name,name_key,created_at,updated_at) VALUES \
          ('w','Workspace','runtime-workspace',1,1)",
         "INSERT INTO workspace_users(workspace_id,user_id,joined_at,role) VALUES \
          ('w','member',1,'member'),('w','browser',1,'member')",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES \
-         ('private','w','workspace','open','Private','private','private',1,1),\
-         ('public','w','workspace','open','Public','public','public',1,1)",
+        concat!(
+            seed_channel!(id = "private", workspace_id = "w", title = "Private"),
+            "; ",
+            seed_channel!(
+                id = "public",
+                workspace_id = "w",
+                title = "Public",
+                visibility = "public",
+            ),
+        ),
         "INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES ('private','member',1)",
         "INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES \
          ('private','z-global',1),('private','a-conversation',1),('public','a-conversation',1)",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,visibility,created_at,updated_at) VALUES \
-         ('pair',NULL,'direct_pair','fixed','agent','z-global','human','member','',NULL,'private',1,1)",
+        seed_direct_pair!(
+            id = "pair",
+            endpoint_a_kind = "agent",
+            endpoint_a_id = "z-global",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "member",
+        ),
         "UPDATE agent_runtime_slots SET observed_status='active',observed_pid=123,cli_session_id='cli-c' \
          WHERE agent_id='a-conversation' AND conversation_id='private'",
         "UPDATE agent_runtime_slots SET observed_status='starting',observed_pid=456,cli_session_id='cli-g' \

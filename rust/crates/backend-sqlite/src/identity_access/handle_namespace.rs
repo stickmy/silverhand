@@ -95,12 +95,18 @@ mod tests {
         include_str!("../../../../../rust/test-fixtures/migration-baseline/schema-current.sql");
 
     // A user holding `alice`, a host + agent holding `bender`. `charlie` is free.
-    const SEED_SQL: &str = "\
-INSERT INTO users (id, name, display_name, created_at, updated_at) \
-  VALUES ('user-1', 'alice', 'Alice', 1, 1); \
-INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-1', 'Host', 'local', 1); \
-INSERT INTO agents (id, name, display_name, runtime, host_id, created_by_user_id, created_at, updated_at) \
-  VALUES ('agent-1', 'bender', 'Bender', 'claude', 'host-1', 'user-1', 1, 1);";
+    const SEED_SQL: &str = concat!(
+        "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-1', 'alice', 'Alice', 1, 1); ",
+        "INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-1', 'Host', 'local', 1); ",
+        seed_agent!(
+            id = "agent-1",
+            name = "bender",
+            display_name = "Bender",
+            host_id = "host-1",
+            created_by_user_id = "user-1",
+        ),
+        "; ",
+    );
 
     async fn open_seeded() -> (tempfile::TempDir, SqliteHandleNamespace) {
         let directory = tempfile::tempdir().unwrap();

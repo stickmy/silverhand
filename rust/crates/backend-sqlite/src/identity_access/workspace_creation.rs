@@ -629,14 +629,28 @@ mod tests {
     const CURRENT_SCHEMA: &str =
         include_str!("../../../../../rust/test-fixtures/migration-baseline/schema-current.sql");
 
-    const SEED_SQL: &str = "\
-INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-1','owner','Owner',1,1); \
-INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-2','member','Member',1,1); \
-INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-1','Host','local',1); \
-INSERT INTO agents (id, name, display_name, runtime, host_id, created_by_user_id, created_at, updated_at, session_scope) \
-  VALUES ('agent-a','alice','Alice','claude','host-1','user-1',1,1,'conversation'); \
-INSERT INTO agents (id, name, display_name, runtime, host_id, created_by_user_id, created_at, updated_at, session_scope) \
-  VALUES ('agent-b','bob','Bob','codex','host-1','user-1',1,1,'conversation');";
+    const SEED_SQL: &str = concat!(
+        "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-1','owner','Owner',1,1); ",
+        "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-2','member','Member',1,1); ",
+        "INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-1','Host','local',1); ",
+        seed_agent!(
+            id = "agent-a",
+            name = "alice",
+            display_name = "Alice",
+            host_id = "host-1",
+            created_by_user_id = "user-1",
+        ),
+        "; ",
+        seed_agent!(
+            id = "agent-b",
+            name = "bob",
+            display_name = "Bob",
+            runtime = "codex",
+            host_id = "host-1",
+            created_by_user_id = "user-1",
+        ),
+        "; ",
+    );
 
     async fn open_seeded() -> (tempfile::TempDir, SqliteWorkspaceCreation, sqlx::SqlitePool) {
         let dir = tempfile::tempdir().unwrap();

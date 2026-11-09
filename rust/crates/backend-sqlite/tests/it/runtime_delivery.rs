@@ -93,13 +93,14 @@ async fn seed(connection: &mut SqliteConnection) {
     .execute(&mut *connection)
     .await
     .unwrap();
-    sqlx::query(
-        "INSERT INTO agents (
-            id, name, runtime, host_id, created_at, updated_at,
-            display_name, created_by_user_id, session_scope
-         ) VALUES (?, 'agent-delivery', 'codex', 'host-1', 1, 1,
-             'Delivery Agent', 'user-1', 'conversation')",
-    )
+    sqlx::query(seed_agent!(
+        id = ?,
+        name = "agent-delivery",
+        runtime = "codex",
+        host_id = "host-1",
+        display_name = "Delivery Agent",
+        created_by_user_id = "user-1",
+    ))
     .bind(AGENT)
     .execute(&mut *connection)
     .await
@@ -120,12 +121,12 @@ async fn seed(connection: &mut SqliteConnection) {
     .execute(&mut *connection)
     .await
     .unwrap();
-    sqlx::query(
-        "INSERT INTO conversations (
-            id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at
-         ) VALUES (?, 'workspace-1', 'workspace', 'open', 'Conversation One',
-             'conversation one', 1, 1)",
-    )
+    sqlx::query(seed_channel!(
+        id = ?,
+        workspace_id = "workspace-1",
+        title = "Conversation One",
+        title_key = "conversation one",
+    ))
     .bind(CONVERSATION)
     .execute(&mut *connection)
     .await
@@ -297,12 +298,14 @@ async fn direct_pair_and_thread_coordinates_are_projected_from_persisted_placeme
         .execute(&mut db)
         .await
         .unwrap();
-    sqlx::query(
-        "INSERT INTO conversations (
-            id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at, endpoint_a_kind, endpoint_a_id,
-            endpoint_b_kind, endpoint_b_id
-         ) VALUES (?, NULL, 'direct_pair', 'fixed', 'Direct Pair', NULL, 1, 1, 'agent', ?, 'human', 'user-1')",
-    )
+    sqlx::query(seed_direct_pair!(
+        id = ?,
+        title = "Direct Pair",
+        endpoint_a_kind = "agent",
+        endpoint_a_id = ?,
+        endpoint_b_kind = "human",
+        endpoint_b_id = "user-1",
+    ))
     .bind(CONVERSATION)
     .bind(AGENT)
     .execute(&mut db)
@@ -907,19 +910,44 @@ async fn agent_slot_status_targets_every_placement_participation_and_only_origin
     let fixture = fixture().await;
     let mut db = open(&fixture.path).await;
     sqlx::raw_sql(
-        "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, display_name, created_by_user_id, session_scope)
-         VALUES ('agent-aggregate', 'agent-aggregate', 'codex', 'host-1', 1, 1, 'Aggregate Agent', 'user-1', 'agent');
-         INSERT INTO workspace_members (workspace_id, agent_id, joined_at) VALUES ('workspace-1', 'agent-aggregate', 1);
-         INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES ('conversation0001', 'agent-aggregate', 1);
-         INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at)
-         VALUES ('conversation0002', 'workspace-1', 'workspace', 'fixed', 'Second', 'second', 1, 1),
-                ('conversation0003', 'workspace-1', 'workspace', 'open', 'Not Seated', 'not seated', 1, 1);
-         INSERT INTO conversation_agents (conversation_id, agent_id, joined_at)
-         VALUES ('conversation0002', 'agent-aggregate', 1);
-         INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at,
-                                    endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id)
-         VALUES ('conversation0004', NULL, 'direct_pair', 'fixed', 'DM', NULL, 1, 1,
-                 'agent', 'agent-aggregate', 'human', 'user-1');",
+        concat!(
+            seed_agent!(
+                id = "agent-aggregate",
+                runtime = "codex",
+                host_id = "host-1",
+                display_name = "Aggregate Agent",
+                created_by_user_id = "user-1",
+                session_scope = "agent",
+            ),
+            "; ",
+            "INSERT INTO workspace_members (workspace_id, agent_id, joined_at) VALUES ('workspace-1', 'agent-aggregate', 1); ",
+            "INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES ('conversation0001', 'agent-aggregate', 1); ",
+            seed_channel!(
+                id = "conversation0002",
+                workspace_id = "workspace-1",
+                roster_policy = "fixed",
+                title = "Second",
+                title_key = "second",
+            ),
+            "; ",
+            seed_channel!(
+                id = "conversation0003",
+                workspace_id = "workspace-1",
+                title = "Not Seated",
+                title_key = "not seated",
+            ),
+            "; ",
+            "INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES ('conversation0002', 'agent-aggregate', 1); ",
+            seed_direct_pair!(
+                id = "conversation0004",
+                title = "DM",
+                endpoint_a_kind = "agent",
+                endpoint_a_id = "agent-aggregate",
+                endpoint_b_kind = "human",
+                endpoint_b_id = "user-1",
+            ),
+            "; ",
+        ),
     )
     .execute(&mut db)
     .await
@@ -1148,14 +1176,17 @@ async fn presence_audience_includes_the_human_endpoint_of_a_direct_pair() {
     let fixture = fixture().await;
     let mut connection = open(&fixture.path).await;
     sqlx::raw_sql(
-        "INSERT INTO users (id, name, display_name, created_at, updated_at)
-             VALUES ('user-2', 'user-2', 'User Two', 1, 1);
-         INSERT INTO conversations (
-             id, placement_kind, roster_policy, title, visibility,
-             endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id,
-             created_at, updated_at
-         ) VALUES ('pair-1', 'direct_pair', 'fixed', '', 'private',
-             'agent', 'agent-delivery', 'human', 'user-2', 1, 1);",
+        concat!(
+            "INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-2', 'user-2', 'User Two', 1, 1); ",
+            seed_direct_pair!(
+                id = "pair-1",
+                endpoint_a_kind = "agent",
+                endpoint_a_id = "agent-delivery",
+                endpoint_b_kind = "human",
+                endpoint_b_id = "user-2",
+            ),
+            "; ",
+        ),
     )
     .execute(&mut connection)
     .await
@@ -1482,13 +1513,13 @@ async fn a_stored_runtime_outside_the_closed_set_fails_both_decode_sites() {
     );
 
     let mut db = open(&fixture.path).await;
-    sqlx::query(
-        "INSERT INTO agents (
-            id, name, runtime, host_id, created_at, updated_at,
-            display_name, created_by_user_id, session_scope
-         ) VALUES ('agent-peer', 'agent-peer', 'aider', 'host-1', 1, 1,
-             'Peer Agent', 'user-1', 'conversation')",
-    )
+    sqlx::query(seed_agent!(
+        id = "agent-peer",
+        runtime = "aider",
+        host_id = "host-1",
+        display_name = "Peer Agent",
+        created_by_user_id = "user-1",
+    ))
     .execute(&mut db)
     .await
     .unwrap();

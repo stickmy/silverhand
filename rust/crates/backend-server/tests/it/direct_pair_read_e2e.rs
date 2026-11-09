@@ -82,21 +82,43 @@ async fn fixture() -> Fixture {
          user_agent, ip_first_seen) VALUES \
          ('session-1', 'user-1', 'OXoqnFv14szsOMJZa2grsb0F_m5OzqbBDPQnVf8iVAM', 1, 9500, NULL, NULL, NULL)",
         "INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-1', 'Host', 'local', 1)",
-        "INSERT INTO agents (id, name, display_name, runtime, host_id, created_by_user_id, \
-         created_at, updated_at, session_scope) VALUES \
-         ('agent-1', 'agent', 'Agent One', 'codex', 'host-1', 'user-1', 1, 11, 'agent')",
-        "INSERT INTO conversations (id, placement_kind, roster_policy, title, \
-         endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, created_at, updated_at) \
-         VALUES ('pair-agent', 'direct_pair', 'fixed', '', 'agent', 'agent-1', 'human', \
-         'user-1', 100, 100)",
-        "INSERT INTO conversations (id, placement_kind, roster_policy, title, \
-         endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, created_at, updated_at) \
-         VALUES ('pair-human', 'direct_pair', 'fixed', '', 'human', 'user-1', 'human', \
-         'user-2', 200, 200)",
-        "INSERT INTO conversations (id, placement_kind, roster_policy, title, \
-         endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, created_at, updated_at) \
-         VALUES ('pair-foreign', 'direct_pair', 'fixed', '', 'agent', 'agent-1', 'human', \
-         'user-3', 50, 50)",
+        seed_agent!(
+            id = "agent-1",
+            name = "agent",
+            display_name = "Agent One",
+            runtime = "codex",
+            host_id = "host-1",
+            created_by_user_id = "user-1",
+            updated_at = 11,
+            session_scope = "agent",
+        ),
+        seed_direct_pair!(
+            id = "pair-agent",
+            endpoint_a_kind = "agent",
+            endpoint_a_id = "agent-1",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "user-1",
+            created_at = 100,
+            updated_at = 100,
+        ),
+        seed_direct_pair!(
+            id = "pair-human",
+            endpoint_a_kind = "human",
+            endpoint_a_id = "user-1",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "user-2",
+            created_at = 200,
+            updated_at = 200,
+        ),
+        seed_direct_pair!(
+            id = "pair-foreign",
+            endpoint_a_kind = "agent",
+            endpoint_a_id = "agent-1",
+            endpoint_b_kind = "human",
+            endpoint_b_id = "user-3",
+            created_at = 50,
+            updated_at = 50,
+        ),
         "INSERT INTO messages (id, conversation_id, from_kind, from_agent_id, content, seq, \
          created_at) VALUES ('message-1', 'pair-agent', 'agent', 'agent-1', 'hello', 1, 1)",
     ] {

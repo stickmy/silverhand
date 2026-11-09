@@ -274,31 +274,26 @@ mod tests {
          VALUES ('u1', 'u1', 'U1', 1, 1)";
     const HOST: &str =
         "INSERT INTO hosts (id, name, kind, created_at) VALUES ('h1', 'h1', 'local', 1)";
-    const ACTIVE_A1: &str = "INSERT INTO agents \
-         (id, name, runtime, host_id, created_by_user_id, created_at, updated_at, \
-          materialization_status, session_scope) \
-         VALUES ('a1', 'a1', 'claude', 'h1', 'u1', 1, 1, 'active', 'conversation')";
-    const ACTIVE_A2: &str = "INSERT INTO agents \
-         (id, name, runtime, host_id, created_by_user_id, created_at, updated_at, \
-          materialization_status, session_scope) \
-         VALUES ('a2', 'a2', 'claude', 'h1', 'u1', 1, 1, 'active', 'conversation')";
-    const ACTIVE_A3: &str = "INSERT INTO agents \
-         (id, name, runtime, host_id, created_by_user_id, created_at, updated_at, \
-          materialization_status, session_scope) \
-         VALUES ('a3', 'a3', 'claude', 'h1', 'u1', 1, 1, 'active', 'conversation')";
+    const ACTIVE_A1: &str = seed_agent!(id = "a1", host_id = "h1", created_by_user_id = "u1");
+    const ACTIVE_A2: &str = seed_agent!(id = "a2", host_id = "h1", created_by_user_id = "u1");
+    const ACTIVE_A3: &str = seed_agent!(id = "a3", host_id = "h1", created_by_user_id = "u1");
     /// Present but not at a stage a deletion may begin from — chosen so the arm is
     /// decided by the stage alone, with no failed-code question in the fixture.
-    const PENDING_A1: &str = "INSERT INTO agents \
-         (id, name, runtime, host_id, created_by_user_id, created_at, updated_at, \
-          materialization_status, session_scope) \
-         VALUES ('a1', 'a1', 'claude', 'h1', 'u1', 1, 1, 'pending_materialization', 'conversation')";
+    const PENDING_A1: &str = seed_agent!(
+        id = "a1",
+        host_id = "h1",
+        created_by_user_id = "u1",
+        materialization_status = "pending_materialization",
+    );
     /// Active, but a runtime transition holds the row. The target/started-at pair is
     /// what the schema's paired CHECK and the begin pre-read both key on.
-    const TRANSITION_A1: &str = "INSERT INTO agents \
-         (id, name, runtime, host_id, created_by_user_id, created_at, updated_at, \
-          materialization_status, session_scope, \
-          runtime_transition_target, runtime_transition_started_at) \
-         VALUES ('a1', 'a1', 'claude', 'h1', 'u1', 1, 1, 'active', 'conversation', 'codex', 1)";
+    const TRANSITION_A1: &str = seed_agent!(
+        id = "a1",
+        host_id = "h1",
+        created_by_user_id = "u1",
+        runtime_transition_target = "codex",
+        runtime_transition_started_at = 1,
+    );
 
     /// The deterministic writer-reservation gate for the marker write. A no-write
     /// answer (`NotFound`, from an absent agent) succeeds while nothing is held, then

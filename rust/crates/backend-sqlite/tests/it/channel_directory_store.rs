@@ -16,23 +16,103 @@ async fn seed(path: &std::path::Path) {
         "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES \
          ('u','directory-viewer','Viewer',1,1),('other','directory-other','Other',1,1)",
         "INSERT INTO hosts(id,name,kind,created_at) VALUES('h','Directory Host','local',1)",
-        "INSERT INTO agents(id,name,runtime,host_id,created_at,updated_at,created_by_user_id) \
-         VALUES('a','alice-directory','claude','h',1,1,'u')",
+        seed_agent!(
+            id = "a",
+            name = "alice-directory",
+            host_id = "h",
+            created_by_user_id = "u"
+        ),
         "INSERT INTO workspaces(id,name,name_key,owner_agent_id,created_at,updated_at) VALUES \
          ('w','Workspace','directory-workspace',NULL,1,1),\
          ('home','Alice Home',NULL,'a',1,1)",
         "INSERT INTO workspace_users(workspace_id,user_id,joined_at) VALUES \
          ('w','u',1),('home','u',1)",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,archived_at,created_at,updated_at) VALUES \
-         ('public','w','workspace','open','Public','public-directory','public',NULL,1,1),\
-         ('member','w','workspace','open','Member','member-directory','private',NULL,2,2),\
-         ('hidden','w','workspace','open','Hidden','hidden-directory','private',NULL,3,3),\
-         ('arch-public','w','workspace','open','Archived Public','archived-public-directory','public',8,1,8),\
-         ('arch','w','workspace','open','Archived Member','archived-member-directory','private',9,2,9),\
-         ('onboarding','home','workspace','fixed','Onboarding','onboarding-directory','private',NULL,3,3),\
-         ('owner-dm','home','workspace','fixed','dm-alice-directory','owner-dm-directory','private',NULL,1,1),\
-         ('other-dm','home','workspace','fixed','Other DM','other-dm-directory','private',NULL,2,2),\
-         ('home-arch','home','workspace','fixed','Home Archived','home-arch-directory','private',10,4,10)",
+        concat!(
+            seed_channel!(
+                id = "public",
+                workspace_id = "w",
+                title = "Public",
+                title_key = "public-directory",
+                visibility = "public",
+            ),
+            "; ",
+            seed_channel!(
+                id = "member",
+                workspace_id = "w",
+                title = "Member",
+                title_key = "member-directory",
+                created_at = 2,
+                updated_at = 2,
+            ),
+            "; ",
+            seed_channel!(
+                id = "hidden",
+                workspace_id = "w",
+                title = "Hidden",
+                title_key = "hidden-directory",
+                created_at = 3,
+                updated_at = 3,
+            ),
+            "; ",
+            seed_channel!(
+                id = "arch-public",
+                workspace_id = "w",
+                title = "Archived Public",
+                title_key = "archived-public-directory",
+                visibility = "public",
+                archived_at = 8,
+                updated_at = 8,
+            ),
+            "; ",
+            seed_channel!(
+                id = "arch",
+                workspace_id = "w",
+                title = "Archived Member",
+                title_key = "archived-member-directory",
+                archived_at = 9,
+                created_at = 2,
+                updated_at = 9,
+            ),
+            "; ",
+            seed_channel!(
+                id = "onboarding",
+                workspace_id = "home",
+                roster_policy = "fixed",
+                title = "Onboarding",
+                title_key = "onboarding-directory",
+                created_at = 3,
+                updated_at = 3,
+            ),
+            "; ",
+            seed_channel!(
+                id = "owner-dm",
+                workspace_id = "home",
+                roster_policy = "fixed",
+                title = "dm-alice-directory",
+                title_key = "owner-dm-directory",
+            ),
+            "; ",
+            seed_channel!(
+                id = "other-dm",
+                workspace_id = "home",
+                roster_policy = "fixed",
+                title = "Other DM",
+                title_key = "other-dm-directory",
+                created_at = 2,
+                updated_at = 2,
+            ),
+            "; ",
+            seed_channel!(
+                id = "home-arch",
+                workspace_id = "home",
+                roster_policy = "fixed",
+                title = "Home Archived",
+                title_key = "home-arch-directory",
+                archived_at = 10,
+                created_at = 4,
+                updated_at = 10,
+            ),
+        ),
         "INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES \
          ('member','u',1),('arch','u',1),('onboarding','u',1),('owner-dm','u',1),\
          ('other-dm','u',1),('home-arch','u',1),('arch','other',2)",

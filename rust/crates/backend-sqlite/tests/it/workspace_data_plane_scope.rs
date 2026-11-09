@@ -55,10 +55,18 @@ async fn seeded() -> (TempDir, SqliteWorkspaceScopeStore) {
         "INSERT INTO users (id, name, display_name, created_at, updated_at) \
          VALUES ('user-viewer', 'viewer', 'Viewer', 1, 1)",
         "INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-1', 'host-1', 'desktop', 1)",
-        "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id) \
-         VALUES ('agent-a1', 'a1', 'claude', 'host-1', 1, 1, 'user-viewer')",
-        "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, created_by_user_id) \
-         VALUES ('agent-a2', 'a2', 'claude', 'host-1', 1, 1, 'user-viewer')",
+        seed_agent!(
+            id = "agent-a1",
+            name = "a1",
+            host_id = "host-1",
+            created_by_user_id = "user-viewer",
+        ),
+        seed_agent!(
+            id = "agent-a2",
+            name = "a2",
+            host_id = "host-1",
+            created_by_user_id = "user-viewer",
+        ),
         // Regular workspaces carry a name_key and a NULL owner_agent_id.
         "INSERT INTO workspaces (id, name, name_key, created_at, updated_at) \
          VALUES ('ws-regular', 'Regular', 'ws-regular', 1, 1)",

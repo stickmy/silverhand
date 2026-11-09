@@ -625,13 +625,14 @@ async fn seed_participants(db: &mut SqliteConnection) {
     .execute(&mut *db)
     .await
     .unwrap();
-    sqlx::query(
-        "INSERT INTO agents (
-            id, name, runtime, host_id, created_at, updated_at,
-            display_name, created_by_user_id, session_scope
-         ) VALUES (?, 'agent-delivery', 'codex', 'host-1', 1, 1,
-             'Delivery Agent', 'user-1', 'conversation')",
-    )
+    sqlx::query(seed_agent!(
+        id = ?,
+        name = "agent-delivery",
+        runtime = "codex",
+        host_id = "host-1",
+        display_name = "Delivery Agent",
+        created_by_user_id = "user-1",
+    ))
     .bind(AGENT)
     .execute(&mut *db)
     .await
@@ -659,12 +660,12 @@ async fn seed_participants(db: &mut SqliteConnection) {
     .execute(&mut *db)
     .await
     .unwrap();
-    sqlx::query(
-        "INSERT INTO conversations (
-            id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at
-         ) VALUES (?, 'workspace-1', 'workspace', 'open', 'Conversation One',
-             'conversation one', 1, 1)",
-    )
+    sqlx::query(seed_channel!(
+        id = ?,
+        workspace_id = "workspace-1",
+        title = "Conversation One",
+        title_key = "conversation one",
+    ))
     .bind(CONVERSATION)
     .execute(&mut *db)
     .await
@@ -2984,16 +2985,29 @@ async fn the_unmounted_host_management_router_composes_sqlite_live_transport_and
     .execute(&mut db)
     .await
     .unwrap();
-    sqlx::query(
-        "INSERT INTO agents (
-            id, name, runtime, host_id, created_at, updated_at,
-            display_name, created_by_user_id, materialization_status
-         ) VALUES
-            ('agent-pending', 'agent-pending', 'codex', 'host-1', 2, 2,
-             'Pending Agent', 'user-1', 'pending_materialization'),
-            ('agent-failed', 'agent-failed', 'codex', 'host-1', 3, 3,
-             'Failed Agent', 'user-1', 'failed')",
-    )
+    sqlx::query(concat!(
+        seed_agent!(
+            id = "agent-pending",
+            runtime = "codex",
+            host_id = "host-1",
+            created_at = 2,
+            updated_at = 2,
+            display_name = "Pending Agent",
+            created_by_user_id = "user-1",
+            materialization_status = "pending_materialization",
+        ),
+        "; ",
+        seed_agent!(
+            id = "agent-failed",
+            runtime = "codex",
+            host_id = "host-1",
+            created_at = 3,
+            updated_at = 3,
+            display_name = "Failed Agent",
+            created_by_user_id = "user-1",
+            materialization_status = "failed",
+        ),
+    ))
     .execute(&mut db)
     .await
     .unwrap();
@@ -5470,23 +5484,47 @@ async fn agent_slot_activity_is_shared_across_channels_and_dm_without_source_con
     let fixture = fixture("daemon-agent-slot-status.sqlite").await;
     let mut db = open(&fixture.path).await;
     sqlx::raw_sql(
-        "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, display_name, created_by_user_id, session_scope)
-         VALUES ('agent-aggregate', 'agent-aggregate', 'codex', 'host-1', 1, 1, 'Aggregate Agent', 'user-1', 'agent');
-         INSERT INTO workspace_members (workspace_id, agent_id, joined_at) VALUES ('workspace-1', 'agent-aggregate', 1);
-         INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES ('conversation0001', 'agent-aggregate', 1);
-         INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at)
-         VALUES ('conversation0002', 'workspace-1', 'workspace', 'fixed', 'Second', 'second', 1, 1);
-         INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES ('conversation0002', 'agent-aggregate', 1);
-         INSERT INTO conversation_users (conversation_id, user_id, joined_at) VALUES ('conversation0002', 'user-1', 1);
-         INSERT INTO conversations(id,placement_kind,roster_policy,title,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,visibility,created_at,updated_at)
-         VALUES('activity-dm','direct_pair','fixed','','agent','agent-aggregate','human','user-1','private',1,1);
-         INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at)
-         VALUES('secret-origin','workspace-1','workspace','open','Secret','secret','private',1,1);
-         INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES('secret-origin','agent-aggregate',1);
-         INSERT INTO messages (id, conversation_id, from_kind, from_user_id, content, seq, created_at)
-         VALUES ('aggregate-message', 'conversation0001', 'user', 'user-1', 'wake aggregate', 2, 2);
-         INSERT INTO conversation_inboxes (conversation_id, agent_id, message_id, created_at, delivery_kind)
-         VALUES ('conversation0001', 'agent-aggregate', 'aggregate-message', 2, 'turn');",
+        concat!(
+            seed_agent!(
+                id = "agent-aggregate",
+                runtime = "codex",
+                host_id = "host-1",
+                display_name = "Aggregate Agent",
+                created_by_user_id = "user-1",
+                session_scope = "agent",
+            ),
+            "; ",
+            "INSERT INTO workspace_members (workspace_id, agent_id, joined_at) VALUES ('workspace-1', 'agent-aggregate', 1); ",
+            "INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES ('conversation0001', 'agent-aggregate', 1); ",
+            seed_channel!(
+                id = "conversation0002",
+                workspace_id = "workspace-1",
+                roster_policy = "fixed",
+                title = "Second",
+                title_key = "second",
+            ),
+            "; ",
+            "INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES ('conversation0002', 'agent-aggregate', 1); ",
+            "INSERT INTO conversation_users (conversation_id, user_id, joined_at) VALUES ('conversation0002', 'user-1', 1); ",
+            seed_direct_pair!(
+                id = "activity-dm",
+                endpoint_a_kind = "agent",
+                endpoint_a_id = "agent-aggregate",
+                endpoint_b_kind = "human",
+                endpoint_b_id = "user-1",
+            ),
+            "; ",
+            seed_channel!(
+                id = "secret-origin",
+                workspace_id = "workspace-1",
+                title = "Secret",
+                title_key = "secret",
+            ),
+            "; ",
+            "INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES('secret-origin','agent-aggregate',1); ",
+            "INSERT INTO messages (id, conversation_id, from_kind, from_user_id, content, seq, created_at) VALUES ('aggregate-message', 'conversation0001', 'user', 'user-1', 'wake aggregate', 2, 2); ",
+            "INSERT INTO conversation_inboxes (conversation_id, agent_id, message_id, created_at, delivery_kind) VALUES ('conversation0001', 'agent-aggregate', 'aggregate-message', 2, 'turn'); ",
+        ),
     )
     .execute(&mut db)
     .await
@@ -6233,24 +6271,48 @@ async fn agent_full_activity_has_one_http_ws_stream_across_focus_and_revocation(
     let fixture = fixture("daemon-agent-slot-status.sqlite").await;
     let mut db = open(&fixture.path).await;
     sqlx::raw_sql(
-        "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES('stream-peer','stream-peer','Stream Peer',1,1);
-         INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, display_name, created_by_user_id, session_scope)
-         VALUES ('agent-aggregate', 'agent-aggregate', 'codex', 'host-1', 1, 1, 'Aggregate Agent', 'stream-peer', 'agent');
-         INSERT INTO workspace_members (workspace_id, agent_id, joined_at) VALUES ('workspace-1', 'agent-aggregate', 1);
-         INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES ('conversation0001', 'agent-aggregate', 1);
-         INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at)
-         VALUES ('conversation0002', 'workspace-1', 'workspace', 'fixed', 'Second', 'second', 1, 1);
-         INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES ('conversation0002', 'agent-aggregate', 1);
-         INSERT INTO conversation_users (conversation_id, user_id, joined_at) VALUES ('conversation0002', 'user-1', 1);
-         INSERT INTO conversations(id,placement_kind,roster_policy,title,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,visibility,created_at,updated_at)
-         VALUES('activity-dm','direct_pair','fixed','','agent','agent-aggregate','human','stream-peer','private',1,1);
-         INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at)
-         VALUES('secret-origin','workspace-1','workspace','open','Secret','secret','private',1,1);
-         INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES('secret-origin','agent-aggregate',1);
-         INSERT INTO messages (id, conversation_id, from_kind, from_user_id, content, seq, created_at)
-         VALUES ('aggregate-message', 'conversation0001', 'user', 'user-1', 'wake aggregate', 2, 2);
-         INSERT INTO conversation_inboxes (conversation_id, agent_id, message_id, created_at, delivery_kind)
-         VALUES ('conversation0001', 'agent-aggregate', 'aggregate-message', 2, 'turn');",
+        concat!(
+            "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES('stream-peer','stream-peer','Stream Peer',1,1); ",
+            seed_agent!(
+                id = "agent-aggregate",
+                runtime = "codex",
+                host_id = "host-1",
+                display_name = "Aggregate Agent",
+                created_by_user_id = "stream-peer",
+                session_scope = "agent",
+            ),
+            "; ",
+            "INSERT INTO workspace_members (workspace_id, agent_id, joined_at) VALUES ('workspace-1', 'agent-aggregate', 1); ",
+            "INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES ('conversation0001', 'agent-aggregate', 1); ",
+            seed_channel!(
+                id = "conversation0002",
+                workspace_id = "workspace-1",
+                roster_policy = "fixed",
+                title = "Second",
+                title_key = "second",
+            ),
+            "; ",
+            "INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES ('conversation0002', 'agent-aggregate', 1); ",
+            "INSERT INTO conversation_users (conversation_id, user_id, joined_at) VALUES ('conversation0002', 'user-1', 1); ",
+            seed_direct_pair!(
+                id = "activity-dm",
+                endpoint_a_kind = "agent",
+                endpoint_a_id = "agent-aggregate",
+                endpoint_b_kind = "human",
+                endpoint_b_id = "stream-peer",
+            ),
+            "; ",
+            seed_channel!(
+                id = "secret-origin",
+                workspace_id = "workspace-1",
+                title = "Secret",
+                title_key = "secret",
+            ),
+            "; ",
+            "INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES('secret-origin','agent-aggregate',1); ",
+            "INSERT INTO messages (id, conversation_id, from_kind, from_user_id, content, seq, created_at) VALUES ('aggregate-message', 'conversation0001', 'user', 'user-1', 'wake aggregate', 2, 2); ",
+            "INSERT INTO conversation_inboxes (conversation_id, agent_id, message_id, created_at, delivery_kind) VALUES ('conversation0001', 'agent-aggregate', 'aggregate-message', 2, 'turn'); ",
+        ),
     )
     .execute(&mut db)
     .await
@@ -6498,8 +6560,18 @@ async fn initial_and_refined_tool_inputs_share_ts_limits_in_both_activity_scopes
     for scope_kind in ["conversation", "agent"] {
         let fixture = fixture("input-limits.sqlite").await;
         let mut db = open(&fixture.path).await;
-        sqlx::query("INSERT INTO agents(id,name,runtime,host_id,created_at,updated_at,display_name,created_by_user_id,session_scope) VALUES('input-agent','input-agent','codex','host-1',1,1,'Input Agent','user-1',?)")
-            .bind(scope_kind).execute(&mut db).await.unwrap();
+        sqlx::query(seed_agent!(
+            id = "input-agent",
+            runtime = "codex",
+            host_id = "host-1",
+            display_name = "Input Agent",
+            created_by_user_id = "user-1",
+            session_scope = ?,
+        ))
+        .bind(scope_kind)
+        .execute(&mut db)
+        .await
+        .unwrap();
         sqlx::raw_sql("INSERT INTO workspace_members(workspace_id,agent_id,joined_at) VALUES('workspace-1','input-agent',1);
             INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES('conversation0001','input-agent',1);
             INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,seq,created_at) VALUES('input-wake','conversation0001','user','user-1','wake',2,2);
@@ -6756,12 +6828,14 @@ async fn grok_pre_session_auth_error_reaches_durable_http_and_live_activity() {
 }
 
 async fn seed_grok_auth_agent(db: &mut SqliteConnection, scope_kind: &str) {
-    sqlx::query(
-        "INSERT INTO agents(id,name,runtime,host_id,created_at,updated_at,
-         display_name,created_by_user_id,session_scope)
-         VALUES('grok-auth-agent','grok-auth-agent','grok','host-1',1,1,
-         'Grok Auth','user-1',?)",
-    )
+    sqlx::query(seed_agent!(
+        id = "grok-auth-agent",
+        runtime = "grok",
+        host_id = "host-1",
+        display_name = "Grok Auth",
+        created_by_user_id = "user-1",
+        session_scope = ?,
+    ))
     .bind(scope_kind)
     .execute(&mut *db)
     .await

@@ -45,13 +45,24 @@ async fn open_db(with_task: bool) -> (TempDir, std::path::PathBuf, SqliteConnect
     for statement in [
         "INSERT INTO users (id,name,display_name,created_at,updated_at) VALUES ('user-1','user-1','User One',1,1)",
         "INSERT INTO hosts (id,name,kind,created_at,user_id) VALUES ('host-1','host-1','remote',1,'user-1')",
-        "INSERT INTO agents (id,name,runtime,host_id,created_at,updated_at,display_name,created_by_user_id,session_scope) VALUES ('agent-1','agent-1','codex','host-1',1,1,'Agent One','user-1','conversation')",
+        seed_agent!(
+            id = "agent-1",
+            runtime = "codex",
+            host_id = "host-1",
+            display_name = "Agent One",
+            created_by_user_id = "user-1",
+        ),
         "INSERT INTO workspaces (id,name,name_key,created_at,updated_at) VALUES ('ws-1','ws','ws',1,1)",
         "INSERT INTO workspace_members (workspace_id,agent_id,joined_at) VALUES ('ws-1','agent-1',1)",
         "INSERT INTO workspace_agent_capabilities (workspace_id,agent_id,capability) VALUES ('ws-1','agent-1','create_tasks')",
         "INSERT INTO workspace_agent_capabilities (workspace_id,agent_id,capability) VALUES ('ws-1','agent-1','write_tasks')",
         "INSERT INTO workspace_agent_capabilities (workspace_id,agent_id,capability) VALUES ('ws-1','agent-1','read_tasks')",
-        "INSERT INTO conversations (id,workspace_id,placement_kind,roster_policy,title,title_key,created_at,updated_at) VALUES ('conv-1','ws-1','workspace','open','general','general',1,1)",
+        seed_channel!(
+            id = "conv-1",
+            workspace_id = "ws-1",
+            title = "general",
+            title_key = "general",
+        ),
         "INSERT INTO conversation_agents (conversation_id,agent_id,joined_at) VALUES ('conv-1','agent-1',1)",
         "INSERT INTO conversation_stream_heads (conversation_id,thread_root_id,latest_seq) VALUES ('conv-1',NULL,0)",
     ] {
