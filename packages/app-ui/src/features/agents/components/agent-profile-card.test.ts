@@ -11,6 +11,11 @@ vi.mock("@/features/profile/profile-message-activity", () => ({
   ProfileMessageActivity: () => null,
 }));
 
+vi.mock("@/router", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/router")>()),
+  useNav: () => ({ toComputer: () => {} }),
+}));
+
 setCurrentUserId("u-creator", "creator");
 
 function makeAgent(overrides: Partial<AgentDto> = {}): AgentDto {

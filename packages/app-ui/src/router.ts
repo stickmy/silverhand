@@ -131,6 +131,7 @@ export const routes = {
   // of agentId / userId, never both).
   membersUser: (userId: string) => `/members/u/${userId}`,
   computers: () => "/computers",
+  computer: (hostId: string) => `/computers?computer=${encodeURIComponent(hostId)}`,
   tasks: () => "/tasks",
   settings: () => "/settings",
   me: () => "/me",
@@ -1122,6 +1123,7 @@ export function useNav() {
       toMembers: (id?: string) => go(id ? routes.membersAgent(id) : routes.members()),
       toMembersUser: (id: string) => go(routes.membersUser(id)),
       toComputers: () => go(routes.computers()),
+      toComputer: (hostId: string) => go(routes.computer(hostId)),
       toTasks: () => navigate({ kind: "section", tab: "tasks" }),
       toUtilitySection: (section: "members" | "computers" | "settings") =>
         navigate({ kind: "section", tab: "me", root: routes[section]() }),

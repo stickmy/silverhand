@@ -1,6 +1,6 @@
 import { useCompactLayout } from "@/navigation/layout";
 import { useLocation } from "react-router-dom";
-import { useNav } from "@/router";
+import { routes, useNav } from "@/router";
 import { useEffect, useRef, useState } from "react";
 import { useBackendInfoSnapshot, useHostsQuery } from "@/features/computers/hooks/hooks";
 import { NewComputerDialog } from "@/pages/computer/components/new-computer-dialog";
@@ -17,7 +17,7 @@ export function ComputerShell({ mounted, visible }: DirectoryLifecycle): JSX.Ele
   const lastSelectedHostId = useRef<string | null>(null);
   const selectedHostId = new URLSearchParams(location.search).get("computer");
   const setSelectedHostId = (id: string | null, replace = false) =>
-    nav.go(id ? `/computers?computer=${encodeURIComponent(id)}` : "/computers", { replace });
+    nav.go(id ? routes.computer(id) : routes.computers(), { replace });
   const [newComputerOpen, setNewComputerOpen] = useState(false);
 
   const hostsQuery = useHostsQuery();
@@ -81,7 +81,7 @@ export function ComputersPeekSidebar(): JSX.Element {
     location.pathname === "/computers"
       ? new URLSearchParams(location.search).get("computer")
       : null;
-  const openHost = (id: string) => nav.go(`/computers?computer=${encodeURIComponent(id)}`);
+  const openHost = (id: string) => nav.toComputer(id);
 
   return (
     <>

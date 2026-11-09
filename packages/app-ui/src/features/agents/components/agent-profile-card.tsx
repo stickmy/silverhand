@@ -25,6 +25,7 @@ import { RuntimeConfigEditor } from "./runtime-config-editor";
 import { isBackendUnreachable, isUpdateRequired, useViewerUser } from "@/features/session/hooks";
 import { unknownComputerLabel } from "@/features/computers/model/host-display";
 import { t } from "@/lib/i18n";
+import { useNav } from "@/router";
 
 interface AgentProfileCardProps {
   agent: AgentDto;
@@ -44,6 +45,7 @@ export function AgentProfileCard({ agent }: AgentProfileCardProps): JSX.Element 
   // owner-scoped, so a non-owner viewer's lookup would miss and collapse to
   // "Unknown computer". `host_label` is null only when the host is truly gone.
   const computerName = agent.host_label ?? unknownComputerLabel();
+  const nav = useNav();
   const { profileRef, compactHero } = useProfileHeroSize();
   const avatarSize = compactHero ? AVATAR_PX.profileCompact : AVATAR_PX.profile;
 
@@ -153,7 +155,17 @@ export function AgentProfileCard({ agent }: AgentProfileCardProps): JSX.Element 
 
       <ProfileFactBand>
         <ProfileFact icon={<ComputerIcon className="size-3.5" />} label={t("agents.computer")}>
-          <span className="font-medium text-text-primary">{computerName}</span>
+          {agent.host_label ? (
+            <button
+              type="button"
+              onClick={() => nav.toComputer(agent.host_id)}
+              className="font-medium text-text-primary underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none"
+            >
+              {computerName}
+            </button>
+          ) : (
+            <span className="font-medium text-text-primary">{computerName}</span>
+          )}
         </ProfileFact>
         <ProfileFact
           icon={
