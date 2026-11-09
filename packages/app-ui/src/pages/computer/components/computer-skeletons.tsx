@@ -27,14 +27,15 @@ export function ComputerRowsSkeleton(): JSX.Element {
 export function ComputerStatusSkeleton(): JSX.Element {
   return (
     <Region label={t("computers.loadingHostStatus")}>
-      <h3 className="mb-4 text-xs font-semibold text-text-muted">{t("computers.info")}</h3>
+      <h3 className="mb-4 text-xs font-semibold text-text-muted">{t("computers.computer")}</h3>
       <div className="space-y-2.5">
         {[
+          t("computers.ipAddress"),
+          t("computers.hostname"),
           t("computers.os"),
-          t("computers.daemonVersion"),
-          t("computers.processId"),
+          t("computers.memory"),
+          t("computers.disk"),
           t("computers.uptime"),
-          t("computers.created"),
         ].map((label) => (
           <div key={label} className="flex items-center gap-4">
             <span className="w-28 shrink-0 text-xs text-text-muted">{label}</span>

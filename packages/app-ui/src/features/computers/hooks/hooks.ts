@@ -348,6 +348,39 @@ export function useHostStatusQuery(
 }
 
 /**
+ * Live re-probe for the computer detail page: asks the backend to sample the
+ * connected daemon now and writes the answer into the shared status key, so
+ * every reader sees it. Only the detail page calls this (on open and on
+ * Refresh) — the shared GET stays a zero-RPC cache read because sidebar dots
+ * read every computer's status. A backend without the refresh route falls
+ * back to re-reading the cache.
+ */
+export function useRefreshHostStatus(hostId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (): Promise<HostStatusResponse | null> => {
+      try {
+        const raw = await api<unknown>(`${apiPaths.hostStatus(hostId)}/refresh`, {
+          method: "POST",
+        });
+        return HostStatusResponseSchema.parse(raw);
+      } catch (err) {
+        if (err instanceof ApiError && (err.status === 404 || err.status === 405)) {
+          await qc.invalidateQueries({ queryKey: hostStatusKey(hostId) });
+          return null;
+        }
+        throw err;
+      }
+    },
+    onSuccess: (data) => {
+      if (data) {
+        qc.setQueryData(hostStatusKey(hostId), data);
+      }
+    },
+  });
+}
+
+/**
  * `#task:1359` — batch availability probe for the placement pickers. Placement
  * needs BOTH axes: a computer must be `placeable` (lifecycle) AND its daemon
  * online (availability). `placeable` alone lets an offline-but-finalized

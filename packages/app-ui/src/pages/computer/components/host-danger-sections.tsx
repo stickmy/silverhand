@@ -66,11 +66,11 @@ export function RefreshCredentialsSection({ host }: { host: HostDto }): JSX.Elem
     <HostSection title={computerCopy().refreshCredentialsTitle}>
       <div className="flex flex-col gap-3">
         <p className="text-sm text-text-muted">{computerCopy().refreshCredentialsBody}</p>
-        <div data-host-actions className="flex items-center gap-3">
+        <div className="flex flex-col gap-2">
           <Button
             size={compact ? "md" : "sm"}
             variant="primary"
-            className="gap-2"
+            className="w-full gap-2"
             onClick={() => void handleRefresh()}
             disabled={rotate.isPending}
           >

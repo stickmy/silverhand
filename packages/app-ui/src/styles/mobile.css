@@ -636,13 +636,6 @@
   background: none;
 }
 
-/* Computer detail actions stack full-width, like the destructive actions
-   below them. */
-[data-layout="compact"] [data-host-actions] {
-  flex-direction: column;
-  align-items: stretch;
-}
-
 /* Touch-sized sidebar rows. */
 [data-layout="compact"] [data-sidebar] .sidebar-row-border {
   min-height: 40px;

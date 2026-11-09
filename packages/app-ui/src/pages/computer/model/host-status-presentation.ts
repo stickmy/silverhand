@@ -209,6 +209,14 @@ export function describeHostStatus(status: HostStatusResponse): HostStatusView {
   }
 }
 
+/** Byte count as gigabytes for a used / total reading: one decimal below
+ *  100 GB, whole numbers above. `base` follows the OS convention of the
+ *  quantity (binary for memory, decimal for disk). */
+export function formatGigabytes(bytes: number, base: 1000 | 1024): string {
+  const gb = bytes / base ** 3;
+  return gb < 100 ? (Math.round(gb * 10) / 10).toString() : Math.round(gb).toString();
+}
+
 /**
  * Pure helper: format an `uptime_ms` integer as a short string for the
  * snapshot card ("12s", "3m", "2h 14m", "5d 6h"). Always relative — the
