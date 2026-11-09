@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { ArchiveIcon, LeaveIcon, LockIcon, SpinnerIcon, UnarchiveIcon, UnlockIcon } from "@/icons";
 import type { ChannelLeaveBlockedReason, ConversationVisibility } from "@silverhand/shared";
 import { Input } from "@/components/ui/input";
@@ -59,6 +60,11 @@ function leaveBlockedCopy(reason: ChannelLeaveBlockedReason | null | undefined):
   }
 }
 
+function errorText(err: unknown): string | null {
+  if (err == null) return null;
+  return err instanceof Error ? err.message : String(err);
+}
+
 export function ChannelSettingsDetails({
   notifications,
   currentTitle,
@@ -74,96 +80,75 @@ export function ChannelSettingsDetails({
   leaveBlockedReason = null,
 }: ChannelSettingsDetailsProps): JSX.Element {
   const [title, setTitle] = useState(currentTitle);
-  const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-
-  // Visibility toggle: one-click execute (reversible — toggle straight back),
-  // so no confirm step; just its own async + error state.
-  const [visSaving, setVisSaving] = useState(false);
-  const [visError, setVisError] = useState<string | null>(null);
-  const [archiveError, setArchiveError] = useState<string | null>(null);
-
-  // Leave: inline two-step confirm + its own async state.
+  // Leave is an inline two-step confirm; the rest of each action's lifecycle
+  // (pending, failure) is the mutation's own state.
   const [leaveConfirm, setLeaveConfirm] = useState(false);
-  const [leaving, setLeaving] = useState(false);
-  const [leaveError, setLeaveError] = useState<string | null>(null);
+
+  const rename = useMutation({ mutationFn: (next: string) => onRename!(next) });
+  const setVis = useMutation({
+    mutationFn: (next: ConversationVisibility) => onSetVisibility!(next),
+  });
+  const archive = useMutation({ mutationFn: (next: boolean) => onToggleArchive!(next) });
+  const leave = useMutation({ mutationFn: () => onLeave!() });
+
+  const saving = rename.isPending;
+  const error = errorText(rename.error);
+  const visSaving = setVis.isPending;
+  const visError = errorText(setVis.error);
+  const archiveError = errorText(archive.error);
+  // After a successful leave the host navigates away; until then the button
+  // stays busy so the confirm can't be sent twice.
+  const leaving = leave.isPending || leave.isSuccess;
+  const leaveError = errorText(leave.error);
+
+  const resetRename = rename.reset;
+  const resetVis = setVis.reset;
+  const resetLeave = leave.reset;
 
   // The host remounts on channel changes; a successful rename refreshes the form.
   useEffect(() => {
     setTitle(currentTitle);
-    setError(null);
-    setSaving(false);
-    setVisSaving(false);
-    setVisError(null);
     setLeaveConfirm(false);
-    setLeaving(false);
-    setLeaveError(null);
-  }, [currentTitle]);
+    resetRename();
+    resetVis();
+    resetLeave();
+  }, [currentTitle, resetRename, resetVis, resetLeave]);
 
   const trimmed = title.trim();
   const dirty = trimmed !== currentTitle.trim();
   const saveDisabled = !onRename || saving || trimmed === "" || !dirty;
 
-  const handleSubmit = async (e: FormEvent): Promise<void> => {
+  const handleSubmit = (e: FormEvent): void => {
     e.preventDefault();
     if (!onRename || saveDisabled) return;
-    setSaving(true);
-    setError(null);
-    try {
-      await onRename(trimmed);
-      setSaving(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      setSaving(false);
-    }
+    rename.mutate(trimmed);
   };
 
-  const handleToggleArchive = async (): Promise<void> => {
+  const handleToggleArchive = (): void => {
     if (!onToggleArchive || archivePending) return;
-    setArchiveError(null);
-    try {
-      await onToggleArchive(!isArchived);
-    } catch (err) {
-      setArchiveError(err instanceof Error ? err.message : String(err));
-    }
+    archive.mutate(!isArchived);
   };
 
   const isPrivate = visibility === "private";
   const nextVisibility: ConversationVisibility = isPrivate ? "public" : "private";
   const showVisibility = !!onSetVisibility && canUpdateVisibility && visibility !== undefined;
 
-  const handleToggleVisibility = async (): Promise<void> => {
+  const handleToggleVisibility = (): void => {
     if (!onSetVisibility || visSaving) return;
-    setVisSaving(true);
-    setVisError(null);
-    try {
-      await onSetVisibility(nextVisibility);
-      setVisSaving(false);
-    } catch (err) {
-      setVisError(err instanceof Error ? err.message : String(err));
-      setVisSaving(false);
-    }
+    setVis.mutate(nextVisibility);
   };
 
-  const handleConfirmLeave = async (): Promise<void> => {
+  // A failure keeps the confirm open so the error shows in context and
+  // Cancel / retry stay reachable.
+  const handleConfirmLeave = (): void => {
     if (!onLeave || leaving) return;
-    setLeaving(true);
-    setLeaveError(null);
-    try {
-      await onLeave();
-      // The host owns navigation after leaving.
-    } catch (err) {
-      setLeaveError(err instanceof Error ? err.message : String(err));
-      setLeaving(false);
-      // Keep the tip open so the error shows in context and Cancel/retry stay
-      // reachable.
-    }
+    leave.mutate();
   };
 
   const blockedCopy = leaveBlockedCopy(leaveBlockedReason);
 
   const renameNode = onRename ? (
-    <form className="flex flex-col gap-2" onSubmit={(e) => void handleSubmit(e)}>
+    <form className="flex flex-col gap-2" onSubmit={handleSubmit}>
       <div className="flex items-center gap-2">
         <Input
           id="channel-settings-name"
@@ -205,7 +190,7 @@ export function ChannelSettingsDetails({
             size="sm"
             className="text-xs"
             disabled={visSaving}
-            onClick={() => void handleToggleVisibility()}
+            onClick={handleToggleVisibility}
           >
             {visSaving ? <SpinnerIcon className="size-3.5 animate-spin" /> : null}
             {isPrivate ? t("conversationShell.makePublic") : t("conversationShell.makePrivate")}
@@ -223,7 +208,7 @@ export function ChannelSettingsDetails({
           type="button"
           className={ROW_BUTTON_CLASS}
           disabled={archivePending}
-          onClick={() => void handleToggleArchive()}
+          onClick={handleToggleArchive}
         >
           {archivePending ? (
             <SpinnerIcon className={`${ROW_ICON_CLASS} animate-spin`} />
@@ -280,7 +265,7 @@ export function ChannelSettingsDetails({
                   variant="destructive-outline"
                   size="sm"
                   disabled={leaving}
-                  onClick={() => void handleConfirmLeave()}
+                  onClick={handleConfirmLeave}
                 >
                   {leaving ? (
                     <SpinnerIcon className="size-3.5 animate-spin" />
