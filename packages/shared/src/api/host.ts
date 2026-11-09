@@ -2,7 +2,13 @@
 // Bounded context: host. Re-exported via api/index.ts → @silverhand/shared.
 import { z } from 'zod';
 import { DAEMON_ADMISSION } from '../daemon-admission.generated.js';
-import { HostKindSchema, HostProvisioningSourceSchema, RuntimeKindSchema } from '../db/schema.js';
+import {
+  FastModeSchema,
+  HostKindSchema,
+  HostProvisioningSourceSchema,
+  ReasoningEffortTokenSchema,
+  RuntimeKindSchema,
+} from '../db/schema.js';
 
 export const HostLifecycleStatusSchema = z.enum(['pending', 'attached', 'active', 'revoked']);
 export type HostLifecycleStatus = z.infer<typeof HostLifecycleStatusSchema>;
@@ -265,6 +271,11 @@ export const AgentOnHostDtoSchema = z.object({
    *  unconditionally (`buildAgentRows` in routes.ts); the tolerance
    *  here is only the receive-side safety net. */
   avatar_url: z.string().nullable().optional().default(null),
+  /** Same values as `AgentDto`; the viewer may not have this agent in its
+   *  cache (someone else's computer). Skew-tolerant like `avatar_url`. */
+  model: z.string().nullable().optional().default(null),
+  reasoning_effort: ReasoningEffortTokenSchema.nullable().optional().default(null),
+  fast_mode: FastModeSchema.nullable().optional().default(null),
   /** Narrow UI state derived backend-side: 'online' iff this agent's id
    *  appears in the daemon's active-runtime set for this host. Raw
    *  daemon phase strings stay daemon-side; renderer never branches on
@@ -289,7 +300,20 @@ export const HostStatusSnapshotSchema = z.object({
   daemon_version: z.string(),
   daemon_pid: z.number().int(),
   started_at: z.number().int(),
+  /** Daemon process uptime. */
   uptime_ms: z.number().int(),
+  /** Machine facts read live per status RPC. All optional: older daemons
+   *  omit them, and a fact the daemon cannot read is omitted, not zeroed. */
+  hostname: z.string().optional(),
+  /** IPv4 of the default-route interface (not the egress/public IP). */
+  ip: z.string().optional(),
+  memory_total_bytes: z.number().int().nonnegative().optional(),
+  memory_used_bytes: z.number().int().nonnegative().optional(),
+  /** System volume (`/`), not the daemon's working directory. */
+  disk_total_bytes: z.number().int().nonnegative().optional(),
+  disk_used_bytes: z.number().int().nonnegative().optional(),
+  /** Machine uptime since boot. */
+  system_uptime_ms: z.number().int().nonnegative().optional(),
 });
 export type HostStatusSnapshot = z.infer<typeof HostStatusSnapshotSchema>;
 
