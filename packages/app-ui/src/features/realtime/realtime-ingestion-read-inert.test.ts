@@ -29,6 +29,15 @@ function sliceFunctionBody(source: string, declaration: string): string {
   return nextDecl === -1 ? rest : rest.slice(0, nextDecl);
 }
 
+// The channel data hooks are split by concern; these checks read them as one.
+function channelHooksSource(): string {
+  return ["message-window", "thread-follow", "agent-runtime", "mark-read"]
+    .map((name) =>
+      readFileSync(fileURLToPath(new URL(`../channels/${name}.ts`, import.meta.url)), "utf8"),
+    )
+    .join("\n");
+}
+
 describe("replayed-frame cache merge — idempotent (#task:1251)", () => {
   const source = readFileSync(
     fileURLToPath(new URL("../channels/message-cache-core.ts", import.meta.url)),
@@ -65,10 +74,7 @@ describe("central conversation ingestor — read-inert (#task:1255)", () => {
 });
 
 describe("useChannelMessages — pure reader / gate-(b) fence (#task:1255)", () => {
-  const source = readFileSync(
-    fileURLToPath(new URL("../channels/hooks.ts", import.meta.url)),
-    "utf8",
-  );
+  const source = channelHooksSource();
   const body = sliceFunctionBody(source, "export function useChannelMessages(");
 
   it("registers no frame consumer (no onWsFrame / useConversationStream)", () => {
@@ -106,10 +112,7 @@ describe("useChannelMessages — pure reader / gate-(b) fence (#task:1255)", () 
 });
 
 describe("channels/hooks.ts — registry-migrated hooks / body-scoped deny (#task:1260 P2)", () => {
-  const source = readFileSync(
-    fileURLToPath(new URL("../channels/hooks.ts", import.meta.url)),
-    "utf8",
-  );
+  const source = channelHooksSource();
   const MIGRATED = [
     "export function useThreadRoot(",
     "export function useThreadFollowers(",
@@ -147,10 +150,7 @@ describe("channels/hooks.ts — registry-migrated hooks / body-scoped deny (#tas
 });
 
 describe("mark-read mutations — global badges ride the WS clear patch, no whole-list refetch (#task:1284)", () => {
-  const source = readFileSync(
-    fileURLToPath(new URL("../channels/hooks.ts", import.meta.url)),
-    "utf8",
-  );
+  const source = channelHooksSource();
 
   it("useMarkMessageChannelRead does not invalidate message-unread, settles per-stream via the seam", () => {
     const body = sliceFunctionBody(source, "export function useMarkMessageChannelRead(");
@@ -198,10 +198,7 @@ describe("Activity mark-read callers — settle per-stream via the seam, no sing
 });
 
 describe("useAgentRunStates — pure reader / gate-(b) fence (#task:1255 P1c)", () => {
-  const source = readFileSync(
-    fileURLToPath(new URL("../channels/hooks.ts", import.meta.url)),
-    "utf8",
-  );
+  const source = channelHooksSource();
   const body = sliceFunctionBody(source, "export function useAgentRunStates(");
 
   it("registers no frame consumer (no onWsFrame / useConversationStream)", () => {
@@ -237,10 +234,7 @@ describe("useChannelThreads — pure reader / gate-(b) fence (#task:1255 P1c)", 
 });
 
 describe("channel membership/runtime readers — gate-(b) fence (#task:2026)", () => {
-  const source = readFileSync(
-    fileURLToPath(new URL("../channels/hooks.ts", import.meta.url)),
-    "utf8",
-  );
+  const source = channelHooksSource();
   const membershipBody = sliceFunctionBody(source, "export function useChannelAgents(");
   const runtimeBody = sliceFunctionBody(source, "export function useChannelAgentRuntime(");
 
@@ -324,10 +318,7 @@ describe("useAgentActivityFeed — read-inert content cache (#task:1255 P1c #2)"
 });
 
 describe("conversation-scope subscribe whitelist (#task:1255 P2 step-3)", () => {
-  const hooksSrc = readFileSync(
-    fileURLToPath(new URL("../channels/hooks.ts", import.meta.url)),
-    "utf8",
-  );
+  const hooksSrc = channelHooksSource();
 
   // Side consumers living in hooks.ts (sliced bodies — the file holds many hooks).
   for (const decl of [
