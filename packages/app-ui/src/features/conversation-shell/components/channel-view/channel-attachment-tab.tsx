@@ -3,7 +3,7 @@ import { DocumentSkeleton } from "@/components/layout/document-skeleton";
 import { RangeInput } from "@/components/ui/range-input";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "@/lib/toast";
-import { DownloadIcon, OpenExternalIcon, ZoomInIcon, ZoomOutIcon } from "@/icons";
+import { OpenExternalIcon, ZoomInIcon, ZoomOutIcon } from "@/icons";
 import { cn } from "@/lib/cn";
 import { fetchAttachmentBytes } from "@/lib/api";
 import { useAttachmentBlobToken } from "@/features/attachments/attachment-blob-cache";
@@ -14,6 +14,7 @@ import { Markdown } from "@/features/messages/components/markdown";
 import { AttachmentHtmlPreview } from "@/features/messages/components/attachment-html-preview";
 import { openAttachmentExternally } from "@/features/messages/model/open-attachment";
 import { saveAttachmentToDisk } from "@/features/messages/model/save-attachment";
+import { AttachmentDownloadGlyph } from "@/features/messages/components/attachment-download-glyph";
 import { t } from "@/lib/i18n";
 
 /**
@@ -225,7 +226,7 @@ export function ChannelAttachmentTab({
           className="flex shrink-0 items-center gap-1.5 rounded-(--chip-radius) px-2 py-1 text-xs text-text-secondary hover:text-text-primary focus-outline"
           title={t("conversationShell.download")}
         >
-          <DownloadIcon className="size-3.5" />
+          <AttachmentDownloadGlyph attachmentId={attachmentId} />
           {t("conversationShell.download")}
         </button>
       </div>

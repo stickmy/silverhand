@@ -88,3 +88,31 @@ describe("saveAttachmentToDisk", () => {
     expect(toastError.mock.calls[0]?.[0]).toContain("raw string");
   });
 });
+
+describe("saveAttachmentToDisk while a save is running", () => {
+  it("a repeat call joins it instead of fetching again", async () => {
+    let release: (bytes: { bytes: Uint8Array }) => void = () => {};
+    const fetchBytes = vi.fn(
+      () => new Promise<{ bytes: Uint8Array }>((resolve) => (release = resolve)),
+    );
+    const { deps, save } = makeDeps({ fetchBytes });
+    const first = saveAttachmentToDisk({ id: "att_2", filename: "a.txt" }, deps);
+    await saveAttachmentToDisk({ id: "att_2", filename: "a.txt" }, deps);
+    release({ bytes: new Uint8Array([1]) });
+    await first;
+    expect(fetchBytes).toHaveBeenCalledTimes(1);
+    expect(save).toHaveBeenCalledTimes(1);
+  });
+
+  it("a failed save releases the attachment for the next try", async () => {
+    const fetchBytes = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("network down"))
+      .mockResolvedValueOnce({ bytes: new Uint8Array([1]) });
+    const { deps, save } = makeDeps({ fetchBytes });
+    await saveAttachmentToDisk({ id: "att_3", filename: "a.txt" }, deps);
+    await saveAttachmentToDisk({ id: "att_3", filename: "a.txt" }, deps);
+    expect(fetchBytes).toHaveBeenCalledTimes(2);
+    expect(save).toHaveBeenCalledTimes(1);
+  });
+});

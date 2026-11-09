@@ -1,7 +1,7 @@
 import { getPlatform } from "@/platform";
 import { fetchAttachmentBytes } from "@/lib/api";
 import { useEffect, useRef, useState } from "react";
-import { DocumentIcon, DownloadIcon, ViewIcon } from "@/icons";
+import { DocumentIcon, ViewIcon } from "@/icons";
 import type { AttachmentSnapshot } from "@silverhand/shared";
 import { resolveAttachmentLabels } from "@silverhand/shared";
 import {
@@ -10,6 +10,7 @@ import {
   useAttachmentBlobToken,
 } from "@/features/attachments/attachment-blob-cache";
 import { Lightbox } from "./lightbox";
+import { AttachmentDownloadGlyph } from "./attachment-download-glyph";
 import { saveAttachmentToDisk } from "../model/save-attachment";
 import { openAttachmentExternally } from "../model/open-attachment";
 import { attachmentPreviewKind } from "@/features/attachments/attachment-preview";
@@ -269,7 +270,7 @@ export function AttachmentTile({
           title={t("messages.download")}
           aria-label={t("messages.downloadFile", { file: attachment.filename })}
         >
-          <DownloadIcon className="size-3.5" />
+          <AttachmentDownloadGlyph attachmentId={attachment.id} />
         </button>
       </div>
       {label ? <AttachmentLabelBadge label={label} /> : null}

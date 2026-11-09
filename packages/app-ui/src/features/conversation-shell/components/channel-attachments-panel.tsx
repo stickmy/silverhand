@@ -12,7 +12,6 @@ import {
   ChevronDownIcon,
   ClockIcon,
   DocumentIcon,
-  DownloadIcon,
   ImageIcon,
   MembersIcon,
   OpenExternalIcon,
@@ -66,6 +65,7 @@ import {
 import { cn } from "@/lib/cn";
 import { attachmentPreviewKind } from "@/features/attachments/attachment-preview";
 import { saveAttachmentToDisk } from "@/features/messages/model/save-attachment";
+import { AttachmentDownloadGlyph } from "@/features/messages/components/attachment-download-glyph";
 import {
   formatOpenException,
   openAttachmentExternally,
@@ -777,7 +777,7 @@ function AttachmentRow({
           title={t("conversationShell.downloadFile", { file: attachment.filename })}
           aria-label={t("conversationShell.downloadFile", { file: attachment.filename })}
         >
-          <DownloadIcon className="size-3.5" />
+          <AttachmentDownloadGlyph attachmentId={attachment.id} />
         </button>
 
         <button
