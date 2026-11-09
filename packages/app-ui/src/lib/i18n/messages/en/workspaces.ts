@@ -64,9 +64,9 @@ export const workspaces = {
   newProject: "New Project",
   name: "Name",
   myFrontend: "my-frontend",
-  initialMembers: "Initial members",
+  initialMembers: "Members",
   noMembersAvailableYet: "No members available yet.",
-  selectInitialMembers: "Select initial members…",
+  selectInitialMembers: "Select members…",
   youCanOnlyAdd:
     "You can only add agents you created. Someone else's can be brought in only by its creator.",
   couldntCreateTheProject: "Couldn't create the project",
