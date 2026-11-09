@@ -245,9 +245,14 @@ impl<P> RuntimeEventSettlement<P> {
                 .lock()
                 .map_err(|_| DaemonRuntimeEventError::StatePoisoned)?;
             state
-                .runs
+                .runtimes
                 .iter()
-                .map(|(admission, run_state)| (admission.clone(), run_state.clone()))
+                .filter_map(|(admission, entry)| {
+                    entry
+                        .run
+                        .as_ref()
+                        .map(|run| (admission.clone(), run.clone()))
+                })
                 .collect::<Vec<_>>()
         };
         let mut selected = Vec::new();
@@ -309,13 +314,44 @@ impl<P> RuntimeEventSettlement<P> {
 
 #[derive(Default)]
 struct RuntimeOwnerState {
-    runs: HashMap<RuntimeEventAdmission, AgentRunStateWire>,
-    pending_text: HashMap<RuntimeEventAdmission, PendingTextActivity>,
-    timeout_reasons: HashMap<RuntimeEventAdmission, InitTimeoutReason>,
-    init_failed: HashSet<RuntimeEventAdmission>,
-    fatal: HashSet<RuntimeEventAdmission>,
-    clear_cli_session_on_exit: HashSet<RuntimeEventAdmission>,
+    runtimes: HashMap<RuntimeEventAdmission, RuntimeEntry>,
     host_activity: HashMap<String, HostActivityState>,
+}
+
+/// Process-local facts for one admitted runtime generation; they live and die together.
+#[derive(Default)]
+struct RuntimeEntry {
+    run: Option<AgentRunStateWire>,
+    pending_text: Option<PendingTextActivity>,
+    timeout_reason: Option<InitTimeoutReason>,
+    init_failed: bool,
+    fatal: bool,
+    clear_cli_session_on_exit: bool,
+}
+
+impl RuntimeEntry {
+    fn is_empty(&self) -> bool {
+        self.run.is_none()
+            && self.pending_text.is_none()
+            && self.timeout_reason.is_none()
+            && !self.init_failed
+            && !self.fatal
+            && !self.clear_cli_session_on_exit
+    }
+}
+
+impl RuntimeOwnerState {
+    fn update(&mut self, admission: &RuntimeEventAdmission, apply: impl FnOnce(&mut RuntimeEntry)) {
+        let entry = self.runtimes.entry(admission.clone()).or_default();
+        apply(entry);
+        if entry.is_empty() {
+            self.runtimes.remove(admission);
+        }
+    }
+
+    fn get(&self, admission: &RuntimeEventAdmission) -> Option<&RuntimeEntry> {
+        self.runtimes.get(admission)
+    }
 }
 
 struct HostActivityState {
@@ -391,7 +427,10 @@ impl ConversationRunTerminalizer {
                 .lock()
                 .map_err(|_| ConversationRunTerminalizeError)?;
             let now = presence_now();
-            for (admission, run_state) in state.runs.iter_mut() {
+            for (admission, entry) in state.runtimes.iter_mut() {
+                let Some(run_state) = entry.run.as_mut() else {
+                    continue;
+                };
                 let Some(source) = admission.principal().source() else {
                     continue;
                 };
@@ -512,36 +551,20 @@ where
             .iter()
             .map(|runtime| runtime.principal.custody().daemon_instance().clone())
             .collect::<HashSet<_>>();
-        state.runs.retain(|admission, _| {
-            admission.host_id() != host_id
-                || !hydrated_daemons.contains(admission.principal().custody().daemon_instance())
-        });
-        state.pending_text.retain(|admission, _| {
-            admission.host_id() != host_id
-                || !hydrated_daemons.contains(admission.principal().custody().daemon_instance())
-        });
-        state.timeout_reasons.retain(|admission, _| {
-            admission.host_id() != host_id
-                || !hydrated_daemons.contains(admission.principal().custody().daemon_instance())
-        });
-        state.init_failed.retain(|admission| {
-            admission.host_id() != host_id
-                || !hydrated_daemons.contains(admission.principal().custody().daemon_instance())
-        });
-        state.fatal.retain(|admission| {
-            admission.host_id() != host_id
-                || !hydrated_daemons.contains(admission.principal().custody().daemon_instance())
-        });
-        state.clear_cli_session_on_exit.retain(|admission| {
+        state.runtimes.retain(|admission, _| {
             admission.host_id() != host_id
                 || !hydrated_daemons.contains(admission.principal().custody().daemon_instance())
         });
         for runtime in runtimes {
             if let Some(run_state) = runtime.run_state {
-                state.runs.insert(
-                    RuntimeEventAdmission::new(host_id.to_owned(), runtime.principal),
-                    run_state,
-                );
+                state
+                    .runtimes
+                    .entry(RuntimeEventAdmission::new(
+                        host_id.to_owned(),
+                        runtime.principal,
+                    ))
+                    .or_default()
+                    .run = Some(run_state);
             }
         }
         state.host_activity.insert(
@@ -565,27 +588,7 @@ where
             .state
             .lock()
             .map_err(|_| DaemonRuntimeEventError::StatePoisoned)?;
-        state.runs.retain(|admission, _| {
-            admission.host_id() != host_id
-                || admission.principal().custody().daemon_instance() != daemon
-        });
-        state.pending_text.retain(|admission, _| {
-            admission.host_id() != host_id
-                || admission.principal().custody().daemon_instance() != daemon
-        });
-        state.timeout_reasons.retain(|admission, _| {
-            admission.host_id() != host_id
-                || admission.principal().custody().daemon_instance() != daemon
-        });
-        state.init_failed.retain(|admission| {
-            admission.host_id() != host_id
-                || admission.principal().custody().daemon_instance() != daemon
-        });
-        state.fatal.retain(|admission| {
-            admission.host_id() != host_id
-                || admission.principal().custody().daemon_instance() != daemon
-        });
-        state.clear_cli_session_on_exit.retain(|admission| {
+        state.runtimes.retain(|admission, _| {
             admission.host_id() != host_id
                 || admission.principal().custody().daemon_instance() != daemon
         });
@@ -627,10 +630,12 @@ where
                         .lock()
                         .map_err(|_| DaemonRuntimeEventError::StatePoisoned)?;
                     if event.state.terminal_reason.is_none() {
-                        state.timeout_reasons.remove(&admission);
-                        state.init_failed.remove(&admission);
-                        state.fatal.remove(&admission);
-                        state.clear_cli_session_on_exit.remove(&admission);
+                        state.update(&admission, |entry| {
+                            entry.timeout_reason = None;
+                            entry.init_failed = false;
+                            entry.fatal = false;
+                            entry.clear_cli_session_on_exit = false;
+                        });
                     }
                     let Some(activity) = state.host_activity.get_mut(host_id).filter(|activity| {
                         activity.daemon_instance == *daemon
@@ -641,7 +646,8 @@ where
                     activity
                         .active_agents
                         .insert(admission.principal().agent().clone());
-                    state.runs.insert(admission.clone(), event.state.clone());
+                    state.runtimes.entry(admission.clone()).or_default().run =
+                        Some(event.state.clone());
                 }
                 let mut first_failure = None;
                 for target in targets {
@@ -750,12 +756,12 @@ where
                         .state
                         .lock()
                         .map_err(|_| DaemonRuntimeEventError::StatePoisoned)?;
-                    state
-                        .timeout_reasons
-                        .insert(admission.clone(), event.timeout_reason);
-                    if !event.retrying {
-                        state.init_failed.insert(admission);
-                    }
+                    state.update(&admission, |entry| {
+                        entry.timeout_reason = Some(event.timeout_reason);
+                        if !event.retrying {
+                            entry.init_failed = true;
+                        }
+                    });
                 }
                 self.publish_conversation(ConversationRuntimeProjectionFact::AgentInitTimeout {
                     conversation: event.coordinate.conversation()?,
@@ -783,9 +789,8 @@ where
                     .state
                     .lock()
                     .map_err(|_| DaemonRuntimeEventError::StatePoisoned)?
-                    .timeout_reasons
                     .get(&admission)
-                    .copied();
+                    .and_then(|entry| entry.timeout_reason);
                 if let Some(projected) = self
                     .durable
                     .project_status(ProjectRuntimeStatus::new(
@@ -823,8 +828,10 @@ where
                         .state
                         .lock()
                         .map_err(|_| DaemonRuntimeEventError::StatePoisoned)?;
-                    state.timeout_reasons.remove(&admission);
-                    state.init_failed.insert(admission.clone());
+                    state.update(&admission, |entry| {
+                        entry.timeout_reason = None;
+                        entry.init_failed = true;
+                    });
                 }
                 if let Some(projected) = self
                     .durable
@@ -965,9 +972,10 @@ where
             .lock()
             .map_err(|_| DaemonRuntimeEventError::StatePoisoned)?;
         let admission = RuntimeEventAdmission::new(host_id.to_owned(), principal);
-        state.pending_text.remove(&admission);
-        let failed = state.init_failed.contains(&admission) || state.fatal.contains(&admission);
-        let clear_cli_session_id = state.clear_cli_session_on_exit.contains(&admission);
+        state.update(&admission, |entry| entry.pending_text = None);
+        let entry = state.get(&admission);
+        let failed = entry.is_some_and(|entry| entry.init_failed || entry.fatal);
+        let clear_cli_session_id = entry.is_some_and(|entry| entry.clear_cli_session_on_exit);
         let status = runtime_exit_status(failed, false, intentional, code);
         Ok(CommitRuntimeExit::new(
             admission,
@@ -1022,11 +1030,11 @@ where
                 .state
                 .lock()
                 .map_err(|_| DaemonRuntimeEventError::StatePoisoned)?;
-            let init_failed = state.init_failed.remove(admission);
-            let fatal = state.fatal.remove(admission);
-            let clear_cli_session_id = state.clear_cli_session_on_exit.remove(admission);
-            state.timeout_reasons.remove(admission);
-            let run_state = state.runs.remove(admission);
+            let entry = state.runtimes.remove(admission).unwrap_or_default();
+            let init_failed = entry.init_failed;
+            let fatal = entry.fatal;
+            let clear_cli_session_id = entry.clear_cli_session_on_exit;
+            let run_state = entry.run;
             if let Some(activity) =
                 state
                     .host_activity
@@ -1144,13 +1152,13 @@ where
                 .state
                 .lock()
                 .map_err(|_| DaemonRuntimeEventError::StatePoisoned)?;
-            state.fatal.insert(admission.clone());
-            if code
+            let clear = code
                 .as_deref()
-                .is_some_and(|code| matches!(code, "thread_not_found" | "session_archived"))
-            {
-                state.clear_cli_session_on_exit.insert(admission.clone());
-            }
+                .is_some_and(|code| matches!(code, "thread_not_found" | "session_archived"));
+            state.update(&admission, |entry| {
+                entry.fatal = true;
+                entry.clear_cli_session_on_exit |= clear;
+            });
         }
         if let ParsedEventWire::SessionInit { session_id } = &event.parsed {
             let conversation = event.coordinate.conversation()?;
@@ -1295,8 +1303,7 @@ where
         self.state
             .lock()
             .map_err(|_| DaemonRuntimeEventError::StatePoisoned)?
-            .pending_text
-            .remove(admission);
+            .update(admission, |entry| entry.pending_text = None);
         Ok(())
     }
 
@@ -1328,26 +1335,23 @@ where
                 .state
                 .lock()
                 .map_err(|_| DaemonRuntimeEventError::StatePoisoned)?;
-            if state
+            let entry = state.runtimes.entry(admission.clone()).or_default();
+            if entry
                 .pending_text
-                .get(&admission)
+                .as_ref()
                 .is_some_and(|pending| pending.kind != kind)
             {
-                state.pending_text.remove(&admission);
+                entry.pending_text = None;
             }
-            let pending =
-                state
-                    .pending_text
-                    .entry(admission.clone())
-                    .or_insert(PendingTextActivity {
-                        conversation: coordinate.conversation()?,
-                        agent: coordinate.agent()?,
-                        kind,
-                        text: String::new(),
-                        omitted_chars: 0,
-                        created_at: RuntimeEventTime::from_unix_millis(observed_at),
-                        event_id: None,
-                    });
+            let pending = entry.pending_text.get_or_insert(PendingTextActivity {
+                conversation: coordinate.conversation()?,
+                agent: coordinate.agent()?,
+                kind,
+                text: String::new(),
+                omitted_chars: 0,
+                created_at: RuntimeEventTime::from_unix_millis(observed_at),
+                event_id: None,
+            });
             append_capped_text(pending, fragment);
             let rendered = if pending.omitted_chars == 0 {
                 pending.text.clone()
@@ -1383,7 +1387,10 @@ where
                 .state
                 .lock()
                 .map_err(|_| DaemonRuntimeEventError::StatePoisoned)?;
-            if let Some(pending) = state.pending_text.get_mut(&admission)
+            if let Some(pending) = state
+                .runtimes
+                .get_mut(&admission)
+                .and_then(|entry| entry.pending_text.as_mut())
                 && pending.kind == kind
             {
                 pending.event_id = Some(id.id());
@@ -2221,7 +2228,12 @@ mod tests {
             status_projection: std::sync::Arc::new(hub.runtime_status_publisher()),
             state: std::sync::Arc::new(std::sync::Mutex::new(RuntimeOwnerState::default())),
         };
-        owner.state.lock().unwrap().runs.extend(entries);
+        {
+            let mut state = owner.state.lock().unwrap();
+            for (admission, run) in entries {
+                state.runtimes.entry(admission).or_default().run = Some(run);
+            }
+        }
         owner
     }
 
