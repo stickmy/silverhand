@@ -19,7 +19,7 @@
     {
       "epoch": 71,
       "firstStep": 100,
-      "lastStep": 101,
+      "lastStep": 102,
       "released": false
     }
   ],
@@ -29,8 +29,8 @@
     "packages/shared/src/conversation-title.ts": "5b8f0b3766618373619ea589e632d566e9a43e469d821de4298da76f1bb3b680",
     "packages/shared/src/db/baseline-schema.ts": "7e5b7e9a0aca9b79fa433dca341d68ef4f761c5a545069c6005a4519851130e6",
     "packages/shared/src/db/migration-contracts/task-title-v96.ts": "98b0881301cb959962489178aefca16aa4228c786f03b0b849a654d58504d583",
-    "packages/shared/src/db/migrations.ts": "cf6ced5c8b290108ad2c57f61e3174ae484f22798e4b4fe1cdf38c3e698966d9",
-    "packages/shared/src/db/schema-epochs.ts": "1172325299808a66f4cc4cce948811586facfee2bec9b4cc562baa1857fead8e",
+    "packages/shared/src/db/migrations.ts": "9ce4fb93c36f9c45db1c9c6d783bb89b1825fe40212c6dd9542b0a2a95383903",
+    "packages/shared/src/db/schema-epochs.ts": "55908be9c0a687d7892867e35ec18cd13613d3e203e23c46918cd573ab90897d",
     "packages/shared/src/display-name-charset.ts": "9d5b574480b3956f37d53bba816b7bff6d3e3edfc861e58c32b896a919f2f8ba",
     "packages/shared/src/unicode-case-fold.ts": "b5cb75d46582dc93b640434ad78fe8f0a741e5e1aa183adbb27368ce2aceb120",
     "packages/shared/src/unicode-name-charset.ts": "bbcda81d89d738fdfe6a9ff0dd4dad633a79a84cd8f82e203753910196967879",
@@ -441,6 +441,13 @@
       "version": 101,
       "name": "password_recovery_state",
       "up": "\n      CREATE TABLE password_recovery_state (\n        user_id           TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,\n        email             TEXT NOT NULL,\n        code_id           TEXT,\n        code_hash         TEXT,\n        code_expires_at   INTEGER,\n        code_attempts     INTEGER NOT NULL DEFAULT 0,\n        window_started_at INTEGER NOT NULL,\n        window_sends      INTEGER NOT NULL DEFAULT 0,\n        window_attempts   INTEGER NOT NULL DEFAULT 0,\n        last_sent_at      INTEGER,\n        CHECK ((code_id IS NULL) = (code_hash IS NULL)),\n        CHECK ((code_id IS NULL) = (code_expires_at IS NULL))\n      );\n    ",
+      "foreignKeyEscape": false,
+      "precondition": false
+    },
+    {
+      "version": 102,
+      "name": "conversation_inbox_settlement_states",
+      "up": "\n      UPDATE conversation_inboxes SET failed_at = NULL, failed_reason = NULL\n        WHERE delivered_at IS NOT NULL AND failed_at IS NOT NULL;\n      UPDATE conversation_inboxes SET in_flight_owner = NULL, in_flight_at = NULL\n        WHERE (in_flight_owner IS NOT NULL OR in_flight_at IS NOT NULL)\n          AND (in_flight_owner IS NULL OR in_flight_at IS NULL\n               OR delivered_at IS NOT NULL OR failed_at IS NOT NULL);\n      CREATE TRIGGER conversation_inboxes_settlement_state_insert BEFORE INSERT ON conversation_inboxes\n        WHEN (NEW.in_flight_owner IS NULL) != (NEW.in_flight_at IS NULL)\n          OR (NEW.delivered_at IS NOT NULL AND NEW.failed_at IS NOT NULL)\n          OR (NEW.in_flight_owner IS NOT NULL\n              AND (NEW.delivered_at IS NOT NULL OR NEW.failed_at IS NOT NULL))\n        BEGIN SELECT RAISE(ABORT, 'invalid conversation inbox settlement state'); END;\n      CREATE TRIGGER conversation_inboxes_settlement_state_update\n        BEFORE UPDATE OF delivered_at, failed_at, in_flight_owner, in_flight_at ON conversation_inboxes\n        WHEN (NEW.in_flight_owner IS NULL) != (NEW.in_flight_at IS NULL)\n          OR (NEW.delivered_at IS NOT NULL AND NEW.failed_at IS NOT NULL)\n          OR (NEW.in_flight_owner IS NOT NULL\n              AND (NEW.delivered_at IS NOT NULL OR NEW.failed_at IS NOT NULL))\n        BEGIN SELECT RAISE(ABORT, 'invalid conversation inbox settlement state'); END;\n    ",
       "foreignKeyEscape": false,
       "precondition": false
     }

@@ -209,8 +209,8 @@ mod tests {
         .unwrap();
         sqlx::query(
             "INSERT INTO conversation_inboxes (id, conversation_id, agent_id, message_id, \
-                 delivered_at, created_at, in_flight_owner, failed_at, delivery_kind) \
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'turn')",
+                 delivered_at, created_at, in_flight_owner, in_flight_at, failed_at, delivery_kind) \
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'turn')",
         )
         .bind(id)
         .bind(conversation)
@@ -219,6 +219,7 @@ mod tests {
         .bind(delivered.then_some(created_at))
         .bind(created_at)
         .bind(in_flight.then_some("owner-1"))
+        .bind(in_flight.then_some(created_at))
         .bind(failed.then_some(created_at))
         .execute(&mut *conn)
         .await

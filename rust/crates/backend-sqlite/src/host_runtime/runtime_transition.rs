@@ -92,7 +92,6 @@ const SELECT_HELD_TRANSITION: &str = "SELECT id, runtime_transition_target, \
 const RECLAIM_INBOX_LEASES: &str = "UPDATE conversation_inboxes \
         SET in_flight_owner = NULL, in_flight_at = NULL \
       WHERE agent_id = ? \
-        AND delivered_at IS NULL AND failed_at IS NULL \
         AND in_flight_owner IS NOT NULL \
         AND EXISTS ( \
             SELECT 1 FROM agents \

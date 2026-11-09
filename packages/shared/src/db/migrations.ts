@@ -4340,6 +4340,33 @@ export const migrations: Migration[] = [
       );
     `,
   },
+  {
+    version: 102,
+    name: 'conversation_inbox_settlement_states',
+    // An inbox row is pending, leased, delivered or failed; the stamps encode exactly one.
+    // Rows written before the guard are normalized first: a settled row drops its lease.
+    up: `
+      UPDATE conversation_inboxes SET failed_at = NULL, failed_reason = NULL
+        WHERE delivered_at IS NOT NULL AND failed_at IS NOT NULL;
+      UPDATE conversation_inboxes SET in_flight_owner = NULL, in_flight_at = NULL
+        WHERE (in_flight_owner IS NOT NULL OR in_flight_at IS NOT NULL)
+          AND (in_flight_owner IS NULL OR in_flight_at IS NULL
+               OR delivered_at IS NOT NULL OR failed_at IS NOT NULL);
+      CREATE TRIGGER conversation_inboxes_settlement_state_insert BEFORE INSERT ON conversation_inboxes
+        WHEN (NEW.in_flight_owner IS NULL) != (NEW.in_flight_at IS NULL)
+          OR (NEW.delivered_at IS NOT NULL AND NEW.failed_at IS NOT NULL)
+          OR (NEW.in_flight_owner IS NOT NULL
+              AND (NEW.delivered_at IS NOT NULL OR NEW.failed_at IS NOT NULL))
+        BEGIN SELECT RAISE(ABORT, 'invalid conversation inbox settlement state'); END;
+      CREATE TRIGGER conversation_inboxes_settlement_state_update
+        BEFORE UPDATE OF delivered_at, failed_at, in_flight_owner, in_flight_at ON conversation_inboxes
+        WHEN (NEW.in_flight_owner IS NULL) != (NEW.in_flight_at IS NULL)
+          OR (NEW.delivered_at IS NOT NULL AND NEW.failed_at IS NOT NULL)
+          OR (NEW.in_flight_owner IS NOT NULL
+              AND (NEW.delivered_at IS NOT NULL OR NEW.failed_at IS NOT NULL))
+        BEGIN SELECT RAISE(ABORT, 'invalid conversation inbox settlement state'); END;
+    `,
+  },
 ];
 
 /**

@@ -527,11 +527,11 @@ async fn an_ensure_over_an_existing_row_leaves_its_delivery_columns_untouched() 
     let path = directory.path().join("ensure-idempotent.sqlite");
     let store = seed_onboarding_ensure_graph(&path).await;
 
-    // A prior delivery already ran: the row is delivered, once leased, and now failed.
+    // A prior delivery already ran: the row failed with a recorded reason.
     sqlx::query(
         "INSERT INTO conversation_inboxes (conversation_id, agent_id, message_id, \
-         delivered_at, failed_at, in_flight_owner, delivery_kind, created_at) VALUES \
-         ('conv-ws', 'agent-ws', 'msg-ws', 555, 777, 'daemon-9', 'turn', 111)",
+         failed_at, failed_reason, delivery_kind, created_at) VALUES \
+         ('conv-ws', 'agent-ws', 'msg-ws', 777, 'driver_refused', 'turn', 111)",
     )
     .execute(&store.pool)
     .await
@@ -545,8 +545,8 @@ async fn an_ensure_over_an_existing_row_leaves_its_delivery_columns_untouched() 
 
     // Still exactly one row, and every delivery-state column is exactly as the prior
     // delivery left it — the ON CONFLICT DO NOTHING wrote nothing new.
-    let row: (i64, Option<i64>, Option<i64>, Option<String>, String, i64) = sqlx::query_as(
-        "SELECT count(*) OVER (), delivered_at, failed_at, in_flight_owner, delivery_kind, \
+    let row: (i64, Option<i64>, Option<String>, String, i64) = sqlx::query_as(
+        "SELECT count(*) OVER (), failed_at, failed_reason, delivery_kind, \
          created_at FROM conversation_inboxes WHERE conversation_id = 'conv-ws' AND agent_id = \
          'agent-ws' AND message_id = 'msg-ws'",
     )
@@ -554,15 +554,14 @@ async fn an_ensure_over_an_existing_row_leaves_its_delivery_columns_untouched() 
     .await
     .unwrap();
     assert_eq!(row.0, 1, "the ensure created a duplicate row");
-    assert_eq!(row.1, Some(555), "delivered_at was reset");
-    assert_eq!(row.2, Some(777), "failed_at was reset");
+    assert_eq!(row.1, Some(777), "failed_at was reset");
     assert_eq!(
-        row.3.as_deref(),
-        Some("daemon-9"),
-        "the lease owner was reset"
+        row.2.as_deref(),
+        Some("driver_refused"),
+        "failed_reason was reset"
     );
-    assert_eq!(row.4, "turn");
-    assert_eq!(row.5, 111, "created_at was overwritten");
+    assert_eq!(row.3, "turn");
+    assert_eq!(row.4, 111, "created_at was overwritten");
 }
 
 /// The entitlement read must stay bounded by the NAMES A BODY USED. It runs while

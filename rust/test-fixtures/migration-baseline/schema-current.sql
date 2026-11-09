@@ -1407,3 +1407,18 @@ CREATE TABLE password_recovery_state (
         CHECK ((code_id IS NULL) = (code_hash IS NULL)),
         CHECK ((code_id IS NULL) = (code_expires_at IS NULL))
       );
+
+CREATE TRIGGER conversation_inboxes_settlement_state_insert BEFORE INSERT ON conversation_inboxes
+  WHEN (NEW.in_flight_owner IS NULL) != (NEW.in_flight_at IS NULL)
+    OR (NEW.delivered_at IS NOT NULL AND NEW.failed_at IS NOT NULL)
+    OR (NEW.in_flight_owner IS NOT NULL
+        AND (NEW.delivered_at IS NOT NULL OR NEW.failed_at IS NOT NULL))
+  BEGIN SELECT RAISE(ABORT, 'invalid conversation inbox settlement state'); END;
+
+CREATE TRIGGER conversation_inboxes_settlement_state_update
+  BEFORE UPDATE OF delivered_at, failed_at, in_flight_owner, in_flight_at ON conversation_inboxes
+  WHEN (NEW.in_flight_owner IS NULL) != (NEW.in_flight_at IS NULL)
+    OR (NEW.delivered_at IS NOT NULL AND NEW.failed_at IS NOT NULL)
+    OR (NEW.in_flight_owner IS NOT NULL
+        AND (NEW.delivered_at IS NOT NULL OR NEW.failed_at IS NOT NULL))
+  BEGIN SELECT RAISE(ABORT, 'invalid conversation inbox settlement state'); END;

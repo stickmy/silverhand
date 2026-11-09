@@ -345,13 +345,15 @@ const UNDO_STEP_100: &str = "DROP TRIGGER users_avatar_design_follows_image; \
      DROP TRIGGER agents_avatar_design_delete; DROP INDEX idx_users_avatar_design; \
      DROP INDEX idx_agents_avatar_design; ALTER TABLE users DROP COLUMN avatar_design_id; \
      ALTER TABLE agents DROP COLUMN avatar_design_id; DROP TABLE avatar_designs; \
-     DROP TABLE password_recovery_state;";
+     DROP TABLE password_recovery_state; \
+     DROP TRIGGER conversation_inboxes_settlement_state_insert; \
+     DROP TRIGGER conversation_inboxes_settlement_state_update;";
 
 async fn seed_step95_titles(path: &std::path::Path, cases: &[MigrationTitleCase]) {
     use sqlx::Executor;
 
     let mut db = current_schema::create_current_schema(path).await;
-    // The snapshot already carries steps 100-101; undo them so the replay from 96 is real.
+    // The snapshot already carries steps 100-102; undo them so the replay from 96 is real.
     db.execute(sqlx::raw_sql(UNDO_STEP_100)).await.unwrap();
     for statement in SEED {
         db.execute(*statement).await.unwrap();

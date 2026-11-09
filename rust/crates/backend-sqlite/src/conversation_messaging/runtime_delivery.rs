@@ -158,9 +158,7 @@ impl SqliteRuntimeDeliveryStore {
             "UPDATE conversation_inboxes
                 SET in_flight_owner = NULL, in_flight_at = NULL
               WHERE conversation_id = ? AND agent_id = ?
-                AND delivered_at IS NULL AND failed_at IS NULL
-                AND in_flight_owner IS NOT NULL
-                AND in_flight_at IS NOT NULL AND in_flight_at <= ?",
+                AND in_flight_owner IS NOT NULL AND in_flight_at <= ?",
         )
         .bind(conversation.as_str())
         .bind(principal.agent().as_str())
@@ -401,21 +399,18 @@ impl SqliteRuntimeDeliveryStore {
                 Settlement::Consumed => (
                     "UPDATE conversation_inboxes SET delivered_at = ?, in_flight_owner = NULL,
                             in_flight_at = NULL
-                      WHERE id = ? AND in_flight_owner = ? AND delivered_at IS NULL
-                        AND failed_at IS NULL",
+                      WHERE id = ? AND in_flight_owner = ?",
                     None,
                 ),
                 Settlement::Failed(RuntimeDeliveryFailureReason::DriverRefused) => (
                     "UPDATE conversation_inboxes SET failed_at = ?, failed_reason = ?,
                             in_flight_owner = NULL, in_flight_at = NULL
-                      WHERE id = ? AND in_flight_owner = ? AND delivered_at IS NULL
-                        AND failed_at IS NULL",
+                      WHERE id = ? AND in_flight_owner = ?",
                     Some("driver_refused"),
                 ),
                 Settlement::Failed(_) => (
                     "UPDATE conversation_inboxes SET in_flight_owner = NULL, in_flight_at = NULL
-                      WHERE id = ? AND in_flight_owner = ? AND delivered_at IS NULL
-                        AND failed_at IS NULL",
+                      WHERE id = ? AND in_flight_owner = ?",
                     None,
                 ),
             };
@@ -1042,7 +1037,7 @@ impl RuntimeInboxCustodyPort for SqliteRuntimeDeliveryStore {
         let changed = sqlx::query(
             "UPDATE conversation_inboxes
                 SET in_flight_owner = NULL, in_flight_at = NULL
-              WHERE in_flight_owner = ? AND delivered_at IS NULL AND failed_at IS NULL",
+              WHERE in_flight_owner = ?",
         )
         .bind(owner.as_str())
         .execute(&self.pool)
@@ -1244,8 +1239,7 @@ impl DaemonEventDurablePort for SqliteRuntimeDeliveryStore {
                 "UPDATE conversation_inboxes
                         SET in_flight_owner = NULL, in_flight_at = NULL
                       WHERE conversation_id = ? AND agent_id = ?
-                        AND in_flight_owner IS NOT NULL
-                        AND delivered_at IS NULL AND failed_at IS NULL",
+                        AND in_flight_owner IS NOT NULL",
             )
             .bind(source.as_str())
             .bind(agent.as_str())
@@ -1256,8 +1250,7 @@ impl DaemonEventDurablePort for SqliteRuntimeDeliveryStore {
             RuntimePrincipal::AgentSlot { agent, .. } => sqlx::query(
                 "UPDATE conversation_inboxes
                         SET in_flight_owner = NULL, in_flight_at = NULL
-                      WHERE agent_id = ? AND in_flight_owner IS NOT NULL
-                        AND delivered_at IS NULL AND failed_at IS NULL",
+                      WHERE agent_id = ? AND in_flight_owner IS NOT NULL",
             )
             .bind(agent.as_str())
             .execute(&mut *tx)

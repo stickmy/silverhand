@@ -632,3 +632,71 @@ async fn task_title_migration_rejects_unrepairable_values_transactionally() {
         assert_eq!(ledger, 0);
     }
 }
+
+#[tokio::test]
+async fn inbox_settlement_upgrade_normalizes_mixed_stamps_then_guards_writes() {
+    let root = isolated();
+    let path = root.path().join("data/database.sqlite");
+    fs::create_dir(path.parent().unwrap()).unwrap();
+    let mut previous = plan();
+    previous.steps.retain(|s| s.version <= 101);
+    let mut db = connect(&path).await;
+    prepare_connected(&mut db, &path, true, &previous)
+        .await
+        .unwrap();
+    db.execute(sqlx::raw_sql(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../rust/test-fixtures/fixtures/workspace-cold-read/seed.sql"
+    ))))
+    .await
+    .unwrap();
+    db.execute(sqlx::raw_sql(
+        "INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,seq,created_at)
+             VALUES('m1','conv-open','user','user-1','x',1,1),('m2','conv-open','user','user-1','x',2,1),
+                   ('m3','conv-open','user','user-1','x',3,1),('m4','conv-open','user','user-1','x',4,1);
+         INSERT INTO conversation_inboxes
+             (id,conversation_id,agent_id,message_id,delivered_at,failed_at,failed_reason,
+              in_flight_owner,in_flight_at,created_at,delivery_kind)
+         VALUES (1,'conv-open','agent-1','m1',5,6,'driver_refused',NULL,NULL,1,'turn'),
+                (2,'conv-open','agent-1','m2',5,NULL,NULL,'old',4,1,'turn'),
+                (3,'conv-open','agent-1','m3',NULL,NULL,NULL,'old',NULL,1,'turn'),
+                (4,'conv-open','agent-1','m4',NULL,NULL,NULL,'live',4,1,'turn');",
+    ))
+    .await
+    .unwrap();
+    db.close().await.unwrap();
+
+    prepare_database(&path, true).await.unwrap();
+    let mut db = connect(&path).await;
+    type InboxRow = (
+        i64,
+        Option<i64>,
+        Option<i64>,
+        Option<String>,
+        Option<String>,
+    );
+    let rows: Vec<InboxRow> = sqlx::query_as(
+        "SELECT id,delivered_at,failed_at,failed_reason,in_flight_owner
+               FROM conversation_inboxes ORDER BY id",
+    )
+    .fetch_all(&mut db)
+    .await
+    .unwrap();
+    assert_eq!(
+        rows,
+        [
+            (1, Some(5), None, None, None),
+            (2, Some(5), None, None, None),
+            (3, None, None, None, None),
+            (4, None, None, None, Some("live".into())),
+        ]
+    );
+    for invalid in [
+        "UPDATE conversation_inboxes SET failed_at = 9 WHERE id = 1",
+        "UPDATE conversation_inboxes SET delivered_at = 9 WHERE id = 4",
+        "UPDATE conversation_inboxes SET in_flight_owner = 'x' WHERE id = 3",
+    ] {
+        assert!(db.execute(invalid).await.is_err(), "{invalid}");
+    }
+    db.close().await.unwrap();
+}
