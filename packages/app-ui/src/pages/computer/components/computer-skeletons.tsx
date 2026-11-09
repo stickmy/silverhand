@@ -30,9 +30,9 @@ export function ComputerStatusSkeleton(): JSX.Element {
       <h3 className="mb-4 text-xs font-semibold text-text-muted">{t("computers.computer")}</h3>
       <div className="space-y-2.5">
         {[
-          t("computers.ipAddress"),
           t("computers.hostname"),
           t("computers.os"),
+          t("computers.ipAddress"),
           t("computers.memory"),
           t("computers.disk"),
           t("computers.uptime"),

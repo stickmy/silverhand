@@ -19,7 +19,7 @@ import { ComputerStatusSkeleton } from "./computer-skeletons";
  *                   order reads "name → live state → identifiers"
  *                   (shiki dogfood `hLEODapuI_dHuCPz`).
  *   Computer      — one label-left / value-right list describing the
- *                   whole machine (IP, hostname, OS, memory, disk,
+ *                   whole machine (hostname, OS, IP, memory, disk,
  *                   uptime), then the daemon's own facts as a quiet
  *                   footnote. Machine fields come from newer daemons
  *                   only; a missing field drops its row. Only rendered
@@ -585,11 +585,6 @@ function ComputerSection({
     <HostSection title={t("computers.computer")}>
       <TooltipProvider>
         <dl data-host-system-list className="flex flex-col gap-2.5">
-          {snapshot.ip ? (
-            <SystemField label={t("computers.ipAddress")}>
-              <CopyableValue value={snapshot.ip} />
-            </SystemField>
-          ) : null}
           {snapshot.hostname ? (
             <SystemField label={t("computers.hostname")}>
               <span className="text-text-primary">{snapshot.hostname}</span>
@@ -601,6 +596,11 @@ function ComputerSection({
               <span className="ml-2 text-text-muted">{snapshot.os_arch}</span>
             ) : null}
           </SystemField>
+          {snapshot.ip ? (
+            <SystemField label={t("computers.ipAddress")}>
+              <CopyableValue value={snapshot.ip} />
+            </SystemField>
+          ) : null}
           <UsageField
             label={t("computers.memory")}
             used={snapshot.memory_used_bytes}
