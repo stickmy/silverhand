@@ -309,7 +309,7 @@
   }
 }
 
-[data-theme="glass"][data-layout="compact"] :is([data-input], [data-composer-editor]) {
+[data-theme="glass"][data-layout="compact"] [data-composer-editor] {
   border-radius: 16px;
 }
 
