@@ -53,6 +53,7 @@ export function MessageScroller<T>({
   onAtBottomChange,
   onTopItemChange,
   controlRef,
+  restAt = "bottom",
   className,
 }: {
   items: readonly T[];
@@ -72,6 +73,9 @@ export function MessageScroller<T>({
   onAtBottomChange: (atBottom: boolean) => void;
   onTopItemChange: (key: string) => void;
   controlRef: Ref<MessageScrollerHandle>;
+  /** Where content shorter than the viewport rests: against the composer, or
+   *  under the header (a thread reads down from its root). */
+  restAt?: "bottom" | "top";
   className?: string;
 }): JSX.Element {
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -369,7 +373,7 @@ export function MessageScroller<T>({
       {/* Fewer rows than fill the viewport rest on the composer; the spare
       height sits above them and the header. */}
       <div ref={contentRef} className="flex min-h-full flex-col">
-        <div aria-hidden className="flex-1" />
+        {restAt === "bottom" ? <div aria-hidden className="flex-1" /> : null}
         {header}
         <div ref={rowsRef}>
           {rendered.map((item) => {

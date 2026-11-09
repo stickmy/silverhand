@@ -1,4 +1,4 @@
-import { type RefObject, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { MessageSeq } from "@silverhand/shared";
 import { useMarkThreadRead } from "@/features/channels/hooks";
 import type { CachedMessage } from "@/features/channels/pending-message";
@@ -32,7 +32,7 @@ export function useThreadMarkRead({
   cluster,
   messages,
   isAtTail,
-  scrollRef,
+  getViewport,
   scrollTrigger,
 }: {
   channelId: string;
@@ -42,7 +42,8 @@ export function useThreadMarkRead({
   cluster: ThreadMarkReadCluster;
   messages: CachedMessage[];
   isAtTail: boolean;
-  scrollRef: RefObject<HTMLElement | null>;
+  /** The list's scroll viewport, read when the gate runs. */
+  getViewport: () => HTMLElement | null;
   scrollTrigger: unknown;
 }): void {
   const markThreadRead = useMarkThreadRead();
@@ -212,7 +213,7 @@ export function useThreadMarkRead({
   // the gate holds and no request is sent.
   const maxLoadedReplySeq = threadVisibleReplySeq(messages, rootMessageId);
   useEffect(() => {
-    const viewport = scrollRef.current;
+    const viewport = getViewport();
     const seq = threadLiveMarkReadSeq({
       tailVisible:
         viewport !== null &&
@@ -236,7 +237,7 @@ export function useThreadMarkRead({
       liveMarkTimerRef.current = null;
       // Re-check at fire time: the user may have scrolled up or backgrounded
       // the app during the debounce window.
-      const currentViewport = scrollRef.current;
+      const currentViewport = getViewport();
       if (
         currentViewport === null ||
         !threadTailIsVisible({
@@ -258,7 +259,7 @@ export function useThreadMarkRead({
         liveMarkTimerRef.current = null;
       }
     };
-  }, [scrollTrigger, documentVisible, maxLoadedReplySeq, isAtTail, issueMarkRead]);
+  }, [scrollTrigger, documentVisible, maxLoadedReplySeq, isAtTail, issueMarkRead, getViewport]);
 
   // Flush a SEEN-but-unmarked tail reply when THIS open ends — the panel closes
   // (unmount) or switches to another thread — before the 300ms visible-live

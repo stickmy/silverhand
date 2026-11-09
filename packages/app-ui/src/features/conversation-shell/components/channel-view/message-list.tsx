@@ -89,6 +89,10 @@ export function MessageList({
   searchQuery,
   searchActiveMessageId,
   surfaceActive = true,
+  streamKey = channelId,
+  leadingMessage = null,
+  emptyState,
+  onAtBottomChange,
 }: {
   channelId: string;
   /** The conversation's workspace, or `null` for a workspace-less one (a
@@ -202,6 +206,15 @@ export function MessageList({
    *  Default true: contexts without a tab strip (threads, activity) are
    *  always their own surface. */
   surfaceActive?: boolean;
+  /** Names this stream apart from another on the same conversation (a thread
+   *  of the channel): its saved reading position and its selection bar. */
+  streamKey?: string;
+  /** The message the stream answers (a thread's root). It opens the list,
+   *  closed by a hairline, and the stream reads down from it. */
+  leadingMessage?: CachedMessage | null;
+  /** Shown in place of rows when the stream has none. */
+  emptyState?: ReactNode;
+  onAtBottomChange?: (atBottom: boolean) => void;
 }): JSX.Element {
   const viewMemory = useViewMemory();
   const compact = useCompactLayout();
@@ -217,7 +230,7 @@ export function MessageList({
     return () => observer.disconnect();
   }, []);
   const preloadDistance = getMessageListPreloadDistance(compact, viewportHeight);
-  const readingKey = `conversation:${channelId}`;
+  const readingKey = `conversation:${streamKey}`;
   const savedPosition = useMemo(() => viewMemory?.get(readingKey), [viewMemory, readingKey]);
   // Render context (lookup maps + sigil resolution + resolved viewer)
   // comes from the shared hook so the channel pane and the thread
@@ -278,6 +291,7 @@ export function MessageList({
   // byline from `viewerAvatarObjectUrl`, so they need not enter this batch.
   const bylineAuthors = useMemo(() => {
     const authors: (MessageAuthorDto | null)[] = [];
+    if (leadingMessage && isCommittedMessage(leadingMessage)) authors.push(leadingMessage.author);
     for (const m of messages) {
       if (isCommittedMessage(m)) authors.push(m.author);
     }
@@ -287,7 +301,7 @@ export function MessageList({
       }
     }
     return authors;
-  }, [messages, replySummariesByRoot]);
+  }, [leadingMessage, messages, replySummariesByRoot]);
   const { agentAvatarUrls: authorAgentAvatarUrls, humanAvatarUrls: authorUserAvatarUrls } =
     useAuthorAvatarObjectUrls(bylineAuthors);
 
@@ -472,10 +486,11 @@ export function MessageList({
   const handleAtBottomChange = useCallback(
     (atBottom: boolean) => {
       setIsAtBottom(atBottom);
+      onAtBottomChange?.(atBottom);
       const previous = viewMemory?.get(readingKey);
       viewMemory?.set(readingKey, { ...previous, atBottom });
     },
-    [viewMemory, readingKey],
+    [viewMemory, readingKey, onAtBottomChange],
   );
 
   // Back-to-bottom cancels the jump on both sides: `onJumped()` clears the
@@ -681,7 +696,7 @@ export function MessageList({
         }}
         workspaceId={workspaceId}
         conversationId={channelId}
-        selectionKey={channelId}
+        selectionKey={streamKey}
         channelTitle={channelTitle}
       />
       <div ref={viewportRef} className="relative min-h-0 min-w-0 flex-1">
@@ -690,8 +705,8 @@ export function MessageList({
           // skeleton), so entering a channel reads the same as every other
           // conversation-loading surface. `absolute inset-0` fills this box.
           <MessageRowsSkeleton className="absolute inset-0" />
-        ) : items.length === 0 && !leadingSlot ? (
-          <EmptyConversation />
+        ) : items.length === 0 && !leadingSlot && !leadingMessage ? (
+          (emptyState ?? <EmptyConversation />)
         ) : (
           <MessageScroller<StreamItem>
             // Remount on channel switches and disjoint window replacements so
@@ -710,6 +725,13 @@ export function MessageList({
                   <div className="mx-auto mb-1 max-w-300 px-(--message-list-gutter)">
                     {leadingSlot}
                   </div>
+                ) : null}
+                {leadingMessage ? (
+                  <>
+                    {renderRow({ kind: "message", message: leadingMessage })}
+                    <div className="my-2 shrink-0 border-t border-border-subtle" />
+                    {items.length === 0 ? emptyState : null}
+                  </>
                 ) : null}
               </>
             }
@@ -730,6 +752,7 @@ export function MessageList({
             onReachBottom={handleEndReached}
             onAtBottomChange={handleAtBottomChange}
             onTopItemChange={handleTopItemChange}
+            restAt={leadingMessage ? "top" : "bottom"}
             className="h-full min-w-0"
           />
         )}
