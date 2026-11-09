@@ -83,7 +83,7 @@ export const computers = {
   ipAddress: "IP address",
   hostname: "Hostname",
   memory: "Memory",
-  usageOfTotal: "{used} / {total} GB",
+  usageDetail: "{used} GB used of {total} GB",
   disk: "Disk",
   daemon: "Daemon",
   daemonProcess: "PID {pid}, up {uptime}",

@@ -81,7 +81,7 @@ export const computers: Translation<typeof en> = {
   ipAddress: "IP 地址",
   hostname: "主机名",
   memory: "内存",
-  usageOfTotal: "{used} / {total} GB",
+  usageDetail: "已用 {used} GB,共 {total} GB",
   disk: "磁盘",
   daemon: "守护进程",
   daemonProcess: "PID {pid},已运行 {uptime}",

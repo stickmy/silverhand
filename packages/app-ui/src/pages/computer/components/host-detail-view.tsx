@@ -88,7 +88,8 @@ import {
 } from "@/features/session/hooks";
 import { useNav } from "@/router";
 import { Button } from "@/components/ui/button";
-import { useCompactLayout } from "@/navigation/layout";
+import { useCoarsePointer, useCompactLayout } from "@/navigation/layout";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/cn";
 import { paneChrome } from "@/components/layout/pane-chrome";
 import {
@@ -568,41 +569,43 @@ function ComputerSection({
 }): JSX.Element {
   return (
     <HostSection title={t("computers.computer")}>
-      <dl data-host-system-list className="flex flex-col gap-2.5">
-        {snapshot.ip ? (
-          <SystemField label={t("computers.ipAddress")}>
-            <CopyableValue value={snapshot.ip} />
-          </SystemField>
-        ) : null}
-        {snapshot.hostname ? (
-          <SystemField label={t("computers.hostname")}>
-            <span className="text-text-primary">{snapshot.hostname}</span>
-          </SystemField>
-        ) : null}
-        <SystemField label={t("computers.os")}>
-          <span className="text-text-primary">{formatOsShort(snapshot.os)}</span>
-          {snapshot.os_arch ? (
-            <span className="ml-2 text-text-muted">{snapshot.os_arch}</span>
+      <TooltipProvider>
+        <dl data-host-system-list className="flex flex-col gap-2.5">
+          {snapshot.ip ? (
+            <SystemField label={t("computers.ipAddress")}>
+              <CopyableValue value={snapshot.ip} />
+            </SystemField>
           ) : null}
-        </SystemField>
-        <UsageField
-          label={t("computers.memory")}
-          used={snapshot.memory_used_bytes}
-          total={snapshot.memory_total_bytes}
-          base={1024}
-        />
-        <UsageField
-          label={t("computers.disk")}
-          used={snapshot.disk_used_bytes}
-          total={snapshot.disk_total_bytes}
-          base={1000}
-        />
-        {snapshot.system_uptime_ms !== undefined ? (
-          <SystemField label={t("computers.uptime")}>
-            <span className="text-text-primary">{formatUptime(snapshot.system_uptime_ms)}</span>
+          {snapshot.hostname ? (
+            <SystemField label={t("computers.hostname")}>
+              <span className="text-text-primary">{snapshot.hostname}</span>
+            </SystemField>
+          ) : null}
+          <SystemField label={t("computers.os")}>
+            <span className="text-text-primary">{formatOsShort(snapshot.os)}</span>
+            {snapshot.os_arch ? (
+              <span className="ml-2 text-text-muted">{snapshot.os_arch}</span>
+            ) : null}
           </SystemField>
-        ) : null}
-      </dl>
+          <UsageField
+            label={t("computers.memory")}
+            used={snapshot.memory_used_bytes}
+            total={snapshot.memory_total_bytes}
+            base={1024}
+          />
+          <UsageField
+            label={t("computers.disk")}
+            used={snapshot.disk_used_bytes}
+            total={snapshot.disk_total_bytes}
+            base={1000}
+          />
+          {snapshot.system_uptime_ms !== undefined ? (
+            <SystemField label={t("computers.uptime")}>
+              <span className="text-text-primary">{formatUptime(snapshot.system_uptime_ms)}</span>
+            </SystemField>
+          ) : null}
+        </dl>
+      </TooltipProvider>
       <dl
         data-host-system-list
         className="mt-4 flex flex-col gap-1.5 border-t border-dashed border-border-subtle pt-4 text-xs text-text-muted"
@@ -624,9 +627,9 @@ function ComputerSection({
   );
 }
 
-/** Memory and disk share one reading: a short bar, used of total, and the
- *  share. Memory counts in binary units and disk in decimal ones, matching
- *  how each OS reports them. */
+/** Memory and disk share one reading: a short bar and the share. The amounts
+ *  live in a tooltip (tap on touch). Memory counts in binary units and disk in
+ *  decimal ones, matching how each OS reports them. */
 function UsageField({
   label,
   used,
@@ -638,35 +641,45 @@ function UsageField({
   total: number | undefined;
   base: 1000 | 1024;
 }): JSX.Element | null {
+  const coarse = useCoarsePointer();
+  const [tapped, setTapped] = useState(false);
+
   if (used === undefined || total === undefined || total <= 0) {
     return null;
   }
 
   const ratio = Math.min(1, Math.max(0, used / total));
   const hot = ratio >= USAGE_WARNING_RATIO;
+  const detail = t("computers.usageDetail", {
+    used: formatGigabytes(used, base),
+    total: formatGigabytes(total, base),
+  });
 
   return (
     <SystemField label={label}>
-      <span className="flex items-center gap-3">
-        <span
-          aria-hidden
-          className="relative h-1.5 w-16 shrink-0 bg-bg-elevated [[data-layout=regular]_&]:w-28"
-        >
+      <Tooltip open={coarse ? tapped : undefined} onOpenChange={coarse ? setTapped : undefined}>
+        <TooltipTrigger asChild onClick={coarse ? () => setTapped(true) : undefined}>
           <span
-            className={cn("absolute inset-y-0 left-0", hot ? "bg-warning" : "bg-text-primary")}
-            style={{ width: `${ratio * 100}%` }}
-          />
-        </span>
-        <span className="text-text-primary">
-          {t("computers.usageOfTotal", {
-            used: formatGigabytes(used, base),
-            total: formatGigabytes(total, base),
-          })}
-        </span>
-        <span className={hot ? "font-semibold text-warning" : "text-text-muted"}>
-          {Math.round(ratio * 100)}%
-        </span>
-      </span>
+            tabIndex={0}
+            aria-label={`${label}: ${detail}`}
+            className="inline-flex items-center gap-3 outline-none"
+          >
+            <span
+              aria-hidden
+              className="relative h-1.5 w-16 shrink-0 bg-bg-elevated [[data-layout=regular]_&]:w-28"
+            >
+              <span
+                className={cn("absolute inset-y-0 left-0", hot ? "bg-warning" : "bg-text-primary")}
+                style={{ width: `${ratio * 100}%` }}
+              />
+            </span>
+            <span className={hot ? "font-semibold text-warning" : "text-text-primary"}>
+              {Math.round(ratio * 100)}%
+            </span>
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>{detail}</TooltipContent>
+      </Tooltip>
     </SystemField>
   );
 }
