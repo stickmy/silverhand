@@ -29,7 +29,24 @@ interface NewComputerDialogProps {
   onCreated?: (hostId: string) => void;
 }
 
-type Phase = "creating" | "waiting" | "naming" | "error";
+/**
+ * One open of the dialog. `creating` mints the draft; `waiting` shows the
+ * connect command until the daemon attaches; `naming` asks for the required
+ * name; `committing` is the finalize PATCH in flight, from which a close is
+ * refused. Only `waiting` and `naming` hold a draft that a close deletes.
+ */
+type Flow =
+  | { phase: "creating" }
+  | { phase: "error" }
+  | { phase: "waiting"; created: HostCreateResponse }
+  | { phase: "naming"; created: HostCreateResponse; finalizeFailed: boolean }
+  | { phase: "committing"; created: HostCreateResponse };
+
+/** Per-open identity for the in-flight create: a close marks it abandoned so a
+ *  draft minted after the close is cancelled on arrival, not stranded. */
+interface OpenSession {
+  abandoned: boolean;
+}
 
 /**
  * #task:1348 — the "Add computer" flow.
@@ -60,27 +77,12 @@ export function NewComputerDialog({
   onOpenChange,
   onCreated,
 }: NewComputerDialogProps): JSX.Element {
-  const [phase, setPhase] = useState<Phase>("creating");
-  const [created, setCreated] = useState<HostCreateResponse | null>(null);
+  const [flow, setFlow] = useState<Flow>({ phase: "creating" });
   const [name, setName] = useState("");
-  const [finalizeError, setFinalizeError] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
-  const startedRef = useRef(false);
-  // Set true when the dialog is closed before the daemon attaches. The
-  // in-flight create reads it on resolve so a computer minted AFTER the
-  // close (the create→close race) is cancelled immediately rather than
-  // stranded as an orphan pending row.
-  const cancelOnResolveRef = useRef(false);
-  // Set true the moment finalize (the Done button) starts committing the
-  // draft into a real computer, and kept true through success. Once we're
-  // committing, a close is NOT an abandon — we must not delete the row.
-  //
-  // This guard became load-bearing after #task:1355: `DELETE /api/hosts/:id`
-  // now hard-deletes a *finalized* empty user-managed computer (the old
-  // `finalized_at` 409 guard is gone). Without this ref, a close that races
-  // the finalize PATCH (Esc / overlay click while it's in flight, or right
-  // after it lands) would destroy the computer the user just created.
-  const committingRef = useRef(false);
+  const sessionRef = useRef<OpenSession | null>(null);
+
+  const created = "created" in flow ? flow.created : null;
 
   const createComputer = useCreateComputerMutation();
   const cancelComputer = useCancelPendingComputerMutation();
@@ -97,43 +99,35 @@ export function NewComputerDialog({
   // ask for a name.
   const draftQuery = useHostByIdQuery(created?.host_id, {
     enabled: created !== null,
-    refetchInterval: phase === "waiting" ? 2000 : false,
+    refetchInterval: flow.phase === "waiting" ? 2000 : false,
   });
   const draft = draftQuery.data ?? null;
 
-  // Mint exactly once per open. `startedRef` guards against the effect
-  // re-firing (a second create would leave an orphan pending computer).
+  // Mint exactly once per open: the session ref is the once-guard (a second
+  // create would leave an orphan pending computer).
   useEffect(() => {
     if (!open) {
-      startedRef.current = false;
-      committingRef.current = false;
-      setPhase("creating");
-      setCreated(null);
+      sessionRef.current = null;
+      setFlow({ phase: "creating" });
       setName("");
-      setFinalizeError(false);
       return;
     }
-    if (startedRef.current) return;
-    startedRef.current = true;
-    cancelOnResolveRef.current = false;
+    if (sessionRef.current) return;
+    const session: OpenSession = { abandoned: false };
+    sessionRef.current = session;
     void (async () => {
       try {
         const res = await createComputer.mutateAsync();
-        // If the dialog was closed while this create was in flight, the
-        // freshly-minted computer is an orphan draft — cancel it instead
-        // of committing it to state.
-        if (cancelOnResolveRef.current) {
+        if (session.abandoned) {
           void cancelComputer.mutateAsync(res.host_id);
           return;
         }
-        setCreated(res);
-        setPhase("waiting");
+        setFlow({ phase: "waiting", created: res });
       } catch {
-        setPhase("error");
+        if (!session.abandoned) setFlow({ phase: "error" });
       }
     })();
-    // Intentionally keyed on `open` only — the ref guard makes this a
-    // once-per-open effect; `createComputer.mutateAsync` is stable.
+    // Keyed on `open` only; the session ref makes this once per open.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -141,13 +135,17 @@ export function NewComputerDialog({
   // (or `active`, if a poll races past it) both mean the connection is
   // live, which is the only prerequisite for the finalize/name step.
   useEffect(() => {
-    if (phase === "waiting" && (draft?.status === "attached" || draft?.status === "active")) {
-      setPhase("naming");
-    }
-  }, [phase, draft?.status]);
+    if (draft?.status !== "attached" && draft?.status !== "active") return;
+    setFlow((prev) =>
+      prev.phase === "waiting"
+        ? { phase: "naming", created: prev.created, finalizeFailed: false }
+        : prev,
+    );
+  }, [draft?.status]);
 
   const handleFinish = async (): Promise<void> => {
-    if (!created) return;
+    if (flow.phase !== "naming") return;
+    const draftCreated = flow.created;
     const label = name.trim();
     // Naming is REQUIRED: the PATCH both names the computer and finalizes
     // the setup (the backend rejects an empty label on a draft with
@@ -167,22 +165,18 @@ export function NewComputerDialog({
       return;
     }
     setNameError(null);
-    setFinalizeError(false);
-    // Categorical: from the moment we start committing, the draft is being
-    // promoted to a real computer — a close must never delete it (see
-    // `committingRef`). Set BEFORE the await so a close racing the in-flight
-    // PATCH is already covered.
-    committingRef.current = true;
+    // From here the draft is being promoted to a real computer, so a close
+    // must never delete it; entering `committing` before the await covers a
+    // close that races the PATCH.
+    setFlow({ phase: "committing", created: draftCreated });
     try {
       await rename.mutateAsync({ display_label: label });
     } catch {
-      // Finalize failed → this is still an un-finalized draft, so closing
-      // may legitimately abandon (and delete) it again.
-      committingRef.current = false;
-      setFinalizeError(true);
+      // Still an un-finalized draft: closing may abandon (and delete) it again.
+      setFlow({ phase: "naming", created: draftCreated, finalizeFailed: true });
       return;
     }
-    onCreated?.(created.host_id);
+    onCreated?.(draftCreated.host_id);
     onOpenChange(false);
   };
 
@@ -197,22 +191,22 @@ export function NewComputerDialog({
   // on a finalized empty computer — the backend `finalized_at` guard that
   // used to make this cancel a benign no-op is GONE. So the renderer itself
   // must decide "is this an abandon of a draft?" and only then delete:
-  //   - `committingRef` true  → finalizing / finalized → close is IGNORED
-  //     entirely (not merely delete-skipped): letting the modal close
-  //     mid-commit would, if the finalize PATCH then FAILS, leave a row that
-  //     is neither deleted nor finalized — an attached draft that never
-  //     enters the rail and the user can't recover (Cindy). Success closes
-  //     via handleFinish's raw `onOpenChange`; a failure resets
-  //     `committingRef` so the user can retry, or close to abandon (which
+  //   - `committing` → close is IGNORED entirely (not merely delete-skipped):
+  //     letting the modal close mid-commit would, if the finalize PATCH then
+  //     FAILS, leave a row that is neither deleted nor finalized, an attached
+  //     draft that never enters the rail and the user can't recover (Cindy).
+  //     Success closes via handleFinish's raw `onOpenChange`; a failure
+  //     returns to `naming` so the user can retry, or close to abandon (which
   //     then deletes the draft).
-  //   - create still in flight → `cancelOnResolveRef` cancels the orphan on
-  //     resolve (a pre-attach draft, always safe to delete).
+  //   - create still in flight → the open session is marked abandoned and the
+  //     orphan is cancelled on resolve (a pre-attach draft, always safe to
+  //     delete).
   // The Done path closes via the raw `onOpenChange` prop, bypassing this
   // handler entirely, so the happy path never routes through a delete.
   const handleOpenChange = (next: boolean): void => {
-    if (!next && committingRef.current) return;
+    if (!next && flow.phase === "committing") return;
     if (!next) {
-      cancelOnResolveRef.current = true;
+      if (sessionRef.current) sessionRef.current.abandoned = true;
       if (created) void cancelComputer.mutateAsync(created.host_id);
     }
     onOpenChange(next);
@@ -230,19 +224,19 @@ export function NewComputerDialog({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{computerCopy().dialogTitle}</DialogTitle>
-          {phase !== "naming" ? (
+          {flow.phase !== "naming" && flow.phase !== "committing" ? (
             <DialogDescription>{computerCopy().dialogIntro}</DialogDescription>
           ) : null}
         </DialogHeader>
 
-        {phase === "error" ? (
+        {flow.phase === "error" ? (
           <p className="text-sm text-error">{computerCopy().createFailed}</p>
-        ) : phase === "creating" || !created ? (
+        ) : flow.phase === "creating" ? (
           <div className="flex items-center gap-2 py-6 text-sm text-text-muted">
             <SpinnerIcon className="size-4 animate-spin" />
             {computerCopy().addComputer}…
           </div>
-        ) : phase === "naming" ? (
+        ) : flow.phase === "naming" || flow.phase === "committing" ? (
           <form
             className="flex flex-col gap-3"
             onSubmit={(e) => {
@@ -274,7 +268,7 @@ export function NewComputerDialog({
                 </p>
               ) : null}
             </div>
-            {finalizeError ? (
+            {flow.phase === "naming" && flow.finalizeFailed ? (
               <p className="text-sm text-error">{computerCopy().finalizeFailed}</p>
             ) : null}
             <div className="mt-1 flex justify-end gap-2">
@@ -282,18 +276,17 @@ export function NewComputerDialog({
               <Button
                 type="submit"
                 variant="primary"
-                disabled={rename.isPending || name.trim() === ""}
+                disabled={flow.phase === "committing" || name.trim() === ""}
               >
                 {computerCopy().finish}
               </Button>
             </div>
           </form>
         ) : (
-          // phase === 'waiting'
           <div className="flex flex-col gap-3">
             <ConnectionCommandCard
-              daemonNpmSpec={created.daemon_npm_spec}
-              connectToken={created.connect_token}
+              daemonNpmSpec={flow.created.daemon_npm_spec}
+              connectToken={flow.created.connect_token}
               connectedServerUrl={backendInfo.data?.url ?? ""}
             />
 
