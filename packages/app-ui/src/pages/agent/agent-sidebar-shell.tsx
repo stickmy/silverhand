@@ -6,7 +6,7 @@ import type { AgentDto, HostDto } from "@silverhand/shared";
 import { useAgents, useAgentPresence } from "@/features/agents/hooks/hooks";
 import { projectPresence } from "@/features/agents/model/presence-projection";
 import { useAgentAvatarObjectUrls } from "@/features/agents/hooks/avatar-hooks";
-import { CreateAgentDialog } from "@/pages/agent/components/create-agent-dialog";
+import { CreateAgentDialog } from "@/features/agents/components/create-agent-dialog";
 import { useHostsQuery } from "@/features/computers/hooks/hooks";
 import { hostDisplayName, unknownComputerLabel } from "@/features/computers/model/host-display";
 import {

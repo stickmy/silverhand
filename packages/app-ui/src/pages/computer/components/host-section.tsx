@@ -35,16 +35,19 @@ export const TONE_BANNER_CLASS: Record<HostStatusTone, string> = {
  */
 export function HostSection({
   title,
+  action,
   collapsible = false,
   defaultOpen = true,
   children,
 }: {
   /** ReactNode so the caller can compose inline trailing content
-   *  (e.g. an agent count number after the title text). Per shiki
-   *  dogfood `6QIZeGVS8u8yJ137`: no right-aligned headerSlot for
-   *  this surface — counts read better attached to the title than
-   *  floating at the far edge. */
+   *  (e.g. an agent count number after the title text). Counts stay on
+   *  the title rather than at the far edge (shiki dogfood
+   *  `6QIZeGVS8u8yJ137`). */
   title: ReactNode;
+  /** A control at the header's right edge, for the one action that adds to
+   *  this section (not for counts, which stay on the title). */
+  action?: ReactNode;
   /** When set, the header becomes a disclosure toggle and the body
    *  mounts only while open. Used by the network-proxy section, which
    *  shiki wants collapsed by default so the page leads with identity +
@@ -78,7 +81,10 @@ export function HostSection({
           {heading}
         </button>
       ) : (
-        <header className="mb-3.5">{heading}</header>
+        <header className="mb-3.5 flex min-h-6 items-center justify-between gap-3">
+          {heading}
+          {action}
+        </header>
       )}
       {(!collapsible || open) && <div className={cn(collapsible && "mt-3.5")}>{children}</div>}
     </section>

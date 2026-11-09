@@ -31,12 +31,12 @@ import {
 } from "@/features/computers/hooks/hooks";
 import { isComputerAvailable } from "@/features/computers/model/host-display";
 import { ComputerPicker } from "@/features/computers/components/computer-picker";
-import { useCreateAgent, useGiveAgentDefaultAvatar } from "../../../features/agents/hooks/hooks";
+import { useCreateAgent, useGiveAgentDefaultAvatar } from "../hooks/hooks";
 import {
   deriveRuntimePickerMode,
   runtimeChipDisabled,
   runtimeSectionHint,
-} from "../../../features/agents/model/runtime-detection-ui";
+} from "../model/runtime-detection-ui";
 import { t } from "@/lib/i18n";
 
 // The picker lists only offerable runtimes (`selectable`) — shiki: 没支持的
@@ -64,6 +64,9 @@ interface CreateAgentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated?: (id: string) => void;
+  /** Opened from a computer's page: that computer is the default whenever it
+   *  is online, ahead of the sole-available rule. */
+  preferredHostId?: string;
 }
 
 /** The only two runtime-detection facts the parent form needs from the
@@ -108,6 +111,7 @@ export function CreateAgentDialog({
   open,
   onOpenChange,
   onCreated,
+  preferredHostId,
 }: CreateAgentDialogProps): JSX.Element {
   const [name, setName] = useState("");
   const [runtime, setRuntime] = useState<RuntimeKind>("claude");
@@ -170,7 +174,11 @@ export function CreateAgentDialog({
   // probes resolve one by one, a transient single `available` must NOT
   // auto-select, or two online computers could still end up with a default.
   const defaultHostId =
-    allSettled && availableHosts.length === 1 ? (availableHosts[0]?.id ?? null) : null;
+    preferredHostId && availableHosts.some((host) => host.id === preferredHostId)
+      ? preferredHostId
+      : allSettled && availableHosts.length === 1
+        ? (availableHosts[0]?.id ?? null)
+        : null;
 
   // Preselect the sole available host when the picker opens; clear on close.
   // If a previously-chosen host drops offline while the dialog is open, fall

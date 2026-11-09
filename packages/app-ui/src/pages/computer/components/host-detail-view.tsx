@@ -64,6 +64,7 @@ import {
   CopyIcon,
   CpuIcon,
   DisconnectedIcon,
+  PlusIcon,
   RefreshIcon,
   SpinnerIcon,
   WarningIcon,
@@ -78,6 +79,7 @@ import type {
 } from "@silverhand/shared";
 import { reasoningEffortLabel, RuntimeKindSchema, runtimeLabel } from "@silverhand/shared";
 import { AgentAvatar } from "@/components/agent-avatar";
+import { CreateAgentDialog } from "@/features/agents/components/create-agent-dialog";
 import { AVATAR_PX } from "@/components/avatar-scale";
 import { useAgentAvatarObjectUrls } from "@/features/agents/hooks/avatar-hooks";
 import { useUsersById } from "@/features/users/hooks";
@@ -251,7 +253,15 @@ export function HostDetailView({ host }: HostDetailViewProps): JSX.Element {
             ) : (
               <OfflineSection status={statusQuery.data} />
             )}
-            <RegisteredAgentsSection hostId={host.id} agents={statusQuery.data.agents} />
+            <RegisteredAgentsSection
+              hostId={host.id}
+              agents={statusQuery.data.agents}
+              action={
+                canEditHostLocalConfig && host.placeable ? (
+                  <CreateAgentAction hostId={host.id} />
+                ) : null
+              }
+            />
             {canEditHostLocalConfig ? (
               <ProxySection hostId={host.id} availability={statusQuery.data.availability} />
             ) : null}
@@ -870,9 +880,11 @@ export function RegisteredAgentsSection({
   hostId,
   agents,
   live = true,
+  action = null,
 }: {
   hostId: string;
   agents: AgentOnHostDto[];
+  action?: ReactNode;
   /** Off for a public read, which has no realtime liveness to follow: the
    *  pips then show the status read's own `online`. */
   live?: boolean;
@@ -904,6 +916,7 @@ export function RegisteredAgentsSection({
           <span className="text-text-muted">{agents.length}</span>
         </span>
       }
+      action={action}
     >
       {agents.length === 0 ? (
         <p className="text-sm text-text-muted">{t("computers.noAgentsAreRegistered")}</p>
@@ -926,6 +939,29 @@ export function RegisteredAgentsSection({
         </ul>
       )}
     </HostSection>
+  );
+}
+
+/** Creates an agent with this computer preselected. Only the owner sees it;
+ *  the new agent joins the list through a re-read of this computer's status,
+ *  which creation does not otherwise signal. */
+function CreateAgentAction({ hostId }: { hostId: string }): JSX.Element {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <Button variant="ghost" size="xs" className="gap-1.5" onClick={() => setOpen(true)}>
+        <PlusIcon className="size-3.5" aria-hidden />
+        {t("agentPage.newAgent")}
+      </Button>
+      <CreateAgentDialog
+        open={open}
+        onOpenChange={setOpen}
+        preferredHostId={hostId}
+        onCreated={() => void qc.invalidateQueries({ queryKey: hostStatusKey(hostId) })}
+      />
+    </>
   );
 }
 
