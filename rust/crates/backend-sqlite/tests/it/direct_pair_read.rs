@@ -33,24 +33,24 @@ async fn seeded_scope(path: &std::path::Path, scope: &str) {
          ('agent-1', 'agent', 'Agent One', 'codex', 'host-1', 'agent-key', 'image/png', \
          'user-1', 1, 21, ?)",
         // Oldest, viewer in slot B, agent counterpart.
-        "INSERT INTO conversations (id, placement_kind, roster_policy, title, status, \
+        "INSERT INTO conversations (id, placement_kind, roster_policy, title, \
          endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, created_at, updated_at) \
-         VALUES ('pair-agent', 'direct_pair', 'fixed', '', 'open', 'agent', 'agent-1', 'human', \
+         VALUES ('pair-agent', 'direct_pair', 'fixed', '', 'agent', 'agent-1', 'human', \
          'user-1', 100, 100)",
         // Same creation time as the next row; id is the deterministic tie-break.
-        "INSERT INTO conversations (id, placement_kind, roster_policy, title, status, \
+        "INSERT INTO conversations (id, placement_kind, roster_policy, title, \
          endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, created_at, updated_at) \
-         VALUES ('pair-a-human', 'direct_pair', 'fixed', '', 'open', 'human', 'user-1', 'human', \
+         VALUES ('pair-a-human', 'direct_pair', 'fixed', '', 'human', 'user-1', 'human', \
          'user-2', 200, 200)",
         // A second row at the same millisecond exercises the id tie-break.
-        "INSERT INTO conversations (id, placement_kind, roster_policy, title, status, \
+        "INSERT INTO conversations (id, placement_kind, roster_policy, title, \
          endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, created_at, updated_at) \
-         VALUES ('pair-b-human', 'direct_pair', 'fixed', '', 'open', 'human', 'user-1', 'human', \
+         VALUES ('pair-b-human', 'direct_pair', 'fixed', '', 'human', 'user-1', 'human', \
          'user-3', 200, 200)",
         // A foreign viewer's row must never leak onto user-1's complete face.
-        "INSERT INTO conversations (id, placement_kind, roster_policy, title, status, \
+        "INSERT INTO conversations (id, placement_kind, roster_policy, title, \
          endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, created_at, updated_at) \
-         VALUES ('pair-foreign', 'direct_pair', 'fixed', '', 'open', 'agent', 'agent-1', 'human', \
+         VALUES ('pair-foreign', 'direct_pair', 'fixed', '', 'agent', 'agent-1', 'human', \
          'user-3', 50, 50)",
         "INSERT INTO messages (id, conversation_id, from_kind, from_agent_id, content, seq, \
          created_at) VALUES ('message-1', 'pair-agent', 'agent', 'agent-1', 'one', 1, 1)",
@@ -136,9 +136,9 @@ async fn the_complete_face_has_no_hidden_page_or_activity_cap() {
         .await
         .unwrap();
         sqlx::query(
-            "INSERT INTO conversations (id, placement_kind, roster_policy, title, status, \
+            "INSERT INTO conversations (id, placement_kind, roster_policy, title, \
              endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, created_at, \
-             updated_at) VALUES (?, 'direct_pair', 'fixed', '', 'open', 'agent', ?, 'human', \
+             updated_at) VALUES (?, 'direct_pair', 'fixed', '', 'agent', ?, 'human', \
              'user-1', ?, ?)",
         )
         .bind(&pair)
@@ -245,9 +245,9 @@ async fn malformed_endpoint_and_driver_failures_preserve_their_distinct_sources(
     for statement in [
         "INSERT INTO users (id, name, display_name, created_at, updated_at) \
          VALUES ('user-1', 'viewer', 'Viewer', 1, 1)",
-        "INSERT INTO conversations (id, placement_kind, roster_policy, title, status, \
+        "INSERT INTO conversations (id, placement_kind, roster_policy, title, \
          endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, created_at, updated_at) \
-         VALUES ('pair-corrupt', 'direct_pair', 'fixed', '', 'open', 'human', 'user-1', \
+         VALUES ('pair-corrupt', 'direct_pair', 'fixed', '', 'human', 'user-1', \
          'machine', 'x', 1, 1)",
     ] {
         sqlx::query(statement).execute(&mut db).await.unwrap();
@@ -280,9 +280,9 @@ async fn malformed_endpoint_and_driver_failures_preserve_their_distinct_sources(
     for statement in [
         "INSERT INTO users (id, name, display_name, created_at, updated_at) \
          VALUES ('user-1', 'viewer', 'Viewer', 1, 1)",
-        "INSERT INTO conversations (id, placement_kind, roster_policy, title, status, \
+        "INSERT INTO conversations (id, placement_kind, roster_policy, title, \
          endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, created_at, updated_at) \
-         VALUES ('pair-corrupt', 'direct_pair', 'fixed', '', 'open', 'human', '', \
+         VALUES ('pair-corrupt', 'direct_pair', 'fixed', '', 'human', '', \
          'human', 'user-1', 1, 1)",
     ] {
         sqlx::query(statement).execute(&mut db).await.unwrap();

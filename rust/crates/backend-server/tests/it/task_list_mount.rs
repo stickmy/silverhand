@@ -159,9 +159,9 @@ const SEED: &[&str] = &[
     "INSERT INTO workspace_agent_capabilities (workspace_id, agent_id, capability) \
      VALUES ('workspace-1', 'agent-1', 'read_tasks')",
     "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-     title_key, status, visibility, created_at, updated_at, latest_message_seq) \
+     title_key, visibility, created_at, updated_at, latest_message_seq) \
      VALUES ('conv000000000001', 'workspace-1', 'workspace', 'open', 'General Chat', \
-     'general chat', 'open', 'private', 0, 0, 0)",
+     'general chat', 'private', 0, 0, 0)",
     "INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) \
      VALUES ('conv000000000001', 'agent-1', 0)",
     "INSERT INTO tasks (id, workspace_id, task_number, conversation_id, title, status, \
@@ -339,7 +339,11 @@ fn valid_migration_titles() -> Vec<MigrationTitleCase> {
         .collect()
 }
 
-const UNDO_STEP_100: &str = "DROP TRIGGER users_avatar_design_follows_image; \
+const UNDO_STEP_100: &str = "ALTER TABLE conversations ADD COLUMN status TEXT NOT NULL DEFAULT 'idle'; \
+     ALTER TABLE conversations ADD COLUMN closed_at INTEGER; \
+     ALTER TABLE conversations ADD COLUMN close_summary TEXT; \
+     CREATE INDEX idx_conversations_status ON conversations(status); \
+     DROP TRIGGER users_avatar_design_follows_image; \
      DROP TRIGGER users_avatar_design_release; DROP TRIGGER users_avatar_design_delete; \
      DROP TRIGGER agents_avatar_design_follows_image; DROP TRIGGER agents_avatar_design_release; \
      DROP TRIGGER agents_avatar_design_delete; DROP INDEX idx_users_avatar_design; \
@@ -353,7 +357,7 @@ async fn seed_step95_titles(path: &std::path::Path, cases: &[MigrationTitleCase]
     use sqlx::Executor;
 
     let mut db = current_schema::create_current_schema(path).await;
-    // The snapshot already carries steps 100-102; undo them so the replay from 96 is real.
+    // The snapshot already carries steps 100-103; undo them so the replay from 96 is real.
     db.execute(sqlx::raw_sql(UNDO_STEP_100)).await.unwrap();
     for statement in SEED {
         db.execute(*statement).await.unwrap();

@@ -169,11 +169,6 @@ pub(super) fn mutation_refusal(refusal: ReactionMutationRefusal) -> Response {
             })),
         )
             .into_response(),
-        ReactionMutationRefusal::ConversationClosed => coded(
-            StatusCode::CONFLICT,
-            "conversation is closed",
-            "conversation_closed",
-        ),
         ReactionMutationRefusal::ConversationArchived => coded(
             StatusCode::CONFLICT,
             "conversation is archived",

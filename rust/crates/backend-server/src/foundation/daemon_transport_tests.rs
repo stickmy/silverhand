@@ -1065,7 +1065,7 @@ mod run_states_same_owner {
     use silverhand_backend_core::{
         conversation_messaging::messaging::{
             collaboration::{
-                channel_directory::{ChannelStatus, ChannelVisibility, DirectoryRoster},
+                channel_directory::{ChannelVisibility, DirectoryRoster},
                 channel_lifecycle::{
                     ChannelDetailFact, ChannelDetailReadPort, ChannelDetailRefusal,
                     ChannelLifecycleRow,
@@ -1121,9 +1121,6 @@ mod run_states_same_owner {
                     WorkspaceId::parse("w").unwrap(),
                     DirectoryRoster::Open,
                     CanonicalConversationTitle::parse("General").unwrap(),
-                    ChannelStatus::Active,
-                    None,
-                    None,
                     None,
                     None,
                     0,
@@ -2935,10 +2932,9 @@ async fn start_archive_fixture(path: &std::path::Path) -> sqlx::SqliteConnection
     .unwrap();
     sqlx::query(
         "INSERT INTO conversations (
-            id, workspace_id, placement_kind, roster_policy, title, title_key,
-            status, created_at, updated_at
+            id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at
          ) VALUES ('conversation0001', 'workspace-1', 'workspace', 'open',
-             'Conversation One', 'conversation one', 'active', 1, 1)",
+             'Conversation One', 'conversation one', 1, 1)",
     )
     .execute(&mut db)
     .await
@@ -3072,10 +3068,9 @@ async fn a_restarted_process_cannot_release_an_old_hosts_real_inbox_lease() {
     .unwrap();
     sqlx::query(
         "INSERT INTO conversations (
-            id, workspace_id, placement_kind, roster_policy, title, title_key,
-            status, created_at, updated_at
+            id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at
          ) VALUES ('conversation0001', 'workspace-1', 'workspace', 'open',
-             'Conversation One', 'conversation one', 'active', 1, 1)",
+             'Conversation One', 'conversation one', 1, 1)",
     )
     .execute(&mut db)
     .await

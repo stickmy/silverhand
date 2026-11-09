@@ -43,7 +43,6 @@ pub struct WorkspaceConversationRef {
     roster: ConversationRosterPolicy,
     title: String,
     workspace: WorkspaceId,
-    closed_at: Option<i64>,
     archived_at: Option<i64>,
 }
 
@@ -53,7 +52,6 @@ impl WorkspaceConversationRef {
         roster: ConversationRosterPolicy,
         title: String,
         workspace: WorkspaceId,
-        closed_at: Option<i64>,
         archived_at: Option<i64>,
     ) -> Self {
         Self {
@@ -61,7 +59,6 @@ impl WorkspaceConversationRef {
             roster,
             title,
             workspace,
-            closed_at,
             archived_at,
         }
     }
@@ -99,10 +96,6 @@ impl BoundWorkspaceConversationRef {
 
     pub fn workspace(&self) -> &WorkspaceId {
         &self.0.workspace
-    }
-
-    pub const fn closed_at(&self) -> Option<i64> {
-        self.0.closed_at
     }
 
     pub const fn archived_at(&self) -> Option<i64> {

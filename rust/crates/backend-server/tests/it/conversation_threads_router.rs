@@ -41,8 +41,8 @@ async fn seed(path: &std::path::Path) {
          ('threads-w','Threads Workspace','threads-workspace',1,1)",
         "INSERT OR IGNORE INTO workspace_users(workspace_id,user_id,joined_at,role) VALUES \
          ('threads-w','local',1,'member')",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,created_at,updated_at) \
-         VALUES('c','threads-w','workspace','open','Threads','threads','idle','private',1,1)",
+        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) \
+         VALUES('c','threads-w','workspace','open','Threads','threads','private',1,1)",
         "INSERT OR IGNORE INTO conversation_users(conversation_id,user_id,joined_at) VALUES('c','local',1)",
         "INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,seq,created_at,author_id,author_name,author_display_name) VALUES \
          ('root-1','c','user','root-user','root one',1,10,'root-user','root-user','Root User')",

@@ -471,9 +471,6 @@ where
         Ok(TaskCreateOutcome::ConversationNotFound) => {
             create_admission_refusal(TaskCreateAdmissionFailure::ConversationNotFound)
         }
-        Ok(TaskCreateOutcome::ConversationClosed) => {
-            create_admission_refusal(TaskCreateAdmissionFailure::ConversationClosed)
-        }
         Ok(TaskCreateOutcome::ConversationArchived) => {
             create_admission_refusal(TaskCreateAdmissionFailure::ConversationArchived)
         }
@@ -537,7 +534,6 @@ fn conversation_readonly() -> Response {
 fn create_admission_refusal(failure: TaskCreateAdmissionFailure) -> Response {
     let (code, existing) = match failure {
         TaskCreateAdmissionFailure::ConversationNotFound => ("conversation_not_found", None),
-        TaskCreateAdmissionFailure::ConversationClosed => ("conversation_closed", None),
         TaskCreateAdmissionFailure::ConversationArchived => ("conversation_archived", None),
         TaskCreateAdmissionFailure::AgentNotFound => ("agent_not_found", None),
         TaskCreateAdmissionFailure::NotConversationMember => ("not_conversation_member", None),
@@ -1284,14 +1280,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn closed_and_archived_destinations_are_typed_zero_write_refusals() {
-        for (lifecycle, expected) in [
-            (TaskCreateConversationState::Closed, "conversation_closed"),
-            (
-                TaskCreateConversationState::Archived,
-                "conversation_archived",
-            ),
-        ] {
+    async fn archived_destinations_are_typed_zero_write_refusals() {
+        for (lifecycle, expected) in [(
+            TaskCreateConversationState::Archived,
+            "conversation_archived",
+        )] {
             let (app, counts) = app(Spec {
                 lifecycle: Some(lifecycle),
                 ..Spec::default()

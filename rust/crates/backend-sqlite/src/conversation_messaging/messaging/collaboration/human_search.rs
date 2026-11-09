@@ -69,7 +69,7 @@ const SELECT_CONVERSATIONS: &str = concat!(
      (SELECT ?,?,?,?,?,?,?,?), candidates AS (SELECT ",
     human_participation_source!("c", "p.viewer"),
     " AS source_viewer,c.id AS conversation_id,c.placement_kind,c.roster_policy,c.title,\
-     c.workspace_id AS conversation_workspace_id,c.closed_at,c.archived_at,c.created_at AS \
+     c.workspace_id AS conversation_workspace_id,c.archived_at,c.created_at AS \
      conversation_created_at,c.updated_at,w.id AS joined_workspace_id,w.name AS workspace_name,\
      w.owner_agent_id AS workspace_owner_agent_id FROM p JOIN conversations c LEFT \
      JOIN workspaces w ON w.id=c.workspace_id WHERE c.title LIKE p.needle ESCAPE '\\' AND \
@@ -91,7 +91,7 @@ macro_rules! message_candidates {
              message_conversation_id,m.from_kind,m.from_agent_id,m.from_user_id,m.author_id,\
              m.client_message_id,m.author_name,m.author_display_name,m.content,m.metadata,m.seq,m.created_at AS \
              message_created_at,m.thread_root_id,c.id AS conversation_id,c.placement_kind,\
-             c.roster_policy,c.title,c.workspace_id AS conversation_workspace_id,c.closed_at,\
+             c.roster_policy,c.title,c.workspace_id AS conversation_workspace_id,\
              c.created_at AS conversation_created_at,w.id AS joined_workspace_id,w.name AS \
              workspace_name,w.owner_agent_id AS workspace_owner_agent_id FROM p JOIN \
              messages m JOIN conversations c ON c.id=m.conversation_id LEFT JOIN workspaces w ON \
@@ -708,7 +708,6 @@ fn decode_conversation_ref(
         row.try_get("title")?,
         stored_workspace,
         decode_workspace_ref(row, "joined_workspace_id")?,
-        row.try_get("closed_at")?,
         row.try_get("conversation_created_at")?,
     )
     .map_err(HumanSearchStoreError::Projection)

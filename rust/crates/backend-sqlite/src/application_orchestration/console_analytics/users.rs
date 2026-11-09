@@ -206,8 +206,8 @@ mod tests {
         }
         database.execute(sqlx::raw_sql(
             "INSERT INTO workspaces(id,name,name_key,created_at,updated_at,owner_user_id) VALUES ('w','Work','work',0,0,'u00');
-             INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,created_at,updated_at)
-             VALUES ('c','w','workspace','open','General','general','active',0,0);"
+             INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,created_at,updated_at)
+             VALUES ('c','w','workspace','open','General','general',0,0);"
         )).await.unwrap();
         for (id, user, created_at, copy, kind) in [
             ("one", "u00", start, None, "user"),

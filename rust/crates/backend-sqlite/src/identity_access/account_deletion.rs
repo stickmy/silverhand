@@ -209,8 +209,8 @@ INSERT INTO auth_sessions (id,user_id,token_hash,created_at,last_used_at) \
 INSERT INTO hosts (id,name,kind,created_at,user_id,provisioning_source) VALUES ('h1','h1','remote',1,'user-1','user_invite'); \
 INSERT INTO workspaces (id,name,name_key,owner_user_id,created_at,updated_at) VALUES ('ws','WS','ws','user-2',1,1); \
 INSERT INTO workspace_users (workspace_id,user_id,joined_at,role) VALUES ('ws','user-2',1,'owner'),('ws','user-1',1,'member'); \
-INSERT INTO conversations (id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,created_at,updated_at) \
-  VALUES ('c','ws','workspace','open','C','c','idle','public',1,1); \
+INSERT INTO conversations (id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) \
+  VALUES ('c','ws','workspace','open','C','c','public',1,1); \
 INSERT INTO conversation_users (conversation_id,user_id,joined_at) VALUES ('c','user-1',1),('c','user-2',1); \
 INSERT INTO messages (id,conversation_id,from_kind,from_user_id,content,seq,created_at,author_id,author_name,author_display_name) \
   VALUES ('m1','c','user','user-1','hello from alice',1,1,'user-1','alice','Alice'), \

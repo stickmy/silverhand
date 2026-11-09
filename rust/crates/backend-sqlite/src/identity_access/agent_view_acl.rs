@@ -406,13 +406,13 @@ mod tests {
            ('w-home', 'u-home', 1), \
            ('w-other', 'u-other', 1)",
         "INSERT INTO conversations (id, workspace_id, endpoint_a_kind, endpoint_a_id, \
-             endpoint_b_kind, endpoint_b_id, placement_kind, roster_policy, title, status, \
+             endpoint_b_kind, endpoint_b_id, placement_kind, roster_policy, title, \
              created_at, updated_at) VALUES \
-           ('c-pair', NULL, 'agent', 'a1', 'human', 'u-pair', 'direct_pair', 'fixed', '', 'open', \
+           ('c-pair', NULL, 'agent', 'a1', 'human', 'u-pair', 'direct_pair', 'fixed', '', \
              1, 1), \
-           ('c-both', NULL, 'agent', 'a1', 'human', 'u-both', 'direct_pair', 'fixed', '', 'open', \
+           ('c-both', NULL, 'agent', 'a1', 'human', 'u-both', 'direct_pair', 'fixed', '', \
              1, 1), \
-           ('c-agents', NULL, 'agent', 'a1', 'agent', 'a2', 'direct_pair', 'fixed', '', 'open', \
+           ('c-agents', NULL, 'agent', 'a1', 'agent', 'a2', 'direct_pair', 'fixed', '', \
              1, 1)",
     ];
 
@@ -525,10 +525,10 @@ mod tests {
 
         let human_first = sqlx::query(
             "INSERT INTO conversations (id, workspace_id, endpoint_a_kind, endpoint_a_id, \
-                 endpoint_b_kind, endpoint_b_id, placement_kind, roster_policy, title, status, \
+                 endpoint_b_kind, endpoint_b_id, placement_kind, roster_policy, title, \
                  created_at, updated_at) VALUES \
                ('c-human-first', NULL, 'human', 'u-none', 'agent', 'a1', 'direct_pair', 'fixed', \
-                 '', 'open', 1, 1)",
+                 '', 1, 1)",
         )
         .execute(&mut db)
         .await;

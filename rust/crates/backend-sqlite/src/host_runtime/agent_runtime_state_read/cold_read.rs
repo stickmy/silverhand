@@ -79,14 +79,14 @@ const SELECT_AGENT_PARTICIPATIONS: &str = concat!(
     "WITH v(viewer) AS (SELECT ?) \
      SELECT c.id AS conversation_id, c.workspace_id AS workspace_id, w.name AS workspace_name, \
         c.placement_kind AS placement_kind, c.roster_policy AS roster_policy, \
-        c.title AS channel_title, c.closed_at AS closed_at, c.archived_at AS archived_at, ",
+        c.title AS channel_title, c.archived_at AS archived_at, ",
     human_participation_source!("c", "(SELECT viewer FROM v)"),
     " AS source_viewer \
        FROM conversations c \
        LEFT JOIN workspaces w ON w.id = c.workspace_id \
       WHERE ",
     agent_participation_predicate!(),
-    " ORDER BY c.closed_at IS NULL DESC, c.updated_at DESC"
+    " ORDER BY c.updated_at DESC"
 );
 
 /// Every durable seat with its per-scope undelivered queue depth and — for a conversation
@@ -298,7 +298,6 @@ fn decode_participation(
         placement_kind: row.try_get("placement_kind")?,
         roster_policy,
         channel_title: row.try_get("channel_title")?,
-        closed_at: row.try_get("closed_at")?,
         archived: archived_at.is_some(),
         viewer_can_read: source_viewer.is_some(),
     })

@@ -217,9 +217,9 @@ async fn seeded() -> (
          INSERT INTO workspace_members(workspace_id,agent_id,joined_at) VALUES('w','a',1); \
          INSERT INTO workspace_agent_capabilities(workspace_id,agent_id,capability) VALUES \
            ('w','a','read_attachments'),('w','a','upload_attachments'); \
-         INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,created_at,updated_at) VALUES \
-           ('source','w','workspace','open','Source','source','idle','private',1,1), \
-           ('target','w','workspace','open','Target','target','idle','private',1,1); \
+         INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES \
+           ('source','w','workspace','open','Source','source','private',1,1), \
+           ('target','w','workspace','open','Target','target','private',1,1); \
          INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES \
            ('source','a',1),('target','a',1);",
     ))

@@ -79,9 +79,6 @@ impl ReactionMutationPort for SqliteReactionStore {
         if !matches!(message.from_kind.as_str(), "user" | "agent") {
             return Err(ReactionStoreError::InvalidMessageAuthor);
         }
-        if conversation.closed {
-            return rollback_refusal(tx, ReactionMutationRefusal::ConversationClosed).await;
-        }
         if conversation.archived {
             return rollback_refusal(tx, ReactionMutationRefusal::ConversationArchived).await;
         }

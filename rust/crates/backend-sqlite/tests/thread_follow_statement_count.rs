@@ -34,8 +34,8 @@ async fn follower_cardinality_does_not_grow_state_read_statements() {
              INSERT INTO workspaces(id,name,name_key,created_at,updated_at) \
              VALUES('w','Workspace','thread-follow-set',1,1); \
              INSERT INTO workspace_users(workspace_id,user_id,joined_at) VALUES('w','local',1); \
-             INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,created_at,updated_at) \
-             VALUES('c','w','workspace','open','General','thread-follow-set','idle','private',1,1);",
+             INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) \
+             VALUES('c','w','workspace','open','General','thread-follow-set','private',1,1);",
         ))
         .await
         .unwrap();

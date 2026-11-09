@@ -390,7 +390,7 @@ mod snapshot_tests {
             "INSERT INTO users (id,name,display_name,created_at,updated_at) VALUES ('user-1','user','User',1,1)",
             "INSERT INTO workspaces (id,name,name_key,created_at,updated_at) VALUES ('ws-1','Space','space',1,1)",
             "INSERT INTO workspace_users (workspace_id,user_id,role,joined_at) VALUES ('ws-1','user-1','member',1)",
-            "INSERT INTO conversations (id,workspace_id,placement_kind,roster_policy,title,title_key,status,created_at,updated_at) VALUES ('conv-1','ws-1','workspace','open','General','general','active',1,1)",
+            "INSERT INTO conversations (id,workspace_id,placement_kind,roster_policy,title,title_key,created_at,updated_at) VALUES ('conv-1','ws-1','workspace','open','General','general',1,1)",
             "INSERT INTO conversation_users (conversation_id,user_id,joined_at) VALUES ('conv-1','user-1',1)",
             "INSERT INTO tasks (id,workspace_id,task_number,conversation_id,title,content,status,creator_kind,creator_user_id,created_at,board_key) VALUES ('task-1','ws-1',1,'conv-1','Private task','secret','todo','user','user-1',1,'ws:ws-1')",
         ] {

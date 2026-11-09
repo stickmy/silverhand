@@ -361,7 +361,7 @@ async fn seed_workspace_conversation(path: &Path) {
         .await
         .unwrap();
     sqlx::query(
-            "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, status, visibility, created_at, updated_at) VALUES (?, ?, 'workspace', 'open', 'General', 'general', 'open', 'private', 1, 1)",
+            "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, visibility, created_at, updated_at) VALUES (?, ?, 'workspace', 'open', 'General', 'general', 'private', 1, 1)",
         )
         .bind(CONVERSATION_ID)
         .bind(WORKSPACE_ID)
@@ -398,8 +398,8 @@ async fn seed_channel_directory(path: &Path) {
                ('workspace0000001','Workspace','workspace',1,1); \
              INSERT INTO workspace_users(workspace_id,user_id,joined_at,role) VALUES \
                ('workspace0000001','user-1',1,'owner'); \
-             INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,archived_at,created_at,updated_at) VALUES \
-               ('conv000000000001','workspace0000001','workspace','open','General','general','idle','private',NULL,1,1); \
+             INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,archived_at,created_at,updated_at) VALUES \
+               ('conv000000000001','workspace0000001','workspace','open','General','general','private',NULL,1,1); \
              INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES \
                ('conv000000000001','user-1',1); \
              INSERT INTO user_list_sort_mode(user_id,list_key,scope,mode,updated_at) VALUES \
@@ -3001,12 +3001,12 @@ async fn agent_scoped_dm_control_admits_only_the_creator_endpoint_and_keeps_one_
          ('dm-conv','dm-conv','qoder','h-registry-probe',1,1,'user-1','active','conversation'), \
          ('dm-human-deleted','dm-human-deleted','qoder','h-registry-probe',1,1,'user-1','active','agent'), \
          ('dm-foreign','dm-foreign','qoder','h-registry-probe',1,1,'dm-other','active','agent'); \
-         INSERT INTO conversations(id,title,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,status,visibility,created_at,updated_at) VALUES \
-         ('dm-control-pair','DM','direct_pair','fixed','agent','dm-control','human','user-1','idle','private',1,1), \
-         ('dm-foreign-pair','DM','direct_pair','fixed','agent','dm-foreign','human','user-1','idle','private',1,1), \
-         ('dm-conv-pair','DM','direct_pair','fixed','agent','dm-conv','human','user-1','idle','private',1,1), \
-         ('dm-human-deleted-pair','DM','direct_pair','fixed','agent','dm-human-deleted','human','user-1','idle','private',1,1), \
-         ('dm-other-pair','DM','direct_pair','fixed','agent','dm-control','human','dm-other','idle','private',1,1);"
+         INSERT INTO conversations(id,title,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,visibility,created_at,updated_at) VALUES \
+         ('dm-control-pair','DM','direct_pair','fixed','agent','dm-control','human','user-1','private',1,1), \
+         ('dm-foreign-pair','DM','direct_pair','fixed','agent','dm-foreign','human','user-1','private',1,1), \
+         ('dm-conv-pair','DM','direct_pair','fixed','agent','dm-conv','human','user-1','private',1,1), \
+         ('dm-human-deleted-pair','DM','direct_pair','fixed','agent','dm-human-deleted','human','user-1','private',1,1), \
+         ('dm-other-pair','DM','direct_pair','fixed','agent','dm-control','human','dm-other','private',1,1);"
     ).execute(&pool).await.unwrap();
     pool.close().await;
     let app = prepare(&config(fixture.path.clone())).await.unwrap();
@@ -3187,12 +3187,6 @@ async fn the_composed_schedule_driver_delivers_and_settles_a_due_occurrence() {
     seed_workspace_conversation(&fixture.path).await;
     let pool = SqlitePoolOptions::new()
         .connect(fixture.path.to_str().unwrap())
-        .await
-        .unwrap();
-    // This test also exercises the strict message reader; use the current status domain.
-    sqlx::query("UPDATE conversations SET status='idle' WHERE id=?")
-        .bind(CONVERSATION_ID)
-        .execute(&pool)
         .await
         .unwrap();
     sqlx::query(
@@ -3536,28 +3530,26 @@ async fn dead_schedule_target_notifies_the_owner_home_and_keeps_original_failure
            ('no-home-owner','no-home-owner','qoder','h-registry-probe',1,1,'user-1','active','agent'); \
          INSERT INTO workspaces(id,name,owner_agent_id,created_at,updated_at) VALUES \
            ('home-dead-target','Home','dead-target-owner',1,1); \
-         INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,created_at,updated_at) VALUES \
-           ('homedmdeadtarget','home-dead-target','workspace','fixed','Onboarding','onboarding','idle','private',1,1); \
+         INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES \
+           ('homedmdeadtarget','home-dead-target','workspace','fixed','Onboarding','onboarding','private',1,1); \
          INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES \
            ('homedmdeadtarget','dead-target-owner',1); \
          INSERT INTO workspaces(id,name,name_key,owner_user_id,created_at,updated_at) VALUES \
            ('wsdeadrearm00001','Rearm Space','rearm space','user-1',1,1); \
          INSERT INTO workspace_users(workspace_id,user_id,joined_at,role) VALUES \
            ('wsdeadrearm00001','user-1',1,'owner'); \
-         INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,created_at,updated_at) VALUES \
-           ('convdeadrearm001','wsdeadrearm00001','workspace','open','Rearm','rearm','idle','private',1,1); \
+         INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES \
+           ('convdeadrearm001','wsdeadrearm00001','workspace','open','Rearm','rearm','private',1,1); \
          INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES \
            ('convdeadrearm001','dead-target-owner',1); \
          INSERT INTO workspace_members(workspace_id,agent_id,joined_at) VALUES \
            ('wsdeadrearm00001','dead-target-owner',1); \
          INSERT INTO workspace_agent_capabilities(workspace_id,agent_id,capability) VALUES \
            ('wsdeadrearm00001','dead-target-owner','manage_schedules'); \
-         INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,closed_at,created_at,updated_at) VALUES \
-           ('closed-target','home-dead-target','workspace','open','Closed','closed','idle','private',2,1,1), \
-           ('left-target','home-dead-target','workspace','open','Left','left','idle','private',NULL,1,1); \
+         INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES \
+           ('left-target','home-dead-target','workspace','open','Left','left','private',1,1); \
          INSERT INTO schedules(id,owner_agent_id,target_conversation_id,title,message,spec_json,next_fire_at,status,fired_count,max_occurrences,until_at,consecutive_failure_count,created_at,updated_at) VALUES \
            ('schedule-dead','dead-target-owner','missing-target','Missing','wake now','{\"kind\":\"once\",\"fire_at\":1}',9000000000000000,'pending',0,NULL,NULL,0,1,1), \
-           ('schedule-closed','dead-target-owner','closed-target','Closed','wake now','{\"kind\":\"once\",\"fire_at\":1}',9000000000000000,'pending',0,NULL,NULL,0,1,1), \
            ('schedule-left','dead-target-owner','left-target','Left','wake now','{\"kind\":\"once\",\"fire_at\":1}',9000000000000000,'pending',0,NULL,NULL,0,1,1), \
            ('schedule-no-home','no-home-owner','missing-target','No Home','wake now','{\"kind\":\"once\",\"fire_at\":1}',9000000000000000,'pending',0,NULL,NULL,0,1,1);",
     )
@@ -3611,10 +3603,10 @@ async fn dead_schedule_target_notifies_the_owner_home_and_keeps_original_failure
         std::time::Duration::from_secs(3),
         async {
             loop {
-                let failed: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM schedules WHERE id IN ('schedule-dead','schedule-closed','schedule-left','schedule-no-home') AND status='failed'")
+                let failed: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM schedules WHERE id IN ('schedule-dead','schedule-left','schedule-no-home') AND status='failed'")
                     .fetch_one(&pool).await.unwrap();
-                if failed == 4 {
-                    let failure: String = sqlx::query_scalar("SELECT group_concat(failure_reason,'|') FROM (SELECT failure_reason FROM schedules WHERE id IN ('schedule-dead','schedule-closed','schedule-left') ORDER BY id)")
+                if failed == 3 {
+                    let failure: String = sqlx::query_scalar("SELECT group_concat(failure_reason,'|') FROM (SELECT failure_reason FROM schedules WHERE id IN ('schedule-dead','schedule-left') ORDER BY id)")
                         .fetch_one(&pool).await.unwrap();
                     let notices: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM messages WHERE conversation_id='homedmdeadtarget' AND content LIKE 'Schedule % could not fire:%'")
                         .fetch_one(&pool).await.unwrap();
@@ -3628,7 +3620,7 @@ async fn dead_schedule_target_notifies_the_owner_home_and_keeps_original_failure
     ).await.expect("dead-target schedule did not settle");
     assert_eq!(
         failures,
-        "target_conversation_unavailable: closed-target (closed)|target_conversation_unavailable: missing-target (missing)|target_conversation_unavailable: left-target (owner not participant)"
+        "target_conversation_unavailable: missing-target (missing)|target_conversation_unavailable: left-target (owner not participant)"
     );
     let list_bearer = mint_runtime_bearer_from(
         &runtime_credentials,
@@ -3647,7 +3639,6 @@ async fn dead_schedule_target_notifies_the_owner_home_and_keeps_original_failure
     assert_eq!(list_status, StatusCode::OK, "{list_body}");
     for reason in [
         "target_conversation_unavailable: missing-target (missing)",
-        "target_conversation_unavailable: closed-target (closed)",
         "target_conversation_unavailable: left-target (owner not participant)",
     ] {
         assert!(
@@ -3655,9 +3646,9 @@ async fn dead_schedule_target_notifies_the_owner_home_and_keeps_original_failure
             "schedule list must expose the canonical settlement reason {reason}: {list_body}"
         );
     }
-    assert_eq!(notice_count, 3);
-    assert_eq!(inbox_count, 3);
-    delivery_daemon.wait_for_deliveries(3).await;
+    assert_eq!(notice_count, 2);
+    assert_eq!(inbox_count, 2);
+    delivery_daemon.wait_for_deliveries(2).await;
     let notice_ids: Vec<String> = sqlx::query_scalar(
         "SELECT id FROM messages WHERE conversation_id='homedmdeadtarget' \
          AND content LIKE 'Schedule % could not fire:%' ORDER BY seq",
@@ -3665,7 +3656,7 @@ async fn dead_schedule_target_notifies_the_owner_home_and_keeps_original_failure
     .fetch_all(&pool)
     .await
     .unwrap();
-    assert_eq!(notice_ids.len(), 3);
+    assert_eq!(notice_ids.len(), 2);
     for message_id in notice_ids {
         assert!(
             delivery_daemon
@@ -3858,9 +3849,8 @@ async fn the_composed_membership_join_publishes_both_production_invalidations() 
         .await
         .unwrap();
     sqlx::query(
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,\
-         status,visibility,created_at,updated_at) VALUES(?,?,'workspace','open','Public',\
-         'public','idle','public',1,1)",
+        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES(?,?,'workspace','open','Public',\
+         'public','public',1,1)",
     )
     .bind(PUBLIC_CHANNEL)
     .bind(WORKSPACE_ID)
@@ -4069,14 +4059,6 @@ async fn membership_notice_head_failure_rolls_back_member_message_and_head() {
 async fn seed_message(path: &Path, message_id: &str) {
     let pool = SqlitePoolOptions::new()
         .connect(path.to_str().unwrap())
-        .await
-        .unwrap();
-    // `seed_workspace_conversation` stores `status = 'open'`, which the message-send
-    // path never decodes but the saved/thread-follow authorization does. Normalize to
-    // a published status so the conversation-participation snapshot decodes.
-    sqlx::query("UPDATE conversations SET status = 'idle' WHERE id = ?")
-        .bind(CONVERSATION_ID)
-        .execute(&pool)
         .await
         .unwrap();
     sqlx::query(
@@ -6787,9 +6769,8 @@ async fn seed_runtime_control_agents(path: &Path) {
     sqlx::query(
             "INSERT INTO workspaces (id, name, name_key, owner_user_id, created_at, updated_at) \
                  VALUES ('ws-cp4', 'Space', 'space', 'user-1', 0, 0); \
-             INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, \
-                 status, visibility, created_at, updated_at, latest_message_seq) \
-                 VALUES ('conv-cp4', 'ws-cp4', 'workspace', 'open', 'General', 'general', 'open', 'private', 0, 0, 1); \
+             INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, visibility, created_at, updated_at, latest_message_seq) \
+                 VALUES ('conv-cp4', 'ws-cp4', 'workspace', 'open', 'General', 'general', 'private', 0, 0, 1); \
              INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) \
                  VALUES ('conv-cp4', 'a-switch', 0);",
         )
@@ -7120,11 +7101,10 @@ async fn seed_agent_stop_agent(path: &Path) {
     sqlx::query(
             "INSERT INTO workspaces (id, name, name_key, owner_user_id, created_at, updated_at) \
                  VALUES ('ws-stop', 'Space', 'space', 'user-1', 0, 0); \
-             INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, \
-                 status, visibility, created_at, updated_at, latest_message_seq) VALUES \
-                 ('conv-s1', 'ws-stop', 'workspace', 'open', 'One', 'one', 'open', 'private', 0, 0, 1), \
-                 ('conv-s2', 'ws-stop', 'workspace', 'open', 'Two', 'two', 'open', 'private', 0, 0, 1), \
-                 ('conv-s3', 'ws-stop', 'workspace', 'open', 'Three', 'three', 'open', 'private', 0, 0, 1); \
+             INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, visibility, created_at, updated_at, latest_message_seq) VALUES \
+                 ('conv-s1', 'ws-stop', 'workspace', 'open', 'One', 'one', 'private', 0, 0, 1), \
+                 ('conv-s2', 'ws-stop', 'workspace', 'open', 'Two', 'two', 'private', 0, 0, 1), \
+                 ('conv-s3', 'ws-stop', 'workspace', 'open', 'Three', 'three', 'private', 0, 0, 1); \
              INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES \
                  ('conv-s1', 'a-stop', 0), ('conv-s2', 'a-stop', 0), ('conv-s3', 'a-stop', 0);",
         )
@@ -10872,10 +10852,6 @@ async fn client_message_identity_survives_concurrent_http_ws_ack_and_cold_read()
     seed_workspace_conversation(&fixture.path).await;
     let db = SqlitePoolOptions::new()
         .connect(fixture.path.to_str().unwrap())
-        .await
-        .unwrap();
-    sqlx::query("UPDATE conversations SET status='idle'")
-        .execute(&db)
         .await
         .unwrap();
     db.close().await;

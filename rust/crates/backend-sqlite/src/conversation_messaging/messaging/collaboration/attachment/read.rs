@@ -706,8 +706,8 @@ mod tests {
              );\
              CREATE TABLE conversations(\
                id TEXT PRIMARY KEY,workspace_id TEXT,placement_kind TEXT NOT NULL,\
-               roster_policy TEXT NOT NULL,title TEXT NOT NULL,title_key TEXT,status TEXT NOT NULL,\
-               spawned_by_agent_id TEXT,closed_at INTEGER,close_summary TEXT,archived_at INTEGER,\
+               roster_policy TEXT NOT NULL,title TEXT NOT NULL,title_key TEXT,\
+               spawned_by_agent_id TEXT,archived_at INTEGER,\
                latest_message_seq INTEGER NOT NULL DEFAULT 0,created_at INTEGER NOT NULL,\
                updated_at INTEGER NOT NULL,visibility TEXT NOT NULL DEFAULT 'private',\
                endpoint_a_kind TEXT,endpoint_a_id TEXT,endpoint_a_deleted_at INTEGER,\
@@ -746,9 +746,9 @@ mod tests {
     ) {
         sqlx::query(
             "INSERT INTO conversations(\
-               id,workspace_id,placement_kind,roster_policy,title,title_key,status,archived_at,\
+               id,workspace_id,placement_kind,roster_policy,title,title_key,archived_at,\
                created_at,updated_at,visibility\
-             ) VALUES(?,'workspace-1','workspace','open','General','general','idle',?,1,1,?)",
+             ) VALUES(?,'workspace-1','workspace','open','General','general',?,1,1,?)",
         )
         .bind(channel)
         .bind(archived_at)

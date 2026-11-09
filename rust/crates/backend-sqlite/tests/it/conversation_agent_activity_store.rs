@@ -25,14 +25,14 @@ async fn seed(path: &std::path::Path) {
          ('w','Workspace','activity-workspace',1,1)",
         "INSERT INTO workspace_users(workspace_id,user_id,joined_at,role) VALUES \
          ('w','member',1,'member'),('w','browser',1,'member')",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,created_at,updated_at) VALUES \
-         ('private','w','workspace','open','Private','private','idle','private',1,1),\
-         ('public','w','workspace','open','Public','public','idle','public',1,1)",
+        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES \
+         ('private','w','workspace','open','Private','private','private',1,1),\
+         ('public','w','workspace','open','Public','public','public',1,1)",
         "INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES ('private','member',1)",
         "INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES \
          ('private','target',1),('public','target',1)",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,status,visibility,created_at,updated_at) VALUES \
-         ('pair',NULL,'direct_pair','fixed','agent','target','human','member','',NULL,'idle','private',1,1)",
+        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,visibility,created_at,updated_at) VALUES \
+         ('pair',NULL,'direct_pair','fixed','agent','target','human','member','',NULL,'private',1,1)",
         "INSERT INTO conversation_events(id,conversation_id,agent_id,kind,payload,created_at) VALUES \
          (1,'private','target','text','{\"text\":\"one\"}',11),\
          (2,'private','target','text','{\"text\":\"two\"}',12),\
@@ -314,7 +314,7 @@ async fn agent_stream_uses_existing_viewer_arms_without_channel_slicing_and_rech
         .unwrap()
         .is_some()
     );
-    db.execute("INSERT INTO conversations(id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,status,visibility,created_at,updated_at) VALUES ('stream-dm','direct_pair','fixed','agent','stream','human','browser','','idle','private',1,1)").await.unwrap();
+    db.execute("INSERT INTO conversations(id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,visibility,created_at,updated_at) VALUES ('stream-dm','direct_pair','fixed','agent','stream','human','browser','','private',1,1)").await.unwrap();
     assert!(
         authority
             .authorize_event_scope(&viewer, &EventScope::Agent(agent.clone()))

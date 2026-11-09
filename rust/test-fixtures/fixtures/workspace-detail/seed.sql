@@ -33,7 +33,7 @@ INSERT INTO workspace_users (workspace_id, user_id, joined_at, role)
 
 -- Two fixed-roster channels in the agent-home workspace drive the DM derivation:
 -- Onboarding sorts first, then dm-<owner name>.
-INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, status, created_at, updated_at)
-  VALUES ('conv-onboarding', 'ws-home', 'workspace', 'fixed', 'Onboarding', 'onboarding', 'open', 10, 10);
-INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, status, created_at, updated_at)
-  VALUES ('conv-dm', 'ws-home', 'workspace', 'fixed', 'dm-alice', 'dm-alice', 'open', 20, 20);
+INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at)
+  VALUES ('conv-onboarding', 'ws-home', 'workspace', 'fixed', 'Onboarding', 'onboarding', 10, 10);
+INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at)
+  VALUES ('conv-dm', 'ws-home', 'workspace', 'fixed', 'dm-alice', 'dm-alice', 20, 20);

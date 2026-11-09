@@ -11,7 +11,6 @@
   {"name":"invalid_reaction","surface":"human_post","status":422,"body":{"error":"emoji must not contain whitespace","code":"invalid_reaction"}},
   {"name":"missing_message","surface":"human_post","status":404,"body":{"error":"message not found","code":"message_not_found"}},
   {"name":"system_target","surface":"human_post","status":422,"body":{"error":"cannot react to a system message","code":"system_message_not_reactable"}},
-  {"name":"closed_conversation","surface":"human_post","status":409,"body":{"error":"conversation is closed","code":"conversation_closed"}},
   {"name":"archived_conversation","surface":"human_post","status":409,"body":{"error":"conversation is archived","code":"conversation_archived"}},
   {"name":"agent_empty_message_id","surface":"agent_post","status":400,"body":{"error":"invalid input","issues":[{"code":"too_small","minimum":1,"type":"string","inclusive":true,"exact":false,"message":"String must contain at least 1 character(s)","path":["message_id"]}]}},
   {"name":"agent_invalid_reaction","surface":"agent_post","status":422,"body":{"error":"emoji must not contain whitespace","code":"invalid_reaction"}},

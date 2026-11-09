@@ -249,7 +249,7 @@ mod tests {
                 } else {
                     ("other", "teammate")
                 };
-                sqlx::query("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,status,visibility,created_at,updated_at) VALUES('c',NULL,'direct_pair','fixed','human',?,'human',?,'',NULL,'idle','private',1,1)")
+                sqlx::query("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,visibility,created_at,updated_at) VALUES('c',NULL,'direct_pair','fixed','human',?,'human',?,'',NULL,'private',1,1)")
                     .bind(a).bind(b).execute(&mut db).await.unwrap();
             } else {
                 sqlx::query("INSERT INTO workspaces(id,name,name_key,created_at,updated_at) VALUES('w','Workspace','conversation-unread-wire',1,1)")
@@ -262,7 +262,7 @@ mod tests {
                     "private"
                 };
                 let archived = (setup == "archived_workspace_member").then_some(9_i64);
-                sqlx::query("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,archived_at,created_at,updated_at) VALUES('c','w','workspace','open','General','general-unread-wire','idle',?,?,1,1)")
+                sqlx::query("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,archived_at,created_at,updated_at) VALUES('c','w','workspace','open','General','general-unread-wire',?,?,1,1)")
                     .bind(visibility).bind(archived).execute(&mut db).await.unwrap();
                 if matches!(setup, "workspace_member" | "archived_workspace_member") {
                     sqlx::query("INSERT OR IGNORE INTO conversation_users(conversation_id,user_id,joined_at) VALUES('c','local',1)")

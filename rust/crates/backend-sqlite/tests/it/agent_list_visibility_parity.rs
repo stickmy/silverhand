@@ -151,8 +151,8 @@ fn build_seed(fixture: &Fixture) -> String {
 
     for pair in &fixture.direct_pairs {
         stmts.push(format!(
-            "INSERT INTO conversations (id, workspace_id, endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, placement_kind, roster_policy, title, status, created_at, updated_at) \
-             VALUES ({id}, NULL, 'agent', {agent}, 'human', {human}, 'direct_pair', 'fixed', 'dm', 'active', 1, 1)",
+            "INSERT INTO conversations (id, workspace_id, endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, placement_kind, roster_policy, title, created_at, updated_at) \
+             VALUES ({id}, NULL, 'agent', {agent}, 'human', {human}, 'direct_pair', 'fixed', 'dm', 1, 1)",
             id = sql_str(&format!("c-{}", pair.agent)),
             agent = sql_str(&pair.agent),
             human = sql_str(&pair.human),

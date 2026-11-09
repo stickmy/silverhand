@@ -889,13 +889,13 @@ INSERT INTO workspaces (id,name,name_key,owner_agent_id,created_at,updated_at) V
 INSERT INTO workspace_members (workspace_id,agent_id,joined_at) VALUES ('ws','agent-a',1); \
 INSERT INTO workspace_members (workspace_id,agent_id,joined_at) VALUES ('ws','agent-b',1); INSERT INTO workspace_members (workspace_id,agent_id,joined_at) VALUES ('ws','agent-c',1); \
 INSERT INTO workspace_agent_capabilities (workspace_id,agent_id,capability) VALUES ('ws','agent-a','read_messages'); INSERT INTO workspace_agent_capabilities (workspace_id,agent_id,capability) VALUES ('ws','agent-b','read_messages'); \
-INSERT INTO conversations (id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,created_at,updated_at) VALUES ('chan','ws','workspace','open','Chan','chan','idle','private',1,1); \
+INSERT INTO conversations (id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES ('chan','ws','workspace','open','Chan','chan','private',1,1); \
 INSERT INTO conversation_agents (conversation_id,agent_id,joined_at) VALUES ('chan','agent-a',1); \
 INSERT INTO conversation_agents (conversation_id,agent_id,joined_at) VALUES ('chan','agent-b',1); INSERT INTO conversation_agents (conversation_id,agent_id,joined_at) VALUES ('chan','agent-c',1); \
 INSERT INTO messages (id,conversation_id,from_kind,content,metadata,seq,created_at) VALUES ('m1','chan','agent','hello',NULL,1,10); \
 INSERT INTO message_reactions (id,message_id,reactor_kind,reactor_id,emoji,created_at) VALUES ('r1','m1','agent','agent-a','👍',5); \
 INSERT INTO message_reactions (id,message_id,reactor_kind,reactor_id,emoji,created_at) VALUES ('r2','m1','agent','agent-b','🎉',6); \
-INSERT INTO conversations (id,placement_kind,roster_policy,title,status,visibility,created_at,updated_at,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id) VALUES ('dm','direct_pair','fixed','DM','idle','private',1,1,'agent','agent-a','human','u1');";
+INSERT INTO conversations (id,placement_kind,roster_policy,title,visibility,created_at,updated_at,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id) VALUES ('dm','direct_pair','fixed','DM','private',1,1,'agent','agent-a','human','u1');";
 
     async fn seeded() -> (tempfile::TempDir, SqliteAgentReadHistory) {
         let dir = tempfile::tempdir().unwrap();

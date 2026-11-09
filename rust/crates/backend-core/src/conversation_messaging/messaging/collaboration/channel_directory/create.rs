@@ -30,7 +30,7 @@ use crate::{
     foundation::identity::{UserId, WorkspaceId},
 };
 
-use super::{ChannelDirectoryRow, ChannelStatus, ChannelVisibility, DirectoryRoster};
+use super::{ChannelDirectoryRow, ChannelVisibility, DirectoryRoster};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct HumanChannelCreateRequest {
@@ -158,8 +158,7 @@ impl CommittedHumanChannelCreation {
         if channel.title() != address.title() {
             return Err(ChannelCreationProjectionError::AddressRowMismatch);
         }
-        if channel.status() != ChannelStatus::Idle
-            || channel.archived_at().is_some()
+        if channel.archived_at().is_some()
             || !channel.is_member()
             || channel.spawned_by_agent().is_some()
         {
@@ -369,7 +368,7 @@ mod tests {
         raw_title: &str,
         roster: DirectoryRoster,
         visibility: ChannelVisibility,
-        status: ChannelStatus,
+        archived_at: Option<i64>,
     ) -> ChannelDirectoryRow {
         ChannelDirectoryRow::projected(
             user(viewer),
@@ -377,11 +376,8 @@ mod tests {
             ConversationId::parse("created").unwrap(),
             roster,
             raw_title.into(),
-            status,
             None,
-            None,
-            None,
-            None,
+            archived_at,
             0,
             10,
             10,
@@ -398,14 +394,7 @@ mod tests {
             user("u"),
             workspace("w"),
             title(raw_title),
-            row(
-                "u",
-                "w",
-                raw_title,
-                DirectoryRoster::Open,
-                visibility,
-                ChannelStatus::Idle,
-            ),
+            row("u", "w", raw_title, DirectoryRoster::Open, visibility, None),
         )
         .unwrap()
     }
@@ -442,7 +431,7 @@ mod tests {
                     "General",
                     DirectoryRoster::Open,
                     ChannelVisibility::Private,
-                    ChannelStatus::Idle,
+                    None,
                 ),
             )
             .unwrap_err(),
@@ -463,7 +452,7 @@ mod tests {
                     "General",
                     DirectoryRoster::Open,
                     ChannelVisibility::Private,
-                    ChannelStatus::Idle,
+                    None,
                 ),
             )
             .unwrap_err(),
@@ -484,7 +473,7 @@ mod tests {
                     "Other",
                     DirectoryRoster::Open,
                     ChannelVisibility::Private,
-                    ChannelStatus::Idle,
+                    None,
                 ),
             )
             .unwrap_err(),
@@ -505,7 +494,7 @@ mod tests {
                     "General",
                     DirectoryRoster::Open,
                     ChannelVisibility::Private,
-                    ChannelStatus::Active,
+                    Some(1),
                 ),
             )
             .unwrap_err(),

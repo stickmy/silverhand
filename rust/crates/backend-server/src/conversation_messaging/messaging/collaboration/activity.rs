@@ -260,7 +260,7 @@ mod tests {
         if setup == "pair" {
             for sql in [
                 "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES('activity-other','other-activity','Other',1,2)",
-                "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,created_at,updated_at,latest_message_seq,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id) VALUES('pair',NULL,'direct_pair','fixed','',NULL,'open',2,2,1,'human','activity-other','human','local')",
+                "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,created_at,updated_at,latest_message_seq,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id) VALUES('pair',NULL,'direct_pair','fixed','',NULL,2,2,1,'human','activity-other','human','local')",
                 "INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,seq,created_at,author_id,author_name,author_display_name) VALUES('m-pair','pair','user','activity-other','pair unread',1,2,'activity-other','other-activity','Other')",
                 "INSERT INTO conversation_stream_heads(conversation_id,thread_root_id,latest_seq) VALUES('pair',NULL,1)",
             ] {
@@ -271,7 +271,7 @@ mod tests {
                 "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES('activity-other','other-activity','Other',1,2)",
                 "INSERT INTO workspaces(id,name,name_key,created_at,updated_at) VALUES('w','Workspace','workspace-activity',1,1)",
                 "INSERT INTO workspace_users(workspace_id,user_id,joined_at) VALUES('w','local',1)",
-                "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,created_at,updated_at,latest_message_seq) VALUES('c','w','workspace','open','General','general-activity','open',1,1,2)",
+                "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,created_at,updated_at,latest_message_seq) VALUES('c','w','workspace','open','General','general-activity',1,1,2)",
                 "INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('c','local',1)",
                 "INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,seq,created_at,author_id,author_name,author_display_name) VALUES('m-mention','c','user','activity-other','  directed   text  ',1,1,'activity-other','other-activity','Other'),('m-plain','c','user','activity-other','plain unread',2,2,'activity-other','other-activity','Other')",
                 "INSERT INTO conversation_stream_heads(conversation_id,thread_root_id,latest_seq) VALUES('c',NULL,2)",

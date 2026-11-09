@@ -91,11 +91,10 @@ async fn seeded() -> (tempfile::TempDir, SqliteAgentAuditRead) {
          ('a3','audit-agent-three','codex','h1','u-owner',1,1,'failed')",
         "INSERT INTO workspaces(id,name,name_key,created_at,updated_at) VALUES \
          ('w1','Audit Workspace','audit-workspace',1,1)",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,\
-         status,visibility,latest_message_seq,created_at,updated_at) VALUES \
-         ('joined','w1','workspace','open','Joined','joined','idle','private',1,1,1),\
-         ('other','w1','workspace','open','Other','other','idle','private',1,1,1),\
-         ('','w1','workspace','open','Corrupt','corrupt','idle','private',1,1,1)",
+        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,latest_message_seq,created_at,updated_at) VALUES \
+         ('joined','w1','workspace','open','Joined','joined','private',1,1,1),\
+         ('other','w1','workspace','open','Other','other','private',1,1,1),\
+         ('','w1','workspace','open','Corrupt','corrupt','private',1,1,1)",
         // a1 audits only `joined`; a2 and the non-active a3 both join `other`; a2 and a3
         // also join the corrupt-`''` chat so a chat-list read of either would decode it.
         "INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES \

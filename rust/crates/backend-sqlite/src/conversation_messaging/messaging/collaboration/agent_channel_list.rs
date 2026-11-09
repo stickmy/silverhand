@@ -273,12 +273,12 @@ INSERT INTO agents (id,name,display_name,runtime,host_id,created_by_user_id,crea
 INSERT INTO workspaces (id,name,name_key,owner_agent_id,created_at,updated_at) VALUES ('ws','Team','team',NULL,1,1); \
 INSERT INTO workspace_members (workspace_id,agent_id,joined_at) VALUES ('ws','agent-a',1); \
 INSERT INTO workspace_agent_capabilities (workspace_id,agent_id,capability) VALUES ('ws','agent-a','read_messages'); \
-INSERT INTO conversations (id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,created_at,updated_at) VALUES ('src','ws','workspace','open','Src','src','idle','private',1,1); \
+INSERT INTO conversations (id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES ('src','ws','workspace','open','Src','src','private',1,1); \
 INSERT INTO conversation_agents (conversation_id,agent_id,joined_at) VALUES ('src','agent-a',1); \
-INSERT INTO conversations (id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,created_at,updated_at) VALUES ('pub-open','ws','workspace','open','Pub','pub','idle','public',1,20); \
-INSERT INTO conversations (id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,created_at,updated_at) VALUES ('priv-mem','ws','workspace','open','Mem','mem','idle','private',1,30); \
+INSERT INTO conversations (id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES ('pub-open','ws','workspace','open','Pub','pub','public',1,20); \
+INSERT INTO conversations (id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES ('priv-mem','ws','workspace','open','Mem','mem','private',1,30); \
 INSERT INTO conversation_agents (conversation_id,agent_id,joined_at) VALUES ('priv-mem','agent-a',1); \
-INSERT INTO conversations (id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,created_at,updated_at) VALUES ('priv-other','ws','workspace','open','Other','other','idle','private',1,40); \
+INSERT INTO conversations (id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES ('priv-other','ws','workspace','open','Other','other','private',1,40); \
 INSERT INTO conversation_agents (conversation_id,agent_id,joined_at) VALUES ('priv-other','agent-b',1);";
 
     async fn seeded() -> (tempfile::TempDir, SqliteAgentChannelList) {

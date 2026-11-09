@@ -27,39 +27,6 @@ impl ChannelVisibility {
 pub struct UnknownChannelVisibility;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ChannelStatus {
-    Starting,
-    Active,
-    Idle,
-    Archived,
-    Crashed,
-}
-impl ChannelStatus {
-    pub fn parse(raw: &str) -> Result<Self, UnknownChannelStatus> {
-        match raw {
-            "starting" => Ok(Self::Starting),
-            "active" => Ok(Self::Active),
-            "idle" => Ok(Self::Idle),
-            "archived" => Ok(Self::Archived),
-            "crashed" => Ok(Self::Crashed),
-            _ => Err(UnknownChannelStatus),
-        }
-    }
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Starting => "starting",
-            Self::Active => "active",
-            Self::Idle => "idle",
-            Self::Archived => "archived",
-            Self::Crashed => "crashed",
-        }
-    }
-}
-#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
-#[error("stored channel status is outside the published closed set")]
-pub struct UnknownChannelStatus;
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DirectoryRoster {
     Open,
     Fixed,
@@ -140,10 +107,7 @@ pub struct ChannelDirectoryRow {
     conversation: ConversationId,
     roster: DirectoryRoster,
     title: String,
-    status: ChannelStatus,
     spawned_by_agent: Option<AgentId>,
-    closed_at: Option<i64>,
-    close_summary: Option<String>,
     archived_at: Option<i64>,
     latest_message_seq: i64,
     created_at: i64,
@@ -159,10 +123,7 @@ impl ChannelDirectoryRow {
         conversation: ConversationId,
         roster: DirectoryRoster,
         title: String,
-        status: ChannelStatus,
         spawned_by_agent: Option<AgentId>,
-        closed_at: Option<i64>,
-        close_summary: Option<String>,
         archived_at: Option<i64>,
         latest_message_seq: i64,
         created_at: i64,
@@ -185,10 +146,7 @@ impl ChannelDirectoryRow {
             conversation,
             roster,
             title,
-            status,
             spawned_by_agent,
-            closed_at,
-            close_summary,
             archived_at,
             latest_message_seq,
             created_at,
@@ -212,17 +170,8 @@ impl ChannelDirectoryRow {
     pub fn title(&self) -> &str {
         &self.title
     }
-    pub const fn status(&self) -> ChannelStatus {
-        self.status
-    }
     pub fn spawned_by_agent(&self) -> Option<&AgentId> {
         self.spawned_by_agent.as_ref()
-    }
-    pub const fn closed_at(&self) -> Option<i64> {
-        self.closed_at
-    }
-    pub fn close_summary(&self) -> Option<&str> {
-        self.close_summary.as_deref()
     }
     pub const fn archived_at(&self) -> Option<i64> {
         self.archived_at
@@ -843,9 +792,6 @@ mod tests {
             ConversationId::parse(id).unwrap(),
             roster,
             id.to_owned(),
-            ChannelStatus::Active,
-            None,
-            None,
             None,
             archived,
             0,

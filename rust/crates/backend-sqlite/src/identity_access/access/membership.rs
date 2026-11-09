@@ -922,7 +922,7 @@ mod tests {
         db.execute("INSERT INTO workspace_users(workspace_id,user_id,joined_at,role) VALUES('workspace','owner',1,'owner'),('workspace','creator',2,'member'),('workspace','other',3,'member')").await.unwrap();
         db.execute("INSERT INTO workspace_members(workspace_id,agent_id,joined_at) VALUES('workspace','agent',2)").await.unwrap();
         db.execute("INSERT INTO workspace_agent_capabilities(workspace_id,agent_id,capability) VALUES('workspace','agent','read_messages')").await.unwrap();
-        db.execute("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,created_at,updated_at,visibility) VALUES('channel','workspace','workspace','open','Channel','channel','idle',1,1,'public')").await.unwrap();
+        db.execute("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,created_at,updated_at,visibility) VALUES('channel','workspace','workspace','open','Channel','channel',1,1,'public')").await.unwrap();
         db.execute("INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('channel','creator',1)").await.unwrap();
         db.execute("INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES('channel','agent',1)").await.unwrap();
         db.close().await.unwrap();
@@ -1170,7 +1170,7 @@ mod tests {
         let mut db = SqliteConnection::connect_with(&SqliteConnectOptions::new().filename(&path))
             .await
             .unwrap();
-        db.execute("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,created_at,updated_at,visibility) VALUES('late-channel','workspace','workspace','open','Late','late','idle',1,1,'public')").await.unwrap();
+        db.execute("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,created_at,updated_at,visibility) VALUES('late-channel','workspace','workspace','open','Late','late',1,1,'public')").await.unwrap();
         db.execute("INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES('late-channel','agent',2)").await.unwrap();
         db.close().await.unwrap();
 

@@ -14,7 +14,7 @@ VALUES ('a1', 'agent-one', 'qoder', 'h1', 1000, 1000, 'u-creator');
 -- human endpoint is slot B, which the adapter's first UNION arm reads.
 INSERT INTO conversations
   (id, workspace_id, endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id,
-   placement_kind, roster_policy, title, status, created_at, updated_at)
+   placement_kind, roster_policy, title, created_at, updated_at)
 VALUES
   ('c-pair', NULL, 'agent', 'a1', 'human', 'u-pair',
-   'direct_pair', 'fixed', 'dm', 'active', 1000, 1000);
+   'direct_pair', 'fixed', 'dm', 1000, 1000);

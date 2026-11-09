@@ -42,13 +42,10 @@ use super::event::{
 use super::spec::{TaskContent, TaskId, TaskNumber, TaskStatus, TaskTitle};
 use super::status::AgentStatusRefusal;
 
-/// Lifecycle of a task-create destination, read before the write UoW. Closed wins
-/// over archived when persisted data carries both timestamps, matching the TS
-/// service's observable refusal order.
+/// Lifecycle of a task-create destination, read before the write UoW.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TaskCreateConversationState {
     Open,
-    Closed,
     Archived,
 }
 
@@ -94,7 +91,6 @@ pub trait TaskCreateAdmissionReads {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TaskCreateAdmissionFailure {
     ConversationNotFound,
-    ConversationClosed,
     ConversationArchived,
     AgentNotFound,
     NotConversationMember,
@@ -121,9 +117,6 @@ where
 {
     match reads.conversation_state(conversation).await? {
         None => return Ok(Err(TaskCreateAdmissionFailure::ConversationNotFound)),
-        Some(TaskCreateConversationState::Closed) => {
-            return Ok(Err(TaskCreateAdmissionFailure::ConversationClosed));
-        }
         Some(TaskCreateConversationState::Archived) => {
             return Ok(Err(TaskCreateAdmissionFailure::ConversationArchived));
         }
@@ -652,7 +645,6 @@ pub enum TaskCreateOutcome {
     SourceNotAccessible,
     CapabilityDenied(super::write_door::TaskWriteCapability),
     ConversationNotFound,
-    ConversationClosed,
     ConversationArchived,
     NotConversationMember,
     /// The target conversation is a direct pair whose peer endpoint is gone: it

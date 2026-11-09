@@ -14,11 +14,6 @@ async fn an_oversized_stored_task_body_reads_and_survives_non_body_operations() 
         .connect(fixture.path.to_str().unwrap())
         .await
         .unwrap();
-    sqlx::query("UPDATE conversations SET status='idle' WHERE id=?")
-        .bind(CONVERSATION_ID)
-        .execute(&pool)
-        .await
-        .unwrap();
     sqlx::query("INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES(?,'task-agent',1)")
         .bind(CONVERSATION_ID)
         .execute(&pool)

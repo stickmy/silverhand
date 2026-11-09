@@ -1102,10 +1102,7 @@ CREATE TABLE "conversations" (
               AND NOT title_key GLOB '* '
             )
           ),
-        status                  TEXT NOT NULL,
         spawned_by_agent_id     TEXT REFERENCES agents(id) ON DELETE SET NULL,
-        closed_at               INTEGER,
-        close_summary           TEXT,
         pinned_at               INTEGER,
         created_at              INTEGER NOT NULL,
         updated_at              INTEGER NOT NULL,
@@ -1170,9 +1167,6 @@ CREATE UNIQUE INDEX idx_conversations_direct_pair_endpoints
 CREATE UNIQUE INDEX idx_conversations_pair_key
         ON conversations(pair_key)
         WHERE placement_kind = 'direct_pair';
-
-CREATE INDEX idx_conversations_status
-        ON conversations(status);
 
 CREATE UNIQUE INDEX idx_conversations_title_key
         ON conversations(workspace_id, title_key)

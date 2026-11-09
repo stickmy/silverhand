@@ -69,7 +69,7 @@ const ROOT_WRITE_BEGIN: &str = "BEGIN IMMEDIATE";
 use crate::foundation::database::STORE_POOL_CONNECTIONS as POOL_CONNECTIONS;
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 
-const SELECT_CONVERSATION_FACTS: &str = "SELECT closed_at, archived_at, placement_kind, \
+const SELECT_CONVERSATION_FACTS: &str = "SELECT archived_at, placement_kind, \
      endpoint_a_kind, endpoint_a_id, endpoint_a_deleted_at, endpoint_b_kind, endpoint_b_id, \
      endpoint_b_deleted_at FROM conversations WHERE id = ?";
 const SELECT_AGENT_EXISTS: &str = "SELECT 1 FROM agents WHERE id = ?";
@@ -219,9 +219,8 @@ const SELECT_PARTICIPANT_AGENTS: &str = "SELECT a.id FROM conversations c JOIN a
 /// over the endpoint columns, so two sends racing to mention the same agent end up
 /// on one line rather than two.
 const OPEN_DIRECT_PAIR: &str = "INSERT INTO conversations (id, workspace_id, placement_kind, \
-     roster_policy, endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, title, status, \
-     visibility, created_at, updated_at) VALUES (?, NULL, 'direct_pair', 'fixed', ?, ?, ?, ?, '', \
-     'idle', 'private', ?, ?) ON CONFLICT (endpoint_a_kind, endpoint_a_id, endpoint_b_kind, \
+     roster_policy, endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, title, \
+     visibility, created_at, updated_at) VALUES (?, NULL, 'direct_pair', 'fixed', ?, ?, ?, ?, '', 'private', ?, ?) ON CONFLICT (endpoint_a_kind, endpoint_a_id, endpoint_b_kind, \
      endpoint_b_id) WHERE placement_kind = 'direct_pair' DO NOTHING";
 const SELECT_DIRECT_PAIR_FACT: &str = "SELECT id, endpoint_a_kind, endpoint_a_id, endpoint_b_kind, \
      endpoint_b_id FROM conversations WHERE placement_kind = 'direct_pair' AND endpoint_a_kind = \

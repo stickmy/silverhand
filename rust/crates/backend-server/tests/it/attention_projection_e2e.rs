@@ -25,7 +25,7 @@ async fn seed(path: &std::path::Path, setup: &str) {
     if setup == "tiered" || setup == "tiered_unmuted" {
         for sql in [
             "INSERT INTO workspace_users(workspace_id,user_id,joined_at) VALUES('w','local',1)",
-            "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,created_at,updated_at,latest_message_seq) VALUES('c-b','w','workspace','open','B','b-projection','open',2,2,1),('c-c','w','workspace','open','C','c-projection','open',1,1,0),('c-a','w','workspace','open','A','a-projection','open',1,1,1)",
+            "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,created_at,updated_at,latest_message_seq) VALUES('c-b','w','workspace','open','B','b-projection',2,2,1),('c-c','w','workspace','open','C','c-projection',1,1,0),('c-a','w','workspace','open','A','a-projection',1,1,1)",
             "INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('c-a','local',1),('c-b','local',1),('c-c','local',1)",
             "INSERT INTO channel_attention_preferences(user_id,conversation_id,mode,updated_at) VALUES('local','c-a','mentions',1),('local','c-c','mute',1)",
             "INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,seq,created_at,author_id,author_name,author_display_name) VALUES('m-a','c-a','user','other','mention',1,1,'other','other-projection','Other'),('m-b','c-b','user','other','plain',1,1,'other','other-projection','Other')",

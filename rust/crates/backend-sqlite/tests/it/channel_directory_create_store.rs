@@ -76,8 +76,8 @@ async fn seed(path: &std::path::Path) {
          ('w','u',1,'admin'),('w','v',1,'member'),('home','u',1,'admin')",
         "INSERT INTO workspace_members(workspace_id,agent_id,joined_at) VALUES('w','a',1)",
         "INSERT INTO conversations(\
-           id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,created_at,updated_at\
-         ) VALUES('taken','w','workspace','open','Taken','taken','idle','private',1,1)",
+           id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at\
+         ) VALUES('taken','w','workspace','open','Taken','taken','private',1,1)",
     ] {
         db.execute(sql).await.unwrap();
     }
@@ -145,7 +145,7 @@ async fn regular_and_agent_home_create_exact_founding_rosters() {
         .unwrap();
     let id = committed.channel().conversation().as_str();
     let row = sqlx::query(
-        "SELECT roster_policy,visibility,status,title,title_key,created_at,updated_at \
+        "SELECT roster_policy,visibility,title,title_key,created_at,updated_at \
          FROM conversations WHERE id=?",
     )
     .bind(id)
@@ -154,7 +154,6 @@ async fn regular_and_agent_home_create_exact_founding_rosters() {
     .unwrap();
     assert_eq!(row.get::<String, _>("roster_policy"), "open");
     assert_eq!(row.get::<String, _>("visibility"), "public");
-    assert_eq!(row.get::<String, _>("status"), "idle");
     assert_eq!(row.get::<String, _>("title"), "General   Discussion");
     assert_eq!(row.get::<String, _>("title_key"), "general   discussion");
     assert_eq!(row.get::<i64, _>("created_at"), 77);
@@ -407,8 +406,8 @@ async fn successful_path_waits_for_writer_then_revalidates_each_changed_authorit
     writer
         .execute(
             "INSERT INTO conversations(\
-               id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,created_at,updated_at\
-             ) VALUES('racing-title','w','workspace','open','Title Race','title race','idle','private',2,2)",
+               id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at\
+             ) VALUES('racing-title','w','workspace','open','Title Race','title race','private',2,2)",
         )
         .await
         .unwrap();

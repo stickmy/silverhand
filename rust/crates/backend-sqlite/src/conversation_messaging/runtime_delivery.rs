@@ -2920,10 +2920,9 @@ mod runtime_control_seat_tests {
                  ('agent-seat','seat-agent','codex','host-1',0,0,'Seat','user-1','active','agent'); \
              INSERT INTO workspaces(id,name,name_key,owner_user_id,created_at,updated_at) \
                  VALUES('workspace-1','Space','space','user-1',0,0); \
-             INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,\
-                 status,visibility,created_at,updated_at,latest_message_seq) VALUES \
-                 ('conversation-1','workspace-1','workspace','open','General','general','open','private',0,0,0), \
-                 ('conversation-2','workspace-1','workspace','open','Other','other','open','private',0,0,0); \
+             INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at,latest_message_seq) VALUES \
+                 ('conversation-1','workspace-1','workspace','open','General','general','private',0,0,0), \
+                 ('conversation-2','workspace-1','workspace','open','Other','other','private',0,0,0); \
              INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) \
                  VALUES('conversation-1','agent-conv',0),('conversation-1','agent-seat',0); \
              UPDATE agent_runtime_slots SET generation=1,claimed_by_daemon_instance_id='daemon-1',\

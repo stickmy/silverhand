@@ -1254,7 +1254,7 @@ mod reply_lookup_tests {
             "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES('viewer','viewer','Viewer',1,1)",
             "INSERT INTO workspaces(id,name,name_key,created_at,updated_at) VALUES('w','W','w',1,1)",
             "INSERT INTO workspace_users(workspace_id,user_id,joined_at,role) VALUES('w','viewer',1,'member')",
-            "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,latest_message_seq,created_at,updated_at) VALUES('c','w','workspace','open','C','c','idle','private',0,1,1)",
+            "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,latest_message_seq,created_at,updated_at) VALUES('c','w','workspace','open','C','c','private',0,1,1)",
             "INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('c','viewer',1)",
         ] {
             db.execute(statement).await.unwrap();

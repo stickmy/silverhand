@@ -25,14 +25,14 @@ async fn seed(path: &std::path::Path) {
          ('w','Workspace','runtime-workspace',1,1)",
         "INSERT INTO workspace_users(workspace_id,user_id,joined_at,role) VALUES \
          ('w','member',1,'member'),('w','browser',1,'member')",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,created_at,updated_at) VALUES \
-         ('private','w','workspace','open','Private','private','idle','private',1,1),\
-         ('public','w','workspace','open','Public','public','idle','public',1,1)",
+        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES \
+         ('private','w','workspace','open','Private','private','private',1,1),\
+         ('public','w','workspace','open','Public','public','public',1,1)",
         "INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES ('private','member',1)",
         "INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES \
          ('private','z-global',1),('private','a-conversation',1),('public','a-conversation',1)",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,status,visibility,created_at,updated_at) VALUES \
-         ('pair',NULL,'direct_pair','fixed','agent','z-global','human','member','',NULL,'idle','private',1,1)",
+        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,visibility,created_at,updated_at) VALUES \
+         ('pair',NULL,'direct_pair','fixed','agent','z-global','human','member','',NULL,'private',1,1)",
         "UPDATE agent_runtime_slots SET observed_status='active',observed_pid=123,cli_session_id='cli-c' \
          WHERE agent_id='a-conversation' AND conversation_id='private'",
         "UPDATE agent_runtime_slots SET observed_status='starting',observed_pid=456,cli_session_id='cli-g' \

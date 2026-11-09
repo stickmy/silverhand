@@ -51,7 +51,6 @@ pub(super) struct MessageFacts {
 pub(super) struct ConversationFacts {
     pub(super) placement: String,
     pub(super) workspace: Option<String>,
-    pub(super) closed: bool,
     pub(super) archived: bool,
     pub(super) endpoint_a: Option<Endpoint>,
     pub(super) endpoint_b: Option<Endpoint>,
@@ -91,7 +90,7 @@ pub(super) async fn conversation_facts(
     conversation: &ConversationId,
 ) -> Result<Option<ConversationFacts>, ReactionStoreError> {
     let Some(row) = sqlx::query(
-        "SELECT placement_kind, roster_policy, workspace_id, closed_at, archived_at, \
+        "SELECT placement_kind, roster_policy, workspace_id, archived_at, \
          endpoint_a_kind, endpoint_a_id, endpoint_a_deleted_at, \
          endpoint_b_kind, endpoint_b_id, endpoint_b_deleted_at \
          FROM conversations WHERE id = ?",
@@ -108,7 +107,6 @@ pub(super) async fn conversation_facts(
         ("workspace", "open" | "fixed") => Ok(Some(ConversationFacts {
             placement,
             workspace: row.try_get("workspace_id")?,
-            closed: row.try_get::<Option<i64>, _>("closed_at")?.is_some(),
             archived: row.try_get::<Option<i64>, _>("archived_at")?.is_some(),
             endpoint_a: None,
             endpoint_b: None,
@@ -116,7 +114,6 @@ pub(super) async fn conversation_facts(
         ("direct_pair", "fixed") => Ok(Some(ConversationFacts {
             placement,
             workspace: None,
-            closed: row.try_get::<Option<i64>, _>("closed_at")?.is_some(),
             archived: row.try_get::<Option<i64>, _>("archived_at")?.is_some(),
             endpoint_a: Some(decode_endpoint(&row, "endpoint_a")?),
             endpoint_b: Some(decode_endpoint(&row, "endpoint_b")?),

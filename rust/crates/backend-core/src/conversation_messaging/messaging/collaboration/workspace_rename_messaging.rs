@@ -2,7 +2,7 @@
 //!
 //! This module does not own workspace mutation, runtime delivery, publication or
 //! viewer events. It owns only the two messaging facts that #2193 consumes:
-//! which open-roster workspace channels are not closed, and one committed
+//! which workspace channels have an open roster, and one committed
 //! system rename message in each selected conversation.
 
 use std::{error::Error, future::Future};
@@ -31,7 +31,7 @@ impl WorkspaceRenameChannel {
     }
 }
 
-/// All non-closed open-roster channels selected for one workspace rename.
+/// All open-roster channels selected for one workspace rename.
 ///
 /// Archive state is intentionally absent: the existing product announces into
 /// archived channels too. Agent-home/fixed-roster conversations are not members
@@ -102,7 +102,7 @@ pub struct WorkspaceRenameChannelIdentityMismatch;
 pub trait WorkspaceRenameChannelsReadPort {
     type Error: Error + Send + Sync + 'static;
 
-    fn list_non_closed(
+    fn list_open_roster(
         &self,
         workspace: &WorkspaceId,
     ) -> impl Future<Output = Result<WorkspaceRenameChannels, Self::Error>> + Send;
@@ -113,7 +113,7 @@ pub async fn read_workspace_rename_channels<P: WorkspaceRenameChannelsReadPort>(
     workspace: WorkspaceId,
 ) -> Result<BoundWorkspaceRenameChannels, WorkspaceRenameChannelReadError<P::Error>> {
     let selected = port
-        .list_non_closed(&workspace)
+        .list_open_roster(&workspace)
         .await
         .map_err(WorkspaceRenameChannelReadError::Persistence)?;
     selected.bind(&workspace).map_err(Into::into)
@@ -534,7 +534,7 @@ mod tests {
     impl WorkspaceRenameChannelsReadPort for SelectedChannels {
         type Error = Infallible;
 
-        async fn list_non_closed(
+        async fn list_open_roster(
             &self,
             _: &WorkspaceId,
         ) -> Result<WorkspaceRenameChannels, Self::Error> {
@@ -651,7 +651,7 @@ mod tests {
     impl WorkspaceRenameChannelsReadPort for FixedChannels {
         type Error = Infallible;
 
-        async fn list_non_closed(
+        async fn list_open_roster(
             &self,
             _: &WorkspaceId,
         ) -> Result<WorkspaceRenameChannels, Self::Error> {

@@ -149,9 +149,9 @@ mod tests {
                 "INSERT INTO workspaces (id, name, name_key, created_at, updated_at) \
                  VALUES ('w1', 'w1', 'w1', 1, 1)",
                 "INSERT INTO conversations \
-                 (id, workspace_id, placement_kind, roster_policy, title, title_key, status, \
+                 (id, workspace_id, placement_kind, roster_policy, title, title_key, \
                   created_at, updated_at) \
-                 VALUES ('c1', 'w1', 'workspace', 'open', 'chan', 'chan', 'active', 1, 1)",
+                 VALUES ('c1', 'w1', 'workspace', 'open', 'chan', 'chan', 1, 1)",
                 "INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) \
                  VALUES ('c1', 'a-conv', 1)",
                 "UPDATE agent_runtime_slots SET observed_status='active', generation=1 WHERE agent_id='a-agent'",

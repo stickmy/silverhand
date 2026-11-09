@@ -154,26 +154,24 @@ async fn seeded() -> (
          INSERT INTO workspace_agent_capabilities (workspace_id, agent_id, capability) VALUES \
            ('workspace-1', 'agent-1', 'send_messages'); \
          INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-           title_key, status, visibility, created_at, updated_at, latest_message_seq) VALUES \
-           ('conversation-1', 'workspace-1', 'workspace', 'open', 'General', 'general', \
-            'open', 'private', 0, 0, 2), \
-           ('conversation-closed', 'workspace-1', 'workspace', 'open', 'Closed', 'closed', \
-            'open', 'private', 0, 0, 1); \
+           title_key, visibility, created_at, updated_at, latest_message_seq) VALUES \
+           ('conversation-1', 'workspace-1', 'workspace', 'open', 'General', 'general', 'private', 0, 0, 2), \
+           ('conversation-archived', 'workspace-1', 'workspace', 'open', 'Archived', 'archived', 'private', 0, 0, 1); \
          INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-           title_key, status, visibility, endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, \
+           title_key, visibility, endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, \
            created_at, updated_at, latest_message_seq) VALUES \
-           ('pair-1', NULL, 'direct_pair', 'fixed', 'Pair', NULL, 'idle', 'private', \
+           ('pair-1', NULL, 'direct_pair', 'fixed', 'Pair', NULL, 'private', \
             'agent', 'agent-1', 'human', 'user-1', 0, 0, 1); \
-         UPDATE conversations SET closed_at = 1 WHERE id = 'conversation-closed'; \
+         UPDATE conversations SET archived_at = 1 WHERE id = 'conversation-archived'; \
          INSERT INTO conversation_users (conversation_id, user_id, joined_at) VALUES \
-           ('conversation-1', 'user-1', 0), ('conversation-closed', 'user-1', 0); \
+           ('conversation-1', 'user-1', 0), ('conversation-archived', 'user-1', 0); \
          INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES \
            ('conversation-1', 'agent-1', 0); \
          INSERT INTO messages (id, conversation_id, from_kind, from_user_id, content, seq, created_at) VALUES \
            ('message-1', 'conversation-1', 'user', 'user-1', 'hello', 1, 1), \
            ('system-1', 'conversation-1', 'system', NULL, 'notice', 2, 2), \
            ('reply-1', 'conversation-1', 'user', 'user-1', 'reply', 3, 3), \
-           ('closed-message', 'conversation-closed', 'user', 'user-1', 'old', 1, 1), \
+           ('archived-message', 'conversation-archived', 'user', 'user-1', 'old', 1, 1), \
            ('pair-message', 'pair-1', 'user', 'user-1', 'dm', 1, 1); \
          UPDATE messages SET thread_root_id='message-1' WHERE id='reply-1'; \
          INSERT INTO conversation_stream_heads (conversation_id, thread_root_id, latest_seq) VALUES \
@@ -410,10 +408,10 @@ async fn refusals_are_exact_and_commit_nothing() {
             "system_message_not_reactable",
         ),
         (
-            "/api/messages/closed-message/reactions",
+            "/api/messages/archived-message/reactions",
             "👍",
             StatusCode::CONFLICT,
-            "conversation_closed",
+            "conversation_archived",
         ),
         (
             "/api/messages/message-1/reactions",
@@ -538,8 +536,8 @@ async fn production_routes_consume_the_shared_fixture_cases_and_every_case_is_ac
         .await
         .unwrap();
     db.execute(sqlx::raw_sql(
-        "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, status, visibility, created_at, updated_at) \
-         VALUES ('conversation-other', 'workspace-1', 'workspace', 'open', 'Other', 'other', 'open', 'private', 0, 0); \
+        "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, visibility, created_at, updated_at) \
+         VALUES ('conversation-other', 'workspace-1', 'workspace', 'open', 'Other', 'other', 'private', 0, 0); \
          INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES ('conversation-other', 'agent-1', 0);"
     )).await.unwrap();
 
@@ -600,21 +598,7 @@ async fn production_routes_consume_the_shared_fixture_cases_and_every_case_is_ac
         serde_json::to_value(wire::changed_event(&first)).unwrap(),
         event("human_add")
     );
-    sqlx::query("UPDATE conversations SET closed_at=1 WHERE id='conversation-1'")
-        .execute(&mut db)
-        .await
-        .unwrap();
-    assert_eq!(
-        call(
-            human.clone(),
-            Method::POST,
-            "/api/messages/message-1/reactions",
-            json!({"emoji":"👍"})
-        )
-        .await,
-        case("closed_conversation")
-    );
-    sqlx::query("UPDATE conversations SET closed_at=NULL, archived_at=1 WHERE id='conversation-1'")
+    sqlx::query("UPDATE conversations SET archived_at=1 WHERE id='conversation-1'")
         .execute(&mut db)
         .await
         .unwrap();

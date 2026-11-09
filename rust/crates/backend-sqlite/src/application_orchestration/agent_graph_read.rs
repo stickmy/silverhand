@@ -123,8 +123,8 @@ mod tests {
     fn seed_conversation(id: &str, ws: &str, title: &str, created_at: i64) -> String {
         format!(
             "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-             title_key, status, created_at, updated_at) \
-             VALUES ('{id}', '{ws}', 'workspace', 'fixed', '{title}', '{id}', 'idle', {created_at}, 1)"
+             title_key, created_at, updated_at) \
+             VALUES ('{id}', '{ws}', 'workspace', 'fixed', '{title}', '{id}', {created_at}, 1)"
         )
     }
 
@@ -149,9 +149,12 @@ mod tests {
         seed.push(seed_conversation("foreign", "home-other", "Onboarding", 0));
         // A non-onboarding fixed channel that must NOT be picked.
         seed.push(seed_conversation("dm-a1", "home-one", "dm-a1", 1));
-        seed.push("INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, \
-                   title, title_key, status, created_at, updated_at) VALUES \
-                   ('open-onb', 'home-one', 'workspace', 'open', 'Onboarding', 'open-onb', 'idle', 2, 1)".into());
+        seed.push(
+            "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, \
+                   title, title_key, created_at, updated_at) VALUES \
+                   ('open-onb', 'home-one', 'workspace', 'open', 'Onboarding', 'open-onb', 2, 1)"
+                .into(),
+        );
         seed.push(seed_conversation("onb-a1", "home-one", "Onboarding", 3));
         seed.push(seed_conversation("later-onb", "home-one", "Onboarding", 4));
         let store = open(&dir, "home-dm.db", &seed).await;

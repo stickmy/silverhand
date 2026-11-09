@@ -135,9 +135,9 @@ async fn seed_workspace_conversation(
 ) {
     sqlx::query(
         "INSERT INTO conversations
-            (id, workspace_id, placement_kind, roster_policy, title, title_key, status,
+            (id, workspace_id, placement_kind, roster_policy, title, title_key,
              created_at, updated_at)
-         VALUES (?, ?, 'workspace', 'open', ?, ?, 'active', 1, 1)",
+         VALUES (?, ?, 'workspace', 'open', ?, ?, 1, 1)",
     )
     .bind(id)
     .bind(workspace_id)
@@ -155,9 +155,8 @@ async fn seed_direct_pair_conversation(connection: &mut SqliteConnection, id: &s
     sqlx::query(
         "INSERT INTO conversations
             (id, placement_kind, roster_policy, title,
-             endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id,
-             status, created_at, updated_at)
-         VALUES (?, 'direct_pair', 'fixed', ?, 'agent', ?, 'human', 'user-1', 'active', 1, 1)",
+             endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, created_at, updated_at)
+         VALUES (?, 'direct_pair', 'fixed', ?, 'agent', ?, 'human', 'user-1', 1, 1)",
     )
     .bind(id)
     .bind(title)

@@ -892,8 +892,8 @@ pub struct RawHomeWorkspaceRow {
 }
 
 /// Every column the conversation-arm writer touches on the home `Onboarding` DM row: identity,
-/// the fixed placement/roster/title, and the fixed status/visibility/nullability/clock a
-/// freshly opened idle private channel carries.
+/// the fixed placement/roster/title, and the fixed visibility/nullability/clock a
+/// freshly opened private channel carries.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RawOnboardingDmRow {
     pub id: String,
@@ -902,11 +902,8 @@ pub struct RawOnboardingDmRow {
     pub roster_policy: String,
     pub title: String,
     pub title_key: Option<String>,
-    pub status: String,
     pub visibility: String,
     pub spawned_by_agent_id: Option<String>,
-    pub closed_at: Option<i64>,
-    pub close_summary: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
 }
@@ -1273,11 +1270,6 @@ fn seal_onboarding_dm(
             reason: "conversation-arm home DM title key is not the onboarding key",
         });
     }
-    if row.status != "idle" {
-        return Err(MaterializationFault::ProvisioningInvariant {
-            reason: "conversation-arm home DM status is not idle",
-        });
-    }
     if row.visibility != "private" {
         return Err(MaterializationFault::ProvisioningInvariant {
             reason: "conversation-arm home DM visibility is not private",
@@ -1286,11 +1278,6 @@ fn seal_onboarding_dm(
     if row.spawned_by_agent_id.is_some() {
         return Err(MaterializationFault::ProvisioningInvariant {
             reason: "conversation-arm home DM was spawned by an agent",
-        });
-    }
-    if row.closed_at.is_some() || row.close_summary.is_some() {
-        return Err(MaterializationFault::ProvisioningInvariant {
-            reason: "conversation-arm home DM is closed at creation",
         });
     }
     if row.created_at != now_ms || row.updated_at != now_ms {
@@ -2533,11 +2520,8 @@ mod tests {
                 roster_policy: "fixed".to_string(),
                 title: ONBOARDING_DM_TITLE.to_string(),
                 title_key: Some(ONBOARDING_DM_TITLE_KEY.to_string()),
-                status: "idle".to_string(),
                 visibility: "private".to_string(),
                 spawned_by_agent_id: None,
-                closed_at: None,
-                close_summary: None,
                 created_at: now_ms,
                 updated_at: now_ms,
             },
@@ -2824,11 +2808,8 @@ mod tests {
         // them away from its committed constant is refused. Each case mutates exactly one column
         // off the otherwise-faithful graph.
         let mutate: Vec<fn(&mut RawConversationArmGraph)> = vec![
-            |g| g.dm_channel.status = "active".to_string(),
             |g| g.dm_channel.visibility = "public".to_string(),
             |g| g.dm_channel.spawned_by_agent_id = Some("a1".to_string()),
-            |g| g.dm_channel.closed_at = Some(1),
-            |g| g.dm_channel.close_summary = Some("x".to_string()),
             |g| g.dm_channel.created_at = 1,
             |g| g.dm_channel.updated_at = 1,
             |g| g.home_workspace.name = "not-a1".to_string(),

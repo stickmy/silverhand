@@ -85,17 +85,17 @@ async fn fixture() -> Fixture {
         "INSERT INTO agents (id, name, display_name, runtime, host_id, created_by_user_id, \
          created_at, updated_at, session_scope) VALUES \
          ('agent-1', 'agent', 'Agent One', 'codex', 'host-1', 'user-1', 1, 11, 'agent')",
-        "INSERT INTO conversations (id, placement_kind, roster_policy, title, status, \
+        "INSERT INTO conversations (id, placement_kind, roster_policy, title, \
          endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, created_at, updated_at) \
-         VALUES ('pair-agent', 'direct_pair', 'fixed', '', 'open', 'agent', 'agent-1', 'human', \
+         VALUES ('pair-agent', 'direct_pair', 'fixed', '', 'agent', 'agent-1', 'human', \
          'user-1', 100, 100)",
-        "INSERT INTO conversations (id, placement_kind, roster_policy, title, status, \
+        "INSERT INTO conversations (id, placement_kind, roster_policy, title, \
          endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, created_at, updated_at) \
-         VALUES ('pair-human', 'direct_pair', 'fixed', '', 'open', 'human', 'user-1', 'human', \
+         VALUES ('pair-human', 'direct_pair', 'fixed', '', 'human', 'user-1', 'human', \
          'user-2', 200, 200)",
-        "INSERT INTO conversations (id, placement_kind, roster_policy, title, status, \
+        "INSERT INTO conversations (id, placement_kind, roster_policy, title, \
          endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, created_at, updated_at) \
-         VALUES ('pair-foreign', 'direct_pair', 'fixed', '', 'open', 'agent', 'agent-1', 'human', \
+         VALUES ('pair-foreign', 'direct_pair', 'fixed', '', 'agent', 'agent-1', 'human', \
          'user-3', 50, 50)",
         "INSERT INTO messages (id, conversation_id, from_kind, from_agent_id, content, seq, \
          created_at) VALUES ('message-1', 'pair-agent', 'agent', 'agent-1', 'hello', 1, 1)",

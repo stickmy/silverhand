@@ -253,9 +253,9 @@ async fn the_target_label_reflects_the_joined_board_or_falls_back() {
     .unwrap();
     sqlx::query(
         "INSERT INTO conversations
-            (id, workspace_id, placement_kind, roster_policy, title, title_key, status,
+            (id, workspace_id, placement_kind, roster_policy, title, title_key,
              created_at, updated_at)
-         VALUES ('c-open', 'ws-1', 'workspace', 'open', 'ops', 'ops', 'active', 1, 1)",
+         VALUES ('c-open', 'ws-1', 'workspace', 'open', 'ops', 'ops', 1, 1)",
     )
     .execute(&mut connection)
     .await

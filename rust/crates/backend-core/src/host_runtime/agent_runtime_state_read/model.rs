@@ -77,7 +77,6 @@ pub struct RuntimeParticipationFact {
     pub placement_kind: String,
     pub roster_policy: ConversationRosterPolicy,
     pub channel_title: String,
-    pub closed_at: Option<i64>,
     /// Whether the conversation is archived — the ONLY difference between the
     /// complete and the visible participation lists.
     pub archived: bool,
@@ -311,7 +310,6 @@ pub struct RuntimeParticipationView {
     pub placement_kind: String,
     pub roster_policy: ConversationRosterPolicy,
     pub channel_title: String,
-    pub closed_at: Option<i64>,
 }
 
 impl RuntimeParticipationView {
@@ -323,7 +321,6 @@ impl RuntimeParticipationView {
             placement_kind: fact.placement_kind.clone(),
             roster_policy: fact.roster_policy,
             channel_title: fact.channel_title.clone(),
-            closed_at: fact.closed_at,
         }
     }
 }
@@ -430,7 +427,6 @@ mod tests {
             placement_kind: "workspace".to_string(),
             roster_policy: ConversationRosterPolicy::Open,
             channel_title: format!("channel {id}"),
-            closed_at: None,
             archived,
             viewer_can_read,
         }

@@ -176,17 +176,17 @@ mod tests {
             "INSERT INTO workspaces (id, name, name_key, owner_agent_id, owner_user_id, \
              created_at, updated_at) VALUES ('ws-2', 'Two', 'two', NULL, 'user-1', 1, 1)",
             "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-             title_key, status, created_at, updated_at) \
-             VALUES ('conv-a', 'ws-1', 'workspace', 'open', 'A', 'a', 'open', 1, 1)",
+             title_key, created_at, updated_at) \
+             VALUES ('conv-a', 'ws-1', 'workspace', 'open', 'A', 'a', 1, 1)",
             "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-             title_key, status, created_at, updated_at) \
-             VALUES ('conv-b', 'ws-1', 'workspace', 'open', 'B', 'b', 'open', 1, 1)",
+             title_key, created_at, updated_at) \
+             VALUES ('conv-b', 'ws-1', 'workspace', 'open', 'B', 'b', 1, 1)",
             "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-             title_key, status, created_at, updated_at) \
-             VALUES ('conv-c', 'ws-2', 'workspace', 'open', 'C', 'c', 'open', 1, 1)",
-            "INSERT INTO conversations (id, placement_kind, roster_policy, title, status, \
+             title_key, created_at, updated_at) \
+             VALUES ('conv-c', 'ws-2', 'workspace', 'open', 'C', 'c', 1, 1)",
+            "INSERT INTO conversations (id, placement_kind, roster_policy, title, \
              endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, created_at, \
-             updated_at) VALUES ('conv-d', 'direct_pair', 'fixed', '', 'open', 'agent', \
+             updated_at) VALUES ('conv-d', 'direct_pair', 'fixed', '', 'agent', \
              'agent-1', 'human', 'user-1', 1, 1)",
             "INSERT INTO tasks (id, workspace_id, task_number, conversation_id, title, status, \
              creator_kind, created_at, board_key) \

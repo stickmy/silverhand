@@ -36,8 +36,8 @@ async fn open_db() -> (TempDir, PathBuf) {
         "INSERT INTO workspaces (id, name, name_key, created_at, updated_at)
          VALUES ('ws-1', 'ws', 'ws', 1, 1)",
         "INSERT INTO conversations
-            (id, workspace_id, placement_kind, roster_policy, title, title_key, status, created_at, updated_at)
-         VALUES ('conv-1', 'ws-1', 'workspace', 'open', 'general', 'general', 'active', 1, 1)",
+            (id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at)
+         VALUES ('conv-1', 'ws-1', 'workspace', 'open', 'general', 'general', 1, 1)",
         "INSERT INTO conversation_agents (conversation_id, agent_id, joined_at)
          VALUES ('conv-1', 'agent-1', 1)",
         "INSERT INTO workspace_members (workspace_id, agent_id, joined_at)
@@ -184,8 +184,8 @@ async fn a_human_editor_shares_the_gate_and_stamps_a_user_triple() {
         "INSERT INTO workspace_users (workspace_id, user_id, role, joined_at)
          VALUES ('ws-1', 'user-1', 'member', 1)",
         "INSERT INTO conversations
-            (id, workspace_id, placement_kind, roster_policy, title, title_key, status, created_at, updated_at)
-         VALUES ('conv-1', 'ws-1', 'workspace', 'open', 'general', 'general', 'active', 1, 1)",
+            (id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at)
+         VALUES ('conv-1', 'ws-1', 'workspace', 'open', 'general', 'general', 1, 1)",
         "INSERT INTO conversation_users (conversation_id, user_id, joined_at)
          VALUES ('conv-1', 'user-1', 1)",
         "INSERT INTO tasks

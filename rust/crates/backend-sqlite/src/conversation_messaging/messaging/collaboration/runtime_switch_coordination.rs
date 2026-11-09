@@ -149,19 +149,18 @@ mod tests {
              INSERT INTO workspace_users (workspace_id, user_id, joined_at, role) VALUES \
                  ('workspace-1', 'user-1', 0, 'owner'); \
              INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-                 title_key, status, visibility, created_at, updated_at) VALUES \
-                 ('c-1', 'workspace-1', 'workspace', 'open', 'One', 'one', 'open', 'private', 0, 0), \
-                 ('c-2', 'workspace-1', 'workspace', 'open', 'Two', 'two', 'open', 'private', 0, 0), \
-                 ('c-3', 'workspace-1', 'workspace', 'open', 'Three', 'three', 'open', 'private', 0, 0), \
-                 ('c-claimed', 'workspace-1', 'workspace', 'open', 'Claimed', 'claimed', 'open', 'private', 0, 0), \
-                 ('c-delivered', 'workspace-1', 'workspace', 'open', 'Delivered', 'delivered', 'open', 'private', 0, 0), \
-                 ('c-failed', 'workspace-1', 'workspace', 'open', 'Failed', 'failed', 'open', 'private', 0, 0), \
-                 ('c-other', 'workspace-1', 'workspace', 'open', 'Other', 'other', 'open', 'private', 0, 0); \
+                 title_key, visibility, created_at, updated_at) VALUES \
+                 ('c-1', 'workspace-1', 'workspace', 'open', 'One', 'one', 'private', 0, 0), \
+                 ('c-2', 'workspace-1', 'workspace', 'open', 'Two', 'two', 'private', 0, 0), \
+                 ('c-3', 'workspace-1', 'workspace', 'open', 'Three', 'three', 'private', 0, 0), \
+                 ('c-claimed', 'workspace-1', 'workspace', 'open', 'Claimed', 'claimed', 'private', 0, 0), \
+                 ('c-delivered', 'workspace-1', 'workspace', 'open', 'Delivered', 'delivered', 'private', 0, 0), \
+                 ('c-failed', 'workspace-1', 'workspace', 'open', 'Failed', 'failed', 'private', 0, 0), \
+                 ('c-other', 'workspace-1', 'workspace', 'open', 'Other', 'other', 'private', 0, 0); \
              INSERT INTO conversations (id, workspace_id, endpoint_a_kind, endpoint_a_id, \
-                 endpoint_b_kind, endpoint_b_id, placement_kind, roster_policy, title, title_key, \
-                 status, visibility, created_at, updated_at) VALUES \
+                 endpoint_b_kind, endpoint_b_id, placement_kind, roster_policy, title, title_key, visibility, created_at, updated_at) VALUES \
                  ('pair-1', NULL, 'agent', 'agent-1', 'human', 'user-1', 'direct_pair', 'fixed', \
-                  'Direct Pair', NULL, 'idle', 'private', 0, 0); \
+                  'Direct Pair', NULL, 'private', 0, 0); \
              INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES \
                  ('c-1', 'agent-1', 0), ('c-2', 'agent-1', 0), ('c-3', 'agent-1', 0), \
                  ('c-claimed', 'agent-1', 0), ('c-delivered', 'agent-1', 0), \

@@ -144,9 +144,8 @@ async fn seeded() -> (tempfile::TempDir, MessagingStore) {
          INSERT INTO workspace_users (workspace_id, user_id, joined_at, role) VALUES \
              ('workspace-1', 'user-1', 0, 'owner'), ('workspace-1', 'user-2', 0, 'member'); \
          INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-             title_key, status, visibility, created_at, updated_at) VALUES \
-             ('conversation-1', 'workspace-1', 'workspace', 'open', 'General', 'general', \
-              'open', 'private', 0, 0); \
+             title_key, visibility, created_at, updated_at) VALUES \
+             ('conversation-1', 'workspace-1', 'workspace', 'open', 'General', 'general', 'private', 0, 0); \
          INSERT INTO conversation_users (conversation_id, user_id, joined_at) VALUES \
              ('conversation-1', 'user-1', 0), ('conversation-1', 'user-2', 0); \
          INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) \

@@ -1616,7 +1616,6 @@ impl<E: Send + Sync> PostAuthorityReads for TxScope<'_, '_, E> {
             .map_err(driver)?;
         let Some(row) = row else { return Ok(None) };
 
-        let closed_at: Option<i64> = row.try_get("closed_at").map_err(driver)?;
         let archived_at: Option<i64> = row.try_get("archived_at").map_err(driver)?;
         let placement: String = row.try_get("placement_kind").map_err(driver)?;
 
@@ -1631,7 +1630,6 @@ impl<E: Send + Sync> PostAuthorityReads for TxScope<'_, '_, E> {
 
         Ok(Some(ConversationFacts {
             id: conversation.clone(),
-            is_closed: closed_at.is_some(),
             is_archived: archived_at.is_some(),
             direct_pair,
         }))

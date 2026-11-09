@@ -7,7 +7,7 @@ use silverhand_backend_core::{
     conversation_messaging::messaging::{
         DirectPairParticipants, PrincipalIdentity,
         collaboration::{
-            channel_directory::{ChannelStatus, ChannelVisibility, DirectoryRoster},
+            channel_directory::{ChannelVisibility, DirectoryRoster},
             channel_lifecycle::{
                 ChannelDetailFact, ChannelDetailReadPort, ChannelDetailRefusal,
                 ChannelLifecyclePlacement, ChannelLifecycleProjectionError, ChannelLifecycleRow,
@@ -47,8 +47,6 @@ pub enum ChannelLifecycleStoreError {
     Placement,
     #[error("stored workspace title/key pair is not canonical")]
     Title,
-    #[error("stored conversation status is outside the closed set")]
-    Status,
     #[error("stored conversation visibility is outside the closed set")]
     Visibility,
     #[error("stored workspace role is outside the closed set")]
@@ -146,7 +144,7 @@ pub(crate) async fn load_channel_row(
 ) -> Result<Option<ChannelLifecycleRow>, ChannelLifecycleStoreError> {
     let raw = sqlx::query(
         "SELECT c.id,c.workspace_id,c.placement_kind,c.roster_policy,c.title,c.title_key,\
-         c.status,c.spawned_by_agent_id,c.closed_at,c.close_summary,c.archived_at,\
+         c.spawned_by_agent_id,c.archived_at,\
          c.latest_message_seq,c.created_at,c.updated_at,c.visibility,c.endpoint_a_kind,c.endpoint_a_id,\
          c.endpoint_a_deleted_at,c.endpoint_b_kind,c.endpoint_b_id,c.endpoint_b_deleted_at,\
          CASE WHEN c.spawned_by_agent_id IS NULL THEN 1 ELSE EXISTS(SELECT 1 FROM agents a WHERE a.id=c.spawned_by_agent_id) END AS spawned_agent_valid \
@@ -174,8 +172,6 @@ fn decode_row(
     }
     let roster = DirectoryRoster::parse(&raw.try_get::<String, _>("roster_policy")?)
         .map_err(|_| ChannelLifecycleStoreError::Placement)?;
-    let status = ChannelStatus::parse(&raw.try_get::<String, _>("status")?)
-        .map_err(|_| ChannelLifecycleStoreError::Status)?;
     let visibility = ChannelVisibility::parse(&raw.try_get::<String, _>("visibility")?)
         .map_err(|_| ChannelLifecycleStoreError::Visibility)?;
     let spawned_by_agent = raw
@@ -223,10 +219,7 @@ fn decode_row(
                 workspace,
                 roster,
                 canonical,
-                status,
                 spawned_by_agent,
-                raw.try_get("closed_at")?,
-                raw.try_get("close_summary")?,
                 raw.try_get("archived_at")?,
                 raw.try_get("latest_message_seq")?,
                 raw.try_get("created_at")?,
@@ -249,10 +242,7 @@ fn decode_row(
                 conversation,
                 participants,
                 title,
-                status,
                 spawned_by_agent,
-                raw.try_get("closed_at")?,
-                raw.try_get("close_summary")?,
                 raw.try_get("archived_at")?,
                 raw.try_get("latest_message_seq")?,
                 raw.try_get("created_at")?,

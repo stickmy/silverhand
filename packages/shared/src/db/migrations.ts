@@ -4367,6 +4367,19 @@ export const migrations: Migration[] = [
         BEGIN SELECT RAISE(ABORT, 'invalid conversation inbox settlement state'); END;
     `,
   },
+  {
+    version: 103,
+    name: 'retire_conversation_status_and_close',
+    // Closing is retired; a historically closed conversation stays out of use as archived.
+    up: `
+      UPDATE conversations SET archived_at = COALESCE(archived_at, closed_at)
+        WHERE closed_at IS NOT NULL;
+      DROP INDEX idx_conversations_status;
+      ALTER TABLE conversations DROP COLUMN status;
+      ALTER TABLE conversations DROP COLUMN closed_at;
+      ALTER TABLE conversations DROP COLUMN close_summary;
+    `,
+  },
 ];
 
 /**

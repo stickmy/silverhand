@@ -566,7 +566,7 @@ INSERT INTO workspace_members (workspace_id,agent_id,joined_at) VALUES ('ws','ag
 INSERT INTO workspace_members (workspace_id,agent_id,joined_at) VALUES ('ws','agent-y',1); \
 INSERT INTO workspace_agent_capabilities (workspace_id,agent_id,capability) VALUES ('ws','agent-a','read_messages'); \
 INSERT INTO workspace_agent_capabilities (workspace_id,agent_id,capability) VALUES ('ws','agent-y','read_messages'); \
-INSERT INTO conversations (id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,created_at,updated_at) VALUES ('chan','ws','workspace','open','Chan','chan','idle','private',1,1); \
+INSERT INTO conversations (id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES ('chan','ws','workspace','open','Chan','chan','private',1,1); \
 INSERT INTO conversation_agents (conversation_id,agent_id,joined_at) VALUES ('chan','agent-a',1); \
 INSERT INTO conversation_agents (conversation_id,agent_id,joined_at) VALUES ('chan','agent-c',1); \
 INSERT INTO messages (id,conversation_id,from_kind,from_agent_id,content,seq,created_at,author_id,author_name,author_display_name) VALUES ('m1','chan','agent','agent-a','the straße rules',1,10,'agent-a','alice','Alice'); \
@@ -982,7 +982,7 @@ INSERT INTO messages (id,conversation_id,from_kind,from_agent_id,content,seq,cre
             .await
             .unwrap();
         // A second channel agent-a can read.
-        sqlx::query("INSERT INTO conversations (id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,created_at,updated_at) VALUES ('chan2','ws','workspace','open','C2','c2','idle','private',1,1)")
+        sqlx::query("INSERT INTO conversations (id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES ('chan2','ws','workspace','open','C2','c2','private',1,1)")
             .execute(&pool).await.unwrap();
         sqlx::query("INSERT INTO conversation_agents (conversation_id,agent_id,joined_at) VALUES ('chan2','agent-a',1)")
             .execute(&pool).await.unwrap();
@@ -1008,7 +1008,7 @@ INSERT INTO messages (id,conversation_id,from_kind,from_agent_id,content,seq,cre
         // boundary. An (created_at, seq)-only cursor advancing past (500,1) at the
         // boundary emits `< (500,1)` and SKIPS this tied match; the (created_at, seq,
         // id) keyset emits `< (500,1,hi-000001)` and still returns it.
-        sqlx::query("INSERT INTO conversations (id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,created_at,updated_at) VALUES ('chan3','ws','workspace','open','C3','c3','idle','private',1,1)")
+        sqlx::query("INSERT INTO conversations (id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES ('chan3','ws','workspace','open','C3','c3','private',1,1)")
             .execute(&pool).await.unwrap();
         sqlx::query("INSERT INTO conversation_agents (conversation_id,agent_id,joined_at) VALUES ('chan3','agent-a',1)")
             .execute(&pool).await.unwrap();

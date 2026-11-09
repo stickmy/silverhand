@@ -27,7 +27,7 @@ async fn viewer_gate_precedes_window_counts_and_facets() {
         "INSERT INTO users (id,name,display_name,created_at,updated_at) VALUES ('user-1','u1','Zoe',1,1),('user-2','u2','Amy',1,1)",
         "INSERT INTO workspaces (id,name,name_key,created_at,updated_at) VALUES ('ws-1','One','one',1,1),('ws-2','Two','two',1,1)",
         "INSERT INTO workspace_users (workspace_id,user_id,role,joined_at) VALUES ('ws-1','user-1','member',1),('ws-2','user-2','member',1)",
-        "INSERT INTO conversations (id,workspace_id,placement_kind,roster_policy,title,title_key,status,created_at,updated_at) VALUES ('conv-1','ws-1','workspace','open','General','general','active',1,1),('conv-2','ws-2','workspace','open','Hidden','hidden','active',1,1)",
+        "INSERT INTO conversations (id,workspace_id,placement_kind,roster_policy,title,title_key,created_at,updated_at) VALUES ('conv-1','ws-1','workspace','open','General','general',1,1),('conv-2','ws-2','workspace','open','Hidden','hidden',1,1)",
         "INSERT INTO conversation_users (conversation_id,user_id,joined_at) VALUES ('conv-1','user-1',1),('conv-2','user-2',1)",
         "INSERT INTO tasks (id,workspace_id,task_number,conversation_id,title,status,creator_kind,creator_user_id,assignee_user_id,created_at,board_key) VALUES ('visible-2','ws-1',2,'conv-1','Visible two','todo','user','user-1','user-1',2,'ws:ws-1'),('visible-1','ws-1',1,'conv-1','Visible one','todo','user','user-1',NULL,1,'ws:ws-1'),('hidden-99','ws-2',99,'conv-2','Hidden','todo','user','user-2','user-2',99,'ws:ws-2')",
     ] {

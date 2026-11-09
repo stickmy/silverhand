@@ -123,9 +123,9 @@ async fn the_direct_pair_human_endpoint_arm_resolves() {
         AGENT_A1,
         "INSERT INTO conversations \
            (id, workspace_id, endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, \
-            placement_kind, roster_policy, title, status, created_at, updated_at) \
+            placement_kind, roster_policy, title, created_at, updated_at) \
          VALUES ('c-pair', NULL, 'agent', 'a1', 'human', 'u-pair', \
-            'direct_pair', 'fixed', 'dm', 'active', 1000, 1000)",
+            'direct_pair', 'fixed', 'dm', 1000, 1000)",
     ])
     .await;
 
@@ -154,9 +154,9 @@ async fn an_agent_to_agent_pair_contributes_no_viewer() {
         // 'a1' < 'a2', so a1 is endpoint_a and a2 endpoint_b: an agent↔agent pair.
         "INSERT INTO conversations \
            (id, workspace_id, endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, \
-            placement_kind, roster_policy, title, status, created_at, updated_at) \
+            placement_kind, roster_policy, title, created_at, updated_at) \
          VALUES ('c-aa', NULL, 'agent', 'a1', 'agent', 'a2', \
-            'direct_pair', 'fixed', 'dm', 'active', 1000, 1000)",
+            'direct_pair', 'fixed', 'dm', 1000, 1000)",
     ])
     .await;
 
@@ -408,9 +408,9 @@ async fn an_empty_direct_pair_human_endpoint_is_a_read_error() {
         AGENT_A1,
         "INSERT INTO conversations \
            (id, workspace_id, endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, \
-            placement_kind, roster_policy, title, status, created_at, updated_at) \
+            placement_kind, roster_policy, title, created_at, updated_at) \
          VALUES ('c-pair', NULL, 'agent', 'a1', 'human', '', \
-            'direct_pair', 'fixed', 'dm', 'active', 1000, 1000)",
+            'direct_pair', 'fixed', 'dm', 1000, 1000)",
     ])
     .await;
     assert!(try_view(&bad, "a1").await.is_err());
@@ -423,9 +423,9 @@ async fn an_empty_direct_pair_human_endpoint_is_a_read_error() {
         AGENT_A1,
         "INSERT INTO conversations \
            (id, workspace_id, endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, \
-            placement_kind, roster_policy, title, status, created_at, updated_at) \
+            placement_kind, roster_policy, title, created_at, updated_at) \
          VALUES ('c-pair', NULL, 'agent', 'a1', 'human', 'u-pair', \
-            'direct_pair', 'fixed', 'dm', 'active', 1000, 1000)",
+            'direct_pair', 'fixed', 'dm', 1000, 1000)",
     ])
     .await;
     assert!(try_view(&good, "a1").await.is_ok());

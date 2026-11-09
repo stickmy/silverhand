@@ -55,7 +55,7 @@ impl Fixture {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("test.sqlite");
         let preparation = prepare_database(&path, true).await.unwrap();
-        assert_eq!((preparation.after_step, preparation.after_epoch), (102, 71));
+        assert_eq!((preparation.after_step, preparation.after_epoch), (103, 71));
         let bootstrap = SqliteEmbeddedBootstrap::open(&path).await.unwrap();
         let BootstrapChoice::Created { user } = bootstrap.choose_or_create(100).await.unwrap()
         else {
@@ -335,7 +335,7 @@ async fn failed_core_write_rolls_back_fields_and_completion_together() {
 #[tokio::test]
 async fn step98_upgrade_keeps_existing_identity_complete_and_preserves_other_fields() {
     // Build an isolated step98 database from the current plan by removing only
-    // the additive step99-102 changes and their ledger entries; no historical fixture changes.
+    // the step99-103 changes and their ledger entries; no historical fixture changes.
     let fixture = Fixture::new().await;
     let mut db = fixture.db().await;
     rollback_step100(&mut db).await;
@@ -357,9 +357,9 @@ async fn step98_upgrade_keeps_existing_identity_complete_and_preserves_other_fie
             upgrade.before_epoch,
             upgrade.after_epoch
         ),
-        (98, 102, 69, 71)
+        (98, 103, 69, 71)
     );
-    assert_eq!(upgrade.applied_steps, vec![99, 100, 101, 102]);
+    assert_eq!(upgrade.applied_steps, vec![99, 100, 101, 102, 103]);
     assert!(
         prepare_database(&fixture.path, false)
             .await
@@ -462,10 +462,15 @@ async fn avatar_storage_failure_after_completion_does_not_reopen_setup() {
     assert_eq!(fixture.changes.0.lock().unwrap().len(), 1);
 }
 
-/// Return a current database to step 99 by undoing only the additive steps 100-102.
+/// Return a current database to step 99 by undoing only steps 100-103.
 async fn rollback_step100(db: &mut SqliteConnection) {
     sqlx::raw_sql(
-        "DROP TRIGGER conversation_inboxes_settlement_state_insert;
+        "ALTER TABLE conversations ADD COLUMN status TEXT NOT NULL DEFAULT 'idle';
+         ALTER TABLE conversations ADD COLUMN closed_at INTEGER;
+         ALTER TABLE conversations ADD COLUMN close_summary TEXT;
+         CREATE INDEX idx_conversations_status ON conversations(status);
+         DELETE FROM _migrations WHERE version = 103;
+         DROP TRIGGER conversation_inboxes_settlement_state_insert;
          DROP TRIGGER conversation_inboxes_settlement_state_update;
          DELETE FROM _migrations WHERE version = 102;
          DROP TABLE password_recovery_state; DELETE FROM _migrations WHERE version = 101;
@@ -503,9 +508,9 @@ async fn step99_upgrade_adds_avatar_designs_and_keeps_existing_avatars() {
             upgrade.before_epoch,
             upgrade.after_epoch
         ),
-        (99, 102, 70, 71)
+        (99, 103, 70, 71)
     );
-    assert_eq!(upgrade.applied_steps, vec![100, 101, 102]);
+    assert_eq!(upgrade.applied_steps, vec![100, 101, 102, 103]);
     let mut db = fixture.db().await;
     let row: (Option<String>, Option<String>) =
         sqlx::query_as("SELECT avatar_storage_key, avatar_design_id FROM users WHERE id = ?")

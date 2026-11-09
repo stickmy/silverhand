@@ -128,11 +128,6 @@ fn conversation(refusal: &ConversationRefusal) -> Response {
             "conversation_not_found",
         ),
         // A lifecycle state, so a conflict: the caller may retry when it changes.
-        ConversationRefusal::Closed => told(
-            StatusCode::CONFLICT,
-            "conversation is closed",
-            "conversation_closed",
-        ),
         ConversationRefusal::Archived => told(
             StatusCode::CONFLICT,
             "conversation is archived",
@@ -343,14 +338,6 @@ mod tests {
                 serde_json::json!({
                     "error": "conversation not found",
                     "code": "conversation_not_found"
-                }),
-            ),
-            (
-                ConversationRefusal::Closed.into(),
-                StatusCode::CONFLICT,
-                serde_json::json!({
-                    "error": "conversation is closed",
-                    "code": "conversation_closed"
                 }),
             ),
             (

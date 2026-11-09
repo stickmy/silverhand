@@ -290,6 +290,7 @@ struct ParticipationDto {
     conversation_roster_policy: &'static str,
     channel_id: String,
     channel_title: String,
+    /// Closing is retired; deployed clients still read the field.
     closed_at: Option<i64>,
 }
 
@@ -303,7 +304,7 @@ impl ParticipationDto {
             conversation_roster_policy: view.roster_policy.as_str(),
             channel_id: view.conversation.as_str().to_owned(),
             channel_title: view.channel_title.clone(),
-            closed_at: view.closed_at,
+            closed_at: None,
         }
     }
 }

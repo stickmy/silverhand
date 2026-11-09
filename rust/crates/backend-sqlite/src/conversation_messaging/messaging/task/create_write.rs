@@ -132,8 +132,7 @@ fn storage_board_key(board: &BoardKey) -> String {
 /// `SourceConflict` winner (best-effort — a `None` still refuses the batch).
 const SELECT_TASK_BY_SOURCE: &str =
     "SELECT id, task_number, status FROM tasks WHERE source_message_id = ?";
-const SELECT_DESTINATION_LIFECYCLE: &str =
-    "SELECT closed_at, archived_at FROM conversations WHERE id = ?";
+const SELECT_DESTINATION_LIFECYCLE: &str = "SELECT archived_at FROM conversations WHERE id = ?";
 const SELECT_SOURCE_CONVERSATION: &str = "SELECT conversation_id FROM messages WHERE id = ?";
 async fn has_capability(
     tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
@@ -177,14 +176,6 @@ impl TaskCreateWrite for SqliteTaskCreateWrite {
             tx.rollback().await.map_err(driver)?;
             return Ok(TaskCreateOutcome::ConversationNotFound);
         };
-        if lifecycle
-            .try_get::<Option<i64>, _>("closed_at")
-            .map_err(driver)?
-            .is_some()
-        {
-            tx.rollback().await.map_err(driver)?;
-            return Ok(TaskCreateOutcome::ConversationClosed);
-        }
         if lifecycle
             .try_get::<Option<i64>, _>("archived_at")
             .map_err(driver)?

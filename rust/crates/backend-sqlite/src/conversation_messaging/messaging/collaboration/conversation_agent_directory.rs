@@ -78,7 +78,7 @@ impl SqliteConversationAgentDirectoryRead {
     > {
         let mut tx = self.pool.begin_with("BEGIN DEFERRED").await?;
         let Some(row) = sqlx::query(
-            "SELECT id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,\
+            "SELECT id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,\
              endpoint_a_kind,endpoint_a_id,endpoint_a_deleted_at,\
              endpoint_b_kind,endpoint_b_id,endpoint_b_deleted_at \
              FROM conversations WHERE id=?",

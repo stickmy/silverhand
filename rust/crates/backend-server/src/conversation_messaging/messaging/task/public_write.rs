@@ -633,9 +633,6 @@ where
         Ok(TaskCreateOutcome::ConversationNotFound) => {
             human_create_admission_refusal(TaskCreateAdmissionFailure::ConversationNotFound)
         }
-        Ok(TaskCreateOutcome::ConversationClosed) => {
-            human_create_admission_refusal(TaskCreateAdmissionFailure::ConversationClosed)
-        }
         Ok(TaskCreateOutcome::ConversationArchived) => {
             human_create_admission_refusal(TaskCreateAdmissionFailure::ConversationArchived)
         }
@@ -650,9 +647,6 @@ fn human_create_admission_refusal(failure: TaskCreateAdmissionFailure) -> Respon
     match failure {
         TaskCreateAdmissionFailure::ConversationNotFound => {
             code_only_refusal(StatusCode::NOT_FOUND, "conversation_not_found")
-        }
-        TaskCreateAdmissionFailure::ConversationClosed => {
-            code_only_refusal(StatusCode::CONFLICT, "conversation_closed")
         }
         TaskCreateAdmissionFailure::ConversationArchived => {
             code_only_refusal(StatusCode::CONFLICT, "conversation_archived")
@@ -1672,12 +1666,6 @@ mod tests {
                 TaskCreateConversationState::Open,
                 StatusCode::NOT_FOUND,
                 "conversation_not_found",
-            ),
-            (
-                Some(ws_board()),
-                TaskCreateConversationState::Closed,
-                StatusCode::CONFLICT,
-                "conversation_closed",
             ),
             (
                 Some(ws_board()),

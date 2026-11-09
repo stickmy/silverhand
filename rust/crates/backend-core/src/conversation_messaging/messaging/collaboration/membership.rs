@@ -221,7 +221,6 @@ pub enum ConversationAgentRemovalPreflight {
     Ready { stop_runtime: bool },
     ConversationNotFound,
     Unsupported,
-    Closed,
     Forbidden,
     CandidateNotFound,
 }
@@ -271,7 +270,6 @@ pub enum ConversationMemberMutation {
     },
     ConversationNotFound,
     Unsupported,
-    Closed,
     Forbidden,
     CandidateNotFound,
     HandleAmbiguous {

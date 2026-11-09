@@ -1,6 +1,6 @@
 //! SQLite prerequisites consumed by the workspace-rename unit owned by #2193.
 //!
-//! The read side selects only the committed open-roster, non-closed workspace
+//! The read side selects only the committed open-roster workspace
 //! channel population. The write side owns one atomic sequence reservation and
 //! system-message insert. Delivery and publication deliberately remain outside
 //! this adapter.
@@ -69,18 +69,18 @@ where
 {
     type Error = PersistenceFailure;
 
-    async fn list_non_closed(
+    async fn list_open_roster(
         &self,
         workspace: &WorkspaceId,
     ) -> Result<WorkspaceRenameChannels, Self::Error> {
-        self.list_non_closed_inner(workspace)
+        self.list_open_roster_inner(workspace)
             .await
             .map_err(PersistenceFailure::from)
     }
 }
 
 impl<E> SqliteWorkspaceRenameMessaging<E> {
-    async fn list_non_closed_inner(
+    async fn list_open_roster_inner(
         &self,
         requested: &WorkspaceId,
     ) -> Result<WorkspaceRenameChannels, WorkspaceRenameMessagingStoreError> {
@@ -100,7 +100,7 @@ impl<E> SqliteWorkspaceRenameMessaging<E> {
         let selected = sqlx::query(
             "SELECT c.workspace_id,c.id AS conversation_id FROM conversations c \
              WHERE c.workspace_id=? AND c.placement_kind='workspace' \
-             AND c.roster_policy='open' AND c.closed_at IS NULL \
+             AND c.roster_policy='open' \
              ORDER BY c.id ASC",
         )
         .bind(requested.as_str())
@@ -256,7 +256,7 @@ async fn load_authoring_target(
     requested: &WorkspaceRenameMessageDraft,
 ) -> Result<WorkspaceId, WorkspaceRenameMessagingStoreError> {
     let row = sqlx::query(
-        "SELECT id,workspace_id,placement_kind,roster_policy,closed_at \
+        "SELECT id,workspace_id,placement_kind,roster_policy \
          FROM conversations WHERE id=?",
     )
     .bind(requested.conversation().as_str())
@@ -279,14 +279,10 @@ async fn load_authoring_target(
     let roster: String = row
         .try_get("roster_policy")
         .map_err(|_| corrupt("conversations.roster_policy"))?;
-    let closed_at: Option<i64> = row
-        .try_get("closed_at")
-        .map_err(|_| corrupt("conversations.closed_at"))?;
     if &conversation != requested.conversation()
         || &workspace != requested.workspace()
         || placement != "workspace"
         || roster != "open"
-        || closed_at.is_some()
     {
         return Err(corrupt("conversations:workspace_rename_message_target"));
     }

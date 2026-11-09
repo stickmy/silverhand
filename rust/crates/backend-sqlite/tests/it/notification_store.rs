@@ -19,7 +19,7 @@ async fn seeded(path: &std::path::Path) {
     for sql in [
         "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES('u','u','U',1,1),('other','o','O',1,1)",
         "INSERT INTO workspaces(id,name,name_key,created_at,owner_user_id,updated_at) VALUES('w1','W1','w1',1,'u',1),('w2','W2','w2',1,'u',1)",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,created_at,updated_at) VALUES('c1','w1','workspace','open','C1','c1','open',1,1),('c2','w2','workspace','open','C2','c2','open',1,1)",
+        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,created_at,updated_at) VALUES('c1','w1','workspace','open','C1','c1',1,1),('c2','w2','workspace','open','C2','c2',1,1)",
         "INSERT INTO workspace_users(workspace_id,user_id,joined_at) VALUES('w1','u',1),('w2','u',1)",
         "INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('c1','u',1),('c2','u',1)",
         "INSERT INTO channel_attention_preferences(user_id,conversation_id,mode,updated_at) VALUES('u','c1','mute',1)",
@@ -247,7 +247,7 @@ async fn list_resolves_the_anchor_sender_through_the_shared_author_authority() {
     for sql in [
         "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES('u','u','U',1,1),('live','live','Live Renamed',1,1)",
         "INSERT INTO workspaces(id,name,name_key,created_at,owner_user_id,updated_at) VALUES('w1','W1','w1',1,'u',1)",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,created_at,updated_at) VALUES('c1','w1','workspace','open','C1','c1','open',1,1)",
+        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,created_at,updated_at) VALUES('c1','w1','workspace','open','C1','c1',1,1)",
         "INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,seq,created_at,author_id,author_name,author_display_name) VALUES \
          ('m-live','c1','user','live','hi',1,1,'live','live','Live Old'), \
          ('m-gone','c1','user',NULL,'hi',2,2,'gone','gone','Gone'), \

@@ -163,9 +163,9 @@ async fn the_onboarding_writer_appends_one_complete_system_cluster() {
         "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, display_name, \
          created_by_user_id) VALUES ('agent-1', 'alice', 'claude', 'host-1', 0, 0, 'Alice', \
          'user-1')",
-        "INSERT INTO conversations (id, placement_kind, roster_policy, title, status, \
+        "INSERT INTO conversations (id, placement_kind, roster_policy, title, \
          endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, created_at, \
-         updated_at) VALUES ('pair-1', 'direct_pair', 'fixed', 'DM', 'open', 'agent', \
+         updated_at) VALUES ('pair-1', 'direct_pair', 'fixed', 'DM', 'agent', \
          'agent-1', 'human', 'user-1', 0, 0)",
     ] {
         sqlx::query(statement).execute(&mut conn).await.unwrap();
@@ -278,13 +278,12 @@ async fn seed_onboarding_ensure_graph(path: &std::path::Path) -> MessagingStore 
         "INSERT INTO workspaces (id, name, name_key, created_at, updated_at) VALUES \
          ('workspace-1', 'Space', 'space', 0, 0)",
         "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-         title_key, status, visibility, created_at, updated_at, latest_message_seq) VALUES \
-         ('conv-ws', 'workspace-1', 'workspace', 'open', 'Chan', 'chan', 'open', 'private', 0, \
+         title_key, visibility, created_at, updated_at, latest_message_seq) VALUES \
+         ('conv-ws', 'workspace-1', 'workspace', 'open', 'Chan', 'chan', 'private', 0, \
          0, 3)",
-        "INSERT INTO conversations (id, placement_kind, roster_policy, title, status, \
+        "INSERT INTO conversations (id, placement_kind, roster_policy, title, \
          endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, created_at, \
-         updated_at, latest_message_seq) VALUES ('conv-dp', 'direct_pair', 'fixed', 'DM', \
-         'open', 'agent', 'agent-dp', 'human', 'user-1', 0, 0, 1)",
+         updated_at, latest_message_seq) VALUES ('conv-dp', 'direct_pair', 'fixed', 'DM', 'agent', 'agent-dp', 'human', 'user-1', 0, 0, 1)",
         "INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES \
          ('conv-ws', 'agent-ws', 0)",
         // A genuine onboarding system message in each line: system from-kind, metadata that
@@ -865,9 +864,9 @@ async fn the_two_participation_texts_agree_when_a_follower_no_longer_exists() {
         "INSERT INTO agents (id, name, runtime, host_id, created_at, updated_at, \
          display_name, created_by_user_id) VALUES ('agent-gone', 'gone', 'claude', 'host-1', \
          0, 0, 'Gone', 'user-1')",
-        "INSERT INTO conversations (id, placement_kind, roster_policy, title, status, \
+        "INSERT INTO conversations (id, placement_kind, roster_policy, title, \
          endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, created_at, \
-         updated_at) VALUES ('pair-1', 'direct_pair', 'fixed', 'DM', 'open', 'agent', \
+         updated_at) VALUES ('pair-1', 'direct_pair', 'fixed', 'DM', 'agent', \
          'agent-gone', 'human', 'user-1', 0, 0)",
         "INSERT INTO messages (id, conversation_id, from_kind, content, seq, created_at) \
          VALUES ('root-000000000000', 'pair-1', 'system', 'anchor', 1, 0)",

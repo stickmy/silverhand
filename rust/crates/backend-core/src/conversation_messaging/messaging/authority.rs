@@ -37,7 +37,6 @@ impl DirectPairEndpoints {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ConversationFacts {
     pub id: ConversationId,
-    pub is_closed: bool,
     pub is_archived: bool,
     /// Present only for a direct pair. The endpoints themselves, not a verdict
     /// about them: a verdict from the store would be a second authority, free to
@@ -52,8 +51,6 @@ pub struct ConversationFacts {
 pub enum ConversationRefusal {
     #[error("conversation not found")]
     NotFound,
-    #[error("conversation is closed")]
-    Closed,
     #[error("conversation is archived")]
     Archived,
     #[error("the other endpoint of this direct conversation no longer exists")]
@@ -152,7 +149,7 @@ pub async fn direct_pair_is_read_only_for_survivor(
 }
 
 /// The write gate: lifecycle first, then participation, then the direct-pair
-/// narrowing. The order is load-bearing — a closed conversation answers with its
+/// narrowing. The order is load-bearing — an archived conversation answers with its
 /// lifecycle rather than leaking whether the caller is a participant, and the
 /// narrowing goes last so only a participant learns that a pair's peer is gone.
 pub async fn assert_post_authority(
@@ -165,9 +162,6 @@ pub async fn assert_post_authority(
         .await?
         .ok_or(ConversationRefusal::NotFound)?;
 
-    if facts.is_closed {
-        return Err(ConversationRefusal::Closed.into());
-    }
     if facts.is_archived {
         return Err(ConversationRefusal::Archived.into());
     }
@@ -277,7 +271,6 @@ mod tests {
     fn open_conversation() -> ConversationFacts {
         ConversationFacts {
             id: conversation(),
-            is_closed: false,
             is_archived: false,
             direct_pair: None,
         }
@@ -308,28 +301,6 @@ mod tests {
 
     fn agent() -> SendActor {
         SendActor::Agent(AgentId::parse("agent-1").unwrap())
-    }
-
-    #[tokio::test]
-    async fn lifecycle_answers_before_participation() {
-        let mut reads = FakeReads {
-            facts: Some(ConversationFacts {
-                is_closed: true,
-                ..open_conversation()
-            }),
-            ..FakeReads::default()
-        };
-
-        let error = assert_post_authority(&mut reads, &conversation(), &agent())
-            .await
-            .unwrap_err();
-
-        // The actor is not a participant either; the lifecycle answer wins so a
-        // closed conversation does not report who may write to it.
-        assert!(matches!(
-            error,
-            SendMessageError::Conversation(ConversationRefusal::Closed)
-        ));
     }
 
     #[tokio::test]

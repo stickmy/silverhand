@@ -51,11 +51,14 @@ async fn snapshot(
             // Compare pre-existing columns, not new fields introduced by later
             // migrations. Step92's correlation values are checked separately;
             // step99's pending default belongs to profile setup migration tests;
-            // step100's avatar design is empty on upgrade.
+            // step100's avatar design is empty on upgrade; step103 drops the
+            // conversation close columns, checked by its own upgrade test.
             .filter(|c| {
                 (table != "messages"
                     || !matches!(c.as_str(), "client_message_id" | "client_request_json"))
                     && (table != "users" || c.as_str() != "embedded_profile_pending")
+                    && (table != "conversations"
+                        || !matches!(c.as_str(), "status" | "closed_at" | "close_summary"))
                     && c.as_str() != "avatar_design_id"
             })
             .map(|c| format!("quote({})", quoted(c)))
@@ -153,10 +156,9 @@ async fn step87_upgrade_requires_permission_and_restorable_directory_backup() {
     prepare_connected(&mut db, &path, true, &old_plan)
         .await
         .unwrap();
-    db.execute(sqlx::raw_sql(include_str!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../../rust/test-fixtures/fixtures/workspace-cold-read/seed.sql"
-    ))))
+    db.execute(sqlx::raw_sql(sqlx::AssertSqlSafe(
+        cold_read_seed_before_step103(),
+    )))
     .await
     .unwrap();
     db.execute("INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,seq,created_at,author_id,author_name,author_display_name) VALUES ('message-1','conv-open','human','user-1','Preserved 世界',1,100,'user-1','viewer','Viewer'); INSERT INTO auth_sessions(id,user_id,token_hash,created_at,last_used_at) VALUES ('session-1','user-1','synthetic-not-a-real-token',100,100); INSERT INTO user_list_sort_mode(user_id,list_key,scope,mode,updated_at) VALUES ('user-1','workspaces','','manual',1),('user-1','workspaces','pinned','manual',1),('user-1','channels','','manual',1)").await.unwrap();
@@ -283,10 +285,9 @@ async fn retired_workspace_starred_mode_upgrades_from_87_and_88_without_losing_o
         prepare_connected(&mut db, &path, true, &old_plan)
             .await
             .unwrap();
-        db.execute(sqlx::raw_sql(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../rust/test-fixtures/fixtures/workspace-cold-read/seed.sql"
-        ))))
+        db.execute(sqlx::raw_sql(sqlx::AssertSqlSafe(
+            cold_read_seed_before_step103(),
+        )))
         .await
         .unwrap();
         db.execute("INSERT INTO user_list_sort_mode(user_id,list_key,scope,mode,updated_at) VALUES ('user-1','workspaces','starred','manual',1),('user-2','workspaces','starred','recent',2),('user-1','favorites','','manual',3),('user-1','channels:ws-regular','starred','manual',4)").await.unwrap();
@@ -536,10 +537,9 @@ async fn agent_stream_upgrade_preserves_history_without_guessing_generation() {
     prepare_connected(&mut db, &path, true, &previous)
         .await
         .unwrap();
-    db.execute(sqlx::raw_sql(include_str!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../../rust/test-fixtures/fixtures/workspace-cold-read/seed.sql"
-    ))))
+    db.execute(sqlx::raw_sql(sqlx::AssertSqlSafe(
+        cold_read_seed_before_step103(),
+    )))
     .await
     .unwrap();
     db.execute("INSERT INTO conversation_events(id,conversation_id,kind,payload,created_at) VALUES(101,'conv-open','thinking','{\"text\":\"original historical content\"}',12)").await.unwrap();
@@ -644,10 +644,9 @@ async fn inbox_settlement_upgrade_normalizes_mixed_stamps_then_guards_writes() {
     prepare_connected(&mut db, &path, true, &previous)
         .await
         .unwrap();
-    db.execute(sqlx::raw_sql(include_str!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../../rust/test-fixtures/fixtures/workspace-cold-read/seed.sql"
-    ))))
+    db.execute(sqlx::raw_sql(sqlx::AssertSqlSafe(
+        cold_read_seed_before_step103(),
+    )))
     .await
     .unwrap();
     db.execute(sqlx::raw_sql(
@@ -699,4 +698,70 @@ async fn inbox_settlement_upgrade_normalizes_mixed_stamps_then_guards_writes() {
         assert!(db.execute(invalid).await.is_err(), "{invalid}");
     }
     db.close().await.unwrap();
+}
+
+#[tokio::test]
+async fn conversation_close_upgrade_folds_into_archive_then_drops_close_columns() {
+    let root = isolated();
+    let path = root.path().join("data/database.sqlite");
+    fs::create_dir(path.parent().unwrap()).unwrap();
+    let mut previous = plan();
+    previous.steps.retain(|s| s.version <= 102);
+    let mut db = connect(&path).await;
+    prepare_connected(&mut db, &path, true, &previous)
+        .await
+        .unwrap();
+    db.execute(sqlx::raw_sql(
+        "INSERT INTO workspaces(id,name,name_key,created_at,updated_at) VALUES('w','W','w',1,1);
+         INSERT INTO conversations
+             (id,workspace_id,placement_kind,roster_policy,title,title_key,status,
+              closed_at,close_summary,archived_at,created_at,updated_at)
+         VALUES ('closed','w','workspace','open','Closed','closed','idle',20,'done',NULL,1,1),
+                ('both','w','workspace','open','Both','both','archived',20,NULL,30,1,1),
+                ('open','w','workspace','open','Open','open','active',NULL,NULL,NULL,1,1);",
+    ))
+    .await
+    .unwrap();
+    db.close().await.unwrap();
+
+    prepare_database(&path, true).await.unwrap();
+    let mut db = connect(&path).await;
+    let rows: Vec<(String, Option<i64>)> =
+        sqlx::query_as("SELECT id,archived_at FROM conversations ORDER BY id")
+            .fetch_all(&mut db)
+            .await
+            .unwrap();
+    assert_eq!(
+        rows,
+        [
+            ("both".into(), Some(30)),
+            ("closed".into(), Some(20)),
+            ("open".into(), None),
+        ]
+    );
+    let columns: Vec<String> =
+        sqlx::query_scalar("SELECT name FROM pragma_table_xinfo('conversations')")
+            .fetch_all(&mut db)
+            .await
+            .unwrap();
+    for dropped in ["status", "closed_at", "close_summary"] {
+        assert!(!columns.iter().any(|c| c == dropped), "{dropped}");
+    }
+    db.close().await.unwrap();
+}
+
+/// The shared cold-read seed targets the current schema; before step 103
+/// `conversations.status` is NOT NULL without a default.
+fn cold_read_seed_before_step103() -> String {
+    include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../rust/test-fixtures/fixtures/workspace-cold-read/seed.sql"
+    ))
+    .replace(
+        "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at)\n  VALUES (",
+        "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at, status)\n  VALUES (",
+    )
+    .replace("', 20, 20);", "', 20, 20, 'idle');")
+    .replace("', 10, 10);", "', 10, 10, 'idle');")
+    .replace("', 5, 5);", "', 5, 5, 'idle');")
 }

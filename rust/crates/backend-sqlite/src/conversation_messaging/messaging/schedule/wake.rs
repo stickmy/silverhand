@@ -41,7 +41,6 @@ pub struct CommittedScheduleWake {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ScheduleWakeTargetUnavailable {
     Missing { target: ConversationId },
-    Closed { target: ConversationId },
     OwnerNotParticipant { target: ConversationId },
 }
 
@@ -49,7 +48,6 @@ impl fmt::Display for ScheduleWakeTargetUnavailable {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         let (target, reason) = match self {
             Self::Missing { target } => (target, "missing"),
-            Self::Closed { target } => (target, "closed"),
             Self::OwnerNotParticipant { target } => (target, "owner not participant"),
         };
         write!(
@@ -193,7 +191,7 @@ where
         let owner = &ctx.claimed.delivery.owner_agent_id;
         let mut tx = self.pool.begin_with(BEGIN).await.map_err(failure)?;
         let fact = sqlx::query(
-            "SELECT placement_kind,closed_at,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,endpoint_a_deleted_at,endpoint_b_deleted_at \
+            "SELECT placement_kind,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,endpoint_a_deleted_at,endpoint_b_deleted_at \
              FROM conversations WHERE id=?",
         )
         .bind(conversation.as_str())
@@ -207,17 +205,6 @@ where
             }
             .into());
         };
-        if fact
-            .try_get::<Option<i64>, _>("closed_at")
-            .map_err(failure)?
-            .is_some()
-        {
-            tx.rollback().await.map_err(failure)?;
-            return Err(ScheduleWakeTargetUnavailable::Closed {
-                target: conversation.clone(),
-            }
-            .into());
-        }
         let placement: String = fact.try_get("placement_kind").map_err(failure)?;
         let participates = if placement == "workspace" {
             sqlx::query_scalar::<_, i64>(
@@ -334,7 +321,7 @@ where
         })
     }
 
-    /// Best-effort operator notice for the three target-dead wake failures. The
+    /// Best-effort operator notice for the two target-dead wake failures. The
     /// original wake failure remains the settlement result; this independent
     /// transaction only records a notice in the owner's current home DM when one
     /// exists.
@@ -392,7 +379,6 @@ where
             .map_err(PersistenceFailure::from_source)?;
         let reason_text = match reason {
             ScheduleWakeTargetUnavailable::Missing { .. } => "no longer exists",
-            ScheduleWakeTargetUnavailable::Closed { .. } => "has been closed",
             ScheduleWakeTargetUnavailable::OwnerNotParticipant { .. } => {
                 "no longer has you as a participant"
             }

@@ -430,8 +430,8 @@ mod tests {
             "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES('local','local-observe','Local',1,1),('other','other-observe','Other',1,1)",
             "INSERT INTO workspaces(id,name,name_key,created_at,updated_at) VALUES('w','W','w-observe',1,1),('w2','Forbidden','forbidden-observe',1,1)",
             "INSERT INTO workspace_users(workspace_id,user_id,joined_at) VALUES('w','local',1)",
-            "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,created_at,updated_at,latest_message_seq) VALUES('c','w','workspace','open','C','c-observe','open',1,1,2)",
-            "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,created_at,updated_at,latest_message_seq) VALUES('forbidden','w2','workspace','fixed','Private','private-observe','open',1,1,0)",
+            "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,created_at,updated_at,latest_message_seq) VALUES('c','w','workspace','open','C','c-observe',1,1,2)",
+            "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,created_at,updated_at,latest_message_seq) VALUES('forbidden','w2','workspace','fixed','Private','private-observe',1,1,0)",
             "INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('c','local',1)",
             "INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,seq,created_at,thread_root_id) VALUES('m1','c','user','other','one',1,1,NULL),('m2','c','user','other','two',2,2,NULL),('root','c','user','other','root',3,3,NULL),('reply','c','user','other','reply',4,4,'root')",
             "INSERT INTO conversation_stream_heads(conversation_id,thread_root_id,latest_seq) VALUES('c',NULL,2)",
@@ -460,7 +460,6 @@ mod tests {
                 .await
                 .unwrap();
         for sql in [
-            "UPDATE conversations SET status='active' WHERE id='c'",
             "INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,seq,created_at) VALUES('m22','c','user','other','seen',22,22)",
             "UPDATE conversation_stream_heads SET latest_seq=22 WHERE conversation_id='c' AND thread_root_id IS NULL",
             "UPDATE conversations SET latest_message_seq=22 WHERE id='c'",

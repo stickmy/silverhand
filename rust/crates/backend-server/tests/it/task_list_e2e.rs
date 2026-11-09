@@ -81,9 +81,9 @@ async fn seed(directory: &TempDir) -> std::path::PathBuf {
         "INSERT INTO workspace_agent_capabilities (workspace_id, agent_id, capability) \
          VALUES ('workspace-1', 'agent-1', 'read_tasks')",
         "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-         title_key, status, visibility, created_at, updated_at, latest_message_seq) \
+         title_key, visibility, created_at, updated_at, latest_message_seq) \
          VALUES ('conv000000000001', 'workspace-1', 'workspace', 'open', 'General Chat', \
-         'general chat', 'open', 'private', 0, 0, 0)",
+         'general chat', 'private', 0, 0, 0)",
         "INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) \
          VALUES ('conv000000000001', 'agent-1', 0)",
         "INSERT INTO tasks (id, workspace_id, task_number, conversation_id, title, status, \
@@ -277,9 +277,9 @@ async fn add_second_channel(path: &std::path::Path) {
         .unwrap();
     for statement in [
         "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-         title_key, status, visibility, created_at, updated_at, latest_message_seq) \
+         title_key, visibility, created_at, updated_at, latest_message_seq) \
          VALUES ('conv000000000002', 'workspace-1', 'workspace', 'open', 'Second', \
-         'second', 'open', 'private', 0, 0, 0)",
+         'second', 'private', 0, 0, 0)",
         "INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) \
          VALUES ('conv000000000002', 'agent-1', 0)",
         "INSERT INTO tasks (id, workspace_id, task_number, conversation_id, title, status, \

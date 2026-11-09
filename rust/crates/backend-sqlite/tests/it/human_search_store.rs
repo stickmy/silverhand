@@ -27,13 +27,12 @@ async fn seed(path: &std::path::Path) {
          ('w','Needle Space','needle space','needle workspace',1,30)",
         "INSERT INTO workspace_users(workspace_id,user_id,joined_at,role) VALUES \
          ('w','viewer',1,'member')",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,\
-         status,visibility,created_at,updated_at) VALUES \
-         ('c','w','workspace','open','Needle Channel','needle channel','idle','private',1,20)",
+        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES \
+         ('c','w','workspace','open','Needle Channel','needle channel','private',1,20)",
         "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,\
-         endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,status,visibility,created_at,\
+         endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,visibility,created_at,\
          updated_at) VALUES ('pair',NULL,'direct_pair','fixed','agent','agent','human','viewer','',\
-         NULL,'idle','private',1,10)",
+         NULL,'private',1,10)",
         "INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('c','viewer',1)",
         "INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,metadata,seq,\
          created_at,author_id,author_name,author_display_name) VALUES \

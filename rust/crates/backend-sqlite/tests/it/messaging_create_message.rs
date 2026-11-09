@@ -262,8 +262,8 @@ async fn seed(db: &mut SqliteConnection, scope: &str) {
     for (id, title_key) in [(CHANNEL_ID, "general"), (OTHER_CHANNEL_ID, "other")] {
         sqlx::query(
             "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-             title_key, status, created_at, updated_at) VALUES (?, ?, 'workspace', 'open', \
-             'Channel', ?, 'open', 0, 0)",
+             title_key, created_at, updated_at) VALUES (?, ?, 'workspace', 'open', \
+             'Channel', ?, 0, 0)",
         )
         .bind(id)
         .bind(WORKSPACE_ID)
@@ -295,9 +295,9 @@ async fn seed(db: &mut SqliteConnection, scope: &str) {
     // A direct pair carries its participants on the row: no roster rows exist for
     // it by construction.
     sqlx::query(
-        "INSERT INTO conversations (id, placement_kind, roster_policy, title, status, \
+        "INSERT INTO conversations (id, placement_kind, roster_policy, title, \
          endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, created_at, updated_at) \
-         VALUES (?, 'direct_pair', 'fixed', 'DM', 'open', 'agent', ?, 'human', ?, 0, 0)",
+         VALUES (?, 'direct_pair', 'fixed', 'DM', 'agent', ?, 'human', ?, 0, 0)",
     )
     .bind(PAIR_ID)
     .bind(AGENT_ID)
@@ -1023,26 +1023,6 @@ async fn a_send_into_a_named_cluster_joins_that_cluster() {
         fixture.stream_head(CHANNEL_ID, Some(&root_id)).await,
         Some(2)
     );
-}
-
-#[tokio::test]
-async fn a_closed_conversation_answers_with_its_lifecycle() {
-    let mut fixture = Fixture::new().await;
-    fixture
-        .execute("UPDATE conversations SET closed_at = 1 WHERE id = 'conv-1'")
-        .await;
-
-    let error = fixture
-        .store()
-        .await
-        .send_message(send(agent_actor(), CHANNEL_ID, "too late"))
-        .await
-        .unwrap_err();
-
-    assert!(matches!(
-        error,
-        SendMessageError::Conversation(ConversationRefusal::Closed)
-    ));
 }
 
 #[tokio::test]

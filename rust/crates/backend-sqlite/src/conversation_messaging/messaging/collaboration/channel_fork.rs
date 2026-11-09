@@ -247,8 +247,8 @@ impl ChannelForkWrite for SqliteChannelFork {
 
         // Insert the channel (agent-forked → private, spawned_by the actor).
         sqlx::query(
-            "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, status, visibility, spawned_by_agent_id, created_at, updated_at) \
-             VALUES (?, ?, 'workspace', 'open', ?, ?, 'idle', 'private', ?, ?, ?)",
+            "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, visibility, spawned_by_agent_id, created_at, updated_at) \
+             VALUES (?, ?, 'workspace', 'open', ?, ?, 'private', ?, ?, ?)",
         )
         .bind(new_channel_id.as_str())
         .bind(request.workspace.as_str())
@@ -504,11 +504,11 @@ INSERT INTO workspace_members(workspace_id,agent_id,joined_at) VALUES('ws-1','ag
 INSERT INTO workspace_members(workspace_id,agent_id,joined_at) VALUES('ws-2','agent-a',1); \
 INSERT INTO workspace_agent_capabilities(workspace_id,agent_id,capability) VALUES('ws-1','agent-a','create_channels'); \
 INSERT INTO workspace_agent_capabilities(workspace_id,agent_id,capability) VALUES('ws-2','agent-a','create_channels'); \
-INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,created_at,updated_at) VALUES('src','ws-1','workspace','open','Source','source','idle','private',1,1); \
+INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES('src','ws-1','workspace','open','Source','source','private',1,1); \
 INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES('src','agent-a',1); \
 INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES('src','agent-b',1); \
 INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('src','u1',1); \
-INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,created_at,updated_at) VALUES('src2','ws-2','workspace','open','Source2','source2','idle','private',1,1); \
+INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES('src2','ws-2','workspace','open','Source2','source2','private',1,1); \
 INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES('src2','agent-a',1);";
 
     // Deterministic entropy so ids are stable per call (distinct per invocation via a seed).

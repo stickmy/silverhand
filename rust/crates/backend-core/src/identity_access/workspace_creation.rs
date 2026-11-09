@@ -86,8 +86,6 @@ pub struct OnboardingChannelCommitted {
     pub visibility: String,
     /// The stored `title` (`Onboarding`).
     pub title: String,
-    /// The stored `status` (`idle`).
-    pub status: String,
     pub created_at: i64,
     pub updated_at: i64,
 }

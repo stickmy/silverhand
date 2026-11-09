@@ -79,12 +79,9 @@ async fn fixture() -> Fixture {
              VALUES('workspace-1','Space','space','user-1',0,0); \
          INSERT INTO workspace_members(workspace_id,agent_id,joined_at) \
              VALUES('workspace-1','transition-agent',0); \
-         INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key, \
-             status,visibility,created_at,updated_at,latest_message_seq) VALUES \
-             ('conversation0001','workspace-1','workspace','open','One','one', \
-              'open','private',0,0,1), \
-             ('conversation0002','workspace-1','workspace','open','Two','two', \
-              'open','private',0,0,1); \
+         INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at,latest_message_seq) VALUES \
+             ('conversation0001','workspace-1','workspace','open','One','one','private',0,0,1), \
+             ('conversation0002','workspace-1','workspace','open','Two','two','private',0,0,1); \
          INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES \
              ('conversation0001','transition-agent',0), \
              ('conversation0002','transition-agent',0); \

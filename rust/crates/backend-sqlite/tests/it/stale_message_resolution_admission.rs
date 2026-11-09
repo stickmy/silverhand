@@ -44,10 +44,9 @@ async fn seed(path: &std::path::Path) {
     .await
     .unwrap();
     db.execute(
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,\
-         status,visibility,created_at,updated_at) VALUES \
+        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES \
          ('stale-workspace','stale-workspace-id','workspace','open','Stale Channel',\
-          'stale channel','idle','private',1,1)",
+          'stale channel','private',1,1)",
     )
     .await
     .unwrap();
@@ -59,12 +58,12 @@ async fn seed(path: &std::path::Path) {
     .unwrap();
     db.execute(
         "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,\
-         endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,status,visibility,created_at,\
+         endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,visibility,created_at,\
          updated_at) VALUES \
          ('stale-pair',NULL,'direct_pair','fixed','agent','stale-agent','human','stale-peer','',\
-          NULL,'idle','private',1,1),\
+          NULL,'private',1,1),\
          ('stale-missing-peer',NULL,'direct_pair','fixed','agent','stale-agent','human',\
-          'stale-ghost','',NULL,'idle','private',1,1)",
+          'stale-ghost','',NULL,'private',1,1)",
     )
     .await
     .unwrap();

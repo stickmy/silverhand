@@ -122,10 +122,9 @@ async fn seed(connection: &mut SqliteConnection) {
     .unwrap();
     sqlx::query(
         "INSERT INTO conversations (
-            id, workspace_id, placement_kind, roster_policy, title, title_key,
-            status, created_at, updated_at
+            id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at
          ) VALUES (?, 'workspace-1', 'workspace', 'open', 'Conversation One',
-             'conversation one', 'active', 1, 1)",
+             'conversation one', 1, 1)",
     )
     .bind(CONVERSATION)
     .execute(&mut *connection)
@@ -300,11 +299,9 @@ async fn direct_pair_and_thread_coordinates_are_projected_from_persisted_placeme
         .unwrap();
     sqlx::query(
         "INSERT INTO conversations (
-            id, workspace_id, placement_kind, roster_policy, title, title_key,
-            status, created_at, updated_at, endpoint_a_kind, endpoint_a_id,
+            id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at, endpoint_a_kind, endpoint_a_id,
             endpoint_b_kind, endpoint_b_id
-         ) VALUES (?, NULL, 'direct_pair', 'fixed', 'Direct Pair', NULL,
-             'active', 1, 1, 'agent', ?, 'human', 'user-1')",
+         ) VALUES (?, NULL, 'direct_pair', 'fixed', 'Direct Pair', NULL, 1, 1, 'agent', ?, 'human', 'user-1')",
     )
     .bind(CONVERSATION)
     .bind(AGENT)
@@ -914,14 +911,14 @@ async fn agent_slot_status_targets_every_placement_participation_and_only_origin
          VALUES ('agent-aggregate', 'agent-aggregate', 'codex', 'host-1', 1, 1, 'Aggregate Agent', 'user-1', 'agent');
          INSERT INTO workspace_members (workspace_id, agent_id, joined_at) VALUES ('workspace-1', 'agent-aggregate', 1);
          INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES ('conversation0001', 'agent-aggregate', 1);
-         INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, status, created_at, updated_at)
-         VALUES ('conversation0002', 'workspace-1', 'workspace', 'fixed', 'Second', 'second', 'active', 1, 1),
-                ('conversation0003', 'workspace-1', 'workspace', 'open', 'Not Seated', 'not seated', 'active', 1, 1);
+         INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at)
+         VALUES ('conversation0002', 'workspace-1', 'workspace', 'fixed', 'Second', 'second', 1, 1),
+                ('conversation0003', 'workspace-1', 'workspace', 'open', 'Not Seated', 'not seated', 1, 1);
          INSERT INTO conversation_agents (conversation_id, agent_id, joined_at)
          VALUES ('conversation0002', 'agent-aggregate', 1);
-         INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, status, created_at, updated_at,
+         INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at,
                                     endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id)
-         VALUES ('conversation0004', NULL, 'direct_pair', 'fixed', 'DM', NULL, 'active', 1, 1,
+         VALUES ('conversation0004', NULL, 'direct_pair', 'fixed', 'DM', NULL, 1, 1,
                  'agent', 'agent-aggregate', 'human', 'user-1');",
     )
     .execute(&mut db)
@@ -1154,10 +1151,10 @@ async fn presence_audience_includes_the_human_endpoint_of_a_direct_pair() {
         "INSERT INTO users (id, name, display_name, created_at, updated_at)
              VALUES ('user-2', 'user-2', 'User Two', 1, 1);
          INSERT INTO conversations (
-             id, placement_kind, roster_policy, title, status, visibility,
+             id, placement_kind, roster_policy, title, visibility,
              endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id,
              created_at, updated_at
-         ) VALUES ('pair-1', 'direct_pair', 'fixed', '', 'idle', 'private',
+         ) VALUES ('pair-1', 'direct_pair', 'fixed', '', 'private',
              'agent', 'agent-delivery', 'human', 'user-2', 1, 1);",
     )
     .execute(&mut connection)

@@ -17,16 +17,15 @@ async fn seed(path: &std::path::Path) {
          ('ws','Workspace','latest-ws',1,1); \
          INSERT INTO workspace_users(workspace_id,user_id,joined_at) VALUES \
          ('ws','viewer',1),('ws','peer',1),('ws','outsider',1); \
-         INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,\
-         status,visibility,created_at,updated_at) VALUES \
-         ('chan','ws','workspace','open','Chan','chan','idle','public',1,1),\
-         ('quiet','ws','workspace','open','Quiet','quiet','idle','public',1,1),\
-         ('other','ws','workspace','open','Other','other','idle','public',1,1); \
+         INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES \
+         ('chan','ws','workspace','open','Chan','chan','public',1,1),\
+         ('quiet','ws','workspace','open','Quiet','quiet','public',1,1),\
+         ('other','ws','workspace','open','Other','other','public',1,1); \
          INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES \
          ('chan','viewer',1),('chan','peer',1),('quiet','viewer',1),('other','outsider',1); \
          INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,\
-         endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,status,visibility,created_at,updated_at) \
-         VALUES('pair',NULL,'direct_pair','fixed','human','peer','human','viewer','',NULL,'idle','private',1,1); \
+         endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,visibility,created_at,updated_at) \
+         VALUES('pair',NULL,'direct_pair','fixed','human','peer','human','viewer','',NULL,'private',1,1); \
          INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,metadata,seq,created_at,thread_root_id) VALUES \
          ('root','chan','user','peer','root',NULL,1,10,NULL),\
          ('reply','chan','user','peer','  a\n reply  ',NULL,2,20,'root'),\

@@ -326,12 +326,12 @@ INSERT INTO workspaces (id, name, name_key, description, owner_agent_id, owner_u
   VALUES ('ws-home','Agent Home',NULL,NULL,'agent-home-owner',NULL,NULL,10,100); \
 INSERT INTO workspace_users (workspace_id, user_id, joined_at, role) VALUES ('ws-1','user-1',1,'owner'); \
 INSERT INTO workspace_users (workspace_id, user_id, joined_at, role) VALUES ('ws-1','user-2',1,'member'); \
-INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, status, visibility, created_at, updated_at) \
-  VALUES ('conv-a','ws-1','workspace','open','A','a','idle','public',1,1); \
-INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, status, visibility, created_at, updated_at) \
-  VALUES ('conv-b','ws-1','workspace','open','B','b','idle','public',1,1); \
-INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, status, visibility, created_at, updated_at) \
-  VALUES ('conv-c','ws-1','workspace','open','C','c','idle','public',1,1); \
+INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, visibility, created_at, updated_at) \
+  VALUES ('conv-a','ws-1','workspace','open','A','a','public',1,1); \
+INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, visibility, created_at, updated_at) \
+  VALUES ('conv-b','ws-1','workspace','open','B','b','public',1,1); \
+INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, visibility, created_at, updated_at) \
+  VALUES ('conv-c','ws-1','workspace','open','C','c','public',1,1); \
 INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES ('conv-a','agent-conv',1); \
 INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES ('conv-b','agent-slot',1); \
 INSERT INTO attachments (id, channel_id, filename, size, content_type, storage, storage_key, created_by_kind, created_by_id, created_at) \

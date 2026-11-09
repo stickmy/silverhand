@@ -92,7 +92,7 @@ async fn fixture() -> (tempfile::TempDir, std::path::PathBuf) {
     .await
     .unwrap();
     sqlx::query(
-        "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, status, visibility, created_at, updated_at) VALUES ('conversation-1', 'workspace-1', 'workspace', 'open', 'Channel', 'channel', 'open', 'private', 1, 1)",
+        "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, visibility, created_at, updated_at) VALUES ('conversation-1', 'workspace-1', 'workspace', 'open', 'Channel', 'channel', 'private', 1, 1)",
     )
     .execute(&mut db)
     .await

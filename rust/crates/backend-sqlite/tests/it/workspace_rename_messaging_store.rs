@@ -75,14 +75,12 @@ async fn seed(path: &std::path::Path) {
     for statement in [
         "INSERT INTO workspaces(id,name,name_key,created_at,updated_at) VALUES \
          ('w','Old Workspace','old-workspace',1,1),('other','Other','other',1,1)",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,created_at,updated_at) VALUES \
-         ('active-b','w','workspace','open','B','b','idle','private',1,1),\
-         ('active-a','w','workspace','open','A','a','idle','private',1,1),\
-         ('fixed','w','workspace','fixed','Fixed','fixed','idle','private',1,1),\
-         ('foreign','other','workspace','open','Foreign','foreign','idle','private',1,1)",
+        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES \
+         ('active-b','w','workspace','open','B','b','private',1,1),\
+         ('active-a','w','workspace','open','A','a','private',1,1),\
+         ('fixed','w','workspace','fixed','Fixed','fixed','private',1,1),\
+         ('foreign','other','workspace','open','Foreign','foreign','private',1,1)",
         "UPDATE conversations SET archived_at=9 WHERE id='active-b'",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,created_at,updated_at,closed_at) VALUES \
-         ('closed','w','workspace','open','Closed','closed','closed','private',1,1,9)",
     ] {
         db.execute(statement).await.unwrap();
     }
@@ -96,7 +94,7 @@ fn source(error: &PersistenceFailure) -> &WorkspaceRenameMessagingStoreError {
 }
 
 #[tokio::test]
-async fn population_is_exactly_open_roster_non_closed_and_keeps_archived_channels() {
+async fn population_is_exactly_open_roster_and_keeps_archived_channels() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("workspace-rename-population.sqlite");
     seed(&path).await;

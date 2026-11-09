@@ -51,7 +51,7 @@ async fn open_db(with_task: bool) -> (TempDir, std::path::PathBuf, SqliteConnect
         "INSERT INTO workspace_agent_capabilities (workspace_id,agent_id,capability) VALUES ('ws-1','agent-1','create_tasks')",
         "INSERT INTO workspace_agent_capabilities (workspace_id,agent_id,capability) VALUES ('ws-1','agent-1','write_tasks')",
         "INSERT INTO workspace_agent_capabilities (workspace_id,agent_id,capability) VALUES ('ws-1','agent-1','read_tasks')",
-        "INSERT INTO conversations (id,workspace_id,placement_kind,roster_policy,title,title_key,status,created_at,updated_at) VALUES ('conv-1','ws-1','workspace','open','general','general','active',1,1)",
+        "INSERT INTO conversations (id,workspace_id,placement_kind,roster_policy,title,title_key,created_at,updated_at) VALUES ('conv-1','ws-1','workspace','open','general','general',1,1)",
         "INSERT INTO conversation_agents (conversation_id,agent_id,joined_at) VALUES ('conv-1','agent-1',1)",
         "INSERT INTO conversation_stream_heads (conversation_id,thread_root_id,latest_seq) VALUES ('conv-1',NULL,0)",
     ] {

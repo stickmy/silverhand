@@ -364,7 +364,7 @@ fn created_body(
             placement_kind: "workspace",
             roster_policy: "open",
             title: committed.title.clone(),
-            status: committed.status.clone(),
+            status: "idle",
             spawned_by_agent_id: None,
             closed_at: None,
             close_summary: None,
@@ -407,7 +407,8 @@ struct ChannelConversationDto {
     placement_kind: &'static str,
     roster_policy: &'static str,
     title: String,
-    status: String,
+    /// Status and closing are retired; deployed clients still read these fields.
+    status: &'static str,
     spawned_by_agent_id: Option<String>,
     closed_at: Option<i64>,
     close_summary: Option<String>,

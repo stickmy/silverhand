@@ -13,7 +13,7 @@
 //!   timezone/cron validity, `until_at` sanity). It reads no persisted state, so
 //!   it cannot decide the capacity cap.
 //! - **The stateful preconditions** (owner agent exists, the resolved target
-//!   conversation exists / is not closed / still has the owner as a participant and still grants `manage_schedules`) are replayed
+//!   conversation exists / still has the owner as a participant and still grants `manage_schedules`) are replayed
 //!   by the create UoW on its reserved writer. The route's earlier checks preserve
 //!   refusal order but are not write credentials.
 //! - **The capacity cap** (`too_many_active_schedules`) also lives in that one
@@ -296,9 +296,6 @@ pub enum ScheduleCreateOutcome {
     CapExceeded { active: i64 },
     /// The resolved target conversation no longer exists at insert time.
     TargetNotFound,
-    /// The resolved target conversation is closed (`closed_at` set) — the hard
-    /// "no more messages" barrier (archival is NOT a barrier and is not checked).
-    TargetClosed,
     /// The owner is no longer a participant of the resolved target at insert time.
     ActorNotParticipant,
     /// A workspace placement no longer grants `manage_schedules` at linearization.
@@ -326,16 +323,14 @@ pub enum ScheduleCreateOutcome {
 ///   never surfaced as a third outcome.
 /// - the TARGET facts: the resolver proved the destination existed and admitted
 ///   the owner microseconds earlier, but the window to the insert is real, so the
-///   transaction re-reads the target and returns [`TargetNotFound`], [`TargetClosed`],
+///   transaction re-reads the target and returns [`TargetNotFound`]
 ///   or [`ActorNotParticipant`] if it changed. These mirror the TS create's
 ///   post-resolve race guard.
 ///
 /// [`TargetNotFound`]: ScheduleCreateOutcome::TargetNotFound
-/// [`TargetClosed`]: ScheduleCreateOutcome::TargetClosed
 /// [`ActorNotParticipant`]: ScheduleCreateOutcome::ActorNotParticipant
 pub trait ScheduleCreateStore {
-    /// One linearized create: owner → target existence → target
-    /// closure → participation → active cap → stateless canonicalization → insert,
+    /// One linearized create: owner → target existence → participation → active cap → stateless canonicalization → insert,
     /// all inside one reserved writer. This ordering is product-visible.
     fn create<C>(
         &self,

@@ -18,10 +18,9 @@ use silverhand_backend_core::{
     conversation_messaging::messaging::{
         SendClock, SendEntropy,
         collaboration::channel_directory::{
-            ChannelCreationPublicationFailure, ChannelDirectoryRow, ChannelStatus,
-            ChannelVisibility, CommittedHumanChannelCreation, DirectoryRoster,
-            HumanChannelCreateAftermath, HumanChannelCreatePort, HumanChannelCreateRefusal,
-            HumanChannelCreateRequest,
+            ChannelCreationPublicationFailure, ChannelDirectoryRow, ChannelVisibility,
+            CommittedHumanChannelCreation, DirectoryRoster, HumanChannelCreateAftermath,
+            HumanChannelCreatePort, HumanChannelCreateRefusal, HumanChannelCreateRequest,
         },
         conversation_title::CanonicalConversationTitle,
         environment::EnvironmentUnavailable,
@@ -53,9 +52,6 @@ fn committed() -> CommittedHumanChannelCreation {
         ConversationId::parse("created").unwrap(),
         DirectoryRoster::Open,
         "General".into(),
-        ChannelStatus::Idle,
-        None,
-        None,
         None,
         None,
         0,
@@ -403,9 +399,9 @@ async fn seeded_store() -> (tempfile::TempDir, MessagingStore<FixedEnvironment>)
            ('workspace-home','local',1,'admin'); \
          INSERT INTO workspace_members(workspace_id,agent_id,joined_at) VALUES \
            ('workspace-1','agent-member',1); \
-         INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status, \
+         INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key, \
            visibility,created_at,updated_at) VALUES \
-           ('taken','workspace-1','workspace','open','Taken','taken','idle','private',1,1);",
+           ('taken','workspace-1','workspace','open','Taken','taken','private',1,1);",
     ))
     .await
     .unwrap();

@@ -486,7 +486,8 @@ fn conversation_wire(
         "title": conversation.title(),
         "roster_policy": conversation.roster().as_str(),
         "channel_id": conversation.channel_id().as_str(),
-        "closed_at": conversation.closed_at(),
+        // Closing is retired; deployed clients still read the field.
+        "closed_at": null,
         "created_at": conversation.created_at(),
     });
     let object = value

@@ -738,10 +738,10 @@ INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user
 INSERT INTO workspaces (id, name, name_key, description, owner_agent_id, owner_user_id, archived_at, created_at, updated_at) \
   VALUES ('ws-1','W','w',NULL,NULL,'user-1',NULL,1,1); \
 INSERT INTO workspace_users (workspace_id, user_id, joined_at, role) VALUES ('ws-1','user-1',1,'owner'); \
-INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, status, visibility, created_at, updated_at) \
-  VALUES ('conv-a','ws-1','workspace','open','A','a','idle','public',1,1); \
-INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, status, visibility, created_at, updated_at) \
-  VALUES ('conv-b','ws-1','workspace','open','B','b','idle','public',1,1);";
+INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, visibility, created_at, updated_at) \
+  VALUES ('conv-a','ws-1','workspace','open','A','a','public',1,1); \
+INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, visibility, created_at, updated_at) \
+  VALUES ('conv-b','ws-1','workspace','open','B','b','public',1,1);";
 
     async fn open_seeded() -> (tempfile::TempDir, SqliteViewerSort, sqlx::SqlitePool) {
         let dir = tempfile::tempdir().unwrap();
@@ -1252,8 +1252,8 @@ INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, titl
         let (_dir, sort, pool) = open_seeded().await;
         for statement in [
             "INSERT INTO users (id,name,display_name,created_at,updated_at) VALUES ('user-2','v','V',1,1)",
-            "INSERT INTO conversations (id,placement_kind,roster_policy,title,status,visibility,created_at,updated_at,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id) \
-             VALUES ('dm-1','direct_pair','fixed','','idle','private',1,1,'human','user-1','human','user-2')",
+            "INSERT INTO conversations (id,placement_kind,roster_policy,title,visibility,created_at,updated_at,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id) \
+             VALUES ('dm-1','direct_pair','fixed','','private',1,1,'human','user-1','human','user-2')",
         ] {
             sqlx::query(statement).execute(&pool).await.unwrap();
         }

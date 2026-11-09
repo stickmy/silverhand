@@ -40,12 +40,12 @@ async fn seed(path: &std::path::Path) {
         "INSERT OR IGNORE INTO workspace_users(workspace_id,user_id,joined_at,role) \
          VALUES('w','local',1,'member')",
         "INSERT INTO conversations( \
-         id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,created_at,updated_at \
-         ) VALUES('c','w','workspace','open','Cap-Needle Channel','cap-needle-channel','idle','private',1,2)",
+         id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at \
+         ) VALUES('c','w','workspace','open','Cap-Needle Channel','cap-needle-channel','private',1,2)",
         "INSERT INTO conversations( \
          id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id, \
-         title,status,visibility,created_at,updated_at \
-         ) VALUES('pair','direct_pair','fixed','agent','pair-agent','human','local','','idle','private',1,1)",
+         title,visibility,created_at,updated_at \
+         ) VALUES('pair','direct_pair','fixed','agent','pair-agent','human','local','','private',1,1)",
         "INSERT OR IGNORE INTO conversation_users(conversation_id,user_id,joined_at) \
          VALUES('c','local',1)",
         "INSERT INTO messages(id,conversation_id,from_kind,content,seq,created_at) VALUES \
@@ -174,8 +174,8 @@ async fn seed_identity_discovery(db: &mut SqliteConnection) {
     }
     for statement in [
         "INSERT INTO conversations(id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,\
-         endpoint_b_kind,endpoint_b_id,title,status,visibility,created_at,updated_at) \
-         VALUES('other-pair','direct_pair','fixed','agent','via-dm','human','local','','idle','private',1,1)",
+         endpoint_b_kind,endpoint_b_id,title,visibility,created_at,updated_at) \
+         VALUES('other-pair','direct_pair','fixed','agent','via-dm','human','local','','private',1,1)",
         "INSERT INTO workspace_members(workspace_id,agent_id,joined_at) VALUES('w','via-workspace',1)",
         "INSERT INTO workspaces(id,name,name_key,owner_agent_id,created_at,updated_at) \
          VALUES('space','Space',NULL,'via-space',1,1)",
@@ -316,14 +316,8 @@ async fn only_channel_search_hits_carry_archive_state_independently_of_closure()
     let store = MessagingStore::open(&path).await.unwrap();
     let app = human_search::router(store.human_search());
 
-    for (closed, archived) in [
-        (None, None),
-        (None, Some(30_i64)),
-        (Some(20_i64), Some(30)),
-        (Some(20), None),
-    ] {
-        sqlx::query("UPDATE conversations SET closed_at=?, archived_at=? WHERE id='c'")
-            .bind(closed)
+    for archived in [None, Some(30_i64)] {
+        sqlx::query("UPDATE conversations SET archived_at=? WHERE id='c'")
             .bind(archived)
             .execute(&mut db)
             .await
@@ -347,7 +341,7 @@ async fn only_channel_search_hits_carry_archive_state_independently_of_closure()
             } else {
                 assert!(hit["conversation"].get("archived_at").is_none());
             }
-            assert_eq!(hit["conversation"]["closed_at"], serde_json::json!(closed));
+            assert_eq!(hit["conversation"]["closed_at"], serde_json::Value::Null);
         }
     }
     let (_, dm) = search_json(&app, "?q=dm-needle").await;

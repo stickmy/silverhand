@@ -66,7 +66,6 @@ fn readable_participation() -> RuntimeParticipationFact {
         placement_kind: "workspace".to_owned(),
         roster_policy: ConversationRosterPolicy::Open,
         channel_title: "General".to_owned(),
-        closed_at: None,
         archived: false,
         viewer_can_read: true,
     }

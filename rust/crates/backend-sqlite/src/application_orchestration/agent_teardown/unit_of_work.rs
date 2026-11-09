@@ -267,20 +267,17 @@ mod tests {
         "INSERT INTO workspaces (id, name, name_key, created_at, updated_at) \
          VALUES ('w-reg', 'Regular', 'reg', 1, 1)",
         "INSERT INTO conversations \
-         (id, workspace_id, placement_kind, roster_policy, title, title_key, status, \
+         (id, workspace_id, placement_kind, roster_policy, title, title_key, \
           created_at, updated_at) \
-         VALUES ('ch-general', 'w-home', 'workspace', 'fixed', 'general', 'general', \
-          'active', 100, 100)",
+         VALUES ('ch-general', 'w-home', 'workspace', 'fixed', 'general', 'general', 100, 100)",
         "INSERT INTO conversations \
-         (id, workspace_id, placement_kind, roster_policy, title, title_key, status, \
+         (id, workspace_id, placement_kind, roster_policy, title, title_key, \
           created_at, updated_at) \
-         VALUES ('ch-dm', 'w-home', 'workspace', 'fixed', 'dm-a1', 'dma1', \
-          'active', 200, 200)",
+         VALUES ('ch-dm', 'w-home', 'workspace', 'fixed', 'dm-a1', 'dma1', 200, 200)",
         "INSERT INTO conversations \
-         (id, workspace_id, placement_kind, roster_policy, title, title_key, status, \
+         (id, workspace_id, placement_kind, roster_policy, title, title_key, \
           created_at, updated_at) \
-         VALUES ('ch-onboarding', 'w-home', 'workspace', 'fixed', 'Onboarding', 'onboarding', \
-          'active', 300, 300)",
+         VALUES ('ch-onboarding', 'w-home', 'workspace', 'fixed', 'Onboarding', 'onboarding', 300, 300)",
         "INSERT INTO attachments \
          (id, channel_id, filename, size, content_type, storage, storage_key, \
           created_by_kind, created_by_id, created_at) \

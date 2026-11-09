@@ -32,17 +32,14 @@ where
         &self,
         conversation: &ConversationId,
     ) -> Result<Option<TaskCreateConversationState>, PersistenceFailure> {
-        let row = sqlx::query("SELECT closed_at, archived_at FROM conversations WHERE id = ?")
+        let row = sqlx::query("SELECT archived_at FROM conversations WHERE id = ?")
             .bind(conversation.as_str())
             .fetch_optional(&self.pool)
             .await
             .map_err(driver)?;
         row.map(|row| {
-            let closed: Option<i64> = row.try_get("closed_at").map_err(driver)?;
             let archived: Option<i64> = row.try_get("archived_at").map_err(driver)?;
-            Ok::<_, PersistenceFailure>(if closed.is_some() {
-                TaskCreateConversationState::Closed
-            } else if archived.is_some() {
+            Ok::<_, PersistenceFailure>(if archived.is_some() {
                 TaskCreateConversationState::Archived
             } else {
                 TaskCreateConversationState::Open

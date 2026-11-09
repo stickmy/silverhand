@@ -328,8 +328,8 @@ async fn direct_pair_database() -> (tempfile::TempDir, std::path::PathBuf) {
     .unwrap();
     sqlx::query(
         "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-             title_key, status, visibility, created_at, updated_at) VALUES \
-             ('conversation-1', 'workspace-1', 'workspace', 'open', 'Channel', 'channel', 'open', \
+             title_key, visibility, created_at, updated_at) VALUES \
+             ('conversation-1', 'workspace-1', 'workspace', 'open', 'Channel', 'channel', \
              'private', 1, 1)",
     )
     .execute(&mut db)
@@ -368,13 +368,10 @@ async fn runtime_event_database() -> (tempfile::TempDir, std::path::PathBuf) {
              INSERT INTO workspace_members (workspace_id, agent_id, joined_at)
              VALUES ('workspace-1', 'agent-1', 1);
              INSERT INTO conversations (
-               id, workspace_id, placement_kind, roster_policy, title, title_key,
-               status, visibility, created_at, updated_at
+               id, workspace_id, placement_kind, roster_policy, title, title_key, visibility, created_at, updated_at
              ) VALUES
-               ('conversation-1', 'workspace-1', 'workspace', 'fixed', 'First', 'first',
-                'active', 'private', 1, 1),
-               ('conversation-2', 'workspace-1', 'workspace', 'fixed', 'Second', 'second',
-                'active', 'private', 1, 1);
+               ('conversation-1', 'workspace-1', 'workspace', 'fixed', 'First', 'first', 'private', 1, 1),
+               ('conversation-2', 'workspace-1', 'workspace', 'fixed', 'Second', 'second', 'private', 1, 1);
              INSERT INTO conversation_users (conversation_id, user_id, joined_at)
              VALUES ('conversation-1', 'user-1', 1), ('conversation-2', 'user-1', 1);
              INSERT INTO conversation_agents (conversation_id, agent_id, joined_at)
@@ -2188,8 +2185,8 @@ async fn seed_fanout(path: &std::path::Path) {
         "INSERT INTO workspace_users (workspace_id, user_id, joined_at, role) \
              VALUES ('workspace-1', 'user-3', 1, 'member')",
         "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-             title_key, status, visibility, created_at, updated_at) VALUES \
-             ('conversation-1', 'workspace-1', 'workspace', 'open', 'Channel', 'channel', 'open', \
+             title_key, visibility, created_at, updated_at) VALUES \
+             ('conversation-1', 'workspace-1', 'workspace', 'open', 'Channel', 'channel', \
              'private', 1, 1)",
         "INSERT INTO conversation_users (conversation_id, user_id, joined_at) \
              VALUES ('conversation-1', 'user-1', 1)",
@@ -2210,10 +2207,10 @@ async fn seed_direct_pair(path: &std::path::Path) {
         "INSERT INTO users (id, name, display_name, created_at, updated_at) \
              VALUES ('user-2', 'mentioned', 'Mentioned', 2, 2)",
         "INSERT INTO conversations (id, endpoint_a_kind, endpoint_a_id, endpoint_b_kind, \
-             endpoint_b_id, placement_kind, roster_policy, title, status, visibility, \
+             endpoint_b_id, placement_kind, roster_policy, title, visibility, \
              created_at, updated_at) VALUES \
              ('conversation-2', 'human', 'user-1', 'human', 'user-2', 'direct_pair', 'fixed', \
-             'Direct', 'open', 'private', 1, 1)",
+             'Direct', 'private', 1, 1)",
         "INSERT INTO conversation_users (conversation_id, user_id, joined_at) \
              VALUES ('conversation-2', 'user-1', 1)",
         "INSERT INTO conversation_users (conversation_id, user_id, joined_at) \
@@ -3745,20 +3742,17 @@ async fn seed_placement_matrix(path: &std::path::Path) {
         "INSERT INTO workspace_users (workspace_id, user_id, joined_at, role) \
              VALUES ('workspace-1', 'user-4', 1, 'member')",
         "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-             title_key, status, visibility, created_at, updated_at) VALUES \
-             ('conversation-fixed', 'workspace-1', 'workspace', 'fixed', 'Fixed', 'fixed', \
-             'open', 'private', 1, 1)",
+             title_key, visibility, created_at, updated_at) VALUES \
+             ('conversation-fixed', 'workspace-1', 'workspace', 'fixed', 'Fixed', 'fixed', 'private', 1, 1)",
         "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-             title_key, status, visibility, created_at, updated_at) VALUES \
-             ('conversation-open', 'workspace-1', 'workspace', 'open', 'Open', 'open', \
-             'open', 'private', 1, 1)",
+             title_key, visibility, created_at, updated_at) VALUES \
+             ('conversation-open', 'workspace-1', 'workspace', 'open', 'Open', 'open', 'private', 1, 1)",
         // A PUBLIC channel: visibility 'public' (open roster, as the schema requires).
         // user-4 is a workspace member who could read/subscribe by visibility, but is NOT
         // seated — the unread push audience must still exclude them.
         "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-             title_key, status, visibility, created_at, updated_at) VALUES \
-             ('conversation-public', 'workspace-1', 'workspace', 'open', 'Public', 'public', \
-             'open', 'public', 1, 1)",
+             title_key, visibility, created_at, updated_at) VALUES \
+             ('conversation-public', 'workspace-1', 'workspace', 'open', 'Public', 'public', 'public', 1, 1)",
         "INSERT INTO conversation_users (conversation_id, user_id, joined_at) \
              VALUES ('conversation-fixed', 'user-1', 1)",
         "INSERT INTO conversation_users (conversation_id, user_id, joined_at) \
@@ -4246,8 +4240,8 @@ async fn seed_workspace_conversation_with_malformed_workspace(path: &std::path::
         "INSERT INTO workspaces (id, name, name_key, owner_user_id, created_at, updated_at) \
              VALUES ('', 'Orphan', 'orphan', 'user-1', 1, 1)",
         "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-             title_key, status, visibility, created_at, updated_at) VALUES \
-             ('conversation-1', '', 'workspace', 'fixed', 'Orphan', 'orphan', 'open', \
+             title_key, visibility, created_at, updated_at) VALUES \
+             ('conversation-1', '', 'workspace', 'fixed', 'Orphan', 'orphan', \
              'private', 1, 1)",
     ] {
         sqlx::query(statement).execute(&mut db).await.unwrap();
@@ -5560,10 +5554,6 @@ async fn thread_reply_announces_unread_through_production_aftermath() {
     let path = directory.path().join("thread-live.sqlite");
     seed_fanout(&path).await;
     let mut db = SqliteConnection::connect(&format!("sqlite://{}", path.display()))
-        .await
-        .unwrap();
-    sqlx::query("UPDATE conversations SET status='active'")
-        .execute(&mut db)
         .await
         .unwrap();
     sqlx::raw_sql("INSERT INTO workspace_members(workspace_id,agent_id,joined_at) VALUES('workspace-1','agent-1',1); INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES('conversation-1','agent-1',1);").execute(&mut db).await.unwrap();

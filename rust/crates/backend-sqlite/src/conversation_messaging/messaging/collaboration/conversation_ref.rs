@@ -38,8 +38,6 @@ pub enum ConversationRefStoreError {
     MalformedPlacement,
     #[error("stored conversation visibility is outside the published closed set")]
     MalformedVisibility,
-    #[error("stored conversation status is outside the published closed set")]
-    MalformedStatus,
     #[error("stored workspace conversation title is not usable")]
     MalformedTitle,
 }
@@ -62,7 +60,6 @@ struct WorkspacePlacement {
     roster: ConversationRosterPolicy,
     visibility: Visibility,
     title: String,
-    closed_at: Option<i64>,
     archived_at: Option<i64>,
 }
 
@@ -103,8 +100,8 @@ impl SqliteConversationRefRead {
     {
         let mut tx = self.pool.begin_with("BEGIN DEFERRED").await?;
         let Some(row) = sqlx::query(
-            "SELECT id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,\
-             closed_at,archived_at,endpoint_a_kind,endpoint_a_id,endpoint_a_deleted_at,\
+            "SELECT id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,\
+             archived_at,endpoint_a_kind,endpoint_a_id,endpoint_a_deleted_at,\
              endpoint_b_kind,endpoint_b_id,endpoint_b_deleted_at FROM conversations WHERE id=?",
         )
         .bind(conversation.as_str())
@@ -171,7 +168,6 @@ impl SqliteConversationRefRead {
                 workspace.roster,
                 workspace.title,
                 workspace.workspace,
-                workspace.closed_at,
                 workspace.archived_at,
             )),
         };
@@ -185,13 +181,6 @@ fn decode_placement(row: &SqliteRow) -> Result<Placement, ConversationRefStoreEr
     let roster =
         ConversationRosterPolicy::parse(row.try_get::<String, _>("roster_policy")?.as_str())
             .map_err(|_| ConversationRefStoreError::MalformedPlacement)?;
-    let status: String = row.try_get("status")?;
-    if !matches!(
-        status.as_str(),
-        "starting" | "active" | "idle" | "archived" | "crashed"
-    ) {
-        return Err(ConversationRefStoreError::MalformedStatus);
-    }
     let visibility = match row.try_get::<String, _>("visibility")?.as_str() {
         "private" => Visibility::Private,
         "public" => Visibility::Public,
@@ -228,7 +217,6 @@ fn decode_placement(row: &SqliteRow) -> Result<Placement, ConversationRefStoreEr
                 roster,
                 visibility,
                 title,
-                closed_at: row.try_get("closed_at")?,
                 archived_at: row.try_get("archived_at")?,
             }))
         }

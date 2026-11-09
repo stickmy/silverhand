@@ -189,11 +189,6 @@ where
             "target_conversation_not_found",
             format!("target conversation {target_id} not found"),
         ),
-        Ok(ScheduleCreateOutcome::TargetClosed) => schedule_error(
-            StatusCode::CONFLICT,
-            "target_conversation_closed",
-            format!("target conversation {target_id} is closed"),
-        ),
         Ok(ScheduleCreateOutcome::ActorNotParticipant) => schedule_error(
             StatusCode::FORBIDDEN,
             "agent_not_in_target_conversation",

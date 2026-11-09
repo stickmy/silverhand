@@ -105,10 +105,11 @@ fn channel(row: &ChannelLifecycleRow) -> serde_json::Value {
         "placement_kind": placement_kind,
         "roster_policy": row.roster().as_str(),
         "title": row.title(),
-        "status": row.status().as_str(),
+        // Status and closing are retired; deployed clients still read these fields.
+        "status": "idle",
         "spawned_by_agent_id": row.spawned_by_agent().map(|value| value.as_str()),
-        "closed_at": row.closed_at(),
-        "close_summary": row.close_summary(),
+        "closed_at": null,
+        "close_summary": null,
         "archived_at": row.archived_at(),
         // Current production mapper exposes this column even though the shared
         // ConversationDto schema has not yet caught up with the runtime wire.
@@ -138,7 +139,7 @@ mod tests {
     use silverhand_backend_core::{
         conversation_messaging::messaging::{
             collaboration::{
-                channel_directory::{ChannelStatus, ChannelVisibility, DirectoryRoster},
+                channel_directory::{ChannelVisibility, DirectoryRoster},
                 channel_lifecycle::{
                     ChannelDetailFact, ChannelDetailReadPort, ChannelDetailRefusal,
                     ChannelLifecycleRow,
@@ -176,9 +177,6 @@ mod tests {
                 WorkspaceId::parse("w").unwrap(),
                 DirectoryRoster::Open,
                 CanonicalConversationTitle::parse("General").unwrap(),
-                ChannelStatus::Idle,
-                None,
-                None,
                 None,
                 None,
                 0,
@@ -289,7 +287,7 @@ mod tests {
                 } else {
                     ("other", "teammate")
                 };
-                sqlx::query("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,status,visibility,created_at,updated_at) VALUES('c',NULL,'direct_pair','fixed','human',?,'human',?,'',NULL,'idle','private',1,2)")
+                sqlx::query("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,visibility,created_at,updated_at) VALUES('c',NULL,'direct_pair','fixed','human',?,'human',?,'',NULL,'private',1,2)")
                     .bind(a).bind(b).execute(&mut db).await.unwrap();
             }
             other => {
@@ -311,7 +309,7 @@ mod tests {
                 } else {
                     None
                 };
-                sqlx::query("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,archived_at,created_at,updated_at) VALUES('c','w','workspace',?,'General','general','idle',?,?,1,2)")
+                sqlx::query("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,archived_at,created_at,updated_at) VALUES('c','w','workspace',?,'General','general',?,?,1,2)")
                     .bind(roster).bind(visibility).bind(archived).execute(&mut db).await.unwrap();
                 if other != "public_nonmember_admin" && other != "private_nonmember" {
                     sqlx::query("INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('c','local',1)")

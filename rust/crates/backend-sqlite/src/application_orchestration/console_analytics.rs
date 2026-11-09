@@ -238,8 +238,8 @@ mod tests {
                    VALUES ('a1','agent-one','pi','h1',0,0,'u1'); \
                  INSERT INTO workspaces(id,name,name_key,created_at,updated_at,owner_user_id) \
                    VALUES ('w1','Work','work',0,0,'u1'); \
-                 INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,created_at,updated_at) \
-                   VALUES ('c1','w1','workspace','open','General','general','active',0,0);",
+                 INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,created_at,updated_at) \
+                   VALUES ('c1','w1','workspace','open','General','general',0,0);",
             ))
             .await
             .unwrap();

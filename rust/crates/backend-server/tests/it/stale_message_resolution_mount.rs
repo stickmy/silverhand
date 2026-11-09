@@ -216,9 +216,9 @@ const SEED: &[&str] = &[
     "INSERT INTO workspace_agent_capabilities (workspace_id, agent_id, capability) \
      VALUES ('workspace', 'agent-1', 'send_messages')",
     "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-     title_key, status, visibility, created_at, updated_at, latest_message_seq) \
+     title_key, visibility, created_at, updated_at, latest_message_seq) \
      VALUES ('conversation-1', 'workspace', 'workspace', 'open', 'General Chat', \
-     'general chat', 'idle', 'private', 0, 0, 0)",
+     'general chat', 'private', 0, 0, 0)",
     "INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) \
      VALUES ('conversation-1', 'agent-1', 0)",
 ];

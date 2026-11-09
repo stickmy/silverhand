@@ -730,9 +730,7 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     use crate::{
-        conversation_messaging::messaging::collaboration::channel_directory::{
-            ChannelStatus, DirectoryRoster,
-        },
+        conversation_messaging::messaging::collaboration::channel_directory::DirectoryRoster,
         foundation::persistence::PersistenceFailure,
     };
 
@@ -761,9 +759,6 @@ mod tests {
             workspace("w"),
             DirectoryRoster::Open,
             title(title_raw),
-            ChannelStatus::Idle,
-            None,
-            None,
             None,
             archived.then_some(9),
             0,

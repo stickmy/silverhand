@@ -16,7 +16,7 @@ async fn seed(path: &std::path::Path) {
         "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES('u','u-projection','U',1,1),('other','other-projection','Other',1,1)",
         "INSERT INTO workspaces(id,name,name_key,created_at,updated_at) VALUES('w','W','w-projection',1,1),('hidden','Hidden','hidden-projection',1,1)",
         "INSERT INTO workspace_users(workspace_id,user_id,joined_at) VALUES('w','u',1)",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,created_at,updated_at,latest_message_seq) VALUES('c-b','w','workspace','open','B','b-projection','open',2,2,1),('c-c','w','workspace','open','C','c-projection','open',1,1,0),('c-a','w','workspace','open','A','a-projection','open',1,1,1)",
+        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,created_at,updated_at,latest_message_seq) VALUES('c-b','w','workspace','open','B','b-projection',2,2,1),('c-c','w','workspace','open','C','c-projection',1,1,0),('c-a','w','workspace','open','A','a-projection',1,1,1)",
         "INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('c-a','u',1),('c-b','u',1),('c-c','u',1)",
         "INSERT INTO channel_attention_preferences(user_id,conversation_id,mode,updated_at) VALUES('u','c-a','mentions',1),('u','c-c','mute',1)",
         "INSERT INTO workspace_attention_preferences(user_id,workspace_id,muted,updated_at) VALUES('u','w',1,1),('u','hidden',1,1)",

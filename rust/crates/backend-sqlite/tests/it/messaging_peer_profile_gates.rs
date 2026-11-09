@@ -158,8 +158,8 @@ async fn seed(db: &mut SqliteConnection) {
     }
     sqlx::query(
         "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-         title_key, status, visibility, created_at, updated_at, latest_message_seq) \
-         VALUES (?, ?, 'workspace', 'open', 'General', 'general', 'open', 'private', 0, 0, 0)",
+         title_key, visibility, created_at, updated_at, latest_message_seq) \
+         VALUES (?, ?, 'workspace', 'open', 'General', 'general', 'private', 0, 0, 0)",
     )
     .bind(CHANNEL)
     .bind(WS_MAIN)
@@ -179,9 +179,9 @@ async fn seed(db: &mut SqliteConnection) {
     // A workspace-less direct pair between the caller agent and the human.
     sqlx::query(
         "INSERT INTO conversations (id, placement_kind, roster_policy, endpoint_a_kind, \
-         endpoint_a_id, endpoint_b_kind, endpoint_b_id, title, status, visibility, \
+         endpoint_a_id, endpoint_b_kind, endpoint_b_id, title, visibility, \
          created_at, updated_at) VALUES (?, 'direct_pair', 'fixed', 'agent', ?, 'human', ?, \
-         '', 'idle', 'private', 0, 0)",
+         '', 'private', 0, 0)",
     )
     .bind(PAIR)
     .bind(CALLER)

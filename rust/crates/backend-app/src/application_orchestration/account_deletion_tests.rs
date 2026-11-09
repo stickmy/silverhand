@@ -47,8 +47,7 @@ async fn account_deletion_requires_handover_then_keeps_shared_content() {
     sqlx::raw_sql(
         "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES('peer','peer','Peer',1,1); \
          INSERT INTO workspace_users(workspace_id,user_id,joined_at,role) VALUES('workspace0000001','peer',1,'member'); \
-         INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('conv000000000001','peer',1); \
-         UPDATE conversations SET status='idle' WHERE id='conv000000000001';",
+         INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('conv000000000001','peer',1);",
     )
     .execute(&pool)
     .await

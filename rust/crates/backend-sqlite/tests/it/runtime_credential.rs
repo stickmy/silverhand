@@ -64,11 +64,10 @@ async fn seed_runtime_slots(connection: &mut SqliteConnection) {
     .unwrap();
     sqlx::query(
         "INSERT INTO conversations (
-            id, workspace_id, placement_kind, roster_policy, title, title_key,
-            status, created_at, updated_at
+            id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at
          ) VALUES (
             'source-1', 'workspace-1', 'workspace', 'open', 'Source One',
-            'source one', 'active', 1, 1
+            'source one', 1, 1
          )",
     )
     .execute(&mut *connection)

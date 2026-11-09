@@ -570,9 +570,9 @@ mod tests {
                  ('other','other-thread-follow','Other',1,1);
                  INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,
                     endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,
-                    title,title_key,status,visibility,created_at,updated_at)
+                    title,title_key,visibility,created_at,updated_at)
                  VALUES('c',NULL,'direct_pair','fixed','human','local','human','other',
-                    '',NULL,'idle','private',1,1);
+                    '',NULL,'private',1,1);
                  INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,seq,created_at,thread_root_id)
                  VALUES('root','c','user','other','root',1,1,NULL);",
             ))
@@ -594,8 +594,8 @@ mod tests {
              ('agent-x','agent-x-thread-follow','claude','host',1,1,'local');
              INSERT INTO workspaces(id,name,name_key,created_at,updated_at) VALUES('w','Workspace','thread-follow',1,1);
              INSERT INTO workspace_users(workspace_id,user_id,joined_at) VALUES('w','local',1);
-             INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,created_at,updated_at)
-             VALUES('c','w','workspace','open','General','thread-follow','idle','private',1,1);"
+             INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at)
+             VALUES('c','w','workspace','open','General','thread-follow','private',1,1);"
             )).await.unwrap();
             if setup == "forbidden" {
                 sqlx::query(

@@ -62,7 +62,7 @@ async fn actual_http_counts_private_sources_without_exposing_them_and_rechecks_s
     INSERT INTO auth_sessions(id,user_id,token_hash,created_at,last_used_at) VALUES('session','u','OXoqnFv14szsOMJZa2grsb0F_m5OzqbBDPQnVf8iVAM',1,9500);
     INSERT INTO hosts(id,name,kind,created_at) VALUES('h','host','local',1);
     INSERT INTO agents(id,name,runtime,host_id,created_by_user_id,created_at,updated_at) VALUES('u','agent','codex','h','u',1,1);
-    INSERT INTO conversations(id,placement_kind,roster_policy,title,status,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,created_at,updated_at) VALUES('private','direct_pair','fixed','','open','human','u','human','v',1,1);" )).await.unwrap();
+    INSERT INTO conversations(id,placement_kind,roster_policy,title,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,created_at,updated_at) VALUES('private','direct_pair','fixed','','human','u','human','v',1,1);" )).await.unwrap();
     let start = 1704038400000i64; // Shanghai 2024-01-01.
     for (id, kind, offset, cc, thread) in [
         ("root", "user", 0, None, None),

@@ -154,8 +154,6 @@ pub enum ReactionMutationRefusal {
     Forbidden,
     #[error("runtime lacks the send_messages capability")]
     CapabilityDenied,
-    #[error("conversation is closed")]
-    ConversationClosed,
     #[error("conversation is archived")]
     ConversationArchived,
 }

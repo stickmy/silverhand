@@ -23,16 +23,16 @@ async fn seed(path: &std::path::Path) {
          ('home','Alice Home',NULL,'a',1,1)",
         "INSERT INTO workspace_users(workspace_id,user_id,joined_at) VALUES \
          ('w','u',1),('home','u',1)",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,archived_at,created_at,updated_at) VALUES \
-         ('public','w','workspace','open','Public','public-directory','active','public',NULL,1,1),\
-         ('member','w','workspace','open','Member','member-directory','active','private',NULL,2,2),\
-         ('hidden','w','workspace','open','Hidden','hidden-directory','active','private',NULL,3,3),\
-         ('arch-public','w','workspace','open','Archived Public','archived-public-directory','archived','public',8,1,8),\
-         ('arch','w','workspace','open','Archived Member','archived-member-directory','archived','private',9,2,9),\
-         ('onboarding','home','workspace','fixed','Onboarding','onboarding-directory','active','private',NULL,3,3),\
-         ('owner-dm','home','workspace','fixed','dm-alice-directory','owner-dm-directory','active','private',NULL,1,1),\
-         ('other-dm','home','workspace','fixed','Other DM','other-dm-directory','active','private',NULL,2,2),\
-         ('home-arch','home','workspace','fixed','Home Archived','home-arch-directory','archived','private',10,4,10)",
+        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,archived_at,created_at,updated_at) VALUES \
+         ('public','w','workspace','open','Public','public-directory','public',NULL,1,1),\
+         ('member','w','workspace','open','Member','member-directory','private',NULL,2,2),\
+         ('hidden','w','workspace','open','Hidden','hidden-directory','private',NULL,3,3),\
+         ('arch-public','w','workspace','open','Archived Public','archived-public-directory','public',8,1,8),\
+         ('arch','w','workspace','open','Archived Member','archived-member-directory','private',9,2,9),\
+         ('onboarding','home','workspace','fixed','Onboarding','onboarding-directory','private',NULL,3,3),\
+         ('owner-dm','home','workspace','fixed','dm-alice-directory','owner-dm-directory','private',NULL,1,1),\
+         ('other-dm','home','workspace','fixed','Other DM','other-dm-directory','private',NULL,2,2),\
+         ('home-arch','home','workspace','fixed','Home Archived','home-arch-directory','private',10,4,10)",
         "INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES \
          ('member','u',1),('arch','u',1),('onboarding','u',1),('owner-dm','u',1),\
          ('other-dm','u',1),('home-arch','u',1),('arch','other',2)",
@@ -189,25 +189,12 @@ async fn selected_candidates_and_sort_state_decode_before_product_filtering() {
     let viewer = UserId::parse("u").unwrap();
     let workspace = WorkspaceId::parse("w").unwrap();
 
-    let mut db = SqliteConnection::connect(&format!("sqlite:{}", path.display()))
-        .await
-        .unwrap();
-    sqlx::query("UPDATE conversations SET status='unknown' WHERE id='hidden'")
-        .execute(&mut db)
-        .await
-        .unwrap();
-    db.close().await.unwrap();
     let read = MessagingStore::open(&path)
         .await
         .unwrap()
         .channel_directory();
-    assert!(read.active(&viewer, &workspace).await.is_err());
 
     let mut db = SqliteConnection::connect(&format!("sqlite:{}", path.display()))
-        .await
-        .unwrap();
-    sqlx::query("UPDATE conversations SET status='active' WHERE id='hidden'")
-        .execute(&mut db)
         .await
         .unwrap();
     sqlx::query("UPDATE conversations SET latest_message_seq=-1 WHERE id='hidden'")

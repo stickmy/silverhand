@@ -69,7 +69,7 @@ async fn seed(path: &std::path::Path) {
         "INSERT INTO workspaces(id,name,name_key,created_at,owner_user_id,updated_at) VALUES('w','W','w',1,'u',1)",
         "INSERT INTO workspaces(id,name,name_key,owner_agent_id,created_at,owner_user_id,updated_at) VALUES('home','Home',NULL,'a',1,'u',1)",
         "INSERT INTO workspace_users(workspace_id,user_id,joined_at) VALUES('w','u',1),('home','u',1)",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,created_at,updated_at) VALUES('c','w','workspace','open','C','c','open',1,1)",
+        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,created_at,updated_at) VALUES('c','w','workspace','open','C','c',1,1)",
         "INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('c','u',1)",
     ] {
         sqlx::query(sql).execute(&mut db).await.unwrap();

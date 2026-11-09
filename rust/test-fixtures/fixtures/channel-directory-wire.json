@@ -6,7 +6,7 @@
     "status": 200,
     "body": {
       "channels": [
-        {"id":"conversation-public","workspace_id":"workspace-1","placement_kind":"workspace","roster_policy":"open","title":"Public","status":"active","spawned_by_agent_id":null,"closed_at":null,"close_summary":null,"archived_at":null,"latest_message_seq":0,"created_at":1,"updated_at":1,"visibility":"public","is_member":false},
+        {"id":"conversation-public","workspace_id":"workspace-1","placement_kind":"workspace","roster_policy":"open","title":"Public","status":"idle","spawned_by_agent_id":null,"closed_at":null,"close_summary":null,"archived_at":null,"latest_message_seq":0,"created_at":1,"updated_at":1,"visibility":"public","is_member":false},
         {"id":"conversation-member","workspace_id":"workspace-1","placement_kind":"workspace","roster_policy":"open","title":"Member","status":"idle","spawned_by_agent_id":null,"closed_at":null,"close_summary":null,"archived_at":null,"latest_message_seq":0,"created_at":2,"updated_at":2,"visibility":"private","is_member":true}
       ],
       "viewer_sort": {
@@ -26,14 +26,14 @@
     "surface":"active",
     "path":"/api/workspaces/workspace-home/channels",
     "status":200,
-    "body":{"channels":[{"id":"home-active","workspace_id":"workspace-home","placement_kind":"workspace","roster_policy":"fixed","title":"Onboarding","status":"active","spawned_by_agent_id":null,"closed_at":null,"close_summary":null,"archived_at":null,"latest_message_seq":0,"created_at":5,"updated_at":5,"visibility":"private","is_member":true}],"viewer_sort":{"list_key":"channels:workspace-home","modes":{},"entries":[]}}
+    "body":{"channels":[{"id":"home-active","workspace_id":"workspace-home","placement_kind":"workspace","roster_policy":"fixed","title":"Onboarding","status":"idle","spawned_by_agent_id":null,"closed_at":null,"close_summary":null,"archived_at":null,"latest_message_seq":0,"created_at":5,"updated_at":5,"visibility":"private","is_member":true}],"viewer_sort":{"list_key":"channels:workspace-home","modes":{},"entries":[]}}
   },
   {
     "name":"workspace_archived_success",
     "surface":"workspace_archived",
     "path":"/api/workspaces/workspace-1/channels/archived",
     "status":200,
-    "body":{"channels":[{"id":"conversation-archived","workspace_id":"workspace-1","placement_kind":"workspace","roster_policy":"open","title":"Archived","status":"archived","spawned_by_agent_id":null,"closed_at":null,"close_summary":null,"archived_at":10,"latest_message_seq":0,"created_at":3,"updated_at":10,"visibility":"private","is_member":true}]}
+    "body":{"channels":[{"id":"conversation-archived","workspace_id":"workspace-1","placement_kind":"workspace","roster_policy":"open","title":"Archived","status":"idle","spawned_by_agent_id":null,"closed_at":null,"close_summary":null,"archived_at":10,"latest_message_seq":0,"created_at":3,"updated_at":10,"visibility":"private","is_member":true}]}
   },
   {"name":"workspace_archived_missing","surface":"workspace_archived","path":"/api/workspaces/missing/channels/archived","status":404,"body":{"error":"workspace not found"}},
   {"name":"workspace_archived_forbidden","surface":"workspace_archived","path":"/api/workspaces/workspace-2/channels/archived","status":403,"body":{"error":"forbidden"}},
@@ -42,7 +42,7 @@
     "surface":"workspace_archived",
     "path":"/api/workspaces/workspace-home/channels/archived",
     "status":200,
-    "body":{"channels":[{"id":"home-archived","workspace_id":"workspace-home","placement_kind":"workspace","roster_policy":"fixed","title":"Home Archived","status":"archived","spawned_by_agent_id":null,"closed_at":null,"close_summary":null,"archived_at":20,"latest_message_seq":0,"created_at":6,"updated_at":20,"visibility":"private","is_member":true}]}
+    "body":{"channels":[{"id":"home-archived","workspace_id":"workspace-home","placement_kind":"workspace","roster_policy":"fixed","title":"Home Archived","status":"idle","spawned_by_agent_id":null,"closed_at":null,"close_summary":null,"archived_at":20,"latest_message_seq":0,"created_at":6,"updated_at":20,"visibility":"private","is_member":true}]}
   },
   {
     "name":"global_success",
@@ -50,16 +50,16 @@
     "path":"/api/archived-channels",
     "schema_accepted":true,
     "status":200,
-    "body":{"channels":[{"channel":{"id":"home-archived","workspace_id":"workspace-home","placement_kind":"workspace","roster_policy":"fixed","title":"Home Archived","status":"archived","spawned_by_agent_id":null,"closed_at":null,"close_summary":null,"archived_at":20,"latest_message_seq":0,"created_at":6,"updated_at":20,"visibility":"private"},"workspace":{"id":"workspace-home","name":"directory-agent","archived_at":null}},{"channel":{"id":"conversation-archived","workspace_id":"workspace-1","placement_kind":"workspace","roster_policy":"open","title":"Archived","status":"archived","spawned_by_agent_id":null,"closed_at":null,"close_summary":null,"archived_at":10,"latest_message_seq":0,"created_at":3,"updated_at":10,"visibility":"private"},"workspace":{"id":"workspace-1","name":"Workspace","archived_at":null}}]}
+    "body":{"channels":[{"channel":{"id":"home-archived","workspace_id":"workspace-home","placement_kind":"workspace","roster_policy":"fixed","title":"Home Archived","status":"idle","spawned_by_agent_id":null,"closed_at":null,"close_summary":null,"archived_at":20,"latest_message_seq":0,"created_at":6,"updated_at":20,"visibility":"private"},"workspace":{"id":"workspace-home","name":"directory-agent","archived_at":null}},{"channel":{"id":"conversation-archived","workspace_id":"workspace-1","placement_kind":"workspace","roster_policy":"open","title":"Archived","status":"idle","spawned_by_agent_id":null,"closed_at":null,"close_summary":null,"archived_at":10,"latest_message_seq":0,"created_at":3,"updated_at":10,"visibility":"private"},"workspace":{"id":"workspace-1","name":"Workspace","archived_at":null}}]}
   },
-  {"name":"global_workspace_success","surface":"global_archived","path":"/api/archived-channels?workspace_id=workspace-1","schema_accepted":true,"status":200,"body":{"channels":[{"channel":{"id":"conversation-archived","workspace_id":"workspace-1","placement_kind":"workspace","roster_policy":"open","title":"Archived","status":"archived","spawned_by_agent_id":null,"closed_at":null,"close_summary":null,"archived_at":10,"latest_message_seq":0,"created_at":3,"updated_at":10,"visibility":"private"},"workspace":{"id":"workspace-1","name":"Workspace","archived_at":null}}]}},
+  {"name":"global_workspace_success","surface":"global_archived","path":"/api/archived-channels?workspace_id=workspace-1","schema_accepted":true,"status":200,"body":{"channels":[{"channel":{"id":"conversation-archived","workspace_id":"workspace-1","placement_kind":"workspace","roster_policy":"open","title":"Archived","status":"idle","spawned_by_agent_id":null,"closed_at":null,"close_summary":null,"archived_at":10,"latest_message_seq":0,"created_at":3,"updated_at":10,"visibility":"private"},"workspace":{"id":"workspace-1","name":"Workspace","archived_at":null}}]}},
   {
     "name":"global_agent_home_success",
     "surface":"global_archived",
     "path":"/api/archived-channels?workspace_id=workspace-home",
     "schema_accepted":true,
     "status":200,
-    "body":{"channels":[{"channel":{"id":"home-archived","workspace_id":"workspace-home","placement_kind":"workspace","roster_policy":"fixed","title":"Home Archived","status":"archived","spawned_by_agent_id":null,"closed_at":null,"close_summary":null,"archived_at":20,"latest_message_seq":0,"created_at":6,"updated_at":20,"visibility":"private"},"workspace":{"id":"workspace-home","name":"directory-agent","archived_at":null}}]}
+    "body":{"channels":[{"channel":{"id":"home-archived","workspace_id":"workspace-home","placement_kind":"workspace","roster_policy":"fixed","title":"Home Archived","status":"idle","spawned_by_agent_id":null,"closed_at":null,"close_summary":null,"archived_at":20,"latest_message_seq":0,"created_at":6,"updated_at":20,"visibility":"private"},"workspace":{"id":"workspace-home","name":"directory-agent","archived_at":null}}]}
   },
   {"name":"global_missing","surface":"global_archived","path":"/api/archived-channels?workspace_id=missing","schema_accepted":true,"status":404,"body":{"error":"workspace not found"}},
   {"name":"global_forbidden","surface":"global_archived","path":"/api/archived-channels?workspace_id=workspace-2","schema_accepted":true,"status":403,"body":{"error":"forbidden"}},

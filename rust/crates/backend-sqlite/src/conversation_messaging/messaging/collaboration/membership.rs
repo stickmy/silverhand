@@ -35,14 +35,13 @@ struct Facts {
     roster: String,
     visibility: String,
     archived_at: Option<i64>,
-    closed_at: Option<i64>,
 }
 
 async fn facts<'e, E>(executor: E, id: &ConversationId) -> Result<Option<Facts>, PersistenceFailure>
 where
     E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
 {
-    let row = sqlx::query("SELECT workspace_id,placement_kind,roster_policy,visibility,title,archived_at,closed_at FROM conversations WHERE id=?")
+    let row = sqlx::query("SELECT workspace_id,placement_kind,roster_policy,visibility,title,archived_at FROM conversations WHERE id=?")
         .bind(id.as_str()).fetch_optional(executor).await.map_err(failure)?;
     row.map(|row| {
         let workspace = row
@@ -62,7 +61,6 @@ where
             roster: row.try_get("roster_policy").map_err(failure)?,
             visibility: row.try_get("visibility").map_err(failure)?,
             archived_at: row.try_get("archived_at").map_err(failure)?,
-            closed_at: row.try_get("closed_at").map_err(failure)?,
         })
     })
     .transpose()
@@ -510,9 +508,6 @@ impl<E: Clone + Send + Sync + 'static> ConversationMembershipPort for MessagingS
         if item.roster != "open" || item.placement != "workspace" {
             return Ok(ConversationMemberMutation::Unsupported);
         }
-        if item.closed_at.is_some() {
-            return Ok(ConversationMemberMutation::Closed);
-        }
         if !participates(&mut tx, principal, &item).await? {
             return Ok(ConversationMemberMutation::Forbidden);
         }
@@ -757,9 +752,6 @@ impl<E: Clone + Send + Sync + 'static> ConversationMembershipPort for MessagingS
         if item.roster != "open" {
             return Ok(ConversationAgentRemovalPreflight::Unsupported);
         }
-        if item.closed_at.is_some() {
-            return Ok(ConversationAgentRemovalPreflight::Closed);
-        }
         if !participates(
             &mut connection,
             &Principal::Human {
@@ -823,9 +815,6 @@ impl<E: Clone + Send + Sync + 'static> ConversationMembershipPort for MessagingS
         };
         if item.roster != "open" {
             return Ok(ConversationMemberMutation::Unsupported);
-        }
-        if item.closed_at.is_some() {
-            return Ok(ConversationMemberMutation::Closed);
         }
         if !participates(
             &mut tx,
@@ -922,9 +911,6 @@ impl<E: Clone + Send + Sync + 'static> ConversationMembershipPort for MessagingS
         }
         if item.roster != "open" {
             return Ok(ConversationMemberMutation::Unsupported);
-        }
-        if item.closed_at.is_some() {
-            return Ok(ConversationMemberMutation::Closed);
         }
         if viewer == user {
             return Ok(ConversationMemberMutation::SelfTarget);
@@ -1041,7 +1027,6 @@ async fn removability(
                         .await
                         .map_err(failure)?;
                 item.roster == "open"
-                    && item.closed_at.is_none()
                     && (actor_role.is_some_and(|r| r.meets_floor(WorkspaceRole::Admin))
                         || creator.as_deref() == actor_user.map(UserId::as_str))
             }
@@ -1116,7 +1101,7 @@ mod tests {
         connection.execute("INSERT INTO agents(id,name,runtime,host_id,created_at,updated_at,created_by_user_id,display_name,session_scope) VALUES('agent','agent','codex','host',1,1,'member','Agent','conversation')").await.unwrap();
         connection.execute("INSERT INTO workspaces(id,name,name_key,created_at,updated_at,owner_user_id) VALUES('workspace','Workspace','workspace',1,1,'owner')").await.unwrap();
         connection.execute("INSERT INTO workspace_users(workspace_id,user_id,joined_at,role) VALUES('workspace','owner',1,'owner'),('workspace','member',2,'member')").await.unwrap();
-        connection.execute("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,created_at,updated_at,visibility) VALUES('public','workspace','workspace','open','Public','public','idle',1,1,'public'),('private','workspace','workspace','open','Private','private','idle',1,1,'private')").await.unwrap();
+        connection.execute("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,created_at,updated_at,visibility) VALUES('public','workspace','workspace','open','Public','public',1,1,'public'),('private','workspace','workspace','open','Private','private',1,1,'private')").await.unwrap();
         connection.execute("INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('public','owner',1),('private','member',1)").await.unwrap();
         connection.close().await.unwrap();
         (dir, path)
@@ -1390,20 +1375,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn agent_remove_classifies_roster_and_closed_before_nonparticipant_visibility() {
+    async fn agent_remove_classifies_fixed_roster_as_unsupported() {
         let (_dir, path) = fixture().await;
         let mut db = SqliteConnection::connect_with(&SqliteConnectOptions::new().filename(&path))
             .await
             .unwrap();
-        db.execute("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,status,created_at,updated_at,visibility) VALUES('fixed',NULL,'direct_pair','fixed','agent','agent','human','member','','idle',1,1,'private')").await.unwrap();
-        db.execute("UPDATE conversations SET closed_at=10 WHERE id='public'")
-            .await
-            .unwrap();
-        db.execute(
-            "DELETE FROM conversation_users WHERE conversation_id='public' AND user_id='owner'",
-        )
-        .await
-        .unwrap();
+        db.execute("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,created_at,updated_at,visibility) VALUES('fixed',NULL,'direct_pair','fixed','agent','agent','human','member','',1,1,'private')").await.unwrap();
         db.close().await.unwrap();
         let store = MessagingStore::open(&path).await.unwrap();
 
@@ -1424,28 +1401,6 @@ mod tests {
                 .await
                 .unwrap(),
             ConversationMemberMutation::Unsupported
-        );
-        assert_eq!(
-            store
-                .preflight_remove_conversation_agent(
-                    &user("owner"),
-                    &conversation("public"),
-                    &agent("agent"),
-                )
-                .await
-                .unwrap(),
-            ConversationAgentRemovalPreflight::Closed
-        );
-        assert_eq!(
-            store
-                .remove_conversation_agent(
-                    &user("owner"),
-                    &conversation("public"),
-                    &agent("agent"),
-                )
-                .await
-                .unwrap(),
-            ConversationMemberMutation::Closed
         );
     }
 }

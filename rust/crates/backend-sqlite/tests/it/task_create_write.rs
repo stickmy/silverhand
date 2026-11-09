@@ -40,8 +40,8 @@ async fn open_db() -> (TempDir, PathBuf) {
         "INSERT INTO workspace_agent_capabilities (workspace_id, agent_id, capability)
          VALUES ('ws-1', 'agent-1', 'create_tasks')",
         "INSERT INTO conversations
-            (id, workspace_id, placement_kind, roster_policy, title, title_key, status, created_at, updated_at)
-         VALUES ('conv-1', 'ws-1', 'workspace', 'open', 'general', 'general', 'active', 1, 1)",
+            (id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at)
+         VALUES ('conv-1', 'ws-1', 'workspace', 'open', 'general', 'general', 1, 1)",
         "INSERT INTO conversation_agents (conversation_id, agent_id, joined_at)
          VALUES ('conv-1', 'agent-1', 1)",
         // The conversation needs a stream-head row for the seq reservation to advance.
@@ -214,8 +214,8 @@ async fn a_source_from_another_conversation_refuses_the_whole_batch_before_any_w
     let mut c = conn(&path).await;
     sqlx::query(
         "INSERT INTO conversations
-            (id, workspace_id, placement_kind, roster_policy, title, title_key, status, created_at, updated_at)
-         VALUES ('conv-other', 'ws-1', 'workspace', 'open', 'other', 'other', 'active', 1, 1)",
+            (id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at)
+         VALUES ('conv-other', 'ws-1', 'workspace', 'open', 'other', 'other', 1, 1)",
     )
     .execute(&mut c)
     .await
@@ -347,16 +347,11 @@ async fn a_duplicate_source_inside_one_batch_rolls_back_every_task_and_event() {
 }
 
 #[tokio::test]
-async fn closed_and_archived_destinations_refuse_without_task_or_message() {
-    for column in ["closed_at", "archived_at"] {
+async fn archived_destinations_refuse_without_task_or_message() {
+    {
         let (_dir, path) = open_db().await;
         let mut c = conn(&path).await;
-        let update = if column == "closed_at" {
-            "UPDATE conversations SET closed_at = 9 WHERE id = ?"
-        } else {
-            "UPDATE conversations SET archived_at = 9 WHERE id = ?"
-        };
-        sqlx::query(update)
+        sqlx::query("UPDATE conversations SET archived_at = 9 WHERE id = ?")
             .bind(CONV)
             .execute(&mut c)
             .await
@@ -365,11 +360,7 @@ async fn closed_and_archived_destinations_refuse_without_task_or_message() {
 
         let writer = SqliteTaskCreateWrite::open(&path).await.unwrap();
         let outcome = writer.create_tasks(&batch(vec![plan(None)])).await.unwrap();
-        assert!(matches!(
-            (column, outcome),
-            ("closed_at", TaskCreateOutcome::ConversationClosed)
-                | ("archived_at", TaskCreateOutcome::ConversationArchived)
-        ));
+        assert!(matches!(outcome, TaskCreateOutcome::ConversationArchived));
 
         let mut c = conn(&path).await;
         let tasks: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM tasks")
@@ -380,7 +371,7 @@ async fn closed_and_archived_destinations_refuse_without_task_or_message() {
             .fetch_one(&mut c)
             .await
             .unwrap();
-        assert_eq!((tasks, events), (0, 0), "{column}");
+        assert_eq!((tasks, events), (0, 0));
     }
 }
 
@@ -405,9 +396,9 @@ async fn a_readonly_direct_pair_destination_is_conversation_readonly() {
          VALUES ('agent-gone', 'agent-gone', 'codex', 'host-1', 1, 1, 'Agent', 'user-1', 'conversation')",
         // pair between agent-1 and the (soon-gone) peer.
         "INSERT INTO conversations
-            (id, placement_kind, roster_policy, title, status, created_at, updated_at,
+            (id, placement_kind, roster_policy, title, created_at, updated_at,
              endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id)
-         VALUES ('pair-1', 'direct_pair', 'fixed', '', 'active', 1, 1,
+         VALUES ('pair-1', 'direct_pair', 'fixed', '', 1, 1,
              'agent', 'agent-1', 'agent', 'agent-gone')",
         "INSERT INTO conversation_stream_heads (conversation_id, thread_root_id, latest_seq)
          VALUES ('pair-1', NULL, 0)",

@@ -51,7 +51,7 @@ async fn million_row_adapter_uses_bounded_day_ranges_and_indexed_earliest_lookup
     let path = dir.path().join("scale.sqlite");
     let mut db = current_schema::create_current_schema(&path).await;
     db.execute(sqlx::raw_sql("INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES('u','user','User',1,1),('v','viewer','Viewer',1,1);
-    INSERT INTO conversations(id,placement_kind,roster_policy,title,status,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,created_at,updated_at) VALUES('private','direct_pair','fixed','','open','human','u','human','v',1,1);
+    INSERT INTO conversations(id,placement_kind,roster_policy,title,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,created_at,updated_at) VALUES('private','direct_pair','fixed','','human','u','human','v',1,1);
     WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<1000000)
     INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,seq,created_at)
     SELECT 'm'||x,'private','user',CASE WHEN x%100=0 THEN 'u' ELSE 'v' END,'',x,1672502400000+(x%1096)*86400000 FROM n;" )).await.unwrap();

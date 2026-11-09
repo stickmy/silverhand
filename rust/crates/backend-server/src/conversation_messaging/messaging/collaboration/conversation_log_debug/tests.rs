@@ -590,9 +590,8 @@ async fn sqlite_fixture(setup: &str) -> (tempfile::TempDir, SqliteAdmission) {
         .await
         .unwrap();
         db.execute(
-            "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,\
-             status,visibility,created_at,updated_at) VALUES \
-             ('c','w','workspace','open','General','general-log-debug','idle','public',1,1)",
+            "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES \
+             ('c','w','workspace','open','General','general-log-debug','public',1,1)",
         )
         .await
         .unwrap();
@@ -606,8 +605,8 @@ async fn sqlite_fixture(setup: &str) -> (tempfile::TempDir, SqliteAdmission) {
     } else if setup == "direct-pair-endpoint" {
         db.execute(
             "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,\
-             endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,status,visibility,created_at,updated_at) \
-             VALUES('c',NULL,'direct_pair','fixed','human','peer','human','viewer','',NULL,'idle','private',1,1)",
+             endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,visibility,created_at,updated_at) \
+             VALUES('c',NULL,'direct_pair','fixed','human','peer','human','viewer','',NULL,'private',1,1)",
         )
         .await
         .unwrap();

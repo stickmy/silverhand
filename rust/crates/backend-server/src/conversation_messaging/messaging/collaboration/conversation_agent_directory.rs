@@ -262,11 +262,11 @@ mod tests {
         }
         match setup {
             "direct_pair_endpoint" => {
-                sqlx::query("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,status,visibility,created_at,updated_at) VALUES('c',NULL,'direct_pair','fixed','human','local','human','other','',NULL,'idle','private',1,1)")
+                sqlx::query("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,visibility,created_at,updated_at) VALUES('c',NULL,'direct_pair','fixed','human','local','human','other','',NULL,'private',1,1)")
                     .execute(&mut db).await.unwrap();
             }
             "direct_pair_nonendpoint" => {
-                sqlx::query("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,status,visibility,created_at,updated_at) VALUES('c',NULL,'direct_pair','fixed','human','other','human','teammate','',NULL,'idle','private',1,1)")
+                sqlx::query("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,visibility,created_at,updated_at) VALUES('c',NULL,'direct_pair','fixed','human','other','human','teammate','',NULL,'private',1,1)")
                     .execute(&mut db).await.unwrap();
             }
             "missing_conversation" => {}
@@ -281,7 +281,7 @@ mod tests {
                 } else {
                     None
                 };
-                sqlx::query("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,archived_at,created_at,updated_at) VALUES('c','w','workspace','open','General','general-agent-directory','idle',?,?,1,1)")
+                sqlx::query("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,archived_at,created_at,updated_at) VALUES('c','w','workspace','open','General','general-agent-directory',?,?,1,1)")
                     .bind(visibility).bind(archived).execute(&mut db).await.unwrap();
                 if matches!(other, "workspace_member" | "archived_workspace_member") {
                     sqlx::query("INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('c','local',1)")

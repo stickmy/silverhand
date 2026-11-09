@@ -661,10 +661,9 @@ async fn seed_participants(db: &mut SqliteConnection) {
     .unwrap();
     sqlx::query(
         "INSERT INTO conversations (
-            id, workspace_id, placement_kind, roster_policy, title, title_key,
-            status, created_at, updated_at
+            id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at
          ) VALUES (?, 'workspace-1', 'workspace', 'open', 'Conversation One',
-             'conversation one', 'active', 1, 1)",
+             'conversation one', 1, 1)",
     )
     .bind(CONVERSATION)
     .execute(&mut *db)
@@ -5475,14 +5474,14 @@ async fn agent_slot_activity_is_shared_across_channels_and_dm_without_source_con
          VALUES ('agent-aggregate', 'agent-aggregate', 'codex', 'host-1', 1, 1, 'Aggregate Agent', 'user-1', 'agent');
          INSERT INTO workspace_members (workspace_id, agent_id, joined_at) VALUES ('workspace-1', 'agent-aggregate', 1);
          INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES ('conversation0001', 'agent-aggregate', 1);
-         INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, status, created_at, updated_at)
-         VALUES ('conversation0002', 'workspace-1', 'workspace', 'fixed', 'Second', 'second', 'active', 1, 1);
+         INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at)
+         VALUES ('conversation0002', 'workspace-1', 'workspace', 'fixed', 'Second', 'second', 1, 1);
          INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES ('conversation0002', 'agent-aggregate', 1);
          INSERT INTO conversation_users (conversation_id, user_id, joined_at) VALUES ('conversation0002', 'user-1', 1);
-         INSERT INTO conversations(id,placement_kind,roster_policy,title,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,status,visibility,created_at,updated_at)
-         VALUES('activity-dm','direct_pair','fixed','','agent','agent-aggregate','human','user-1','idle','private',1,1);
-         INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,created_at,updated_at)
-         VALUES('secret-origin','workspace-1','workspace','open','Secret','secret','idle','private',1,1);
+         INSERT INTO conversations(id,placement_kind,roster_policy,title,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,visibility,created_at,updated_at)
+         VALUES('activity-dm','direct_pair','fixed','','agent','agent-aggregate','human','user-1','private',1,1);
+         INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at)
+         VALUES('secret-origin','workspace-1','workspace','open','Secret','secret','private',1,1);
          INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES('secret-origin','agent-aggregate',1);
          INSERT INTO messages (id, conversation_id, from_kind, from_user_id, content, seq, created_at)
          VALUES ('aggregate-message', 'conversation0001', 'user', 'user-1', 'wake aggregate', 2, 2);
@@ -6239,14 +6238,14 @@ async fn agent_full_activity_has_one_http_ws_stream_across_focus_and_revocation(
          VALUES ('agent-aggregate', 'agent-aggregate', 'codex', 'host-1', 1, 1, 'Aggregate Agent', 'stream-peer', 'agent');
          INSERT INTO workspace_members (workspace_id, agent_id, joined_at) VALUES ('workspace-1', 'agent-aggregate', 1);
          INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES ('conversation0001', 'agent-aggregate', 1);
-         INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, status, created_at, updated_at)
-         VALUES ('conversation0002', 'workspace-1', 'workspace', 'fixed', 'Second', 'second', 'active', 1, 1);
+         INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at)
+         VALUES ('conversation0002', 'workspace-1', 'workspace', 'fixed', 'Second', 'second', 1, 1);
          INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES ('conversation0002', 'agent-aggregate', 1);
          INSERT INTO conversation_users (conversation_id, user_id, joined_at) VALUES ('conversation0002', 'user-1', 1);
-         INSERT INTO conversations(id,placement_kind,roster_policy,title,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,status,visibility,created_at,updated_at)
-         VALUES('activity-dm','direct_pair','fixed','','agent','agent-aggregate','human','stream-peer','idle','private',1,1);
-         INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,created_at,updated_at)
-         VALUES('secret-origin','workspace-1','workspace','open','Secret','secret','idle','private',1,1);
+         INSERT INTO conversations(id,placement_kind,roster_policy,title,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,visibility,created_at,updated_at)
+         VALUES('activity-dm','direct_pair','fixed','','agent','agent-aggregate','human','stream-peer','private',1,1);
+         INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at)
+         VALUES('secret-origin','workspace-1','workspace','open','Secret','secret','private',1,1);
          INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES('secret-origin','agent-aggregate',1);
          INSERT INTO messages (id, conversation_id, from_kind, from_user_id, content, seq, created_at)
          VALUES ('aggregate-message', 'conversation0001', 'user', 'user-1', 'wake aggregate', 2, 2);

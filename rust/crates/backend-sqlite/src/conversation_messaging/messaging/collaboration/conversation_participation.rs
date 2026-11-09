@@ -69,7 +69,7 @@ const SELECT_PARTICIPATING_VIEWER: &str = concat!(
 );
 
 pub(super) const SELECT_CONVERSATION: &str = "SELECT id,workspace_id,placement_kind,roster_policy,title,title_key,\
-     status,visibility,endpoint_a_kind,endpoint_a_id,endpoint_a_deleted_at,\
+     visibility,endpoint_a_kind,endpoint_a_id,endpoint_a_deleted_at,\
      endpoint_b_kind,endpoint_b_id,endpoint_b_deleted_at \
      FROM conversations WHERE id=?";
 
@@ -131,8 +131,6 @@ pub enum ConversationParticipationStoreError {
     MalformedIdentity,
     #[error("stored conversation placement contradicts the current schema")]
     MalformedPlacement,
-    #[error("stored conversation status is outside the published closed set")]
-    MalformedStatus,
 }
 
 impl From<ConversationParticipationStoreError> for PersistenceFailure {
@@ -209,13 +207,6 @@ pub(super) fn decode_conversation(
 pub(super) fn decode_placement(
     row: &SqliteRow,
 ) -> Result<Placement, ConversationParticipationStoreError> {
-    let status: String = row.try_get("status")?;
-    if !matches!(
-        status.as_str(),
-        "starting" | "active" | "idle" | "archived" | "crashed"
-    ) {
-        return Err(ConversationParticipationStoreError::MalformedStatus);
-    }
     let placement: String = row.try_get("placement_kind")?;
     let roster: String = row.try_get("roster_policy")?;
     let visibility: String = row.try_get("visibility")?;

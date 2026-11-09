@@ -114,9 +114,9 @@ const FIXTURE: &[&str] = &[
     // a2 <-> u-alpha direct pair: 'agent' < 'human', so the agent is endpoint_a.
     "INSERT INTO conversations \
        (id, workspace_id, endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, \
-        placement_kind, roster_policy, title, status, created_at, updated_at) \
+        placement_kind, roster_policy, title, created_at, updated_at) \
      VALUES ('c-pair', NULL, 'agent', 'a2', 'human', 'u-alpha', \
-        'direct_pair', 'fixed', 'dm', 'active', 200, 200)",
+        'direct_pair', 'fixed', 'dm', 200, 200)",
     // a4 in regular workspace w1 (owner_agent_id NULL), whose only user is u-delta.
     "INSERT INTO workspaces \
        (id, name, name_key, description, owner_agent_id, archived_at, created_at, updated_at) \

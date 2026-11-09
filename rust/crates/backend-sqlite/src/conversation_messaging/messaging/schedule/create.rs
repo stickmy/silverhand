@@ -57,12 +57,11 @@ const INSERT_SCHEDULE: &str = "INSERT INTO schedules \
      VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', 0, NULL, ?, ?, NULL, NULL, ?, ?) \
      RETURNING *";
 
-/// The target conversation's label inputs PLUS its lifecycle `closed_at`, read in
-/// the same transaction so the returned view carries the SAME `target_label` the
-/// list/cancel faces render AND the create can re-decide the closed barrier under
-/// the write lock. `LEFT`-JOIN semantics by hand: a missing row is target-not-found.
+/// The target conversation's label inputs, read in the same transaction so the
+/// returned view carries the SAME `target_label` the list/cancel faces render.
+/// `LEFT`-JOIN semantics by hand: a missing row is target-not-found.
 const SELECT_TARGET_CONVERSATION: &str =
-    "SELECT title, roster_policy, workspace_id, closed_at FROM conversations WHERE id = ?";
+    "SELECT title, roster_policy, workspace_id FROM conversations WHERE id = ?";
 /// Serialize a canonical [`ScheduleSpec`] into the persisted `spec_json` shape,
 /// byte-identical to the TypeScript `JSON.stringify(spec)` and to what
 /// [`super::decode_spec`] reads back: a `{kind, ...}` object with snake_case
@@ -183,11 +182,6 @@ impl<K: Clock + Send + Sync> ScheduleCreateStore for SqliteScheduleCreate<K> {
             tx.rollback().await.map_err(driver)?;
             return Ok(ScheduleCreateOutcome::TargetNotFound);
         };
-        let target_closed_at: Option<i64> = target.try_get("closed_at").map_err(driver)?;
-        if target_closed_at.is_some() {
-            tx.rollback().await.map_err(driver)?;
-            return Ok(ScheduleCreateOutcome::TargetClosed);
-        }
         let target_title: Option<String> = target.try_get("title").map_err(driver)?;
         let target_roster_policy: Option<String> =
             target.try_get("roster_policy").map_err(driver)?;

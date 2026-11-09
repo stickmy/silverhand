@@ -5,8 +5,8 @@ use silverhand_backend_core::{
         ActiveChannelDirectoryPort, ActiveWorkspaceChannelDirectory, ArchivedChannelRow,
         ArchivedSince, ArchivedWorkspaceChannelDirectory, ArchivedWorkspaceChannelDirectoryPort,
         ChannelDirectoryProjectionError, ChannelDirectoryRow, ChannelSortEntry, ChannelSortMode,
-        ChannelSortState, ChannelStatus, ChannelVisibility, DirectoryRoster,
-        DirectoryWorkspaceKind, GlobalArchivedChannelDirectory, GlobalArchivedChannelDirectoryPort,
+        ChannelSortState, ChannelVisibility, DirectoryRoster, DirectoryWorkspaceKind,
+        GlobalArchivedChannelDirectory, GlobalArchivedChannelDirectoryPort,
         GlobalArchivedDirectoryRefusal, WorkspaceDirectoryRefusal,
     },
     foundation::identity::{AgentId, ConversationId, UserId, WorkspaceId},
@@ -48,8 +48,6 @@ pub enum ChannelDirectoryStoreError {
     ConversationPlacement,
     #[error("stored conversation title is malformed")]
     ConversationTitle,
-    #[error("stored conversation status is malformed")]
-    ConversationStatus,
     #[error("stored conversation visibility is malformed")]
     ConversationVisibility,
     #[error("stored spawned-agent identity is malformed")]
@@ -344,7 +342,7 @@ async fn viewer_is_workspace_member(
         .bind(workspace.as_str()).bind(viewer.as_str()).fetch_one(&mut **tx).await
 }
 
-const ROW_COLUMNS_BEFORE_VIEWER: &str = "c.id,c.workspace_id,c.placement_kind,c.roster_policy,c.title,c.title_key,c.status,c.spawned_by_agent_id,c.closed_at,c.close_summary,c.archived_at,c.latest_message_seq,c.created_at,c.updated_at,c.visibility,c.endpoint_a_kind,c.endpoint_a_id,c.endpoint_a_deleted_at,c.endpoint_b_kind,c.endpoint_b_id,c.endpoint_b_deleted_at,CASE WHEN c.spawned_by_agent_id IS NULL THEN 1 ELSE EXISTS(SELECT 1 FROM agents spawned WHERE spawned.id=c.spawned_by_agent_id) END AS spawned_agent_valid,EXISTS(SELECT 1 FROM conversation_users cu WHERE cu.conversation_id=c.id AND cu.user_id=";
+const ROW_COLUMNS_BEFORE_VIEWER: &str = "c.id,c.workspace_id,c.placement_kind,c.roster_policy,c.title,c.title_key,c.spawned_by_agent_id,c.archived_at,c.latest_message_seq,c.created_at,c.updated_at,c.visibility,c.endpoint_a_kind,c.endpoint_a_id,c.endpoint_a_deleted_at,c.endpoint_b_kind,c.endpoint_b_id,c.endpoint_b_deleted_at,CASE WHEN c.spawned_by_agent_id IS NULL THEN 1 ELSE EXISTS(SELECT 1 FROM agents spawned WHERE spawned.id=c.spawned_by_agent_id) END AS spawned_agent_valid,EXISTS(SELECT 1 FROM conversation_users cu WHERE cu.conversation_id=c.id AND cu.user_id=";
 const ROW_COLUMNS_AFTER_VIEWER: &str = ") AS is_member";
 
 async fn load_workspace_rows(
@@ -447,8 +445,6 @@ fn decode_channel(
     }
     let roster = DirectoryRoster::parse(&row.try_get::<String, _>("roster_policy")?)
         .map_err(|_| ChannelDirectoryStoreError::ConversationPlacement)?;
-    let status = ChannelStatus::parse(&row.try_get::<String, _>("status")?)
-        .map_err(|_| ChannelDirectoryStoreError::ConversationStatus)?;
     let visibility = ChannelVisibility::parse(&row.try_get::<String, _>("visibility")?)
         .map_err(|_| ChannelDirectoryStoreError::ConversationVisibility)?;
     let spawned_by_agent = row
@@ -465,10 +461,7 @@ fn decode_channel(
         id,
         roster,
         title,
-        status,
         spawned_by_agent,
-        row.try_get("closed_at")?,
-        row.try_get("close_summary")?,
         row.try_get("archived_at")?,
         row.try_get("latest_message_seq")?,
         row.try_get("created_at")?,

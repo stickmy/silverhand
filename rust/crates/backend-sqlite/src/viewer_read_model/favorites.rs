@@ -435,8 +435,8 @@ mod tests {
 
     const SEED_POST: &str = "INSERT INTO workspaces (id, name, name_key, owner_agent_id, created_at, updated_at) VALUES ('home',' ',NULL,'agent-a',1,1); \
          INSERT INTO workspace_users (workspace_id, user_id, joined_at, role) VALUES ('home','user-1',1,'member'); \
-         INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, status, visibility, created_at, updated_at) \
-           VALUES ('chan','home','workspace','open','Chan','chan','idle','private',1,1); \
+         INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, visibility, created_at, updated_at) \
+           VALUES ('chan','home','workspace','open','Chan','chan','private',1,1); \
          INSERT INTO conversation_users (conversation_id, user_id, joined_at) VALUES ('chan','user-1',1); \
          INSERT INTO user_sort_entry (user_id, list_key, entity_id, rank, last_accessed_at, starred_at) \
            VALUES ('user-1','channels:home','chan',NULL,NULL,10);";
@@ -530,8 +530,8 @@ mod tests {
             "INSERT INTO agents (id, name, display_name, runtime, host_id, created_by_user_id, created_at, updated_at, session_scope) \
                VALUES ('agent-a','alice','Alice','claude','host-1','user-1',1,1,'agent'); \
              INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-2','other','Other',1,1); \
-             INSERT INTO conversations (id,placement_kind,roster_policy,title,status,visibility,created_at,updated_at,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id) \
-               VALUES ('dm-1','direct_pair','fixed','','idle','private',7,7,'agent','agent-a','human','user-1'); \
+             INSERT INTO conversations (id,placement_kind,roster_policy,title,visibility,created_at,updated_at,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id) \
+               VALUES ('dm-1','direct_pair','fixed','','private',7,7,'agent','agent-a','human','user-1'); \
              INSERT INTO user_sort_entry (user_id, list_key, entity_id, rank, last_accessed_at, starred_at) \
                VALUES ('user-1','direct_pairs','dm-1',NULL,NULL,20), ('user-2','direct_pairs','dm-1',NULL,NULL,20); \
              INSERT INTO user_sort_entry (user_id, list_key, entity_id, rank) VALUES ('user-1','favorites','conversation:dm-1',3);",

@@ -43,7 +43,7 @@ async fn store(setup: &str) -> (tempfile::TempDir, MessagingStore) {
         return (dir, MessagingStore::open(path).await.unwrap());
     }
     if setup == "direct_pair_endpoint" {
-        sqlx::query("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,status,visibility,created_at,updated_at) VALUES('c',NULL,'direct_pair','fixed','human','local','human','other','',NULL,'idle','private',1,1)")
+        sqlx::query("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,visibility,created_at,updated_at) VALUES('c',NULL,'direct_pair','fixed','human','local','human','other','',NULL,'private',1,1)")
             .execute(&mut db).await.unwrap();
         seed_messages(&mut db, "c").await;
         drop(db);
@@ -58,7 +58,7 @@ async fn store(setup: &str) -> (tempfile::TempDir, MessagingStore) {
     } else {
         "private"
     };
-    sqlx::query("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,archived_at,created_at,updated_at) VALUES('c','w','workspace','open','General','general-message-unread','idle',?,?,1,1)")
+    sqlx::query("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,archived_at,created_at,updated_at) VALUES('c','w','workspace','open','General','general-message-unread',?,?,1,1)")
         .bind(visibility).bind(archived).execute(&mut db).await.unwrap();
     if setup != "workspace_forbidden" {
         sqlx::query(
@@ -74,7 +74,7 @@ async fn store(setup: &str) -> (tempfile::TempDir, MessagingStore) {
         seed_messages(&mut db, "c").await;
     }
     if setup == "workspace_member" {
-        sqlx::query("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,created_at,updated_at) VALUES('c2','w','workspace','open','Second','second-message-unread','idle','private',2,2)")
+        sqlx::query("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES('c2','w','workspace','open','Second','second-message-unread','private',2,2)")
             .execute(&mut db).await.unwrap();
         sqlx::query("INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('c2','local',2)")
             .execute(&mut db).await.unwrap();
@@ -560,7 +560,7 @@ async fn publication_combines_workspace_counts_and_keeps_tier_rules() {
             Some(7),
         ),
         (
-            "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,created_at,updated_at) VALUES('c3','w','workspace','fixed','Fixed','fixed','idle','private',3,3); INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('c3','local',3); INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,seq,created_at) VALUES('fixed-message','c3','user','other','fixed',1,3)",
+            "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES('c3','w','workspace','fixed','Fixed','fixed','private',3,3); INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('c3','local',3); INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,seq,created_at) VALUES('fixed-message','c3','user','other','fixed',1,3)",
             4,
             2,
             Some(7),

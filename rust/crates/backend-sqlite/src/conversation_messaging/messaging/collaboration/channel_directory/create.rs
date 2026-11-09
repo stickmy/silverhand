@@ -10,7 +10,7 @@ use silverhand_backend_core::{
         SendClock, SendEntropy,
         collaboration::channel_directory::{
             ChannelCreationProjectionError, ChannelDirectoryProjectionError, ChannelDirectoryRow,
-            ChannelStatus, ChannelVisibility, CommittedHumanChannelCreation, DirectoryRoster,
+            ChannelVisibility, CommittedHumanChannelCreation, DirectoryRoster,
             HumanChannelCreatePort, HumanChannelCreateRefusal, HumanChannelCreateRequest,
         },
         conversation_title::CanonicalConversationTitle,
@@ -129,12 +129,12 @@ where
         };
         let returning = sqlx::query(
             "INSERT INTO conversations(\
-               id,workspace_id,placement_kind,roster_policy,title,title_key,status,\
-               spawned_by_agent_id,closed_at,close_summary,pinned_at,created_at,updated_at,\
+               id,workspace_id,placement_kind,roster_policy,title,title_key,\
+               spawned_by_agent_id,pinned_at,created_at,updated_at,\
                archived_at,latest_message_seq,visibility\
-             ) VALUES(?,?,'workspace',?,?,?,'idle',NULL,NULL,NULL,NULL,?,?,NULL,0,?) \
-             RETURNING id,workspace_id,placement_kind,roster_policy,title,title_key,status,\
-                       spawned_by_agent_id,closed_at,close_summary,pinned_at,created_at,updated_at,\
+             ) VALUES(?,?,'workspace',?,?,?,NULL,NULL,?,?,NULL,0,?) \
+             RETURNING id,workspace_id,placement_kind,roster_policy,title,title_key,\
+                       spawned_by_agent_id,pinned_at,created_at,updated_at,\
                        archived_at,latest_message_seq,visibility,endpoint_a_kind,endpoint_a_id,\
                        endpoint_b_kind,endpoint_b_id,endpoint_a_deleted_at,endpoint_b_deleted_at",
         )
@@ -369,8 +369,8 @@ async fn load_created_row(
     conversation: &ConversationId,
 ) -> Result<SqliteRow, sqlx::Error> {
     sqlx::query(
-        "SELECT id,workspace_id,placement_kind,roster_policy,title,title_key,status,\
-                spawned_by_agent_id,closed_at,close_summary,pinned_at,created_at,updated_at,\
+        "SELECT id,workspace_id,placement_kind,roster_policy,title,title_key,\
+                spawned_by_agent_id,pinned_at,created_at,updated_at,\
                 archived_at,latest_message_seq,visibility,endpoint_a_kind,endpoint_a_id,\
                 endpoint_b_kind,endpoint_b_id,endpoint_a_deleted_at,endpoint_b_deleted_at \
          FROM conversations WHERE id=?",
@@ -392,11 +392,8 @@ fn decode_created_row(
     let roster: String = row.try_get("roster_policy")?;
     let title: String = row.try_get("title")?;
     let key: Option<String> = row.try_get("title_key")?;
-    let status: String = row.try_get("status")?;
     let visibility: String = row.try_get("visibility")?;
     let spawned: Option<String> = row.try_get("spawned_by_agent_id")?;
-    let closed_at: Option<i64> = row.try_get("closed_at")?;
-    let close_summary: Option<String> = row.try_get("close_summary")?;
     let pinned_at: Option<i64> = row.try_get("pinned_at")?;
     let archived_at: Option<i64> = row.try_get("archived_at")?;
     let latest_message_seq: i64 = row.try_get("latest_message_seq")?;
@@ -421,16 +418,9 @@ fn decode_created_row(
     }
     let roster =
         DirectoryRoster::parse(&roster).map_err(|_| corrupt("conversations.roster_policy"))?;
-    let status = ChannelStatus::parse(&status).map_err(|_| corrupt("conversations.status"))?;
     let visibility =
         ChannelVisibility::parse(&visibility).map_err(|_| corrupt("conversations.visibility"))?;
-    if status != ChannelStatus::Idle
-        || spawned.is_some()
-        || closed_at.is_some()
-        || close_summary.is_some()
-        || pinned_at.is_some()
-        || archived_at.is_some()
-        || latest_message_seq != 0
+    if spawned.is_some() || pinned_at.is_some() || archived_at.is_some() || latest_message_seq != 0
     {
         return Err(corrupt("conversations.freshness"));
     }
@@ -448,9 +438,6 @@ fn decode_created_row(
         conversation,
         roster,
         title,
-        status,
-        None,
-        None,
         None,
         None,
         latest_message_seq,

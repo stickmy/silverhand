@@ -89,12 +89,12 @@ async fn seed(path: &std::path::Path) {
          ('w','Lifecycle Workspace','lifecycle-workspace',1,1)",
         "INSERT INTO workspace_users(workspace_id,user_id,joined_at,role) VALUES \
          ('w','admin',1,'admin'),('w','owner',1,'owner'),('w','member',1,'member')",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,created_at,updated_at) VALUES \
-         ('c','w','workspace','open','General','general','idle','private',1,1),\
-         ('fixed','w','workspace','fixed','Fixed','fixed','idle','private',1,1),\
-         ('taken','w','workspace','open','Roadmap','roadmap','idle','private',1,1)",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,status,visibility,created_at,updated_at) VALUES \
-         ('pair',NULL,'direct_pair','fixed','human','admin','human','member','',NULL,'idle','private',1,1)",
+        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES \
+         ('c','w','workspace','open','General','general','private',1,1),\
+         ('fixed','w','workspace','fixed','Fixed','fixed','private',1,1),\
+         ('taken','w','workspace','open','Roadmap','roadmap','private',1,1)",
+        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,visibility,created_at,updated_at) VALUES \
+         ('pair',NULL,'direct_pair','fixed','human','admin','human','member','',NULL,'private',1,1)",
         "INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES \
          ('c','b',2),('c','a',1)",
     ] {

@@ -60,14 +60,14 @@ async fn seeded() -> (tempfile::TempDir, MessagingStore) {
            ('workspace-home','directory-agent',NULL,'directory-agent',1,1); \
          INSERT INTO workspace_users(workspace_id,user_id,joined_at) VALUES \
            ('workspace-1','local',1),('workspace-home','local',1); \
-         INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status, \
+         INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key, \
            visibility,archived_at,created_at,updated_at) VALUES \
-           ('conversation-public','workspace-1','workspace','open','Public','directory-public','active','public',NULL,1,1), \
-           ('conversation-member','workspace-1','workspace','open','Member','directory-member','idle','private',NULL,2,2), \
-           ('conversation-hidden','workspace-1','workspace','open','Hidden','directory-hidden','idle','private',NULL,4,4), \
-           ('conversation-archived','workspace-1','workspace','open','Archived','directory-archived','archived','private',10,3,10), \
-           ('home-active','workspace-home','workspace','fixed','Onboarding','directory-home-active','active','private',NULL,5,5), \
-           ('home-archived','workspace-home','workspace','fixed','Home Archived','directory-home-archived','archived','private',20,6,20); \
+           ('conversation-public','workspace-1','workspace','open','Public','directory-public','public',NULL,1,1), \
+           ('conversation-member','workspace-1','workspace','open','Member','directory-member','private',NULL,2,2), \
+           ('conversation-hidden','workspace-1','workspace','open','Hidden','directory-hidden','private',NULL,4,4), \
+           ('conversation-archived','workspace-1','workspace','open','Archived','directory-archived','private',10,3,10), \
+           ('home-active','workspace-home','workspace','fixed','Onboarding','directory-home-active','private',NULL,5,5), \
+           ('home-archived','workspace-home','workspace','fixed','Home Archived','directory-home-archived','private',20,6,20); \
          INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES \
            ('conversation-member','local',1),('conversation-archived','local',1), \
            ('home-active','local',1),('home-archived','local',1); \

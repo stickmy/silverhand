@@ -530,7 +530,6 @@ pub enum HumanSearchConversationPlacementKind {
 pub struct HumanSearchConversationRef {
     id: ConversationId,
     roster: ConversationRosterPolicy,
-    closed_at: Option<i64>,
     created_at: i64,
     placement: HumanSearchConversationPlacement,
 }
@@ -544,10 +543,9 @@ impl HumanSearchConversationRef {
         stored_title: String,
         stored_workspace: Option<WorkspaceId>,
         joined_workspace: Option<HumanSearchWorkspaceRef>,
-        closed_at: Option<i64>,
         created_at: i64,
     ) -> Result<Self, HumanSearchCorruption> {
-        validate_conversation_times(closed_at, created_at)?;
+        exact_number(created_at)?;
         let placement = match placement_kind {
             HumanSearchConversationPlacementKind::Workspace => {
                 let workspace = joined_workspace.ok_or(HumanSearchCorruption::Conversation)?;
@@ -572,7 +570,6 @@ impl HumanSearchConversationRef {
         Ok(Self {
             id,
             roster,
-            closed_at,
             created_at,
             placement,
         })
@@ -595,10 +592,6 @@ impl HumanSearchConversationRef {
 
     pub const fn roster(&self) -> ConversationRosterPolicy {
         self.roster
-    }
-
-    pub const fn closed_at(&self) -> Option<i64> {
-        self.closed_at
     }
 
     pub const fn created_at(&self) -> i64 {
@@ -1070,17 +1063,6 @@ fn message_precedes(
     }
 }
 
-fn validate_conversation_times(
-    closed_at: Option<i64>,
-    created_at: i64,
-) -> Result<(), HumanSearchCorruption> {
-    exact_number(created_at)?;
-    if let Some(value) = closed_at {
-        exact_number(value)?;
-    }
-    Ok(())
-}
-
 fn exact_number(value: i64) -> Result<(), HumanSearchCorruption> {
     (0..=MAX_JAVASCRIPT_INTEGER)
         .contains(&value)
@@ -1170,7 +1152,6 @@ mod tests {
             "General".to_owned(),
             Some(workspace("w")),
             Some(workspace_ref("w")),
-            None,
             1,
         )
         .unwrap()
@@ -1286,7 +1267,6 @@ mod tests {
                 "General".to_owned(),
                 Some(workspace("a")),
                 Some(workspace_ref("b")),
-                None,
                 1,
             ),
             Err(HumanSearchCorruption::Conversation)
@@ -1299,7 +1279,6 @@ mod tests {
                 "General".to_owned(),
                 Some(workspace("a")),
                 Some(workspace_ref("a")),
-                None,
                 1,
             )
             .is_ok()
@@ -1323,7 +1302,6 @@ mod tests {
                     title.to_owned(),
                     stored_workspace,
                     joined_workspace,
-                    None,
                     1,
                 ),
                 Err(HumanSearchCorruption::Conversation)
@@ -1335,7 +1313,6 @@ mod tests {
                 HumanSearchConversationPlacementKind::DirectPair,
                 ConversationRosterPolicy::Fixed,
                 String::new(),
-                None,
                 None,
                 None,
                 1,

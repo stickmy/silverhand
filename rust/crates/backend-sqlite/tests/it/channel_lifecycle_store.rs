@@ -41,11 +41,11 @@ async fn seed(path: &std::path::Path) {
     .await
     .unwrap();
     db.execute(
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,created_at,updated_at) VALUES \
-         ('private','w','workspace','open','Private','private','idle','private',1,1),\
-         ('public','w','workspace','open','Public','public','idle','public',1,1),\
-         ('archived','w','workspace','open','Archived','archived','idle','public',1,1),\
-         ('fixed','w','workspace','fixed','Fixed','fixed','idle','private',1,1)",
+        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES \
+         ('private','w','workspace','open','Private','private','private',1,1),\
+         ('public','w','workspace','open','Public','public','public',1,1),\
+         ('archived','w','workspace','open','Archived','archived','public',1,1),\
+         ('fixed','w','workspace','fixed','Fixed','fixed','private',1,1)",
     )
     .await
     .unwrap();
@@ -59,9 +59,9 @@ async fn seed(path: &std::path::Path) {
     .await
     .unwrap();
     db.execute(
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,status,visibility,created_at,updated_at) \
-         VALUES('pair',NULL,'direct_pair','fixed','agent','agent','human','member','',NULL,'idle','private',1,1),\
-         ('foreign-pair',NULL,'direct_pair','fixed','agent','agent','human','other','',NULL,'idle','private',1,1)",
+        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,visibility,created_at,updated_at) \
+         VALUES('pair',NULL,'direct_pair','fixed','agent','agent','human','member','',NULL,'private',1,1),\
+         ('foreign-pair',NULL,'direct_pair','fixed','agent','agent','human','other','',NULL,'private',1,1)",
     )
     .await
     .unwrap();

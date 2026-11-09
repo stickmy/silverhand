@@ -322,11 +322,11 @@ INSERT INTO hosts (id, name, kind, created_at) VALUES ('host-1', 'Host', 'local'
 INSERT INTO workspaces (id, name, name_key, created_at, updated_at) \
   VALUES ('ws-regular', 'Team', 'team', 1, 1); \
 INSERT INTO conversations \
-  (id, workspace_id, placement_kind, roster_policy, title, title_key, status, created_at, updated_at) \
-  VALUES ('conv-1', 'ws-regular', 'workspace', 'open', 'general', 'general', 'active', 1, 1); \
+  (id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at) \
+  VALUES ('conv-1', 'ws-regular', 'workspace', 'open', 'general', 'general', 1, 1); \
 INSERT INTO conversations \
-  (id, workspace_id, placement_kind, roster_policy, title, title_key, status, created_at, updated_at) \
-  VALUES ('conv-2', 'ws-regular', 'workspace', 'open', 'random', 'random', 'active', 1, 1);";
+  (id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at) \
+  VALUES ('conv-2', 'ws-regular', 'workspace', 'open', 'random', 'random', 1, 1);";
 
     #[derive(Clone)]
     struct ScriptedEntropy {

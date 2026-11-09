@@ -119,8 +119,8 @@ async fn seed_minimal_scenario(db: &mut SqliteConnection) {
         ),
         (
             "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-             title_key, status, created_at, updated_at) \
-             VALUES (?, ?, 'workspace', 'open', 'General', 'general', 'open', 0, 0)",
+             title_key, created_at, updated_at) \
+             VALUES (?, ?, 'workspace', 'open', 'General', 'general', 0, 0)",
             vec![CHANNEL_ID, WORKSPACE_ID],
         ),
         (
@@ -565,8 +565,8 @@ async fn a_real_authority_driver_failure_is_one_safe_500_before_the_real_uow() {
             "named-non-addressable-id",
             &[
                 "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, \
-                 title, title_key, status, visibility, created_at, updated_at) VALUES \
-                 ('bad/id', 'workspace-1', 'workspace', 'open', 'Broken', 'broken', 'open', \
+                 title, title_key, visibility, created_at, updated_at) VALUES \
+                 ('bad/id', 'workspace-1', 'workspace', 'open', 'Broken', 'broken', \
                  'private', 0, 0)",
                 "INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) \
                  VALUES ('bad/id', 'agent-1', 0)",
@@ -579,9 +579,9 @@ async fn a_real_authority_driver_failure_is_one_safe_500_before_the_real_uow() {
             "direct-pair-non-addressable-id",
             &[
                 "INSERT INTO conversations (id, placement_kind, roster_policy, endpoint_a_kind, \
-                 endpoint_a_id, endpoint_b_kind, endpoint_b_id, title, status, visibility, \
+                 endpoint_a_id, endpoint_b_kind, endpoint_b_id, title, visibility, \
                  created_at, updated_at) VALUES ('bad/id', 'direct_pair', 'fixed', 'agent', \
-                 'agent-1', 'agent', 'agent-2', '', 'idle', 'private', 0, 0)",
+                 'agent-1', 'agent', 'agent-2', '', 'private', 0, 0)",
             ],
             false,
             "conversations.id",

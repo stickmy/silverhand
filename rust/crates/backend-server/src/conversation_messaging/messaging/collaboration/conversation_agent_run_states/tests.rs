@@ -14,7 +14,7 @@ use serde_json::{Number, Value, json};
 use silverhand_backend_core::{
     conversation_messaging::messaging::{
         collaboration::{
-            channel_directory::{ChannelStatus, ChannelVisibility, DirectoryRoster},
+            channel_directory::{ChannelVisibility, DirectoryRoster},
             channel_lifecycle::{
                 ChannelDetailFact, ChannelDetailReadPort, ChannelDetailRefusal, ChannelLifecycleRow,
             },
@@ -78,9 +78,6 @@ fn admitted(viewer: &str, conversation: &str) -> ChannelDetailFact {
             WorkspaceId::parse("w").unwrap(),
             DirectoryRoster::Open,
             CanonicalConversationTitle::parse("General").unwrap(),
-            ChannelStatus::Active,
-            None,
-            None,
             None,
             None,
             0,
@@ -314,7 +311,7 @@ async fn sqlite_admission(
     )
     .await
     .unwrap();
-    sqlx::query("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,archived_at,created_at,updated_at) VALUES('c','w','workspace','open','General','general','idle',?,?,1,1)")
+    sqlx::query("INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,archived_at,created_at,updated_at) VALUES('c','w','workspace','open','General','general',?,?,1,1)")
         .bind(visibility)
         .bind(archived_at)
         .execute(&mut db)

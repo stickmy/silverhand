@@ -1,6 +1,6 @@
 //! Adapter tests: the source-bound snapshot resolves participation membership,
 //! per-conversation redaction (both the workspace-roster and direct-pair arms),
-//! the archived/closed split, per-scope queue depth, and seat redaction — all off
+//! the archived split, per-scope queue depth, and seat redaction — all off
 //! one `BEGIN DEFERRED` read composed from the SHARED ACL and participation macros.
 
 use sqlx::{Connection, Executor};
@@ -27,7 +27,7 @@ const DATABASE_FILE: &str = "agent-runtime-state.sqlite";
 ///   one the viewer may read and one it may not.
 ///
 /// Readability is seeded so each arm holds a conversation the other cannot reach:
-/// `u-member` reads `c-ws`/`c-arch`/`c-closed` through the workspace arm (a
+/// `u-member` reads `c-ws`/`c-arch`/`c-recent` through the workspace arm (a
 /// `workspace_users` AND `conversation_users` row), `u-dp` reads `c-dp` through the
 /// direct-pair endpoint, and `c-hidden` (workspace `w2`, which `u-member` is not in)
 /// is readable by neither.
@@ -54,29 +54,29 @@ INSERT INTO workspace_members (workspace_id, agent_id, joined_at) VALUES \
   ('w1','a-agentscope',1), \
   ('w2','a-agentscope',1), \
   ('w1','a-convscope',1); \
-INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, status, \
-    created_at, updated_at, closed_at, archived_at) VALUES \
-  ('c-ws','w1','workspace','open','General','general','active',1,300,NULL,NULL), \
-  ('c-arch','w1','workspace','open','Archived','archived-ch','active',1,200,NULL,50), \
-  ('c-closed','w1','workspace','open','Closed','closed-ch','active',1,400,100,NULL), \
-  ('c-hidden','w2','workspace','open','Hidden','hidden-ch','active',1,350,NULL,NULL), \
-  ('c-cv1','w1','workspace','open','Conv One','conv-one','active',1,110,NULL,NULL), \
-  ('c-cv2','w1','workspace','open','Conv Two','conv-two','active',1,120,NULL,NULL); \
+INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, \
+    created_at, updated_at, archived_at) VALUES \
+  ('c-ws','w1','workspace','open','General','general',1,300,NULL), \
+  ('c-arch','w1','workspace','open','Archived','archived-ch',1,200,50), \
+  ('c-recent','w1','workspace','open','Recent','recent-ch',1,400,NULL), \
+  ('c-hidden','w2','workspace','open','Hidden','hidden-ch',1,350,NULL), \
+  ('c-cv1','w1','workspace','open','Conv One','conv-one',1,110,NULL), \
+  ('c-cv2','w1','workspace','open','Conv Two','conv-two',1,120,NULL); \
 INSERT INTO conversations (id, workspace_id, endpoint_a_kind, endpoint_a_id, endpoint_b_kind, \
-    endpoint_b_id, placement_kind, roster_policy, title, status, visibility, created_at, updated_at) \
+    endpoint_b_id, placement_kind, roster_policy, title, visibility, created_at, updated_at) \
   VALUES \
-  ('c-dp',NULL,'agent','a-agentscope','human','u-dp','direct_pair','fixed','','active','private',1,500); \
+  ('c-dp',NULL,'agent','a-agentscope','human','u-dp','direct_pair','fixed','','private',1,500); \
 INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES \
   ('c-ws','a-agentscope',1), \
   ('c-arch','a-agentscope',1), \
-  ('c-closed','a-agentscope',1), \
+  ('c-recent','a-agentscope',1), \
   ('c-hidden','a-agentscope',1), \
   ('c-cv1','a-convscope',1), \
   ('c-cv2','a-convscope',1); \
 INSERT INTO conversation_users (conversation_id, user_id, joined_at) VALUES \
   ('c-ws','u-member',1), \
   ('c-arch','u-member',1), \
-  ('c-closed','u-member',1), \
+  ('c-recent','u-member',1), \
   ('c-cv1','u-member',1), \
   ('c-cv1','u-creator',1), \
   ('c-cv2','u-creator',1); \
@@ -136,7 +136,7 @@ async fn state(
 }
 
 /// The participation list is redacted to what the viewer may read and ordered
-/// open-first, then most-recently-updated. `u-member` reads the three `w1` channels
+/// most-recently-updated first. `u-member` reads the three `w1` channels
 /// through the workspace arm; `c-hidden` (a `w2` channel it is not in) and `c-dp` (a
 /// pair it is not an endpoint of) are dropped.
 #[tokio::test]
@@ -149,15 +149,15 @@ async fn participations_are_redacted_and_ordered() {
         .iter()
         .map(|row| row.conversation.as_str())
         .collect();
-    assert_eq!(ids, ["c-ws", "c-arch", "c-closed"]);
+    assert_eq!(ids, ["c-recent", "c-ws", "c-arch"]);
 
-    // Archived drops from the visible list; closed does not.
+    // Archived drops from the visible list.
     let visible: Vec<&str> = view
         .visible_participations
         .iter()
         .map(|row| row.conversation.as_str())
         .collect();
-    assert_eq!(visible, ["c-ws", "c-closed"]);
+    assert_eq!(visible, ["c-recent", "c-ws"]);
 
     // Readable participation echoes the stored workspace fields.
     let row = view

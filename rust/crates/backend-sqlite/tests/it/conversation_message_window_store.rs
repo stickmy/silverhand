@@ -25,13 +25,12 @@ async fn seed(path: &std::path::Path) {
          ('w','Workspace','workspace',1,1)",
         "INSERT INTO workspace_users(workspace_id,user_id,joined_at,role) VALUES \
          ('w','viewer',1,'member'),('w','outsider',1,'member')",
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,\
-         status,visibility,latest_message_seq,created_at,updated_at) VALUES \
-         ('c','w','workspace','open','Channel','channel','idle','public',5,1,1)",
+        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,latest_message_seq,created_at,updated_at) VALUES \
+         ('c','w','workspace','open','Channel','channel','public',5,1,1)",
         "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,endpoint_a_kind,\
-         endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,status,visibility,\
+         endpoint_a_id,endpoint_b_kind,endpoint_b_id,title,title_key,visibility,\
          latest_message_seq,created_at,updated_at) VALUES \
-         ('pair',NULL,'direct_pair','fixed','human','reply-a','human','viewer','',NULL,'idle',\
+         ('pair',NULL,'direct_pair','fixed','human','reply-a','human','viewer','',NULL,\
          'private',0,1,1)",
         "INSERT INTO conversation_users(conversation_id,user_id,joined_at) VALUES('c','viewer',1)",
         "INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,metadata,seq,\
@@ -444,9 +443,8 @@ async fn linked_task_uses_its_actual_conversation_and_rejects_cross_conversation
         .await
         .unwrap();
     db.execute(
-        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,\
-         status,visibility,latest_message_seq,created_at,updated_at) VALUES \
-         ('foreign','w','workspace','open','Foreign','foreign','idle','private',0,1,1)",
+        "INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,latest_message_seq,created_at,updated_at) VALUES \
+         ('foreign','w','workspace','open','Foreign','foreign','private',0,1,1)",
     )
     .await
     .unwrap();

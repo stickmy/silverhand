@@ -215,9 +215,9 @@ mod tests {
                  VALUES('workspace-1','agent-workspace',0)",
                 "INSERT INTO workspace_users(workspace_id,user_id,role,joined_at) \
                  VALUES('workspace-1','user-1','member',0)",
-                "INSERT INTO conversations(id,placement_kind,roster_policy,title,status,visibility,\
+                "INSERT INTO conversations(id,placement_kind,roster_policy,title,visibility,\
                  endpoint_a_kind,endpoint_a_id,endpoint_b_kind,endpoint_b_id,created_at,updated_at) \
-                 VALUES('existing-pair','direct_pair','fixed','','idle','private','agent','agent-pair',\
+                 VALUES('existing-pair','direct_pair','fixed','','private','agent','agent-pair',\
                  'human','user-1',0,0)",
             ] {
                 sqlx::query(statement).execute(&mut db).await.unwrap();

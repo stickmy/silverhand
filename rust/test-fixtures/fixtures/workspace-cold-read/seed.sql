@@ -41,13 +41,13 @@ INSERT INTO workspace_users (workspace_id, user_id, joined_at, role)
   VALUES ('ws-agent', 'user-1', 1, 'owner');
 
 -- Fixed-roster DM channels for the agent-home workspace, priority Onboarding then dm-<name>.
-INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, status, created_at, updated_at)
-  VALUES ('conv-dm', 'ws-agent', 'workspace', 'fixed', 'dm-alice', 'dm-alice', 'open', 20, 20);
-INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, status, created_at, updated_at)
-  VALUES ('conv-onboarding', 'ws-agent', 'workspace', 'fixed', 'Onboarding', 'onboarding', 'open', 10, 10);
+INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at)
+  VALUES ('conv-dm', 'ws-agent', 'workspace', 'fixed', 'dm-alice', 'dm-alice', 20, 20);
+INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at)
+  VALUES ('conv-onboarding', 'ws-agent', 'workspace', 'fixed', 'Onboarding', 'onboarding', 10, 10);
 -- An open-roster channel is not a DM channel and must be excluded.
-INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, status, created_at, updated_at)
-  VALUES ('conv-open', 'ws-agent', 'workspace', 'open', 'general', 'general', 'open', 5, 5);
+INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at)
+  VALUES ('conv-open', 'ws-agent', 'workspace', 'open', 'general', 'general', 5, 5);
 
 -- Viewer sort preferences for the workspace rail (both hard-group scopes present).
 INSERT INTO user_list_sort_mode (user_id, list_key, scope, mode, updated_at)

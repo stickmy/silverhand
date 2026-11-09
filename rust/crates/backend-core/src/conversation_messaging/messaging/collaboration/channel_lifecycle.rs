@@ -10,7 +10,7 @@ use std::{error::Error, future::Future};
 use crate::{
     conversation_messaging::messaging::{
         DirectPairParticipants,
-        collaboration::channel_directory::{ChannelStatus, ChannelVisibility, DirectoryRoster},
+        collaboration::channel_directory::{ChannelVisibility, DirectoryRoster},
         conversation_title::CanonicalConversationTitle,
     },
     foundation::identity::{AgentId, ConversationId, UserId, WorkspaceId},
@@ -92,10 +92,7 @@ pub struct ChannelLifecycleRow {
     conversation: ConversationId,
     placement: ChannelLifecyclePlacement,
     title: LifecycleTitle,
-    status: ChannelStatus,
     spawned_by_agent: Option<AgentId>,
-    closed_at: Option<i64>,
-    close_summary: Option<String>,
     archived_at: Option<i64>,
     latest_message_seq: i64,
     created_at: i64,
@@ -110,10 +107,7 @@ impl ChannelLifecycleRow {
         workspace: WorkspaceId,
         roster: DirectoryRoster,
         title: CanonicalConversationTitle,
-        status: ChannelStatus,
         spawned_by_agent: Option<AgentId>,
-        closed_at: Option<i64>,
-        close_summary: Option<String>,
         archived_at: Option<i64>,
         latest_message_seq: i64,
         created_at: i64,
@@ -133,10 +127,7 @@ impl ChannelLifecycleRow {
                 roster,
             }),
             title: LifecycleTitle::Addressed(title),
-            status,
             spawned_by_agent,
-            closed_at,
-            close_summary,
             archived_at,
             latest_message_seq,
             created_at,
@@ -150,10 +141,7 @@ impl ChannelLifecycleRow {
         conversation: ConversationId,
         participants: DirectPairParticipants,
         stored_title: String,
-        status: ChannelStatus,
         spawned_by_agent: Option<AgentId>,
-        closed_at: Option<i64>,
-        close_summary: Option<String>,
         archived_at: Option<i64>,
         latest_message_seq: i64,
         created_at: i64,
@@ -173,10 +161,7 @@ impl ChannelLifecycleRow {
             conversation,
             placement: ChannelLifecyclePlacement::DirectPair(participants),
             title: LifecycleTitle::DirectPair,
-            status,
             spawned_by_agent,
-            closed_at,
-            close_summary,
             archived_at,
             latest_message_seq,
             created_at,
@@ -221,20 +206,8 @@ impl ChannelLifecycleRow {
         }
     }
 
-    pub const fn status(&self) -> ChannelStatus {
-        self.status
-    }
-
     pub fn spawned_by_agent(&self) -> Option<&AgentId> {
         self.spawned_by_agent.as_ref()
-    }
-
-    pub const fn closed_at(&self) -> Option<i64> {
-        self.closed_at
-    }
-
-    pub fn close_summary(&self) -> Option<&str> {
-        self.close_summary.as_deref()
     }
 
     pub const fn archived_at(&self) -> Option<i64> {
@@ -449,9 +422,6 @@ mod tests {
             WorkspaceId::parse("w").unwrap(),
             roster,
             CanonicalConversationTitle::parse("General").unwrap(),
-            ChannelStatus::Idle,
-            None,
-            None,
             None,
             archived_at,
             0,
@@ -538,9 +508,6 @@ mod tests {
             conversation("pair"),
             participants,
             String::new(),
-            ChannelStatus::Idle,
-            None,
-            None,
             None,
             None,
             0,

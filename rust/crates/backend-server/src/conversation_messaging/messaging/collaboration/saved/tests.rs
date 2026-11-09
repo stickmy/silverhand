@@ -130,15 +130,13 @@ async fn seeded() -> (
          INSERT INTO workspace_users (workspace_id, user_id, joined_at, role) VALUES \
            ('workspace-1', 'user-1', 0, 'owner'), ('workspace-1', 'user-2', 0, 'member'); \
          INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-           title_key, status, visibility, created_at, updated_at, latest_message_seq) VALUES \
-           ('conversation-1', 'workspace-1', 'workspace', 'open', 'saved-main', 'saved-main', \
-            'active', 'private', 0, 0, 2), \
-           ('conversation-public', 'workspace-1', 'workspace', 'open', 'Public', 'public', \
-            'active', 'public', 0, 0, 1); \
+           title_key, visibility, created_at, updated_at, latest_message_seq) VALUES \
+           ('conversation-1', 'workspace-1', 'workspace', 'open', 'saved-main', 'saved-main', 'private', 0, 0, 2), \
+           ('conversation-public', 'workspace-1', 'workspace', 'open', 'Public', 'public', 'public', 0, 0, 1); \
          INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
-           title_key, status, visibility, endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, \
+           title_key, visibility, endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id, \
            created_at, updated_at, latest_message_seq) VALUES \
-           ('pair-1', NULL, 'direct_pair', 'fixed', 'Pair', NULL, 'idle', 'private', \
+           ('pair-1', NULL, 'direct_pair', 'fixed', 'Pair', NULL, 'private', \
             'human', 'user-1', 'human', 'user-2', 0, 0, 1); \
          INSERT INTO conversation_users (conversation_id, user_id, joined_at) VALUES \
            ('conversation-1', 'user-1', 0), ('conversation-1', 'user-2', 0), \

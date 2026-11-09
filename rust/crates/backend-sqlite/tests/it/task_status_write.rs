@@ -40,8 +40,8 @@ async fn seed(connection: &mut SqliteConnection, status: &str, assignee_agent: O
         "INSERT INTO workspaces (id, name, name_key, created_at, updated_at)
          VALUES ('ws-1', 'ws', 'ws', 1, 1)",
         "INSERT INTO conversations
-            (id, workspace_id, placement_kind, roster_policy, title, title_key, status, created_at, updated_at)
-         VALUES ('conv-1', 'ws-1', 'workspace', 'open', 'general', 'general', 'active', 1, 1)",
+            (id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at)
+         VALUES ('conv-1', 'ws-1', 'workspace', 'open', 'general', 'general', 1, 1)",
     ] {
         sqlx::query(statement).execute(&mut *connection).await.unwrap();
     }
@@ -318,9 +318,9 @@ async fn a_deleted_direct_pair_peer_is_conversation_readonly_with_zero_status_wr
     // A direct-pair conversation between OWNER and OTHER (no workspace, fixed roster).
     sqlx::query(
         "INSERT INTO conversations
-            (id, placement_kind, roster_policy, title, status, created_at, updated_at,
+            (id, placement_kind, roster_policy, title, created_at, updated_at,
              endpoint_a_kind, endpoint_a_id, endpoint_b_kind, endpoint_b_id)
-         VALUES ('pair-1', 'direct_pair', 'fixed', '', 'active', 1, 1,
+         VALUES ('pair-1', 'direct_pair', 'fixed', '', 1, 1,
              'agent', ?, 'agent', ?)",
     )
     .bind(OWNER)
@@ -409,8 +409,8 @@ async fn open_db_human(seed_status: &str) -> (TempDir, PathBuf) {
         "INSERT INTO workspace_users (workspace_id, user_id, role, joined_at)
          VALUES ('ws-1', 'user-1', 'member', 1)",
         "INSERT INTO conversations
-            (id, workspace_id, placement_kind, roster_policy, title, title_key, status, created_at, updated_at)
-         VALUES ('conv-1', 'ws-1', 'workspace', 'open', 'general', 'general', 'active', 1, 1)",
+            (id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at)
+         VALUES ('conv-1', 'ws-1', 'workspace', 'open', 'general', 'general', 1, 1)",
         "INSERT INTO conversation_users (conversation_id, user_id, joined_at)
          VALUES ('conv-1', 'user-1', 1)",
     ] {

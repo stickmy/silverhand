@@ -30,7 +30,7 @@ use super::conversation_participation::{
 macro_rules! conversation_columns {
     () => {
         "c.id,c.workspace_id,c.placement_kind,c.roster_policy,c.title,\
-         c.title_key,c.status,c.visibility,c.endpoint_a_kind,c.endpoint_a_id,c.endpoint_a_deleted_at,\
+         c.title_key,c.visibility,c.endpoint_a_kind,c.endpoint_a_id,c.endpoint_a_deleted_at,\
          c.endpoint_b_kind,c.endpoint_b_id,c.endpoint_b_deleted_at"
     };
 }
@@ -346,17 +346,17 @@ impl SqliteMessageUnreadRead {
                 crate::foundation::statement_metrics::begin(&self.pool, Some("BEGIN DEFERRED"))
                     .await?;
             let Some(row) = sqlx::query(
-            "SELECT id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,\
+                "SELECT id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,\
              endpoint_a_kind,endpoint_a_id,endpoint_a_deleted_at,\
              endpoint_b_kind,endpoint_b_id,endpoint_b_deleted_at FROM conversations WHERE id=?",
-        )
-        .bind(requested.as_str())
-        .fetch_optional(&mut *tx)
-        .await?
-        else {
-            tx.commit().await?;
-            return Ok(Err(ConversationMessageUnreadRefusal::NotFound));
-        };
+            )
+            .bind(requested.as_str())
+            .fetch_optional(&mut *tx)
+            .await?
+            else {
+                tx.commit().await?;
+                return Ok(Err(ConversationMessageUnreadRefusal::NotFound));
+            };
             let (stored, placement) = decode_conversation(&row, requested)?;
             if !participates(&mut tx, viewer, requested, &placement).await? {
                 tx.commit().await?;
@@ -461,8 +461,8 @@ mod tests {
              INSERT INTO workspaces(id,name,name_key,created_at,updated_at) VALUES('w','W','w',1,1);
              INSERT INTO workspace_users(workspace_id,user_id,joined_at) VALUES('w','v',1);
              WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i<300)
-             INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,created_at,updated_at)
-             SELECT 'c'||i,'w','workspace','open','C'||i,'c'||i,'idle','private',1,1 FROM n;
+             INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at)
+             SELECT 'c'||i,'w','workspace','open','C'||i,'c'||i,'private',1,1 FROM n;
              INSERT INTO conversation_users(conversation_id,user_id,joined_at) SELECT id,'v',1 FROM conversations;
              INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,seq,created_at)
              SELECT 'm'||id,id,'user','a','hello',1,1 FROM conversations;"

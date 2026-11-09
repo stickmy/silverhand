@@ -111,8 +111,8 @@ async fn seed(connection: &mut SqliteConnection) {
     .unwrap();
     sqlx::query(
         "INSERT INTO conversations
-            (id, workspace_id, placement_kind, roster_policy, title, title_key, status, created_at, updated_at)
-         VALUES (?, 'ws-1', 'workspace', 'open', 'general', 'general', 'active', 1, 1)",
+            (id, workspace_id, placement_kind, roster_policy, title, title_key, created_at, updated_at)
+         VALUES (?, 'ws-1', 'workspace', 'open', 'general', 'general', 1, 1)",
     )
     .bind(TARGET)
     .execute(&mut *connection)
@@ -343,25 +343,6 @@ async fn a_missing_target_at_insert_time_is_target_not_found() {
     assert_eq!(count_rows(&path, OWNER).await, 0);
 }
 
-/// A closed target (`closed_at` set) is the hard barrier: `TargetClosed`, no row.
-#[tokio::test]
-async fn a_closed_target_at_insert_time_is_target_closed() {
-    let (_dir, path, mut connection) = open_db().await;
-    sqlx::query("UPDATE conversations SET closed_at = 123 WHERE id = ?")
-        .bind(TARGET)
-        .execute(&mut connection)
-        .await
-        .unwrap();
-    drop(connection);
-
-    let store = SqliteScheduleCreate::open_with_clock(&path, FixedClock(1_000))
-        .await
-        .unwrap();
-    let outcome = store.create(once_request(), &NoCron).await.unwrap();
-    assert!(matches!(outcome, ScheduleCreateOutcome::TargetClosed));
-    assert_eq!(count_rows(&path, OWNER).await, 0);
-}
-
 /// Seed `count` ACTIVE (`pending`) filler rows for `owner`, so a subsequent
 /// create competes for the remaining slot(s) up to the cap.
 async fn seed_active_fillers(connection: &mut SqliteConnection, owner: &str, count: i64) {
@@ -396,43 +377,29 @@ async fn seed_active_fillers_for(
 async fn target_state_precedes_cap_and_cap_precedes_time_policy() {
     use silverhand_backend_core::conversation_messaging::messaging::schedule::SCHEDULE_MAX_ACTIVE_PER_AGENT;
 
-    for closed in [false, true] {
-        let (_dir, path, mut connection) = open_db().await;
-        seed_active_fillers_for(
-            &mut connection,
-            OWNER,
-            "home-dm-1",
-            SCHEDULE_MAX_ACTIVE_PER_AGENT,
-        )
-        .await;
-        if closed {
-            sqlx::query("UPDATE conversations SET closed_at=9 WHERE id=?")
-                .bind(TARGET)
-                .execute(&mut connection)
-                .await
-                .unwrap();
-        } else {
-            sqlx::query("DELETE FROM conversations WHERE id=?")
-                .bind(TARGET)
-                .execute(&mut connection)
-                .await
-                .unwrap();
-        }
-        connection.close().await.unwrap();
-        let store = SqliteScheduleCreate::open_with_clock(&path, FixedClock(1_000))
-            .await
-            .unwrap();
-        let outcome = store.create(once_request(), &NoCron).await.unwrap();
-        assert!(if closed {
-            matches!(outcome, ScheduleCreateOutcome::TargetClosed)
-        } else {
-            matches!(outcome, ScheduleCreateOutcome::TargetNotFound)
-        });
-        assert_eq!(
-            count_rows(&path, OWNER).await,
-            SCHEDULE_MAX_ACTIVE_PER_AGENT
-        );
-    }
+    let (_dir, path, mut connection) = open_db().await;
+    seed_active_fillers_for(
+        &mut connection,
+        OWNER,
+        "home-dm-1",
+        SCHEDULE_MAX_ACTIVE_PER_AGENT,
+    )
+    .await;
+    sqlx::query("DELETE FROM conversations WHERE id=?")
+        .bind(TARGET)
+        .execute(&mut connection)
+        .await
+        .unwrap();
+    connection.close().await.unwrap();
+    let store = SqliteScheduleCreate::open_with_clock(&path, FixedClock(1_000))
+        .await
+        .unwrap();
+    let outcome = store.create(once_request(), &NoCron).await.unwrap();
+    assert!(matches!(outcome, ScheduleCreateOutcome::TargetNotFound));
+    assert_eq!(
+        count_rows(&path, OWNER).await,
+        SCHEDULE_MAX_ACTIVE_PER_AGENT
+    );
 
     let (_dir, path, mut connection) = open_db().await;
     seed_active_fillers(&mut connection, OWNER, SCHEDULE_MAX_ACTIVE_PER_AGENT).await;

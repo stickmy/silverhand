@@ -320,7 +320,7 @@ async fn access(
     conversation: &ConversationId,
 ) -> Result<Access, ThreadFollowStoreError> {
     let Some(row) = sqlx::query(
-        "SELECT id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,\
+        "SELECT id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,\
          endpoint_a_kind,endpoint_a_id,endpoint_a_deleted_at,\
          endpoint_b_kind,endpoint_b_id,endpoint_b_deleted_at \
          FROM conversations WHERE id=?",
@@ -857,7 +857,7 @@ INSERT INTO workspaces(id,name,name_key,owner_agent_id,created_at,updated_at) VA
 INSERT INTO workspace_members(workspace_id,agent_id,joined_at) VALUES('ws','agent-a',1); \
 INSERT INTO workspace_members(workspace_id,agent_id,joined_at) VALUES('ws','agent-c',1); \
 INSERT INTO workspace_agent_capabilities(workspace_id,agent_id,capability) VALUES('ws','agent-a','read_messages'); \
-INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,status,visibility,created_at,updated_at) VALUES('chan','ws','workspace','open','Chan','fchan','idle','private',1,1); \
+INSERT INTO conversations(id,workspace_id,placement_kind,roster_policy,title,title_key,visibility,created_at,updated_at) VALUES('chan','ws','workspace','open','Chan','fchan','private',1,1); \
 INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES('chan','agent-a',1); \
 INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES('chan','agent-c',1); \
 INSERT INTO messages(id,conversation_id,from_kind,from_agent_id,content,seq,created_at) VALUES('m1','chan','agent','agent-a','root',1,10); \
