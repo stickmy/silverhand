@@ -1,7 +1,7 @@
 import { getPlatform } from "@/platform";
 import { fetchAttachmentBytes } from "@/lib/api";
 import { AttachmentsSkeleton } from "./channel-list-skeletons";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { paneChrome } from "@/components/layout/pane-chrome";
 import dayjs from "dayjs";
 import { GroupedVirtuoso } from "react-virtuoso";
@@ -74,11 +74,11 @@ import {
   openAttachmentExternally,
 } from "@/features/messages/model/open-attachment";
 import { Lightbox } from "@/features/messages/components/lightbox";
+import { loadAttachmentBlobUrl } from "@/features/attachments/attachment-blob-cache";
 import {
-  getAttachmentBlobUrl,
-  loadAttachmentBlobUrl,
-  useAttachmentBlobToken,
-} from "@/features/attachments/attachment-blob-cache";
+  attachmentImageUrl,
+  useAttachmentImage,
+} from "@/features/attachments/use-attachment-image";
 import type { MessageJumpTarget } from "@/features/channels/use-message-jump-controller";
 import { t } from "@/lib/i18n";
 
@@ -181,7 +181,7 @@ export function ChannelAttachmentsPanel({
  * inside `itemContent`. Virtuoso may recycle a physical row-wrapper
  * position as pages append or realtime top-inserts land — when it does,
  * the changed key forces React to remount `AttachmentRow`, so its local
- * state (`lightboxOpen`, thumbnail `imageUrl` / `retriedRef` / `failed`)
+ * state (`lightboxOpen`, the thumbnail's image load)
  * never carries over from a different attachment. Virtuoso's own
  * `computeItemKey` is intentionally NOT used: in grouped mode it is fed
  * the physical index (including group headers), so a naive
@@ -823,73 +823,16 @@ function AttachmentThumb({
   attachment: AttachmentDto;
   isImage: boolean;
 }): JSX.Element {
-  const [imageUrl, setImageUrl] = useState<string | null>(() =>
-    isImage ? (getAttachmentBlobUrl(attachment.id) ?? null) : null,
-  );
-  // Generation token (#task:1769): a content update or gap-recovery bump swaps
-  // the fresh bytes in place without unmounting the thumbnail.
-  const token = useAttachmentBlobToken(attachment.id);
-  const loadedTokenRef = useRef(token);
-  // Stale-URL recovery is bounded: the shared blob-cache LRU may evict a
-  // URL while an `<img>` still holds it, at which point the browser fires
-  // `onError`. We refetch AT MOST ONCE per generation — if the second attempt
-  // also fails, we give up and show the icon fallback, so a permanently
-  // broken blob can't produce an infinite fetch→revoke→error loop.
-  const retriedRef = useRef(false);
-  const [failed, setFailed] = useState(false);
+  const { load, onImageError } = useAttachmentImage(attachment.id, isImage);
+  const imageUrl = attachmentImageUrl(load);
 
-  useEffect(() => {
-    // A new generation (#task:1769: in-place content update or gap-recovery
-    // bump) re-allows load/retry — an undecodable intermediate revision must
-    // not permanently poison a later fixed one. Don't drop the visible old
-    // image; the reload swaps it in place below.
-    retriedRef.current = false;
-    setFailed(false);
-  }, [token]);
-
-  useEffect(() => {
-    if (!isImage || failed) return;
-    // Already showing bytes for the current generation — nothing to do.
-    if (imageUrl && loadedTokenRef.current === token) return;
-    let cancelled = false;
-    loadAttachmentBlobUrl(attachment.id)
-      .then((url) => {
-        if (!cancelled) {
-          loadedTokenRef.current = token;
-          setImageUrl(url);
-          setFailed(false);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setFailed(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [attachment.id, isImage, imageUrl, failed, token]);
-
-  function onImgError(): void {
-    if (retriedRef.current) {
-      // Second failure — the blob is gone. Fall back to the muted icon
-      // and STOP; do not clear `imageUrl` again (that would kick the
-      // effect above into another fetch cycle).
-      setFailed(true);
-      setImageUrl(null);
-      return;
-    }
-    retriedRef.current = true;
-    // Drop the stale URL so the effect above refetches through the
-    // shared cache (which will re-populate the LRU under a fresh URL).
-    setImageUrl(null);
-  }
-
-  if (isImage && imageUrl && !failed) {
+  if (isImage && imageUrl) {
     return (
       <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-(--chip-radius) bg-bg-inset">
         <img
           src={imageUrl}
           alt={attachment.filename}
-          onError={onImgError}
+          onError={onImageError}
           className="block size-full object-cover"
         />
       </span>
@@ -923,30 +866,20 @@ function ImageLightboxHost({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }): JSX.Element | null {
-  const [url, setUrl] = useState<string | null>(() => getAttachmentBlobUrl(attachment.id) ?? null);
-  // Refresh in place if the bytes are updated while the lightbox is open
-  // (#task:1769) — the "staring at a preview, no surrounding re-render" case.
-  const token = useAttachmentBlobToken(attachment.id);
-  const loadedTokenRef = useRef(token);
+  // Refreshes in place if the bytes are updated while the lightbox is open
+  // (#task:1769), the case with no surrounding re-render.
+  const { load } = useAttachmentImage(attachment.id, true);
+  const url = attachmentImageUrl(load);
+  const fetchFailure = load.status === "failed" && load.cause === "fetch" ? load.message : null;
+
   useEffect(() => {
-    if (url && loadedTokenRef.current === token) return;
-    let cancelled = false;
-    loadAttachmentBlobUrl(attachment.id)
-      .then((next) => {
-        if (!cancelled) {
-          loadedTokenRef.current = token;
-          setUrl(next);
-        }
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        toast.error(formatOpenException(err));
-        onOpenChange(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [attachment.id, url, onOpenChange, token]);
+    if (fetchFailure === null) {
+      return;
+    }
+    toast.error(formatOpenException(new Error(fetchFailure)));
+    onOpenChange(false);
+  }, [fetchFailure, onOpenChange]);
+
   if (!url) return null;
   return (
     <Lightbox

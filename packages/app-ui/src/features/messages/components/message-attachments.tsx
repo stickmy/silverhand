@@ -1,14 +1,13 @@
 import { getPlatform } from "@/platform";
 import { fetchAttachmentBytes } from "@/lib/api";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { DocumentIcon, ViewIcon } from "@/icons";
 import type { AttachmentSnapshot } from "@silverhand/shared";
 import { resolveAttachmentLabels } from "@silverhand/shared";
 import {
-  getAttachmentBlobUrl,
-  loadAttachmentBlobUrl,
-  useAttachmentBlobToken,
-} from "@/features/attachments/attachment-blob-cache";
+  attachmentImageUrl,
+  useAttachmentImage,
+} from "@/features/attachments/use-attachment-image";
 import { Lightbox } from "./lightbox";
 import { AttachmentDownloadGlyph, AttachmentTaskGlyph } from "./attachment-task-glyph";
 import { saveAttachmentToDisk } from "../model/save-attachment";
@@ -68,82 +67,15 @@ export function AttachmentTile({
   const previewable =
     onOpenAttachment != null &&
     attachmentPreviewKind(attachment.content_type, attachment.filename) != null;
-  // Generation token for this attachment (#task:1769). Bumps when the creator
-  // updates the bytes in place (`attachment_changed`) or a reconnect gap forces
-  // a coarse epoch bump — either way we re-fetch the latest bytes and swap them
-  // in below without unmounting the current <img> (no loading flash).
-  const token = useAttachmentBlobToken(attachment.id);
-  // Synchronous cache hit covers both the optimistic-message render
-  // (Composer pre-populated the cache from the local File) and any
-  // later viewer who has already fetched this attachment in this
-  // session — so the swap from optimistic → real message never goes
-  // through a "loading" frame.
-  const [imageUrl, setImageUrl] = useState<string | null>(() =>
-    isImage ? (getAttachmentBlobUrl(attachment.id) ?? null) : null,
-  );
-  // The generation `imageUrl` was fetched under; a token change past this means
-  // the displayed bytes are stale and the load effect must refetch.
-  const loadedTokenRef = useRef(token);
-  const [error, setError] = useState<string | null>(null);
+  // A cache hit (the composer's local file, or an earlier fetch) shows without a
+  // loading frame; an in-place update (#task:1769) swaps the picture without
+  // unmounting it.
+  const { load, onImageError } = useAttachmentImage(attachment.id, isImage);
+  const imageUrl = attachmentImageUrl(load);
+  const decodeFailed = load.status === "failed" && load.cause === "decode";
+  const loadError = load.status === "failed" && load.cause === "fetch" ? load.message : null;
+  const [openError, setOpenError] = useState<string | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
-  // Terminal "this image can't be decoded" flag. A first `onError` is treated
-  // as a stale/evicted blob url and retried ONCE (see onImgError); a second is
-  // taken as "the bytes themselves won't decode" and lands here so we stop
-  // retrying. `retriedRef` carries the once-flag across renders without
-  // triggering one. Both are GENERATION-scoped: they reset when the tile is
-  // pointed at a new attachment OR when the bytes are updated in place (#task:1769)
-  // — an undecodable intermediate revision must not permanently poison a later
-  // fixed revision.
-  const [decodeFailed, setDecodeFailed] = useState(false);
-  const retriedRef = useRef(false);
-
-  useEffect(() => {
-    // Re-allow load/retry for a new generation without dropping the visible old
-    // image (no white flash) — a successful reload swaps it in place below.
-    retriedRef.current = false;
-    setDecodeFailed(false);
-    setError(null);
-  }, [attachment.id, token]);
-
-  useEffect(() => {
-    if (!isImage || decodeFailed) return;
-    // Already showing bytes for the current generation — nothing to do.
-    if (imageUrl && loadedTokenRef.current === token) return;
-    let cancelled = false;
-    loadAttachmentBlobUrl(attachment.id)
-      .then((url) => {
-        if (!cancelled) {
-          loadedTokenRef.current = token;
-          setImageUrl(url);
-          setError(null);
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : String(err));
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [attachment.id, isImage, imageUrl, decodeFailed, token]);
-
-  // Bound the image-error recovery. The FIRST error may be a stale blob url
-  // that was evicted + revoked out from under us — drop it and let the effect
-  // re-fetch a fresh one, ONCE. A SECOND error (after a known-fresh url) means
-  // the bytes are undecodable by Chromium (e.g. a `.tiff`), so we go terminal
-  // instead of looping fetch → error → fetch forever — the unbounded version
-  // repainted a broken <img> every frame and flickered the whole UI
-  // (#task:1581). A decode-failed image then degrades to the downloadable
-  // file chip below rather than a dead preview box.
-  function onImgError(): void {
-    if (retriedRef.current) {
-      setDecodeFailed(true);
-      return;
-    }
-    retriedRef.current = true;
-    setImageUrl(null);
-  }
 
   async function downloadAndOpen(): Promise<void> {
     // Non-image attachments must NOT be opened via `window.open(blob_url)` —
@@ -166,7 +98,7 @@ export function AttachmentTile({
     // (the chip has its own error slot); the Attachments panel opts into
     // toasts.
     await openAttachmentExternally(attachment, {
-      onInlineError: (msg) => setError(msg),
+      onInlineError: (msg) => setOpenError(msg),
     });
   }
 
@@ -187,12 +119,12 @@ export function AttachmentTile({
             <img
               src={imageUrl}
               alt={attachment.filename}
-              onError={onImgError}
+              onError={onImageError}
               className="block max-h-64 max-w-full cursor-zoom-in object-contain"
             />
           ) : (
             <div className="flex h-32 w-48 items-center justify-center text-xs text-text-muted">
-              {error ?? t("messages.loading")}
+              {loadError ?? t("messages.loading")}
             </div>
           )}
         </button>
@@ -244,7 +176,7 @@ export function AttachmentTile({
           disabled={!previewable && !getPlatform().files.openAttachmentExternal}
           onClick={previewable ? () => onOpenAttachment?.(attachment) : downloadAndOpen}
           className="group flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-xs text-text-secondary hover:text-text-primary focus:outline-none"
-          title={error ?? `${attachment.filename} (${formatBytes(attachment.size)})`}
+          title={openError ?? `${attachment.filename} (${formatBytes(attachment.size)})`}
         >
           <AttachmentTaskGlyph task="open" attachmentId={attachment.id} className="size-4">
             <DocumentIcon className="size-4 shrink-0 text-text-muted group-hover:text-text-primary" />
