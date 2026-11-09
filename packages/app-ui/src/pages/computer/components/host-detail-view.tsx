@@ -709,7 +709,7 @@ function UsageField({
           >
             <span
               aria-hidden
-              className="relative h-1.5 w-16 shrink-0 bg-bg-elevated [[data-layout=regular]_&]:w-28"
+              className="relative h-1.5 w-16 shrink-0 overflow-hidden rounded-(--pill-radius) bg-bg-elevated [[data-layout=regular]_&]:w-28"
             >
               <span
                 className={cn("absolute inset-y-0 left-0", hot ? "bg-warning" : "bg-text-primary")}
