@@ -10,7 +10,7 @@ import {
   useAttachmentBlobToken,
 } from "@/features/attachments/attachment-blob-cache";
 import { Lightbox } from "./lightbox";
-import { AttachmentDownloadGlyph } from "./attachment-download-glyph";
+import { AttachmentDownloadGlyph, AttachmentTaskGlyph } from "./attachment-task-glyph";
 import { saveAttachmentToDisk } from "../model/save-attachment";
 import { openAttachmentExternally } from "../model/open-attachment";
 import { attachmentPreviewKind } from "@/features/attachments/attachment-preview";
@@ -246,7 +246,9 @@ export function AttachmentTile({
           className="group flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-xs text-text-secondary hover:text-text-primary focus:outline-none"
           title={error ?? `${attachment.filename} (${formatBytes(attachment.size)})`}
         >
-          <DocumentIcon className="size-4 shrink-0 text-text-muted group-hover:text-text-primary" />
+          <AttachmentTaskGlyph task="open" attachmentId={attachment.id} className="size-4">
+            <DocumentIcon className="size-4 shrink-0 text-text-muted group-hover:text-text-primary" />
+          </AttachmentTaskGlyph>
           <span className="min-w-0 truncate">{attachment.filename}</span>
           <span className="shrink-0 text-(length:--text-badge) text-text-muted group-hover:text-text-primary">
             {formatBytes(attachment.size)}

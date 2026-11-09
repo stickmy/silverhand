@@ -1,9 +1,9 @@
-import { useSyncExternalStore } from "react";
 import { getPlatform } from "@/platform";
 import { toast } from "@/lib/toast";
 import type { AttachmentSnapshot } from "@silverhand/shared";
 import { fetchAttachmentBytes } from "@/lib/api";
 import { t } from "@/lib/i18n";
+import { runAttachmentTask } from "./attachment-busy";
 
 /**
  * Save-as flow for a chat attachment. Fetches the bytes through the
@@ -25,50 +25,22 @@ export async function saveAttachmentToDisk(
   attachment: Pick<AttachmentSnapshot, "id" | "filename">,
   deps: SaveAttachmentDeps = defaultDeps,
 ): Promise<void> {
-  // The bytes arrive whole before the picker can show, which on a large file
-  // or a weak network takes seconds; every download control reads this to
-  // show the wait, and a repeat tap joins the save already running.
-  if (saving.has(attachment.id)) return;
-  setSaving(attachment.id, true);
-  try {
-    const { bytes } = await deps.fetchBytes(attachment.id);
-    const result = await deps.save({ filename: attachment.filename, bytes });
-    if (result.ok) {
-      deps.toastSuccess(t("messages.saved"));
-      return;
+  await runAttachmentTask("save", attachment.id, async () => {
+    try {
+      const { bytes } = await deps.fetchBytes(attachment.id);
+      const result = await deps.save({ filename: attachment.filename, bytes });
+      if (result.ok) {
+        deps.toastSuccess(t("messages.saved"));
+        return;
+      }
+      if ("canceled" in result) return;
+      deps.toastError(t("messages.saveFailed", { reason: result.reason }));
+    } catch (err) {
+      deps.toastError(
+        t("messages.saveFailed", { reason: err instanceof Error ? err.message : String(err) }),
+      );
     }
-    if ("canceled" in result) return;
-    deps.toastError(t("messages.saveFailed", { reason: result.reason }));
-  } catch (err) {
-    deps.toastError(
-      t("messages.saveFailed", { reason: err instanceof Error ? err.message : String(err) }),
-    );
-  } finally {
-    setSaving(attachment.id, false);
-  }
-}
-
-const saving = new Set<string>();
-const listeners = new Set<() => void>();
-
-function setSaving(id: string, value: boolean): void {
-  if (value) {
-    saving.add(id);
-  } else {
-    saving.delete(id);
-  }
-  for (const listener of listeners) listener();
-}
-
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}
-
-/** Whether a save of this attachment is under way, from the tap until the
- *  picker closes. */
-export function useAttachmentSaving(id: string): boolean {
-  return useSyncExternalStore(subscribe, () => saving.has(id));
+  });
 }
 
 /** Injectable seam — production wiring below, tests supply mocks. */

@@ -3,6 +3,7 @@ import { toast } from "@/lib/toast";
 import type { AttachmentSnapshot } from "@silverhand/shared";
 import { fetchAttachmentBytes } from "@/lib/api";
 import { t } from "@/lib/i18n";
+import { runAttachmentTask } from "./attachment-busy";
 
 /**
  * Open-with-OS flow for a non-image chat attachment. Fetches bytes through
@@ -31,12 +32,14 @@ export async function openAttachmentExternally(
   opts: OpenAttachmentOptions = {},
   deps: OpenAttachmentDeps = defaultDeps,
 ): Promise<void> {
-  await openBytesExternally(
-    () => deps.fetchBytes(attachment.id),
-    attachment.id,
-    attachment.filename,
-    opts,
-    deps,
+  await runAttachmentTask("open", attachment.id, () =>
+    openBytesExternally(
+      () => deps.fetchBytes(attachment.id),
+      attachment.id,
+      attachment.filename,
+      opts,
+      deps,
+    ),
   );
 }
 

@@ -14,7 +14,10 @@ import { Markdown } from "@/features/messages/components/markdown";
 import { AttachmentHtmlPreview } from "@/features/messages/components/attachment-html-preview";
 import { openAttachmentExternally } from "@/features/messages/model/open-attachment";
 import { saveAttachmentToDisk } from "@/features/messages/model/save-attachment";
-import { AttachmentDownloadGlyph } from "@/features/messages/components/attachment-download-glyph";
+import {
+  AttachmentDownloadGlyph,
+  AttachmentTaskGlyph,
+} from "@/features/messages/components/attachment-task-glyph";
 import { t } from "@/lib/i18n";
 
 /**
@@ -213,7 +216,9 @@ export function ChannelAttachmentTab({
             className="flex shrink-0 items-center gap-1.5 rounded-(--chip-radius) px-2 py-1 text-xs text-text-secondary hover:text-text-primary focus-outline"
             title={t("conversationShell.openInDefaultApp")}
           >
-            <OpenExternalIcon className="size-3.5" />
+            <AttachmentTaskGlyph task="open" attachmentId={attachmentId}>
+              <OpenExternalIcon className="size-3.5" />
+            </AttachmentTaskGlyph>
             {t("conversationShell.open")}
           </button>
         ) : null}

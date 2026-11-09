@@ -65,7 +65,10 @@ import {
 import { cn } from "@/lib/cn";
 import { attachmentPreviewKind } from "@/features/attachments/attachment-preview";
 import { saveAttachmentToDisk } from "@/features/messages/model/save-attachment";
-import { AttachmentDownloadGlyph } from "@/features/messages/components/attachment-download-glyph";
+import {
+  AttachmentDownloadGlyph,
+  AttachmentTaskGlyph,
+} from "@/features/messages/components/attachment-task-glyph";
 import {
   formatOpenException,
   openAttachmentExternally,
@@ -895,7 +898,9 @@ function AttachmentThumb({
   const Icon = isImage ? ImageIcon : DocumentIcon;
   return (
     <span className="flex size-8 shrink-0 items-center justify-center rounded-(--chip-radius) bg-bg-inset text-text-muted">
-      <Icon className="size-4" />
+      <AttachmentTaskGlyph task="open" attachmentId={attachment.id} className="size-4">
+        <Icon className="size-4" />
+      </AttachmentTaskGlyph>
     </span>
   );
 }
