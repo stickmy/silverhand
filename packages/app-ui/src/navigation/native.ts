@@ -57,9 +57,15 @@ export function useNativeNavigation(store: NavigationStore, allowed: () => boole
     });
     const listening = native.subscribe((intent) => {
       if (!alive || intent.session !== store.session) return;
-      if (intent.modalVersion !== modalScope.version) return;
-      if (intent.kind === "tab" && MAIN_TABS.includes(intent.target as MainTab)) {
+      const accepted =
+        intent.modalVersion === modalScope.version &&
+        intent.kind === "tab" &&
+        MAIN_TABS.includes(intent.target as MainTab) &&
         run(() => store.selectTab(intent.target as MainTab), true);
+      // Native has already moved its selection; a refused intent changes no
+      // history, so nothing else would send the tab back.
+      if (!accepted) {
+        void sync();
       }
     });
     return () => {

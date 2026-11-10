@@ -53,6 +53,8 @@ final class SilverhandNavigationController: UITabBarController, UITabBarControll
   private let names = ["chat", "activity", "tasks", "me"]
   private var session = ""
   private var entryKey = ""
+  /// The tab the last sync showed. A tap moves `selectedIndex` ahead of it.
+  private var syncedTab = 0
   private var invalidatedSessions = Set<String>()
   private var pendingBadges: (session: String, values: [Bool])?
   private var modalVersion = 0
@@ -420,7 +422,7 @@ final class SilverhandNavigationController: UITabBarController, UITabBarControll
     }
     applyBadges()
     let previousKey = entryKey
-    let previousTab = selectedIndex
+    let previousTab = syncedTab
     entryKey = call.getString("key") ?? ""
     modalVersion = call.getInt("modalVersion") ?? 0
     blocked = call.getBool("blocked") ?? false
@@ -437,6 +439,7 @@ final class SilverhandNavigationController: UITabBarController, UITabBarControll
       selectedIndex = index
       attachContent(to: host)
     }
+    syncedTab = selectedIndex
     // A page pushed or popped within the tab takes the tab bar with it.
     let moved = selectedIndex == previousTab && entryKey != previousKey && !previousKey.isEmpty
     hideBar(!visible || blocked, animated: moved && !UIAccessibility.isReduceMotionEnabled)
@@ -719,8 +722,13 @@ final class SilverhandNavigationController: UITabBarController, UITabBarControll
     onIntent?([
       "session": session, "modalVersion": modalVersion, "kind": "tab", "target": names[index],
     ])
-    // Selection is acknowledged exclusively through shared state sync.
-    return false
+    // Re-tapping the current tab is the page's own pop-to-root; nothing moves.
+    guard index != selectedIndex, let host = page(index) else { return false }
+    // UIKit animates the selection only when it makes it itself; one set from
+    // sync after the round trip jumps. Sync stays the authority: it confirms
+    // this index, or puts the previous one back when the page refuses.
+    attachContent(to: host)
+    return true
   }
 
   /// The Me tab shows the viewer's avatar; without one it keeps the asset glyph.

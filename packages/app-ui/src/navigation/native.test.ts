@@ -100,6 +100,17 @@ it("selects a tab from native, unless a modal is open or has changed since", () 
   cleanup();
 });
 
+it("puts native's tab back when the page refuses the selection", async () => {
+  const { store, emit, deny, cleanup } = setup();
+  await vi.waitFor(() => expect(h.native.sync).toHaveBeenCalled());
+  deny();
+  h.native.sync.mockClear();
+  emit("tasks");
+  expect(store.getSnapshot().tab).toBe("chat");
+  await vi.waitFor(() => expect(h.native.sync.mock.calls.at(-1)?.[0].tab).toBe("chat"));
+  cleanup();
+});
+
 it("reports a modal to native, and allows a modal's own navigation", async () => {
   const { store, run, cleanup } = setup();
   const close = modalScope.acquire();
