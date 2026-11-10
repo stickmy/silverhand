@@ -26,7 +26,7 @@ const COPY: Record<NativeLocale, NativeCopy> = {
     saveAttachment: "Save attachment",
     openApp: "Open Silverhand",
     quit: "Quit Silverhand",
-    localServer: "Local server",
+    localServer: "Embedded",
   },
   zh: {
     checkForUpdates: "检查更新",
@@ -39,7 +39,7 @@ const COPY: Record<NativeLocale, NativeCopy> = {
     saveAttachment: "保存附件",
     openApp: "打开 Silverhand",
     quit: "退出 Silverhand",
-    localServer: "本地服务器",
+    localServer: "Embedded",
   },
 };
 
