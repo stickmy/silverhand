@@ -3052,7 +3052,8 @@ async fn the_unmounted_host_management_router_composes_sqlite_live_transport_and
 
     let (status, body) = management_request(&app, "GET", "/api/hosts/host-1/status", "").await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["view"], "privileged");
+    // Desktop 0.4.8 parses the owner body strictly; `view` must stay absent.
+    assert!(body.get("view").is_none());
     assert_eq!(body["availability"], "disconnected");
     let listed = |body: &Value| -> Vec<String> {
         body["agents"]

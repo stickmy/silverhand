@@ -2,8 +2,8 @@
 //! `POST /api/hosts/{id}/status/refresh` — same answer after re-probing the attached
 //! daemon; the GET path never round-trips to a daemon.
 //!
-//! The owner reads `view: "privileged"`. Any other signed-in human may GET
-//! `view: "public"`: OS only from the snapshot, no unreachable reason, no admission
+//! The owner's body carries no `view` (desktop 0.4.8 parses it with a strict schema
+//! and rejects unknown keys). Any other signed-in human may GET `view: "public"`: OS only from the snapshot, no unreachable reason, no admission
 //! failure. Refresh probes a daemon, so it stays owner-only.
 
 use std::collections::HashSet;
@@ -315,11 +315,8 @@ fn agent_rows(
 
 fn render(tier: ReadTier, body: StatusResponse) -> Response {
     match tier {
-        ReadTier::Privileged => Json(Tiered {
-            view: tier.as_str(),
-            body,
-        })
-        .into_response(),
+        // Shim for strict-parsing desktop <= 0.4.8; restore `view` once those retire.
+        ReadTier::Privileged => Json(body).into_response(),
         ReadTier::Public => Json(Tiered {
             view: tier.as_str(),
             body: PublicStatusResponse::from(body),
