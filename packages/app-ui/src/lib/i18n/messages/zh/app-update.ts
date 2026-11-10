@@ -13,6 +13,7 @@ export const appUpdate: Translation<typeof en> = {
   noNewerVersionIs: "暂无新版本。",
   checkAgain: "再次检查",
   checkingForUpdates: "正在检查更新…",
+  checking: "检查中…",
   readyRestart: "Silverhand {version} 已就绪，重启即可完成更新。",
   notChecked: "Silverhand {version} 尚未检查更新。",
   latest: "Silverhand {version} 已是最新版本。",

@@ -10,6 +10,7 @@ export const appUpdate = {
   noNewerVersionIs: "No newer version is available yet.",
   checkAgain: "Check again",
   checkingForUpdates: "Checking for updates…",
+  checking: "Checking…",
   readyRestart: "Silverhand {version} is ready. Restart to finish updating.",
   notChecked: "Silverhand {version} has not checked for updates yet.",
   latest: "Silverhand {version} is the latest version.",

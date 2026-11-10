@@ -62,14 +62,9 @@ function UpdateActions({ state }: { state: AppUpdateState }): JSX.Element | null
       );
     case "checking":
       return (
-        // The label stays in the layout so the button keeps its width.
-        <Button variant="neutral" size="xs" disabled aria-busy className="relative">
-          <span className="invisible">{t("appUpdate.checkForUpdates")}</span>
-          <span className="sr-only">{t("appUpdate.checkingForUpdates")}</span>
-          <SpinnerIcon
-            aria-hidden
-            className="absolute inset-0 m-auto size-3.5 motion-safe:animate-spin"
-          />
+        <Button variant="neutral" size="xs" disabled aria-busy>
+          <SpinnerIcon aria-hidden className="size-3 shrink-0 motion-safe:animate-spin" />
+          {t("appUpdate.checking")}
         </Button>
       );
     case "downloading":
