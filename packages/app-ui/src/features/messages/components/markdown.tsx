@@ -1,5 +1,12 @@
 import { getPlatform } from "@/platform";
-import { type ComponentProps, memo, useMemo } from "react";
+import {
+  type ComponentProps,
+  type ReactNode,
+  createContext,
+  memo,
+  useContext,
+  useMemo,
+} from "react";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
@@ -193,342 +200,362 @@ function MarkdownInner({
     [trimmedTerm],
   );
 
+  const preContext = useMemo(
+    () => ({ interactive, mermaidSvgByCode }),
+    [interactive, mermaidSvgByCode],
+  );
+
   if (oversizedBytes !== null) {
     return <OversizedContent content={content} bytes={oversizedBytes} />;
   }
 
   return (
     <div className="markdown-body">
-      <ReactMarkdown
-        remarkPlugins={plugins}
-        rehypePlugins={rehypePlugins}
-        // Whitelist our internal schemes — react-markdown's default
-        // sanitizer drops unknown URL schemes (turning `href` into an
-        // empty string), which would cause the `a` override below to
-        // miss the prefix check and render an inert link.
-        //
-        // `silverhand://` (the canonical reference form, #task:2000) is
-        // admitted at SCHEME level and case-insensitively, which is wider
-        // than what draws a chip on purpose: provenance (`remarkRefs`
-        // stamps the bare autolinks) and the strict parser then decide
-        // chip vs. inert text, so everything the two of them reject must
-        // still reach an arm that refuses to make it clickable.
-        // Sanitizing it to `''` here would instead route it to the
-        // plain-link fallthrough, whose click handler hands the href to the
-        // OS.
-        //
-        // Restricted to `href` so the scheme reaches exactly the one
-        // override that consumes it: `![x](silverhand://agent/Alice)` has
-        // no arm, so its `src` keeps going through the default sanitizer.
-        urlTransform={(url, key) =>
-          url.startsWith(MENTION_PREFIX) ||
-          url.startsWith(CHANNEL_PREFIX) ||
-          url.startsWith(CONVERSATION_PREFIX) ||
-          url.startsWith(TASK_PREFIX) ||
-          url.startsWith(BARE_TASK_PREFIX) ||
-          (key === "href" && isReferenceScheme(url))
-            ? url
-            : defaultUrlTransform(url)
-        }
-        components={{
-          a: ({ href, children, node, ...rest }) => {
-            // An internal chip scheme has exactly one producer — `remarkRefs`,
-            // below — so a link that carries one WITHOUT its provenance flag was
-            // hand-written in the body: `[anything](silverhand-mention:Alice)`
-            // would otherwise draw Alice's chip over the author's own text, the
-            // same spoof ruling C removed from the reference family. Inert text,
-            // and above all never the plain-link arm, which would hand an
-            // internal scheme to the OS opener.
-            if (typeof href === "string" && isInternalChipScheme(href) && !isPluginLink(node)) {
-              return <span className="text-text-muted">{children}</span>;
-            }
-            // Export / screenshot path: every reachable href shape
-            // collapses to a styled span. Internal-scheme chips keep
-            // their accent class so visual fidelity is preserved, but
-            // none of them mount the live components (which run their
-            // own hooks / queries). Plain links lose `href` entirely
-            // — no clickable handler, no `target=_blank`, no role.
-            if (!interactive) {
-              if (typeof href === "string") {
-                if (href.startsWith(MENTION_PREFIX)) {
-                  const name = href.slice(MENTION_PREFIX.length);
-                  const mentionAgent = agentsByName?.get(name);
-                  const mentionHuman = humansByName?.get(name);
-                  return (
-                    <StaticMentionRef
-                      name={name}
-                      label={mentionDisplayLabel(mentionAgent, mentionHuman)}
-                      resolved={!!mentionAgent || !!mentionHuman}
-                      humanId={mentionHuman?.id}
-                    />
-                  );
-                }
-                // Canonical reference (#task:2000): the same chip as the alias
-                // above, resolved within the kind the destination names — an
-                // `agent/` reference must not resolve against the human map, or
-                // the export would show a chip for a principal the author did
-                // not address. Only a bare autolink gets here as `reference`
-                // (`remarkRefs` stamps those); every other spelling of the scheme
-                // falls to the inert arm below, because the chip replaces the
-                // label and would drop text the author wrote from the export
-                // while the raw body keeps it.
-                const staticRef = classifyReferenceHref(href, node);
-                if (staticRef.arm === "reference") {
-                  const { kind, handle } = staticRef.reference;
-                  const refAgent = kind === "agent" ? agentsByName?.get(handle) : undefined;
-                  const refHuman = kind === "human" ? humansByName?.get(handle) : undefined;
-                  return (
-                    <StaticMentionRef
-                      name={handle}
-                      label={mentionDisplayLabel(refAgent, refHuman)}
-                      resolved={!!refAgent || !!refHuman}
-                      humanId={refHuman?.id}
-                    />
-                  );
-                }
-                if (staticRef.arm === "locator") {
-                  // A locator in an export is a coordinate, never a control —
-                  // see `LocatorRefStaticChip`.
-                  return <LocatorRefStaticChip>{children}</LocatorRefStaticChip>;
-                }
-                if (staticRef.arm !== "other") {
-                  // Either malformed, or written in a spelling display refuses.
-                  // Both show the authored text and nothing else — never a
-                  // fall-through to the link arm.
-                  return <span className="text-text-muted">{children}</span>;
-                }
-                if (href.startsWith(CHANNEL_PREFIX)) {
-                  const name = href.slice(CHANNEL_PREFIX.length);
-                  return <StaticChannelRef name={name} channel={channelsByName?.get(name)} />;
-                }
-                if (href.startsWith(CONVERSATION_PREFIX)) {
-                  const id = href.slice(CONVERSATION_PREFIX.length);
-                  return (
-                    <StaticConversationRef id={id} conversation={conversationRefsById?.get(id)} />
-                  );
-                }
-                if (href.startsWith(TASK_PREFIX)) {
-                  const raw = href.slice(TASK_PREFIX.length);
-                  const taskNumber = Number.parseInt(raw, 10);
-                  if (/^[1-9]\d*$/.test(raw) && Number.isFinite(taskNumber)) {
+      <PreContext.Provider value={preContext}>
+        <ReactMarkdown
+          remarkPlugins={plugins}
+          rehypePlugins={rehypePlugins}
+          // Whitelist our internal schemes — react-markdown's default
+          // sanitizer drops unknown URL schemes (turning `href` into an
+          // empty string), which would cause the `a` override below to
+          // miss the prefix check and render an inert link.
+          //
+          // `silverhand://` (the canonical reference form, #task:2000) is
+          // admitted at SCHEME level and case-insensitively, which is wider
+          // than what draws a chip on purpose: provenance (`remarkRefs`
+          // stamps the bare autolinks) and the strict parser then decide
+          // chip vs. inert text, so everything the two of them reject must
+          // still reach an arm that refuses to make it clickable.
+          // Sanitizing it to `''` here would instead route it to the
+          // plain-link fallthrough, whose click handler hands the href to the
+          // OS.
+          //
+          // Restricted to `href` so the scheme reaches exactly the one
+          // override that consumes it: `![x](silverhand://agent/Alice)` has
+          // no arm, so its `src` keeps going through the default sanitizer.
+          urlTransform={(url, key) =>
+            url.startsWith(MENTION_PREFIX) ||
+            url.startsWith(CHANNEL_PREFIX) ||
+            url.startsWith(CONVERSATION_PREFIX) ||
+            url.startsWith(TASK_PREFIX) ||
+            url.startsWith(BARE_TASK_PREFIX) ||
+            (key === "href" && isReferenceScheme(url))
+              ? url
+              : defaultUrlTransform(url)
+          }
+          components={{
+            a: ({ href, children, node, ...rest }) => {
+              // An internal chip scheme has exactly one producer — `remarkRefs`,
+              // below — so a link that carries one WITHOUT its provenance flag was
+              // hand-written in the body: `[anything](silverhand-mention:Alice)`
+              // would otherwise draw Alice's chip over the author's own text, the
+              // same spoof ruling C removed from the reference family. Inert text,
+              // and above all never the plain-link arm, which would hand an
+              // internal scheme to the OS opener.
+              if (typeof href === "string" && isInternalChipScheme(href) && !isPluginLink(node)) {
+                return <span className="text-text-muted">{children}</span>;
+              }
+              // Export / screenshot path: every reachable href shape
+              // collapses to a styled span. Internal-scheme chips keep
+              // their accent class so visual fidelity is preserved, but
+              // none of them mount the live components (which run their
+              // own hooks / queries). Plain links lose `href` entirely
+              // — no clickable handler, no `target=_blank`, no role.
+              if (!interactive) {
+                if (typeof href === "string") {
+                  if (href.startsWith(MENTION_PREFIX)) {
+                    const name = href.slice(MENTION_PREFIX.length);
+                    const mentionAgent = agentsByName?.get(name);
+                    const mentionHuman = humansByName?.get(name);
                     return (
-                      <TaskRefStaticChip
-                        taskNumber={taskNumber}
-                        task={taskRefsByNumber?.get(taskNumber)}
+                      <StaticMentionRef
+                        name={name}
+                        label={mentionDisplayLabel(mentionAgent, mentionHuman)}
+                        resolved={!!mentionAgent || !!mentionHuman}
+                        humanId={mentionHuman?.id}
                       />
                     );
                   }
-                  return <span>{children}</span>;
+                  // Canonical reference (#task:2000): the same chip as the alias
+                  // above, resolved within the kind the destination names — an
+                  // `agent/` reference must not resolve against the human map, or
+                  // the export would show a chip for a principal the author did
+                  // not address. Only a bare autolink gets here as `reference`
+                  // (`remarkRefs` stamps those); every other spelling of the scheme
+                  // falls to the inert arm below, because the chip replaces the
+                  // label and would drop text the author wrote from the export
+                  // while the raw body keeps it.
+                  const staticRef = classifyReferenceHref(href, node);
+                  if (staticRef.arm === "reference") {
+                    const { kind, handle } = staticRef.reference;
+                    const refAgent = kind === "agent" ? agentsByName?.get(handle) : undefined;
+                    const refHuman = kind === "human" ? humansByName?.get(handle) : undefined;
+                    return (
+                      <StaticMentionRef
+                        name={handle}
+                        label={mentionDisplayLabel(refAgent, refHuman)}
+                        resolved={!!refAgent || !!refHuman}
+                        humanId={refHuman?.id}
+                      />
+                    );
+                  }
+                  if (staticRef.arm === "locator") {
+                    // A locator in an export is a coordinate, never a control —
+                    // see `LocatorRefStaticChip`.
+                    return <LocatorRefStaticChip>{children}</LocatorRefStaticChip>;
+                  }
+                  if (staticRef.arm !== "other") {
+                    // Either malformed, or written in a spelling display refuses.
+                    // Both show the authored text and nothing else — never a
+                    // fall-through to the link arm.
+                    return <span className="text-text-muted">{children}</span>;
+                  }
+                  if (href.startsWith(CHANNEL_PREFIX)) {
+                    const name = href.slice(CHANNEL_PREFIX.length);
+                    return <StaticChannelRef name={name} channel={channelsByName?.get(name)} />;
+                  }
+                  if (href.startsWith(CONVERSATION_PREFIX)) {
+                    const id = href.slice(CONVERSATION_PREFIX.length);
+                    return (
+                      <StaticConversationRef id={id} conversation={conversationRefsById?.get(id)} />
+                    );
+                  }
+                  if (href.startsWith(TASK_PREFIX)) {
+                    const raw = href.slice(TASK_PREFIX.length);
+                    const taskNumber = Number.parseInt(raw, 10);
+                    if (/^[1-9]\d*$/.test(raw) && Number.isFinite(taskNumber)) {
+                      return (
+                        <TaskRefStaticChip
+                          taskNumber={taskNumber}
+                          task={taskRefsByNumber?.get(taskNumber)}
+                        />
+                      );
+                    }
+                    return <span>{children}</span>;
+                  }
+                  if (href.startsWith(BARE_TASK_PREFIX)) {
+                    // Bare `#<n>` in the export path: only render a chip when
+                    // the export builder pre-resolved this number to a task.
+                    // Otherwise keep the literal text — a bare number that
+                    // isn't a task must not sprout chrome in a screenshot.
+                    const raw = href.slice(BARE_TASK_PREFIX.length);
+                    const taskNumber = Number.parseInt(raw, 10);
+                    const resolved =
+                      /^[1-9]\d*$/.test(raw) && Number.isFinite(taskNumber)
+                        ? taskRefsByNumber?.get(taskNumber)
+                        : null;
+                    return resolved ? (
+                      <TaskRefStaticChip taskNumber={taskNumber} task={resolved} />
+                    ) : (
+                      <span>{children}</span>
+                    );
+                  }
                 }
-                if (href.startsWith(BARE_TASK_PREFIX)) {
-                  // Bare `#<n>` in the export path: only render a chip when
-                  // the export builder pre-resolved this number to a task.
-                  // Otherwise keep the literal text — a bare number that
-                  // isn't a task must not sprout chrome in a screenshot.
-                  const raw = href.slice(BARE_TASK_PREFIX.length);
-                  const taskNumber = Number.parseInt(raw, 10);
-                  const resolved =
-                    /^[1-9]\d*$/.test(raw) && Number.isFinite(taskNumber)
-                      ? taskRefsByNumber?.get(taskNumber)
-                      : null;
-                  return resolved ? (
-                    <TaskRefStaticChip taskNumber={taskNumber} task={resolved} />
-                  ) : (
-                    <span>{children}</span>
-                  );
-                }
-              }
-              return (
-                <span className="markdown-link-static text-accent underline underline-offset-2">
-                  {children}
-                </span>
-              );
-            }
-            if (typeof href === "string" && href.startsWith(MENTION_PREFIX)) {
-              const name = href.slice(MENTION_PREFIX.length);
-              const mentionAgent = agentsByName?.get(name);
-              // `undefined` = parent didn't thread the map (no batch
-              // context — popover falls back to its own fetch).
-              // `null`     = batched parent looked it up; the agent
-              //              has no avatar yet, render runtime icon.
-              const mentionAvatarObjectUrl =
-                agentAvatarUrls && mentionAgent
-                  ? (agentAvatarUrls.get(mentionAgent.id) ?? null)
-                  : undefined;
-              return (
-                <Mention
-                  name={name}
-                  agent={mentionAgent}
-                  agentAvatarObjectUrl={mentionAvatarObjectUrl}
-                  human={humansByName?.get(name)}
-                  conversationId={conversationId ?? null}
-                />
-              );
-            }
-            // Canonical reference (#task:2000). Same chip as the alias arm
-            // above — a reader must not have to know which spelling the author
-            // used — but resolved only within the kind the destination names,
-            // and only for a bare autolink: chipping
-            // `[Alice](silverhand://human/shiki)` would replace the author's
-            // label with a different principal's chip, and chipping any
-            // labelled form would show as addressed something the addressing
-            // side does not record as a reference.
-            const liveRef = classifyReferenceHref(href, node);
-            if (liveRef.arm === "reference") {
-              const { kind, handle } = liveRef.reference;
-              const refAgent = kind === "agent" ? agentsByName?.get(handle) : undefined;
-              const refHuman = kind === "human" ? humansByName?.get(handle) : undefined;
-              const refAvatarObjectUrl =
-                agentAvatarUrls && refAgent
-                  ? (agentAvatarUrls.get(refAgent.id) ?? null)
-                  : undefined;
-              return (
-                <Mention
-                  name={handle}
-                  agent={refAgent}
-                  agentAvatarObjectUrl={refAvatarObjectUrl}
-                  human={refHuman}
-                  conversationId={conversationId ?? null}
-                />
-              );
-            }
-            if (liveRef.arm === "locator") {
-              // A container coordinate (#task:2120). It resolves itself — no map
-              // is threaded in, because a locator can name ANY workspace and the
-              // render context's maps are scoped to this message's one.
-              return <LocatorRef locator={liveRef.locator}>{children}</LocatorRef>;
-            }
-            if (liveRef.arm !== "other") {
-              // Our scheme, but either a malformed destination or a spelling
-              // display refuses: show the authored text and nothing else.
-              // Falling through to the plain-link arm would hand an internal
-              // scheme to `openExternal` on click, and drawing a chip would
-              // claim an addressee this body never names to the addressing side.
-              return <span className="text-text-muted">{children}</span>;
-            }
-            if (typeof href === "string" && href.startsWith(CHANNEL_PREFIX)) {
-              const name = href.slice(CHANNEL_PREFIX.length);
-              return (
-                <ChannelRef
-                  name={name}
-                  channel={channelsByName?.get(name)}
-                  onOpen={onOpenChannelRef}
-                />
-              );
-            }
-            if (typeof href === "string" && href.startsWith(CONVERSATION_PREFIX)) {
-              const id = href.slice(CONVERSATION_PREFIX.length);
-              return (
-                <ConversationRef
-                  id={id}
-                  conversation={conversationRefsById?.get(id)}
-                  onOpen={onOpenConversationRef}
-                />
-              );
-            }
-            if (typeof href === "string" && href.startsWith(TASK_PREFIX)) {
-              // The tokenizer guarantees the slice is `[1-9]\d*` —
-              // positive integer with no leading zero. parseInt + finite
-              // check is defensive belt-and-suspenders for the case
-              // where someone hand-authors `[label](silverhand-task:0)`
-              // through agent-supplied markdown the tokenizer never
-              // touched. Render the original child text inertly rather
-              // than fall through to the plain-link branch — that branch
-              // calls `getPlatform().files.openExternal(href)` on click,
-              // which would shell out our internal scheme.
-              const raw = href.slice(TASK_PREFIX.length);
-              const taskNumber = Number.parseInt(raw, 10);
-              if (/^[1-9]\d*$/.test(raw) && Number.isFinite(taskNumber) && taskNumber > 0) {
-                return <TaskRef taskNumber={taskNumber} />;
-              }
-              // Pathological — render as plain text so we don't crash
-              // on a malformed href and don't hand our internal scheme
-              // to the OS handler.
-              return <span>{children}</span>;
-            }
-            if (typeof href === "string" && href.startsWith(BARE_TASK_PREFIX)) {
-              // Bare `#<n>`: same resolve path as `#task:<n>`, but the
-              // `bare` flag makes TaskRef demote to its literal text
-              // (no chip) for the no-context / loading / missing states.
-              // Only a resolved-present task yields a chip. The tokenizer
-              // guarantees `[1-9]\d*`; parse defensively as above.
-              const raw = href.slice(BARE_TASK_PREFIX.length);
-              const taskNumber = Number.parseInt(raw, 10);
-              if (/^[1-9]\d*$/.test(raw) && Number.isFinite(taskNumber) && taskNumber > 0) {
-                return <TaskRef taskNumber={taskNumber} bare />;
-              }
-              return <span>{children}</span>;
-            }
-            return (
-              <a
-                {...rest}
-                href={href}
-                onClick={(e) => {
-                  e.preventDefault();
-                  if (href) void getPlatform().files.openExternal(href);
-                }}
-              >
-                {children}
-              </a>
-            );
-          },
-          pre: ({ children }) => {
-            // Mermaid fences auto-render to a diagram on the live path
-            // (#task:1322). The export/screenshot path (`interactive=false`)
-            // keeps the source as a plain code block instead — the capture is
-            // synchronous and mermaid's async render wouldn't finish in time,
-            // so showing the (always-correct) source beats a blank diagram.
-            // Case-insensitive: `mermaid` is a proper noun (capital M) and
-            // agents commonly write ```Mermaid — a stray capital shouldn't
-            // silently demote the diagram to a plain code block.
-            if (extractLang(children)?.toLowerCase() === "mermaid") {
-              if (interactive) {
-                return <MermaidDiagram code={extractText(children)} />;
-              }
-              // Export path: use the SVG pre-rendered before capture
-              // (#task:1322) if this diagram succeeded; otherwise keep the
-              // always-correct source. The SVG was produced by the same
-              // `renderMermaidSvg` entry + theme as the live component, so the
-              // shared image matches what's on screen. It's already
-              // DOMPurify-sanitized (securityLevel:'strict'), safe to inject.
-              const svg = mermaidSvgByCode?.get(extractText(children).trim());
-              if (svg) {
                 return (
-                  <div
-                    className="mermaid-diagram"
-                    data-mermaid-state="ok"
-                    dangerouslySetInnerHTML={{ __html: svg }}
+                  <span className="markdown-link-static text-accent underline underline-offset-2">
+                    {children}
+                  </span>
+                );
+              }
+              if (typeof href === "string" && href.startsWith(MENTION_PREFIX)) {
+                const name = href.slice(MENTION_PREFIX.length);
+                const mentionAgent = agentsByName?.get(name);
+                // `undefined` = parent didn't thread the map (no batch
+                // context — popover falls back to its own fetch).
+                // `null`     = batched parent looked it up; the agent
+                //              has no avatar yet, render runtime icon.
+                const mentionAvatarObjectUrl =
+                  agentAvatarUrls && mentionAgent
+                    ? (agentAvatarUrls.get(mentionAgent.id) ?? null)
+                    : undefined;
+                return (
+                  <Mention
+                    name={name}
+                    agent={mentionAgent}
+                    agentAvatarObjectUrl={mentionAvatarObjectUrl}
+                    human={humansByName?.get(name)}
+                    conversationId={conversationId ?? null}
                   />
                 );
               }
+              // Canonical reference (#task:2000). Same chip as the alias arm
+              // above — a reader must not have to know which spelling the author
+              // used — but resolved only within the kind the destination names,
+              // and only for a bare autolink: chipping
+              // `[Alice](silverhand://human/shiki)` would replace the author's
+              // label with a different principal's chip, and chipping any
+              // labelled form would show as addressed something the addressing
+              // side does not record as a reference.
+              const liveRef = classifyReferenceHref(href, node);
+              if (liveRef.arm === "reference") {
+                const { kind, handle } = liveRef.reference;
+                const refAgent = kind === "agent" ? agentsByName?.get(handle) : undefined;
+                const refHuman = kind === "human" ? humansByName?.get(handle) : undefined;
+                const refAvatarObjectUrl =
+                  agentAvatarUrls && refAgent
+                    ? (agentAvatarUrls.get(refAgent.id) ?? null)
+                    : undefined;
+                return (
+                  <Mention
+                    name={handle}
+                    agent={refAgent}
+                    agentAvatarObjectUrl={refAvatarObjectUrl}
+                    human={refHuman}
+                    conversationId={conversationId ?? null}
+                  />
+                );
+              }
+              if (liveRef.arm === "locator") {
+                // A container coordinate (#task:2120). It resolves itself — no map
+                // is threaded in, because a locator can name ANY workspace and the
+                // render context's maps are scoped to this message's one.
+                return <LocatorRef locator={liveRef.locator}>{children}</LocatorRef>;
+              }
+              if (liveRef.arm !== "other") {
+                // Our scheme, but either a malformed destination or a spelling
+                // display refuses: show the authored text and nothing else.
+                // Falling through to the plain-link arm would hand an internal
+                // scheme to `openExternal` on click, and drawing a chip would
+                // claim an addressee this body never names to the addressing side.
+                return <span className="text-text-muted">{children}</span>;
+              }
+              if (typeof href === "string" && href.startsWith(CHANNEL_PREFIX)) {
+                const name = href.slice(CHANNEL_PREFIX.length);
+                return (
+                  <ChannelRef
+                    name={name}
+                    channel={channelsByName?.get(name)}
+                    onOpen={onOpenChannelRef}
+                  />
+                );
+              }
+              if (typeof href === "string" && href.startsWith(CONVERSATION_PREFIX)) {
+                const id = href.slice(CONVERSATION_PREFIX.length);
+                return (
+                  <ConversationRef
+                    id={id}
+                    conversation={conversationRefsById?.get(id)}
+                    onOpen={onOpenConversationRef}
+                  />
+                );
+              }
+              if (typeof href === "string" && href.startsWith(TASK_PREFIX)) {
+                // The tokenizer guarantees the slice is `[1-9]\d*` —
+                // positive integer with no leading zero. parseInt + finite
+                // check is defensive belt-and-suspenders for the case
+                // where someone hand-authors `[label](silverhand-task:0)`
+                // through agent-supplied markdown the tokenizer never
+                // touched. Render the original child text inertly rather
+                // than fall through to the plain-link branch — that branch
+                // calls `getPlatform().files.openExternal(href)` on click,
+                // which would shell out our internal scheme.
+                const raw = href.slice(TASK_PREFIX.length);
+                const taskNumber = Number.parseInt(raw, 10);
+                if (/^[1-9]\d*$/.test(raw) && Number.isFinite(taskNumber) && taskNumber > 0) {
+                  return <TaskRef taskNumber={taskNumber} />;
+                }
+                // Pathological — render as plain text so we don't crash
+                // on a malformed href and don't hand our internal scheme
+                // to the OS handler.
+                return <span>{children}</span>;
+              }
+              if (typeof href === "string" && href.startsWith(BARE_TASK_PREFIX)) {
+                // Bare `#<n>`: same resolve path as `#task:<n>`, but the
+                // `bare` flag makes TaskRef demote to its literal text
+                // (no chip) for the no-context / loading / missing states.
+                // Only a resolved-present task yields a chip. The tokenizer
+                // guarantees `[1-9]\d*`; parse defensively as above.
+                const raw = href.slice(BARE_TASK_PREFIX.length);
+                const taskNumber = Number.parseInt(raw, 10);
+                if (/^[1-9]\d*$/.test(raw) && Number.isFinite(taskNumber) && taskNumber > 0) {
+                  return <TaskRef taskNumber={taskNumber} bare />;
+                }
+                return <span>{children}</span>;
+              }
               return (
-                <div className="code-block">
-                  <pre>{children}</pre>
-                </div>
+                <a
+                  {...rest}
+                  href={href}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (href) void getPlatform().files.openExternal(href);
+                  }}
+                >
+                  {children}
+                </a>
               );
-            }
-            return interactive ? (
-              <CodeBlock>{children}</CodeBlock>
-            ) : (
-              // Export path: bare `<pre>`. No copy / expand button,
-              // no overflow useEffect — the captured screenshot
-              // shows the code as-is and any chrome would just be
-              // noise. We still keep the `code-block` class so
-              // existing CSS (font, padding) lands.
-              <div className="code-block">
-                <pre>{children}</pre>
-              </div>
-            );
-          },
-          code: ({ className, children, ...rest }) => (
-            <code className={className} {...rest}>
-              {children}
-            </code>
-          ),
-        }}
-      >
-        {content}
-      </ReactMarkdown>
+            },
+            pre: MarkdownPre,
+            code: ({ className, children, ...rest }) => (
+              <code className={className} {...rest}>
+                {children}
+              </code>
+            ),
+          }}
+        >
+          {content}
+        </ReactMarkdown>
+      </PreContext.Provider>
+    </div>
+  );
+}
+
+/** What the `pre` override needs from the render. Read from context because
+ *  the override must be a stable component: an inline arrow is a new component
+ *  type on every render, so React would remount the whole block each time a
+ *  message re-renders (a Mermaid diagram re-rendering, dropping its view and
+ *  height, and pulling the message list off the bottom). */
+const PreContext = createContext<{
+  interactive: boolean;
+  mermaidSvgByCode?: ReadonlyMap<string, string>;
+}>({ interactive: true });
+
+function MarkdownPre({ children }: { children?: ReactNode }): JSX.Element {
+  const { interactive, mermaidSvgByCode } = useContext(PreContext);
+  // Mermaid fences auto-render to a diagram on the live path
+  // (#task:1322). The export/screenshot path (`interactive=false`)
+  // keeps the source as a plain code block instead — the capture is
+  // synchronous and mermaid's async render wouldn't finish in time,
+  // so showing the (always-correct) source beats a blank diagram.
+  // Case-insensitive: `mermaid` is a proper noun (capital M) and
+  // agents commonly write ```Mermaid — a stray capital shouldn't
+  // silently demote the diagram to a plain code block.
+  if (extractLang(children)?.toLowerCase() === "mermaid") {
+    if (interactive) {
+      return <MermaidDiagram code={extractText(children)} />;
+    }
+    // Export path: use the SVG pre-rendered before capture
+    // (#task:1322) if this diagram succeeded; otherwise keep the
+    // always-correct source. The SVG was produced by the same
+    // `renderMermaidSvg` entry + theme as the live component, so the
+    // shared image matches what's on screen. It's already
+    // DOMPurify-sanitized (securityLevel:'strict'), safe to inject.
+    const svg = mermaidSvgByCode?.get(extractText(children).trim());
+    if (svg) {
+      return (
+        <div
+          className="mermaid-diagram"
+          data-mermaid-state="ok"
+          dangerouslySetInnerHTML={{ __html: svg }}
+        />
+      );
+    }
+    return (
+      <div className="code-block">
+        <pre>{children}</pre>
+      </div>
+    );
+  }
+  return interactive ? (
+    <CodeBlock>{children}</CodeBlock>
+  ) : (
+    // Export path: bare `<pre>`. No copy / expand button,
+    // no overflow useEffect — the captured screenshot
+    // shows the code as-is and any chrome would just be
+    // noise. We still keep the `code-block` class so
+    // existing CSS (font, padding) lands.
+    <div className="code-block">
+      <pre>{children}</pre>
     </div>
   );
 }
