@@ -1,14 +1,21 @@
 import { app, Menu, nativeImage, Tray, type MenuItemConstructorOptions } from "electron";
 import trayIconPath from "../../../build/tray-template-18.png?asset";
 import trayIcon2xPath from "../../../build/tray-template-36.png?asset";
+import embeddedIconPath from "../../../build/tray-embedded-template-18.png?asset";
+import embeddedIcon2xPath from "../../../build/tray-embedded-template-36.png?asset";
 import type { MenuBarConversation } from "@silverhand/client";
 import { nativeCopy } from "./native-copy.js";
+import { serverLabel } from "./server-label.js";
 
 /**
  * The menu bar item: the monogram with the unread total beside it, as IM apps
  * show it. Either click opens a menu listing the conversations with unread
  * messages, then Open and Quit. The total mirrors the Dock badge, so both clear
  * together.
+ *
+ * An embedded and a remote instance can run side by side with identical icons,
+ * so each names its server on the menu's first line and in the tooltip, and the
+ * embedded icon carries a dot.
  */
 let tray: Tray | null = null;
 let unread = 0;
@@ -16,6 +23,8 @@ let conversations: MenuBarConversation[] = [];
 let handlers: MenuBarHandlers | null = null;
 
 interface MenuBarHandlers {
+  /** The remote server's URL, or null when this instance runs the embedded server. */
+  remoteUrl: string | null;
   openApp: () => void;
   openConversation: (conversationId: string) => void;
 }
@@ -25,11 +34,11 @@ const TITLE_LIMIT = 40;
 /** Past this the list stops; the app's sidebar holds the rest. */
 const LIST_LIMIT = 10;
 
-function trayImage(): Electron.NativeImage {
-  const image = nativeImage.createFromPath(trayIconPath);
+function trayImage(embedded: boolean): Electron.NativeImage {
+  const image = nativeImage.createFromPath(embedded ? embeddedIconPath : trayIconPath);
   image.addRepresentation({
     scaleFactor: 2,
-    buffer: nativeImage.createFromPath(trayIcon2xPath).toPNG(),
+    buffer: nativeImage.createFromPath(embedded ? embeddedIcon2xPath : trayIcon2xPath).toPNG(),
   });
   // A template image is tinted by macOS for light, dark and highlighted bars.
   image.setTemplateImage(true);
@@ -49,11 +58,18 @@ function conversationItem(item: MenuBarConversation): MenuItemConstructorOptions
   };
 }
 
+function serverName(): string {
+  const remoteUrl = handlers?.remoteUrl ?? null;
+  return remoteUrl === null ? nativeCopy().localServer : serverLabel(remoteUrl);
+}
+
 function buildMenu(): Menu {
   const labels = nativeCopy();
   const listed = conversations.slice(0, LIST_LIMIT).map(conversationItem);
 
   return Menu.buildFromTemplate([
+    { label: serverName(), enabled: false },
+    { type: "separator" },
     ...(listed.length > 0 ? [...listed, { type: "separator" as const }] : []),
     { label: labels.openApp, click: () => handlers?.openApp() },
     { type: "separator" },
@@ -66,7 +82,7 @@ function render(): void {
     return;
   }
   tray.setTitle(unread > 0 ? String(unread) : "", { fontType: "monospacedDigit" });
-  tray.setToolTip(app.name);
+  tray.setToolTip(`${app.name} (${serverName()})`);
 }
 
 export function createMenuBar(next: MenuBarHandlers): void {
@@ -74,7 +90,7 @@ export function createMenuBar(next: MenuBarHandlers): void {
     return;
   }
   handlers = next;
-  tray = new Tray(trayImage());
+  tray = new Tray(trayImage(next.remoteUrl === null));
   // Built on each open so the list and the language are current.
   const popUp = (): void => tray?.popUpContextMenu(buildMenu());
   tray.on("click", popUp);

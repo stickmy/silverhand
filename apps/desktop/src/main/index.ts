@@ -2658,6 +2658,7 @@ app
     Menu.setApplicationMenu(buildAppMenu());
     createWindow();
     createMenuBar({
+      remoteUrl: backend?.kind === "embedded" ? null : requireBackendUrl(),
       openApp: showMainWindow,
       openConversation: (conversationId) => {
         showMainWindow();
