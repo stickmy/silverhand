@@ -9,6 +9,9 @@ function statusLine(state: AppUpdateState): string | null {
   if (state.status === "idle") {
     return state.lastCheckedAt === null ? null : t("appUpdate.noNewerVersionIs");
   }
+  if (state.status === "checking") {
+    return null;
+  }
   return describeAppUpdate(state);
 }
 
@@ -58,6 +61,17 @@ function UpdateActions({ state }: { state: AppUpdateState }): JSX.Element | null
         </Button>
       );
     case "checking":
+      return (
+        // The label stays in the layout so the button keeps its width.
+        <Button variant="neutral" size="xs" disabled aria-busy className="relative">
+          <span className="invisible">{t("appUpdate.checkForUpdates")}</span>
+          <span className="sr-only">{t("appUpdate.checkingForUpdates")}</span>
+          <SpinnerIcon
+            aria-hidden
+            className="absolute inset-0 m-auto size-3.5 motion-safe:animate-spin"
+          />
+        </Button>
+      );
     case "downloading":
     case "installing":
       return null;
@@ -69,7 +83,7 @@ function UpdateActions({ state }: { state: AppUpdateState }): JSX.Element | null
 export function AboutVersionRow({ version }: { version: string }): JSX.Element {
   const state = useAppUpdateState();
   const status = state ? statusLine(state) : null;
-  const busy = state?.status === "checking" || state?.status === "installing";
+  const busy = state?.status === "installing";
 
   return (
     <div className="flex flex-col gap-2 px-3 py-2.5 text-sm">
