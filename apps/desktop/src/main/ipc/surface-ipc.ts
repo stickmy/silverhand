@@ -3,6 +3,7 @@ import type { GuardedIpcRegistrar } from "./guarded-ipc.js";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { materializeAndOpenAttachment } from "./attachment-open.js";
 import { handleAttachmentSave } from "./attachment-save.js";
+import { setMenuBarUnread } from "../shell/menu-bar.js";
 
 export function registerSurfaceIpcHandlers(ipc: GuardedIpcRegistrar): void {
   // Live OS notifications keyed by the renderer-supplied notification id (the
@@ -110,6 +111,7 @@ export function registerSurfaceIpcHandlers(ipc: GuardedIpcRegistrar): void {
     const count =
       typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.floor(value) : 0;
     app.setBadgeCount(count);
+    setMenuBarUnread(count);
   });
 
   ipc.handle("notification:show", (event, opts: unknown) => {

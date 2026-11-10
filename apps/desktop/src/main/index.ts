@@ -18,6 +18,7 @@ import { SessionGeneration } from "@silverhand/client";
 import { classifyMeFetchOutcome, type SessionValidationResult } from "@silverhand/client";
 import { desktopDaemonLauncher } from "./local-host/daemon-launcher";
 import { markEmbeddedDockIcon } from "./shell/embedded-dock-icon";
+import { createMenuBar, setMenuBarUnread } from "./shell/menu-bar.js";
 import {
   app,
   BrowserWindow,
@@ -2200,6 +2201,19 @@ function checkForUpdatesFromMenu(): void {
   void appUpdate.check();
 }
 
+/** Brings the main window forward, recreating it if it was closed. */
+function showMainWindow(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow();
+  }
+  const win = mainWindow;
+  if (!win) return;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+  app.focus({ steal: true });
+}
+
 function openSettings(): void {
   if (!mainWindow || mainWindow.isDestroyed()) {
     createWindow();
@@ -2627,6 +2641,7 @@ app
     );
     Menu.setApplicationMenu(buildAppMenu());
     createWindow();
+    createMenuBar(showMainWindow);
     if (appUpdate) {
       appUpdate.subscribe((state) => mainWindow?.webContents.send(APP_UPDATE_STATE_CHANNEL, state));
       appUpdate.start();
@@ -2838,6 +2853,7 @@ app.on("before-quit", (event) => {
   // ~10s the shutdown takes, which looks like the app is still alive
   // with new messages waiting.
   app.setBadgeCount(0);
+  setMenuBarUnread(0);
 
   // Hard ceiling so a wedged shutdown can't hang the app forever.
   // Embedded startup/fatal/published ownership is drained before successful exit:
