@@ -1088,6 +1088,13 @@ export function useNavActions() {
       go: (url: string) => navigate({ kind: "url", url }),
       openAgentPanel: (agentId: string) => navigate({ kind: "agent", agentId }),
       openHumanPanel: (userId: string) => navigate({ kind: "human", userId }),
+      /** A channel takes its workspace; a direct message has none. */
+      openConversation: (workspaceId: string | null, conversationId: string) =>
+        navigate(
+          workspaceId
+            ? { kind: "conversation", workspaceId, conversationId }
+            : { kind: "conversation", conversationId },
+        ),
     };
   }, [read]);
 }

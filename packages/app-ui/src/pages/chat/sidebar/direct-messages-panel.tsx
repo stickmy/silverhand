@@ -24,7 +24,7 @@ import {
   presentCounterpart,
 } from "@/features/direct-pairs/counterpart-presentation";
 import { mergeDirectLineRows, type DirectLineRow } from "@/features/direct-pairs/direct-line-rows";
-import { directRowBadge } from "../model/sidebar-row-badges";
+import { directRowBadge } from "@/features/attention/row-badges";
 import { collapsedRevealRows } from "../../../features/workspaces/home-grouping";
 import {
   ConversationRowLayout,

@@ -69,6 +69,20 @@ export interface NotificationCapability {
   setBadgeCount(count: number): Promise<void>;
 }
 
+/** One conversation with unread messages, as the menu bar lists it. */
+export interface MenuBarConversation {
+  id: string;
+  title: string;
+  /** The project a channel belongs to; omitted for direct messages. */
+  project?: string;
+  count: number;
+}
+
+export interface MenuBarCapability {
+  setConversations(items: MenuBarConversation[]): void;
+  onOpenConversation(handler: (conversationId: string) => void): () => void;
+}
+
 export interface FileCapability {
   openExternal(url: string): Promise<void>;
   /** Omitted when the host cannot hand attachment files to external apps. */
@@ -182,6 +196,8 @@ export interface ClientPlatform {
   toast?: ToastCapability;
   avatarMaker?: AvatarMakerCapability;
   contextMenu?: ContextMenuCapability;
+  /** The system menu bar item lists conversations with unread messages. */
+  menuBar?: MenuBarCapability;
   /** Present only where the app can update itself. */
   appUpdate?: AppUpdateCapability;
   /** Native chrome (menus, tabs, sheets) follows the language the page resolved. */

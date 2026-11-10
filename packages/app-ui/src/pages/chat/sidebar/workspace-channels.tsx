@@ -23,7 +23,7 @@ import {
 } from "@/features/workspaces/hooks";
 import { useMessageUnreadCounts } from "@/features/channels/message-unread";
 import { useWorkspaceAttentionModes } from "@/features/attention/hooks";
-import { channelNodeBadge } from "../model/sidebar-row-badges";
+import { channelNodeBadge } from "@/features/attention/row-badges";
 import { sortModeOf } from "@/lib/viewer-sort";
 import { collapsedRevealRows, excludeStarredChannels } from "@/features/workspaces/home-grouping";
 import { t } from "@/lib/i18n";

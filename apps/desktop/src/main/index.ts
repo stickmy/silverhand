@@ -18,7 +18,7 @@ import { SessionGeneration } from "@silverhand/client";
 import { classifyMeFetchOutcome, type SessionValidationResult } from "@silverhand/client";
 import { desktopDaemonLauncher } from "./local-host/daemon-launcher";
 import { markEmbeddedDockIcon } from "./shell/embedded-dock-icon";
-import { createMenuBar, setMenuBarUnread } from "./shell/menu-bar.js";
+import { createMenuBar, setMenuBarConversations, setMenuBarUnread } from "./shell/menu-bar.js";
 import {
   app,
   BrowserWindow,
@@ -2214,6 +2214,18 @@ function showMainWindow(): void {
   app.focus({ steal: true });
 }
 
+/** Sends to the main window's page once it has loaded, so a recreated window
+ *  still receives it. */
+function sendToRenderer(channel: string, ...args: unknown[]): void {
+  const win = mainWindow;
+  if (!win || win.isDestroyed()) return;
+  const send = (): void => {
+    if (!win.isDestroyed()) win.webContents.send(channel, ...args);
+  };
+  if (win.webContents.isLoading()) win.webContents.once("did-finish-load", send);
+  else send();
+}
+
 function openSettings(): void {
   if (!mainWindow || mainWindow.isDestroyed()) {
     createWindow();
@@ -2275,6 +2287,10 @@ function closeTargetFor(window: BrowserWindow): CloseTarget {
 function handleContextualClose(triggeringWindow: BrowserWindow): void {
   contextualClose.begin(closeTargetFor(triggeringWindow));
 }
+
+guardedIpc.on("menu-bar:set-conversations", (_event, items: unknown) => {
+  setMenuBarConversations(items);
+});
 
 guardedIpc.on("app:set-locale", (_event, value: unknown) => {
   if (setNativeLocale(value)) {
@@ -2641,7 +2657,13 @@ app
     );
     Menu.setApplicationMenu(buildAppMenu());
     createWindow();
-    createMenuBar(showMainWindow);
+    createMenuBar({
+      openApp: showMainWindow,
+      openConversation: (conversationId) => {
+        showMainWindow();
+        sendToRenderer("menu-bar:open-conversation", conversationId);
+      },
+    });
     if (appUpdate) {
       appUpdate.subscribe((state) => mainWindow?.webContents.send(APP_UPDATE_STATE_CHANNEL, state));
       appUpdate.start();

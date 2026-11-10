@@ -23,6 +23,7 @@ import type {
   AppUpdateInstallMode,
   AppUpdateState,
   EventWsDiagnostic,
+  MenuBarConversation,
 } from "@silverhand/client";
 import { desktopBuildConfig, type DesktopBuildConfig } from "../build-flags.js";
 import type { DesktopBackendInfo, DesktopBridge } from "./contract.js";
@@ -231,6 +232,15 @@ const api: DesktopBridge = {
   dismissSystemNotifications: (notificationIds: string[]): Promise<void> =>
     ipcRenderer.invoke("notification:dismiss", notificationIds),
   setBadgeCount: (count: number): Promise<void> => ipcRenderer.invoke("badge:setCount", count),
+  setMenuBarConversations: (items: MenuBarConversation[]): void => {
+    ipcRenderer.send("menu-bar:set-conversations", items);
+  },
+  /** Fired after main has brought the window forward. */
+  onMenuBarOpenConversation: (handler: (conversationId: string) => void): (() => void) => {
+    const listener = (_event: IpcRendererEvent, conversationId: string) => handler(conversationId);
+    ipcRenderer.on("menu-bar:open-conversation", listener);
+    return () => ipcRenderer.off("menu-bar:open-conversation", listener);
+  },
   /** Save a PNG snapshot to disk via the native save dialog. The
    *  renderer hands over raw bytes; main owns the dialog + writeFile.
    *  See `export:savePng` in main. */

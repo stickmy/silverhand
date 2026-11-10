@@ -15,7 +15,7 @@ import { useFavorites, useUnstarFavorite } from "@/features/workspaces/favorites
 import { useAttentionModesAcrossWorkspaces } from "@/features/attention/hooks";
 import { collapsedRevealRows, type FavoritesWatchScope } from "@/features/workspaces/home-grouping";
 import { useArchiveChannel, useChannelDetail, useSetSortMode } from "@/features/workspaces/hooks";
-import { favoriteRowBadge } from "../model/sidebar-row-badges";
+import { favoriteRowBadge } from "@/features/attention/row-badges";
 import { conversationSelectionTier } from "@/pages/chat/model/rail-selection";
 import { sortModeOf } from "@/lib/viewer-sort";
 import { SortModeMenu } from "@/components/layout/sort-mode-menu";
@@ -30,7 +30,7 @@ import { useAgentAvatarObjectUrls } from "@/features/agents/hooks/avatar-hooks";
 import { useUserAvatarObjectUrls } from "@/features/users/avatar-hooks";
 import { collectCounterpartAvatarSources } from "@/features/direct-pairs/counterpart-presentation";
 import { DirectLineRowView, DirectPairStarMenuItem } from "./direct-messages-panel";
-import { directRowBadge } from "../model/sidebar-row-badges";
+import { directRowBadge } from "@/features/attention/row-badges";
 import { t } from "@/lib/i18n";
 
 /** One STARRED row: a starred channel or a starred direct pair, one sort group. */

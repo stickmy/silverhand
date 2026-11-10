@@ -25,6 +25,7 @@ import type {
   EventWsDiagnostic,
   AppUpdateInstallMode,
   AppUpdateState,
+  MenuBarConversation,
 } from "@silverhand/client";
 import type { DesktopBuildConfig } from "../build-flags.js";
 
@@ -89,6 +90,8 @@ export interface DesktopBridge {
   onNotificationClicked(handler: (notificationId: string) => void): () => void;
   dismissSystemNotifications(notificationIds: string[]): Promise<void>;
   setBadgeCount(count: number): Promise<void>;
+  setMenuBarConversations(items: MenuBarConversation[]): void;
+  onMenuBarOpenConversation(handler: (conversationId: string) => void): () => void;
   onShutdownProgress(handler: (step: string) => void): () => void;
 
   onEpochUpdateRequired(handler: () => void): () => void;

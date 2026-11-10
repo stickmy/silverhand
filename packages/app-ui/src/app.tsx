@@ -45,6 +45,7 @@ import { EmbeddedProfileSetupGate } from "@/features/app-shell/embedded-profile-
 import { RegistrationGate } from "@/features/app-shell/registration-gate";
 import { UpdateRequiredGate } from "@/features/app-shell/update-required-gate";
 import { AppStatusBanner } from "@/features/app-shell/app-status-banner";
+import { MenuBarSync } from "@/features/app-shell/menu-bar-sync";
 import { SettingsShell } from "@/pages/settings/settings-shell";
 import { MeShell } from "@/pages/me/me-shell";
 import { shouldSecondaryFullscreen } from "@/features/conversation-shell/model/secondary-pane";
@@ -451,6 +452,8 @@ function RegisteredAppShell({
           <AppStatusBanner />
 
           <ShutdownOverlay />
+
+          {getPlatform().menuBar ? <MenuBarSync /> : null}
         </div>
       </MobileHeaderProvider>
     </SidebarLayoutProvider>

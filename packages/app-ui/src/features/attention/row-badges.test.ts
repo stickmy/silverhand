@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ChannelAttentionModeRowDto } from "@silverhand/shared";
-import { collapsedRevealRows } from "../../../features/workspaces/home-grouping";
-import { directRowBadge, favoriteRowBadge } from "./sidebar-row-badges";
+import { collapsedRevealRows } from "@/features/workspaces/home-grouping";
+import { directRowBadge, favoriteRowBadge } from "./row-badges";
 
 function attention(mode: "all" | "mentions" | "mute", directed = 0): ChannelAttentionModeRowDto {
   return {

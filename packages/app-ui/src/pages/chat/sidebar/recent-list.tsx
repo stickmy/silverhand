@@ -47,7 +47,7 @@ import { AppContextMenu } from "@/components/menus/app-context-menu";
 import { starredConversationIds, useFavoritesList } from "@/features/workspaces/favorites";
 import { DirectPairStarMenuItem } from "./direct-messages-panel";
 import { useViewerUser } from "@/features/session/hooks";
-import { channelNodeBadge, directRowBadge } from "../model/sidebar-row-badges";
+import { channelNodeBadge, directRowBadge } from "@/features/attention/row-badges";
 import {
   orderRecentRows,
   recentPreviewText,

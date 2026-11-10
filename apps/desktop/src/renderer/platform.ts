@@ -81,5 +81,9 @@ export function createDesktopPlatform(
       dismissSystemNotifications: (ids) => bridge.dismissSystemNotifications(ids),
       setBadgeCount: (count) => bridge.setBadgeCount(count),
     },
+    menuBar: {
+      setConversations: (items) => bridge.setMenuBarConversations(items),
+      onOpenConversation: (handler) => bridge.onMenuBarOpenConversation(handler),
+    },
   };
 }
