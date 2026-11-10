@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { InfoIcon, OpenExternalIcon } from "@/icons";
 import { getPlatform } from "@/platform";
 import { ExternalLink, PRIVACY_POLICY_URL, SUPPORT_URL } from "@/features/legal/legal-links";
+import { AboutVersionRow } from "./about-version-row";
 import { SettingsHeading } from "./settings-heading";
 import { t } from "@/lib/i18n";
 
@@ -36,12 +37,7 @@ export function AboutPane(): JSX.Element {
       />
 
       <div className="flex max-w-2xl flex-col divide-y divide-border-subtle rounded-(--control-radius) border border-border-subtle">
-        {version ? (
-          <div className={ROW}>
-            <span className="text-text-secondary">{t("settings.about.version")}</span>
-            <span className="tabular-nums text-text-primary select-text">{version}</span>
-          </div>
-        ) : null}
+        {version ? <AboutVersionRow version={version} /> : null}
         {legalLinks().map(({ label, href }) => (
           <ExternalLink
             key={href}
