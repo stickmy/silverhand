@@ -17,6 +17,7 @@ import type {
 import { SessionGeneration } from "@silverhand/client";
 import { classifyMeFetchOutcome, type SessionValidationResult } from "@silverhand/client";
 import { desktopDaemonLauncher } from "./local-host/daemon-launcher";
+import { markEmbeddedDockIcon } from "./shell/embedded-dock-icon";
 import {
   app,
   BrowserWindow,
@@ -1752,6 +1753,7 @@ async function bootstrap(): Promise<void> {
 
     const paths = daemonPaths();
     if (startupPlan.mode === "embedded") {
+      markEmbeddedDockIcon();
       await fsRm(paths.controlPlaneServerUrlPath, { force: true });
     }
     const daemonLauncher = resolveDaemonLauncher();
