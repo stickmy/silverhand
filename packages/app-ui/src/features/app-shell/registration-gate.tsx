@@ -1,7 +1,8 @@
 import { ServerAddressControl, ServerConnectionStatus } from "./server-address-control";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { SpinnerIcon } from "@/icons";
-import { AUTH_HANDLE_TAKEN_CODE, suggestParticipantNameFromEmail } from "@silverhand/shared";
+import { suggestParticipantNameFromEmail } from "@silverhand/shared";
+import { authErrorMessage, type AuthError } from "./auth-error";
 import { Input, Label } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { nameFormatMessage } from "@/features/identity/use-name-availability";
@@ -13,6 +14,9 @@ import { useDraftAvatar } from "@/features/avatar-maker/hooks/use-draft-avatar";
 import { useLoginUser, useSignupUser, useUploadDraftViewerAvatar } from "../session/hooks";
 import { PasswordRecoveryForm } from "./password-recovery-form";
 import { t } from "@/lib/i18n";
+import { getPlatform } from "@/platform";
+import { useCompactLayout } from "@/navigation/layout";
+import { NativeAuthScreen } from "./native-auth-screen";
 
 export interface RegistrationGateProps {
   signupEnabled: boolean;
@@ -29,15 +33,6 @@ export interface RegistrationGateProps {
 
 type AuthMode = "signup" | "login";
 
-/** A submit failure that belongs to ONE field rather than to the form. Only the
- *  handle has such a case today (`handle_taken`): every other auth failure is
- *  either about the email+password PAIR or about the whole body, and pinning
- *  those to a single input would point the user at the wrong place. */
-interface AuthError {
-  field: "handle" | null;
-  message: string;
-}
-
 /**
  * Full-screen desktop auth gate. The renderer never receives the
  * `user_token`: submit calls an IPC method, main performs `/auth/*`,
@@ -49,7 +44,15 @@ interface AuthError {
  * required, sits directly under the email it is prefilled from, and stops
  * following that email the moment the user edits it.
  */
-export function RegistrationGate({
+export function RegistrationGate(props: RegistrationGateProps): JSX.Element {
+  const compact = useCompactLayout();
+  // The phone draws the whole signed-out screen natively.
+  const screen = compact ? getPlatform().authScreen : undefined;
+
+  return screen ? <NativeAuthScreen screen={screen} {...props} /> : <RegistrationForm {...props} />;
+}
+
+function RegistrationForm({
   signupEnabled,
   passwordRecovery,
   preferLogin = false,
@@ -191,7 +194,7 @@ export function RegistrationGate({
           </p>
         </header>
 
-        <div className="flex flex-col gap-4">
+        <div data-auth-fields className="flex flex-col gap-4">
           {isSignup ? <DraftAvatarCard draft={draftAvatar} disabled={submitting} /> : null}
 
           <div className="flex flex-col gap-1.5">
@@ -343,7 +346,7 @@ export function RegistrationGate({
           ) : null}
         </footer>
 
-        <p className="mt-6 text-xs text-text-muted">
+        <p data-auth-legal className="mt-6 text-xs text-text-muted">
           <ExternalLink
             href={PRIVACY_POLICY_URL}
             className="underline underline-offset-3 hover:text-text-secondary"
@@ -353,7 +356,7 @@ export function RegistrationGate({
         </p>
 
         {showServerAddress && (
-          <div className="mt-10 border-t border-border-subtle pt-4">
+          <div data-auth-server className="mt-10 border-t border-border-subtle pt-4">
             <ServerAddressControl
               onRetry={onRetry}
               onEditingChange={setEditingServer}
@@ -369,33 +372,4 @@ export function RegistrationGate({
       </form>
     </AuthSplitLayout>
   );
-}
-
-/**
- * Classify a submit failure into (field, message). The field is what decides
- * WHERE the message is rendered: a conflict on one unique field has to appear
- * under that field, while a credential failure describes the email+password pair
- * and belongs in the form footer.
- */
-function authErrorMessage(err: unknown): AuthError {
-  const apiErr = err as { body?: string; message?: string };
-  let parsed: { error?: string; error_code?: string; code?: string } = {};
-  try {
-    parsed = JSON.parse(apiErr.body ?? "{}");
-  } catch {
-    // not JSON — fall through.
-  }
-  if (parsed.error_code === AUTH_HANDLE_TAKEN_CODE || parsed.code === AUTH_HANDLE_TAKEN_CODE) {
-    return { field: "handle", message: t("appShell.handleTaken") };
-  }
-  if (parsed.error_code === "auth_failed" || parsed.code === "auth_failed") {
-    return { field: null, message: t("appShell.auth.incorrect") };
-  }
-  if (parsed.error === "invalid input") {
-    return { field: null, message: t("appShell.checkFields") };
-  }
-  return {
-    field: null,
-    message: parsed.error ?? apiErr.message ?? t("appShell.auth.failed"),
-  };
 }

@@ -6,7 +6,7 @@ import {
 import { SpinnerIcon } from "@/icons";
 import { Input, Label } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { getPlatform } from "@/platform";
+import { callPasswordRecovery, recoveryFailureMessage } from "./password-recovery";
 import { t } from "@/lib/i18n";
 
 type Step = "email" | "reset";
@@ -45,20 +45,6 @@ export function PasswordRecoveryForm({
 
   const emailTrimmed = email.trim();
 
-  async function call(action: "request" | "reset", body: unknown) {
-    const result = await getPlatform().client.passwordRecovery({
-      action,
-      body: JSON.stringify(body),
-    });
-    let parsed: { error_code?: string } = {};
-    try {
-      parsed = JSON.parse(result.bodyText);
-    } catch {
-      // not JSON
-    }
-    return { status: result.status, code: parsed.error_code };
-  }
-
   async function requestCode(event?: FormEvent) {
     event?.preventDefault();
     const input = PasswordRecoveryRequestInputSchema.safeParse({ email: emailTrimmed });
@@ -66,13 +52,13 @@ export function PasswordRecoveryForm({
     setPending(true);
     setError(null);
     try {
-      const result = await call("request", input.data);
+      const result = await callPasswordRecovery("request", input.data);
       if (!alive.current) return;
       if (result.status === 202) {
         setStep("reset");
         setNotice(t("appShell.recovery.codeSent"));
       } else {
-        setError(failureMessage(result.status, result.code));
+        setError(recoveryFailureMessage(result.status, result.code));
       }
     } catch {
       if (alive.current) setError(t("common.unreachable"));
@@ -100,10 +86,10 @@ export function PasswordRecoveryForm({
     setPending(true);
     setError(null);
     try {
-      const result = await call("reset", input.data);
+      const result = await callPasswordRecovery("reset", input.data);
       if (!alive.current) return;
       if (result.status === 200) onDone(emailTrimmed);
-      else setError(failureMessage(result.status, result.code));
+      else setError(recoveryFailureMessage(result.status, result.code));
     } catch {
       if (alive.current) setError(t("common.unreachable"));
     } finally {
@@ -221,20 +207,4 @@ export function PasswordRecoveryForm({
       </p>
     </form>
   );
-}
-
-function failureMessage(status: number, code: string | undefined): string {
-  switch (code) {
-    case "invalid_or_expired_code":
-      return t("appShell.recovery.codeInvalid");
-    case "password_recovery_disabled":
-      return t("appShell.recovery.disabled");
-    case "password_recovery_busy":
-    case "rate_limited":
-      return t("appShell.recovery.tooMany");
-  }
-  if (status === 409) return t("appShell.recovery.serverChanged");
-  if (status === 0) return t("common.unreachable");
-  if (status === 422) return t("appShell.checkFields");
-  return t("common.somethingWrong");
 }

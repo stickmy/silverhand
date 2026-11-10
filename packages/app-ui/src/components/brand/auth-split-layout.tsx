@@ -15,13 +15,10 @@ export function AuthSplitLayout({ children }: { children: ReactNode }): JSX.Elem
       <BrandPanel />
       <div className="auth-content grid w-full place-items-center px-6 py-14 min-[860px]:flex-1">
         <header className="auth-mobile-brand mb-8 hidden">
-          <div className="flex items-center gap-3">
-            <Brandmark className="size-9 shrink-0 text-text-primary" />
-            <h1 className="text-2xl font-semibold tracking-tight">Silverhand</h1>
+          <div className="flex items-center gap-2">
+            <Brandmark className="size-6 shrink-0 text-text-primary" />
+            <span className="text-base font-semibold tracking-tight">Silverhand</span>
           </div>
-          <p className="mt-3 text-sm leading-relaxed text-text-muted">
-            {t("ui.whereHumansAndAgents")}
-          </p>
         </header>
         {children}
       </div>

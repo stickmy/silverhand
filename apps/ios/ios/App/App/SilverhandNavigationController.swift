@@ -605,7 +605,9 @@ final class SilverhandNavigationController: UITabBarController, UITabBarControll
     requestedVisible = false
     blocked = false
     hideBar(true, animated: false)
-    presentedViewController?.dismiss(animated: false)
+    if !(presentedViewController is AuthWelcomeController) {
+      presentedViewController?.dismiss(animated: false)
+    }
   }
 
   // MARK: Composer

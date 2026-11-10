@@ -13,7 +13,7 @@ public final class SilverhandClientPlugin: CAPPlugin, CAPBridgedPlugin {
     "upload",
     "openSocket", "sendSocket", "closeSocket", "openExternal", "appVersion",
     "navigationSync", "navigationReset",
-    "navigationBadges", "navigationAvatar", "setLocale", "titlebar", "titlebarEndSearch", "pageBar", "pageBarBackProgress", "composerSync", "composerRemove", "composerSetText", "selectionBarSync", "selectionBarRemove", "bannerShow", "toastShow", "toastDismiss", "sharePng", "previewPng", "saveAttachment", "avatarMakerEdit", "contextMenuAvailable", "contextMenuShow",
+    "navigationBadges", "navigationAvatar", "setLocale", "titlebar", "titlebarEndSearch", "pageBar", "pageBarBackProgress", "composerSync", "composerRemove", "composerSetText", "selectionBarSync", "selectionBarRemove", "bannerShow", "toastShow", "toastDismiss", "sharePng", "previewPng", "saveAttachment", "avatarMakerEdit", "authScreenShow", "authScreenHide", "contextMenuAvailable", "contextMenuShow",
   ].map { CAPPluginMethod(name: $0, returnType: CAPPluginReturnPromise) }
 
   @MainActor private var session: ClientSession?
@@ -122,6 +122,41 @@ public final class SilverhandClientPlugin: CAPPlugin, CAPBridgedPlugin {
         }
       }
       if !shown { call.reject("Unable to present the menu") }
+    }
+  }
+
+  @MainActor private lazy var authScreen: AuthScreenPresenter = {
+    let presenter = AuthScreenPresenter()
+    presenter.onEvent = { [weak self] event in self?.notifyListeners("authScreen", data: event) }
+    return presenter
+  }()
+
+  @objc func authScreenShow(_ call: CAPPluginCall) {
+    guard let state = call.getObject("state").flatMap(AuthScreenState.init) else {
+      call.reject("Missing sign-in screen state")
+      return
+    }
+    // States must land in the order sent (busy, then the result); a main-queue
+    // dispatch keeps that order, where separate Tasks need not.
+    DispatchQueue.main.async {
+      MainActor.assumeIsolated {
+        guard let root = self.navigationHost ?? self.bridge?.viewController, root.view.window != nil
+        else {
+          call.reject("Unable to present the sign-in screen")
+          return
+        }
+        self.authScreen.show(state, from: root)
+        call.resolve()
+      }
+    }
+  }
+
+  @objc func authScreenHide(_ call: CAPPluginCall) {
+    DispatchQueue.main.async {
+      MainActor.assumeIsolated {
+        self.authScreen.hide()
+        call.resolve()
+      }
     }
   }
 

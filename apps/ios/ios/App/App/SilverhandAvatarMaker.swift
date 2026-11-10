@@ -233,7 +233,7 @@ private struct AvatarMakerView: View {
 }
 
 /// Draws library art into a square; the context is y-down like the SVG it came from.
-private struct AvatarCanvas: View {
+struct AvatarCanvas: View {
   let draw: (CGContext, CGFloat) -> Void
 
   var body: some View {

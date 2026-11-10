@@ -15,6 +15,8 @@ import type {
   PageBarState,
   SelectionBarEvent,
   SelectionBarState,
+  AuthScreenEvent,
+  AuthScreenState,
   BackendProxyRequest,
   BackendProxyResponse,
   ClientAuthResult,
@@ -114,6 +116,9 @@ export interface NativeBridge {
   avatarMakerEdit(input: {
     config: { parts: Record<string, number>; bg: number };
   }): Promise<{ config?: { parts: Record<string, number>; bg: number }; base64?: string }>;
+  /** The compact sign-in sheet; a newer state updates the one showing. */
+  authScreenShow(input: { state: AuthScreenState }): Promise<void>;
+  authScreenHide(): Promise<void>;
   openExternal(input: { url: string }): Promise<void>;
   appVersion(): Promise<{ version: string }>;
   addListener(
@@ -147,6 +152,10 @@ export interface NativeBridge {
     handler: (event: BannerEvent) => void,
   ): Promise<PluginListenerHandle>;
   addListener(event: "toast", handler: (event: ToastEvent) => void): Promise<PluginListenerHandle>;
+  addListener(
+    event: "authScreen",
+    handler: (event: AuthScreenEvent) => void,
+  ): Promise<PluginListenerHandle>;
   addListener(
     event: "fold",
     handler: (

@@ -81,6 +81,15 @@ export const appShell = {
     incorrect: "Email or password is incorrect.",
     failed: "Authentication failed.",
   },
+  welcome: {
+    leoSays: "Split it into three tasks. I'm taking #12.",
+    dogeSays: "The copy draft is ready for a look.",
+    youSay: "Looks good, merge it to main.",
+    headline: "Your team, and the agents",
+    headlineAccent: "who ship with it.",
+    passwordMin: "Password, at least 8 characters",
+    avatarCaption: "This is you in conversations. Tap for another.",
+  },
   password: "Password",
   privacyPolicy: "Privacy Policy",
   server: {

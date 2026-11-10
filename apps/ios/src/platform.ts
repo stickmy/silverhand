@@ -17,6 +17,7 @@ import { createIOSToast } from "./toast";
 import { createIOSComposer } from "./composer";
 import { createIOSSelectionBar } from "./selection-bar";
 import { createIOSFiles, encodeBytes } from "./files";
+import { createIOSAuthScreen } from "./auth-screen";
 import { createIOSAvatarMaker } from "./avatar-maker";
 import { createIOSContextMenu } from "./context-menu";
 
@@ -71,6 +72,7 @@ export function createIOSPlatform(
     banner: createIOSBanner(bridge),
     toast: createIOSToast(bridge),
     avatarMaker: createIOSAvatarMaker(bridge),
+    authScreen: createIOSAuthScreen(bridge),
     contextMenu: contextMenu ? createIOSContextMenu(bridge) : undefined,
     client: {
       getConnectionPolicy: async () => ({ allow_insecure_remote: false }),

@@ -338,14 +338,54 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  padding: calc(env(safe-area-inset-top) + 28px) max(24px, env(safe-area-inset-right, 0px))
-    max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left, 0px));
+  padding: calc(env(safe-area-inset-top) + clamp(24px, 6dvh, 56px))
+    max(28px, env(safe-area-inset-right, 0px)) max(20px, env(safe-area-inset-bottom))
+    max(28px, env(safe-area-inset-left, 0px));
 }
 :where([data-layout="compact"]) .auth-mobile-brand {
   display: block;
+  margin-bottom: clamp(32px, 6dvh, 56px);
 }
+/* The form fills the page so the legal link and the server row settle at the
+   bottom edge, leaving the open space between the form and them. */
 :root:where([data-layout="compact"]) .auth-layout [data-auth-form] {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
   max-width: none;
+}
+:where([data-layout="compact"]) .auth-layout [data-auth-form] > header {
+  margin-bottom: clamp(24px, 4dvh, 36px);
+}
+/* The page title alone says what the page is for; its subtitle and the
+   brand's tagline only stack more text above the fields. */
+:where([data-layout="compact"]) .auth-layout [data-auth-form] > header > p {
+  display: none;
+}
+:where([data-layout="compact"]) .auth-layout [data-auth-fields] {
+  gap: 20px;
+}
+:where([data-layout="compact"]) .auth-layout [data-auth-form] > footer {
+  margin-top: clamp(24px, 4dvh, 36px);
+  gap: 16px;
+}
+:where([data-layout="compact"]) .auth-layout [data-auth-legal] {
+  margin-top: auto;
+  padding-top: 32px;
+}
+:where([data-layout="compact"]) .auth-layout [data-auth-server] {
+  margin-top: 16px;
+}
+/* Touch-sized fields: 16px text also keeps iOS from zooming on focus. */
+@media (pointer: coarse) {
+  :where([data-layout="compact"]) .auth-layout [data-auth-form] input {
+    height: 48px;
+    font-size: 16px;
+  }
+  :where([data-layout="compact"]) .auth-layout [data-auth-form] button[type="submit"] {
+    height: 50px;
+    font-size: 16px;
+  }
 }
 [data-layout="compact"] [data-section-sheet] {
   position: relative;

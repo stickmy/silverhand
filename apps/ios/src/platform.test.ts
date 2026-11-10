@@ -69,6 +69,8 @@ function harness() {
     sharePng: vi.fn(async () => ({ completed: true })),
     previewPng: vi.fn(async () => ({ shared: true })),
     avatarMakerEdit: vi.fn(async () => ({})),
+    authScreenShow: vi.fn(async () => {}),
+    authScreenHide: vi.fn(async () => {}),
     contextMenuAvailable: vi.fn(async () => ({ available: true })),
     contextMenuShow: vi.fn(async () => ({})),
     openExternal: vi.fn(),

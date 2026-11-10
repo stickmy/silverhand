@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { ErrorIcon, RetryIcon, SpinnerIcon } from "@/icons";
 import { getPlatform } from "@/platform";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,30 @@ import { describeProbeOutcome } from "@/features/settings/model/describe-probe-o
 import type { SaveServerUrlBanner } from "@/features/settings/model/describe-save-server-url-outcome";
 import type { ProfileSaveWithTestResult } from "@silverhand/client";
 import { t } from "@/lib/i18n";
+
+/** Checks and saves a new server origin; the message is why it was not saved. */
+export async function saveServerAddress(qc: QueryClient, draft: string): Promise<string | null> {
+  try {
+    const policy = await getPlatform().client.getConnectionPolicy();
+    if (
+      validateServerUrlDraft(draft, { allowInsecureRemote: policy.allow_insecure_remote }).kind !==
+      "ok"
+    ) {
+      return t("appShell.server.invalid");
+    }
+    const result = await getPlatform().client.saveServerConnectionProfile({
+      serverUrl: draft.trim(),
+    });
+    if (!result.ok) {
+      const message = describeProfileSaveForGate(result);
+      return message.description ?? message.title;
+    }
+    await refreshServerEnvironment(qc);
+    return null;
+  } catch (err) {
+    return String(err);
+  }
+}
 
 /** Remote-only auth gates offer an escape to a different self-hosted origin. */
 export function ServerAddressControl({
@@ -38,32 +62,15 @@ export function ServerAddressControl({
     if (saving || disabled) return;
     setSaving(true);
     setSaveError(null);
-    try {
-      const policy = await getPlatform().client.getConnectionPolicy();
-      if (
-        validateServerUrlDraft(draft, { allowInsecureRemote: policy.allow_insecure_remote })
-          .kind !== "ok"
-      ) {
-        setSaveError(t("appShell.server.invalid"));
-        return;
-      }
-      const result = await getPlatform().client.saveServerConnectionProfile({
-        serverUrl: draft.trim(),
-      });
-      if (result.ok) {
-        await refreshServerEnvironment(qc);
-        setEditing(false);
-        onEditingChange?.(false);
-        onRetry?.();
-      } else {
-        const message = describeProfileSaveForGate(result);
-        setSaveError(message.description ?? message.title);
-      }
-    } catch (err) {
-      setSaveError(String(err));
-    } finally {
-      setSaving(false);
+    const failure = await saveServerAddress(qc, draft);
+    setSaving(false);
+    if (failure) {
+      setSaveError(failure);
+      return;
     }
+    setEditing(false);
+    onEditingChange?.(false);
+    onRetry?.();
   };
   return (
     <section className="space-y-2 text-sm" aria-label={t("appShell.server.address")}>
@@ -164,7 +171,7 @@ export function ServerConnectionStatus({
     return null;
   }
 
-  const secure = /TLS|SSL|certificate|secure connection/i.test(status);
+  const failure = describeConnectionFailure(status);
 
   return (
     <section
@@ -174,16 +181,13 @@ export function ServerConnectionStatus({
       <div role="alert" className="flex items-start gap-2">
         <ErrorIcon className="mt-px size-3.5 shrink-0 text-error" aria-hidden="true" />
         <p className="min-w-0 leading-relaxed text-text-secondary">
-          <span className="font-medium text-text-primary">
-            {secure ? t("appShell.server.secureFailed") : t("appShell.server.cannotConnect")}
-          </span>{" "}
-          {secure ? t("appShell.server.signInUnavailable") : t("appShell.server.checkConnection")}
+          <span className="font-medium text-text-primary">{failure.title}</span> {failure.detail}
         </p>
       </div>
       <div className="flex items-start justify-between gap-3 pl-5.5">
         <details className="min-w-0 text-text-muted">
           <summary className="cursor-pointer focus-outline">{t("common.technicalDetails")}</summary>
-          <p className="mt-1 break-words leading-relaxed">{status.replace(/^Error:\s*/, "")}</p>
+          <p className="mt-1 break-words leading-relaxed">{failure.technical}</p>
         </details>
         {onRetry && (
           <Button type="button" variant="neutral" size="sm" className="shrink-0" onClick={onRetry}>
@@ -194,6 +198,17 @@ export function ServerConnectionStatus({
       </div>
     </section>
   );
+}
+
+/** Why the auth gate cannot reach its server, in the gate's words. */
+export function describeConnectionFailure(status: string) {
+  const secure = /TLS|SSL|certificate|secure connection/i.test(status);
+
+  return {
+    title: secure ? t("appShell.server.secureFailed") : t("appShell.server.cannotConnect"),
+    detail: secure ? t("appShell.server.signInUnavailable") : t("appShell.server.checkConnection"),
+    technical: status.replace(/^Error:\s*/, ""),
+  };
 }
 
 export function describeProfileSaveForGate(result: ProfileSaveWithTestResult): SaveServerUrlBanner {

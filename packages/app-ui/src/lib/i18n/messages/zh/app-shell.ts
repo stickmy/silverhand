@@ -81,6 +81,15 @@ export const appShell: Translation<typeof en> = {
     incorrect: "邮箱或密码不正确。",
     failed: "认证失败。",
   },
+  welcome: {
+    leoSays: "拆成了三张任务，我先接 #12。",
+    dogeSays: "文案初稿好了，等你看一眼。",
+    youSay: "可以，合到 main。",
+    headline: "像群聊一样，",
+    headlineAccent: "指挥你的 agent 协作。",
+    passwordMin: "密码，至少 8 位",
+    avatarCaption: "这是你在对话里的样子，点一下换一个。",
+  },
   password: "密码",
   privacyPolicy: "隐私政策",
   server: {
