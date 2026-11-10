@@ -1,4 +1,7 @@
 use super::*;
+use silverhand_backend_core::conversation_messaging::messaging::collaboration::attention_projection::{
+    AttentionCount, WorkspaceAttentionCount,
+};
 use axum::{
     body::{Body, to_bytes},
     http::Request,
@@ -22,7 +25,15 @@ impl AttentionProjectionPort for Ports {
 
     async fn badges(&self, _: &UserId) -> Result<AttentionBadgeRollup, Self::Error> {
         self.calls.fetch_add(1, Ordering::SeqCst);
-        Ok(AttentionBadgeRollup::projected(vec![], vec![]).unwrap())
+        Ok(AttentionBadgeRollup::projected(
+            vec![WorkspaceAttentionCount::projected(
+                WorkspaceId::parse("w").unwrap(),
+                AttentionCount::new(2).unwrap(),
+            )],
+            AttentionCount::new(3).unwrap(),
+            vec![],
+        )
+        .unwrap())
     }
 
     async fn modes(
@@ -57,6 +68,16 @@ async fn authentication_refusal_reaches_no_projection() {
     assert_eq!(status, 500);
     assert_eq!(body, json!({"error":"internal error"}));
     assert_eq!(calls.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn badge_wire_carries_direct_pairs_inside_total() {
+    let (status, body) = call(Ports::default(), BADGES_PATH, true).await;
+    assert_eq!(status, 200);
+    assert_eq!(
+        body,
+        json!({"by_workspace":{"w":2},"direct_pairs":3,"total":5,"muted_workspace_ids":[]})
+    );
 }
 
 #[tokio::test]

@@ -108,6 +108,7 @@ fn badge_wire(value: &AttentionBadgeRollup) -> Response {
         .collect::<Map<String, Value>>();
     Json(json!({
         "by_workspace": by_workspace,
+        "direct_pairs": value.direct_pairs().get(),
         "total": value.total().get(),
         "muted_workspace_ids": value.muted_workspaces().iter().map(WorkspaceId::as_str).collect::<Vec<_>>()
     }))

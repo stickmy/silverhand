@@ -32,6 +32,7 @@ impl AttentionCount {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AttentionBadgeRollup {
     by_workspace: Vec<WorkspaceAttentionCount>,
+    direct_pairs: AttentionCount,
     total: AttentionCount,
     muted_workspaces: Vec<WorkspaceId>,
 }
@@ -67,6 +68,7 @@ pub enum AttentionBadgeProjectionError {
 impl AttentionBadgeRollup {
     pub fn projected(
         mut by_workspace: Vec<WorkspaceAttentionCount>,
+        direct_pairs: AttentionCount,
         mut muted_workspaces: Vec<WorkspaceId>,
     ) -> Result<Self, AttentionBadgeProjectionError> {
         by_workspace
@@ -79,15 +81,18 @@ impl AttentionBadgeRollup {
         }
         muted_workspaces.sort_by(|left, right| left.as_str().cmp(right.as_str()));
         muted_workspaces.dedup();
-        let total = by_workspace.iter().try_fold(0_i64, |total, value| {
-            total
-                .checked_add(value.count().get())
-                .ok_or(AttentionBadgeProjectionError::TotalOverflow)
-        })?;
+        let total = by_workspace
+            .iter()
+            .try_fold(direct_pairs.get(), |total, value| {
+                total
+                    .checked_add(value.count().get())
+                    .ok_or(AttentionBadgeProjectionError::TotalOverflow)
+            })?;
         // Safe: every summand is non-negative, and the checked sum succeeded.
         let total = AttentionCount::new(total).expect("non-negative checked sum");
         Ok(Self {
             by_workspace,
+            direct_pairs,
             total,
             muted_workspaces,
         })
@@ -95,6 +100,11 @@ impl AttentionBadgeRollup {
 
     pub fn by_workspace(&self) -> &[WorkspaceAttentionCount] {
         &self.by_workspace
+    }
+
+    /// Direct pairs have no workspace, so they are summed beside `by_workspace`.
+    pub fn direct_pairs(&self) -> AttentionCount {
+        self.direct_pairs
     }
 
     pub fn total(&self) -> AttentionCount {
@@ -202,10 +212,12 @@ mod tests {
                 WorkspaceAttentionCount::projected(w2.clone(), AttentionCount::new(3).unwrap()),
                 WorkspaceAttentionCount::projected(w1.clone(), AttentionCount::new(2).unwrap()),
             ],
+            AttentionCount::new(4).unwrap(),
             vec![w2.clone(), w1.clone(), w2.clone()],
         )
         .unwrap();
-        assert_eq!(rollup.total().get(), 5);
+        assert_eq!(rollup.total().get(), 9);
+        assert_eq!(rollup.direct_pairs().get(), 4);
         assert_eq!(rollup.muted_workspaces(), [w1.clone(), w2.clone()]);
         assert_eq!(
             rollup
@@ -228,6 +240,7 @@ mod tests {
                     AttentionCount::new(2).unwrap(),
                 ),
             ],
+            AttentionCount::new(0).unwrap(),
             vec![],
         );
         assert_eq!(
@@ -240,6 +253,18 @@ mod tests {
                     WorkspaceAttentionCount::projected(w1, AttentionCount::new(i64::MAX).unwrap()),
                     WorkspaceAttentionCount::projected(w2, AttentionCount::new(1).unwrap()),
                 ],
+                AttentionCount::new(0).unwrap(),
+                vec![]
+            ),
+            Err(AttentionBadgeProjectionError::TotalOverflow)
+        );
+        assert_eq!(
+            AttentionBadgeRollup::projected(
+                vec![WorkspaceAttentionCount::projected(
+                    WorkspaceId::parse("w1").unwrap(),
+                    AttentionCount::new(1).unwrap(),
+                )],
+                AttentionCount::new(i64::MAX).unwrap(),
                 vec![]
             ),
             Err(AttentionBadgeProjectionError::TotalOverflow)

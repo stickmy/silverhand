@@ -415,6 +415,12 @@ export function applyAttentionFrame(
     return;
   }
   if (!isViewerScope) return;
+  if (frame.kind === "direct_pairs_changed") {
+    // The DM term of the roll-up has no absolute frame; re-read so out-of-order
+    // signals converge on the committed value.
+    void qc.invalidateQueries({ queryKey: attentionBadgesKey() });
+    return;
+  }
   if (frame.kind === "attention_badge_updated") {
     applyBadgeUpdate(qc, frame.payload as AttentionBadgeUpdatedPayload);
     return;
@@ -508,14 +514,19 @@ export function useAttentionRealtime(): void {
   }, [qc]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
+/** The server's `total`: direct pairs plus every workspace. */
+function rollupTotal(directPairs: number | undefined, byWorkspace: Record<string, number>): number {
+  return Object.values(byWorkspace).reduce((a, b) => a + b, directPairs ?? 0);
+}
+
 /**
  * Patch one workspace's ABSOLUTE badge into the roll-up. Never a delta — the
  * event carries the settled value precisely so a dropped or reordered frame
  * cannot accumulate error.
  *
- * `total` is RECOMPUTED from the map rather than adjusted, so `total = Σ
- * by_workspace` holds by construction instead of by two matching arithmetic
- * paths. A zero deletes its entry, keeping the server's "absent ≡ 0" shape (a
+ * `total` is RECOMPUTED from the map rather than adjusted, so `total =
+ * direct_pairs + Σ by_workspace` holds by construction instead of by two
+ * matching arithmetic paths. A zero deletes its entry, keeping the server's "absent ≡ 0" shape (a
  * stored `0` would make `Object.keys` a wrong answer to "which workspaces have
  * something waiting").
  *
@@ -528,7 +539,7 @@ export function applyBadgeUpdate(qc: QueryClient, payload: AttentionBadgeUpdated
   const by_workspace = { ...prev.by_workspace };
   if (payload.badge_count > 0) by_workspace[payload.workspace_id] = payload.badge_count;
   else delete by_workspace[payload.workspace_id];
-  const total = Object.values(by_workspace).reduce((a, b) => a + b, 0);
+  const total = rollupTotal(prev.direct_pairs, by_workspace);
   if (
     total === prev.total &&
     by_workspace[payload.workspace_id] === prev.by_workspace[payload.workspace_id]
@@ -537,6 +548,7 @@ export function applyBadgeUpdate(qc: QueryClient, payload: AttentionBadgeUpdated
   }
   qc.setQueryData<AttentionBadgeRollupDto>(attentionBadgesKey(), {
     by_workspace,
+    direct_pairs: prev.direct_pairs,
     total,
     // The frame carries the NUMBER only; mute is a different fact with its own
     // event (#task:1877), so carry the held value through untouched rather than
@@ -556,10 +568,10 @@ export function applyBadgeUpdate(qc: QueryClient, payload: AttentionBadgeUpdated
  * longer open, with no focus refetch to correct it.
  *
  * The map delete is the part only this cleanup does; `total` is recomputed as
- * `Σ by_workspace` — the value a refetch returns — never `prev.total - dropped`,
- * which would carry a stale offset onto the survivors. The tier batch is dropped
- * whole (it is per-workspace and can simply go). PRESENT-ONLY and idempotent, like
- * its siblings.
+ * `direct_pairs + Σ by_workspace` — the value a refetch returns — never
+ * `prev.total - dropped`, which would carry a stale offset onto the survivors.
+ * The tier batch is dropped whole (it is per-workspace and can simply go).
+ * PRESENT-ONLY and idempotent, like its siblings.
  */
 export function removeWorkspaceFromAttentionBadges(qc: QueryClient, workspaceId: string): void {
   const prev = qc.getQueryData<AttentionBadgeRollupDto>(attentionBadgesKey());
@@ -571,7 +583,8 @@ export function removeWorkspaceFromAttentionBadges(qc: QueryClient, workspaceId:
     delete by_workspace[workspaceId];
     qc.setQueryData<AttentionBadgeRollupDto>(attentionBadgesKey(), {
       by_workspace,
-      total: Object.values(by_workspace).reduce((a, b) => a + b, 0),
+      direct_pairs: prev.direct_pairs,
+      total: rollupTotal(prev.direct_pairs, by_workspace),
       // A lost workspace's mute marker goes with its count, for the same reason
       // (#task:1877): nothing refetches this entry, so a leftover id would keep
       // marking a workspace the viewer can no longer open.

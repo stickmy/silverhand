@@ -182,4 +182,25 @@ describe("attention snapshot_required gap path (#task:1870)", () => {
     expect(enrichedSeen).not.toContain(JSON.stringify(attentionBadgesKey()));
     expect(enrichedSeen).toContain(JSON.stringify(["attention", "modes"]));
   });
+
+  it("direct_pairs_changed re-reads the roll-up only on the viewer scope (#task:3014)", () => {
+    // The DM term has no absolute frame, so this hint is its only live carrier.
+    const frame = (scope: string): ServerFrame => ({
+      type: "event",
+      scope,
+      seq: decodeTransportSeq(11),
+      epoch: EPOCH,
+      kind: "direct_pairs_changed",
+      payload: { conversation_id: "pair_1" },
+    });
+    const viewerQc = new QueryClient();
+    const viewerSeen = trackInvalidations(viewerQc);
+    applyAttentionFrame(viewerQc, frame("viewer:u1"), true);
+    expect(viewerSeen).toEqual([JSON.stringify(attentionBadgesKey())]);
+
+    const otherQc = new QueryClient();
+    const otherSeen = trackInvalidations(otherQc);
+    applyAttentionFrame(otherQc, frame("conversation:pair_1"), false);
+    expect(otherSeen).toEqual([]);
+  });
 });

@@ -1,5 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
-import { activityKey } from "@/features/attention/hooks";
+import { activityKey, attentionBadgesKey } from "@/features/attention/hooks";
 import { messageReactorsKeyPrefix } from "@/features/channels/reaction-hooks";
 import { CONVERSATION_MEMBERS_KEY_PREFIX } from "@/features/conversations/use-conversation-members";
 import { conversationLatestKey } from "@/features/conversations/latest/use-conversation-latest";
@@ -247,6 +247,14 @@ const IDENTITY_CARRIERS: readonly IdentityCarrier[] = [
     // the split exists to catch.
     facets: ["presentation", "lifecycle"],
     filter: { queryKey: directPairsKey },
+  },
+  {
+    // The roll-up's `direct_pairs` term skips pairs whose counterpart is
+    // deleted, and that delete arrives only as `agent_changed` / `user_changed`.
+    id: "attention-badges",
+    kinds: ["agent", "human"],
+    facets: ["lifecycle"],
+    filter: { queryKey: attentionBadgesKey() },
   },
   // Task DTOs carry THREE identity snapshots — `assignee.name`, `creator.name`
   // and `last_editor.name` in the detail. All three are live joins re-resolved on

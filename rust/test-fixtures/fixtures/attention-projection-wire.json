@@ -6,7 +6,7 @@
     "method": "GET",
     "path": "/api/attention/badges",
     "status": 200,
-    "body": { "by_workspace": {}, "total": 0, "muted_workspace_ids": [] }
+    "body": { "by_workspace": {}, "direct_pairs": 0, "total": 0, "muted_workspace_ids": [] }
   },
   {
     "name": "tiered badge rollup",
@@ -17,6 +17,7 @@
     "status": 200,
     "body": {
       "by_workspace": { "w": 1 },
+      "direct_pairs": 0,
       "total": 1,
       "muted_workspace_ids": ["w"]
     }
@@ -30,6 +31,7 @@
     "status": 200,
     "body": {
       "by_workspace": { "w": 2 },
+      "direct_pairs": 0,
       "total": 2,
       "muted_workspace_ids": []
     }

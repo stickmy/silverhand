@@ -299,6 +299,37 @@ const BADGE_COUNTS_BY_WORKSPACE: &str = concat!(
     " GROUP BY c.workspace_id) GROUP BY workspace_id ORDER BY workspace_id"
 );
 
+/// Direct-pair endpoint `$s` is a live principal: not tombstoned and still present.
+macro_rules! direct_endpoint_alive {
+    ($s:literal) => {
+        concat!(
+            "(c.endpoint_",
+            $s,
+            "_deleted_at IS NULL AND CASE c.endpoint_",
+            $s,
+            "_kind WHEN 'agent' THEN EXISTS (SELECT 1 FROM agents a WHERE a.id = c.endpoint_",
+            $s,
+            "_id) WHEN 'human' THEN EXISTS (SELECT 1 FROM users u WHERE u.id = c.endpoint_",
+            $s,
+            "_id) ELSE 0 END)"
+        )
+    };
+}
+
+/// The badge term for direct pairs. A pair is always loud, so it contributes its whole
+/// unread; a pair whose counterpart is deleted is hidden from the DM list and is skipped.
+const DIRECT_PAIR_BADGE_COUNT: &str = concat!(
+    "WITH p(viewer) AS (SELECT ?) SELECT COUNT(m.id) AS c FROM conversations c JOIN messages m \
+     ON m.conversation_id = c.id AND ",
+    rollup_unread!(),
+    " WHERE c.placement_kind = 'direct_pair' AND ((c.endpoint_a_kind = 'human' AND \
+     c.endpoint_a_id = (SELECT viewer FROM p) AND ",
+    direct_endpoint_alive!("b"),
+    ") OR (c.endpoint_b_kind = 'human' AND c.endpoint_b_id = (SELECT viewer FROM p) AND ",
+    direct_endpoint_alive!("a"),
+    "))"
+);
+
 /// The conversation's live human participants.
 const LIVE_PARTICIPANT_USER_IDS: &str = concat!(
     "WITH p(conv) AS (SELECT ?) SELECT u.id AS user_id FROM (",
@@ -422,6 +453,33 @@ pub(crate) async fn attention_badge_counts(
             }
         }
         Ok(counts)
+    }
+    .await;
+    observation.finish(&result);
+    result
+}
+
+/// The direct-pair term of the badge roll-up, evaluated inside the caller's transaction.
+#[tracing::instrument(
+    target = "silverhand::diagnostics",
+    name = "db.direct_pair_badge_count",
+    skip_all,
+    fields(
+        elapsed_ms = tracing::field::Empty,
+        outcome = tracing::field::Empty,
+        operation_finished = tracing::field::Empty,
+    )
+)]
+pub(crate) async fn direct_pair_badge_count(
+    tx: &mut Transaction<'_, Sqlite>,
+    viewer: &UserId,
+) -> Result<i64, UnreadReadModelError> {
+    let observation = silverhand_backend_observability::Operation::current();
+    let result = async {
+        Ok(sqlx::query_scalar(DIRECT_PAIR_BADGE_COUNT)
+            .bind(viewer.as_str())
+            .fetch_one(&mut **tx)
+            .await?)
     }
     .await;
     observation.finish(&result);

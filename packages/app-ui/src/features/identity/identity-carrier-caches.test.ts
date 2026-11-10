@@ -201,12 +201,17 @@ describe("identity-carrier caches", () => {
     // here rather than shipping a composer that accepts input the send path
     // refuses.
     // Starred direct pairs embed the same counterpart (#task:2874).
-    expect(carrierIdsWithFacet("lifecycle")).toEqual(["direct-pairs", "favorites"]);
+    // The badge roll-up embeds no name, only whether the counterpart exists.
+    expect(carrierIdsWithFacet("lifecycle")).toEqual([
+      "direct-pairs",
+      "attention-badges",
+      "favorites",
+    ]);
     expect(carrierIdsWithFacet("presentation")).toContain("direct-pairs");
-    // Every carrier carries presentation identity; lifecycle is the exception,
-    // so the two sets differ by exactly the entries that earned lifecycle.
+    expect(carrierIdsWithFacet("presentation")).not.toContain("attention-badges");
     for (const kind of ["agent", "human"] as const) {
       for (const id of identityCarrierIdsFor(kind)) {
+        if (id === "attention-badges") continue;
         expect(carrierIdsWithFacet("presentation")).toContain(id);
       }
     }

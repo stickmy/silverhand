@@ -113,11 +113,18 @@ export type SetChannelAttentionPreferenceInput = z.infer<
 // The tiers PARTITION the viewer's conversations, so an `all`-tier channel never
 // double-counts an @me: §8's positional count already includes it.
 
-/** `GET /api/attention/badges` — the viewer's cross-workspace badge roll-up.
+/** `GET /api/attention/badges` — the viewer's app-level badge roll-up.
  *  `by_workspace` omits workspaces whose badge is 0 (absent ≡ 0), matching the
- *  notification roll-up's shape. `total` is the sum, i.e. the app-level badge. */
+ *  notification roll-up's shape. `total = direct_pairs + Σ by_workspace` is the
+ *  whole app badge (Dock, menu bar). */
 export const AttentionBadgeRollupDtoSchema = z.object({
   by_workspace: z.record(z.string(), z.number()),
+  /** Unread across the viewer's direct pairs, which have no workspace. A pair is
+   *  always `all` tier (its whole positional unread counts); a pair whose
+   *  counterpart is deleted is skipped, as the sidebar hides it. Its live carrier
+   *  is `direct_pairs_changed`, a refetch signal for this roll-up. Absent ≡ 0
+   *  (an older server, whose `total` then excludes DMs). */
+  direct_pairs: z.number().int().nonnegative().optional(),
   total: z.number(),
   /** The workspaces the viewer has MUTED (#task:1877), so the rail can mark a
    *  muted row without a second request. Absent ≡ not muted, exactly like

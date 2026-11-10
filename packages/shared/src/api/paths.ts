@@ -400,7 +400,8 @@ export const apiPaths = {
    *  only their directed (@me) unread. Deliberately a SEPARATE face from
    *  `messageUnreadSummary` so no existing "how many unread" answer changes.
    *  Refreshed by the viewer-scoped `attention_badge_updated` signal (absolute
-   *  per-workspace patch). Read-only, human viewer-scoped, global. */
+   *  per-workspace patch) and, for its `direct_pairs` term, re-read on
+   *  `direct_pairs_changed`. Read-only, human viewer-scoped, global. */
   attentionBadges: '/api/attention/badges',
   /** Every channel tier in ONE workspace in a single read (#task:1870):
    *  `?workspace_id=…` is REQUIRED — one batch instead of N per-channel GETs for
