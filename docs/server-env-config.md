@@ -80,10 +80,18 @@ and `backend-sqlite/src/foundation/database_startup.rs` define Rust's upgrade
 contract. Startup refuses unknown/newer, too-old or inconsistent ledgers. Existing
 standalone databases require `SILVERHAND_MIGRATE=1` to advance. Preparation holds
 SQLite exclusive locking across backup and step commits; it does not use the old
-Node migration-lock directory. A pre-upgrade backup copies the database parent
-and uses SQLite `VACUUM INTO` for a consistent database before migration. Blob
-roots outside that parent need their own deployment backup coverage. Retention is
-operator-owned; an older binary may require the matching pre-upgrade data backup.
+Node migration-lock directory. Before applying any upgrade, the SQLite owner uses
+`VACUUM INTO` to create a consistent database-only backup in a timestamped sibling
+directory. Backup failure prevents migration. It does not copy the database parent:
+attachments, logs, old backups and other files are excluded regardless of layout.
+
+Release backups default to the database only. Operators explicitly back up
+attachments when requested, separately from this startup step; logs are not part
+of a release data backup. File migrations or changes to file references require
+an explicit attachment backup decision before deployment. A database backup alone
+does not restore deleted attachments. Retention is operator-owned; an older binary
+may require the matching pre-upgrade database backup, and restoring it discards
+subsequent writes.
 
 Do not run the former Node admin recovery commands against a Rust-owned live
 database. Rust's executable currently has no matching admin subcommand contract.

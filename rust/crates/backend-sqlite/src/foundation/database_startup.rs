@@ -275,13 +275,11 @@ async fn backup(db: &mut SqliteConnection, path: &Path) -> Result<PathBuf, Datab
     partial_name.push(".partial");
     let partial = PathBuf::from(partial_name);
     let name = path.file_name().expect("database filename");
-    let excluded = [
-        path.to_owned(),
-        PathBuf::from(format!("{}-wal", path.display())),
-        PathBuf::from(format!("{}-shm", path.display())),
-        PathBuf::from(format!("{}-journal", path.display())),
-    ];
-    copy_tree_except(dir, &partial, &excluded).map_err(DatabaseStartupError::Backup)?;
+    // Startup backs up only SQLite. Attachment backups are an explicit deployment
+    // operation, independent of where the database happens to live.
+    fs::create_dir(&partial).map_err(DatabaseStartupError::Backup)?;
+    fs::set_permissions(&partial, fs::metadata(dir)?.permissions())
+        .map_err(DatabaseStartupError::Backup)?;
     let output = partial.join(name);
     // Never open/close the source file outside SQLite while it owns POSIX locks.
     // The output is a standalone consistent database, without source WAL/SHM.
@@ -296,40 +294,4 @@ async fn backup(db: &mut SqliteConnection, path: &Path) -> Result<PathBuf, Datab
     fs::set_permissions(&output, fs::metadata(path)?.permissions())?;
     fs::rename(&partial, &dest).map_err(DatabaseStartupError::Backup)?;
     Ok(dest)
-}
-
-fn copy_tree_except(src: &Path, dest: &Path, excluded: &[PathBuf]) -> std::io::Result<()> {
-    if excluded.iter().any(|path| path == src) {
-        return Ok(());
-    }
-    let info = fs::symlink_metadata(src)?;
-    if info.is_dir() {
-        fs::create_dir(dest)?;
-        fs::set_permissions(dest, info.permissions())?;
-        for entry in fs::read_dir(src)? {
-            let entry = entry?;
-            copy_tree_except(&entry.path(), &dest.join(entry.file_name()), excluded)?;
-        }
-    } else if info.is_file() {
-        #[cfg(unix)]
-        if let Some(database) = excluded.first() {
-            use std::os::unix::fs::MetadataExt;
-            let source = fs::metadata(database)?;
-            if info.dev() == source.dev() && info.ino() == source.ino() {
-                return Err(std::io::Error::other(
-                    "backup refuses a second hard-link path to the open database",
-                ));
-            }
-        }
-        fs::copy(src, dest)?;
-    } else if info.file_type().is_symlink() {
-        #[cfg(unix)]
-        std::os::unix::fs::symlink(fs::read_link(src)?, dest)?;
-        #[cfg(not(unix))]
-        return Err(std::io::Error::other(
-            "symlink backup unsupported on this target",
-        ));
-    }
-    // Sockets/FIFOs/devices are runtime artifacts, matching the existing backup.
-    Ok(())
 }
