@@ -80,15 +80,17 @@ describe('runtime catalog (shared source of truth)', () => {
     expect(runtimeCatalogEntry('claude').reasoningEffortOptions).toEqual([]);
   });
 
-  it('offers Codex Max and Ultra on gpt-6.1-sol', () => {
-    expect(reasoningEffortOptionsForRuntime('codex', 'gpt-6.1-sol')).toEqual([
-      'low',
-      'medium',
-      'high',
-      'xhigh',
-      'max',
-      'ultra',
-    ]);
+  it('offers Codex Max and Ultra on gpt-6.1-sol and gpt-6.1-terra', () => {
+    for (const model of ['gpt-6.1-sol', 'gpt-6.1-terra']) {
+      expect(reasoningEffortOptionsForRuntime('codex', model)).toEqual([
+        'low',
+        'medium',
+        'high',
+        'xhigh',
+        'max',
+        'ultra',
+      ]);
+    }
   });
 
   it('offers Codex Max on all verified 5.6 models and Ultra only on sol', () => {
@@ -140,6 +142,7 @@ describe('runtime catalog (shared source of truth)', () => {
   it('exposes codex model suggestions as quick-picks (free text still accepted, no forced default)', () => {
     expect(runtimeCatalogEntry('codex').modelSuggestions).toEqual([
       'gpt-6.1-sol',
+      'gpt-6.1-terra',
       'gpt-6-astra',
       'gpt-5.6-sol',
       'gpt-5.6-terra',

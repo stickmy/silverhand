@@ -98,6 +98,7 @@ const CATALOG: Record<RuntimeKind, RuntimeCatalogEntry> = {
     // Max/Ultra; its family boundary must not match gpt-60 or proxy aliases.
     reasoningEffortOptionsByModel: {
       'gpt-6.1-sol': ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
+      'gpt-6.1-terra': ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
       'gpt-5.6-sol': ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
       'gpt-5.6-terra': ['low', 'medium', 'high', 'xhigh', 'max'],
       'gpt-5.6-luna': ['low', 'medium', 'high', 'xhigh', 'max'],
@@ -112,6 +113,7 @@ const CATALOG: Record<RuntimeKind, RuntimeCatalogEntry> = {
     // create-time default).
     modelSuggestions: [
       'gpt-6.1-sol',
+      'gpt-6.1-terra',
       'gpt-6-astra',
       'gpt-5.6-sol',
       'gpt-5.6-terra',
