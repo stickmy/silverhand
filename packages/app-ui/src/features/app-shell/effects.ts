@@ -85,8 +85,7 @@ export function useComposerDraftCleanup(): void {
 
 /**
  * macOS dock badge sync — the app-level face of the viewer's attention badge
- * roll-up (`AttentionBadgeRollupDto.total`, #task:1870) plus direct messages
- * (`appBadgeTotal`), NOT the raw unread total.
+ * roll-up (`AttentionBadgeRollupDto.total`, #task:1870), NOT the raw unread total.
  * A muted workspace that still bumped the dock would defeat muting, and the
  * roll-up is the one place the three tiers are already folded in.
  *

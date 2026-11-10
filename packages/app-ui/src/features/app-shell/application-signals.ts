@@ -12,8 +12,6 @@ import { useUnreadCounts } from "@/features/attention/notifications";
 import { useMessageUnreadSummary } from "@/features/channels/hooks";
 import { useActivity, useAttentionBadges, useAttentionRealtime } from "@/features/attention/hooks";
 import { useNav } from "@/router";
-import { useDirectPairs } from "@/features/direct-pairs/hooks";
-import { appBadgeTotal } from "@/features/app-shell/app-badge-total";
 
 export function useApplicationSignals() {
   const nav = useNav();
@@ -42,8 +40,7 @@ export function useApplicationSignals() {
     activityItemCount: activityData?.items.length,
   });
 
-  const directPairs = useDirectPairs();
-  useDockBadge(appBadgeTotal(attentionBadges?.total, directPairs));
+  useDockBadge(attentionBadges?.total);
 
   useBackendInfoSnapshot({ pollProtocolCompatibility: true });
 

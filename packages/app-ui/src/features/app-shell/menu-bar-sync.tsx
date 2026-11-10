@@ -5,10 +5,10 @@ import { getPlatform } from "@/platform";
 import { useNavActions } from "@/router";
 import { useLocale } from "@/lib/i18n";
 import { useAttentionModesAcrossWorkspaces } from "@/features/attention/hooks";
-import { channelNodeBadge } from "@/features/attention/row-badges";
-import { loudDirectPairs } from "@/features/app-shell/app-badge-total";
+import { channelNodeBadge, directRowBadge } from "@/features/attention/row-badges";
 import { messageUnreadByConversationQuery } from "@/features/channels/message-unread";
 import { presentCounterpart } from "@/features/direct-pairs/counterpart-presentation";
+import { directLinePairVisibleInSidebar } from "@/features/direct-pairs/direct-line-rows";
 import { useDirectPairsList } from "@/features/direct-pairs/hooks";
 import { useChannelsAcrossWorkspaces, useWorkspaces } from "@/features/workspaces/hooks";
 
@@ -61,13 +61,16 @@ export function MenuBarSync(): null {
       }
     }
   });
-  for (const { pair, count } of loudDirectPairs(pairs.data?.direct_pairs ?? [])) {
-    targets.push({
-      id: pair.conversation_id,
-      title: presentCounterpart(pair.counterpart).label,
-      count,
-      workspaceId: null,
-    });
+  for (const pair of pairs.data?.direct_pairs ?? []) {
+    const badge = directRowBadge(pair.unread_count);
+    if (directLinePairVisibleInSidebar(pair) && badge?.tier === "loud") {
+      targets.push({
+        id: pair.conversation_id,
+        title: presentCounterpart(pair.counterpart).label,
+        count: badge.count,
+        workspaceId: null,
+      });
+    }
   }
   targets.sort((a, b) => b.count - a.count || a.title.localeCompare(b.title));
 
