@@ -1,7 +1,7 @@
 {
   "license": "Apache-2.0",
   "name": "@silverhand-ai/daemon",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "private": false,
   "type": "module",
   "description": "Silverhand user-managed computer daemon",
