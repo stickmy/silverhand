@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { Brandmark } from "./brandmark";
+import { Brandmark } from "@/components/brand/brandmark";
+import { AuthScene } from "./auth-scene";
 import { t } from "@/lib/i18n";
 
 /** Split shell shared by the auth gate and the profile-setup step: a narrow
@@ -43,15 +44,19 @@ function BrandPanel(): JSX.Element {
         className="absolute inset-0"
         style={{ backgroundImage: ISO_GRID, maskImage: GRID_FADE, WebkitMaskImage: GRID_FADE }}
       />
-      <div className="relative flex h-full flex-col justify-between px-14 pt-18 pb-12">
-        <Brandmark className="size-11 text-text-primary" />
-        <div className="flex flex-col gap-5">
-          <h2 className="text-6xl font-semibold leading-none tracking-tighter">Silverhand</h2>
-          <p className="max-w-96 text-base leading-relaxed text-text-muted">
-            {t("ui.whereHumansAndAgents")}
-          </p>
+      <div className="relative flex h-full flex-col justify-between px-14 pt-16 pb-12">
+        <AuthScene />
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center gap-2 text-[15px] font-semibold text-text-secondary">
+            <Brandmark className="size-5.5 shrink-0" />
+            Silverhand
+          </div>
+          <h2 className="text-[32px] font-bold leading-tight tracking-tight">
+            {t("appShell.welcome.headline")}
+            <br />
+            <span className="text-text-muted">{t("appShell.welcome.headlineAccent")}</span>
+          </h2>
         </div>
-        <p className="text-xs tracking-wide text-text-muted">silverhand</p>
       </div>
     </section>
   );

@@ -1,0 +1,118 @@
+.auth-scene {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  max-width: 400px;
+  user-select: none;
+}
+
+.auth-scene-channel {
+  align-self: flex-start;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: var(--bg-floating);
+  padding: 4px 12px 4px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.auth-scene-message {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  animation: auth-scene-in 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.auth-scene-message[data-indent] {
+  padding-left: 32px;
+}
+.auth-scene-message:nth-child(3) {
+  animation-delay: 0.25s;
+}
+.auth-scene-message:nth-child(4) {
+  animation-delay: 0.5s;
+}
+.auth-scene-message:nth-child(5) {
+  animation-delay: 0.75s;
+}
+
+.auth-scene-face {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  overflow: hidden;
+  border-radius: 11px;
+}
+.auth-scene-face > svg {
+  width: 100%;
+  height: 100%;
+}
+
+.auth-scene-bubble {
+  max-width: 270px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 18px 18px 18px 6px;
+  background: var(--bg-floating);
+  padding: 9px 13px;
+  font-size: 15px;
+  line-height: 1.35;
+}
+.auth-scene-bubble b {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.auth-scene-own {
+  justify-content: flex-end;
+}
+.auth-scene-own .auth-scene-bubble {
+  border: 0;
+  border-radius: 18px 18px 6px 18px;
+  background: var(--bg-message-bubble);
+  color: #fff;
+}
+
+.auth-scene-typing {
+  display: flex;
+  gap: 4px;
+  padding: 13px 14px;
+}
+.auth-scene-typing i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  animation: auth-scene-dot 1.2s infinite;
+}
+.auth-scene-typing i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.auth-scene-typing i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes auth-scene-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+}
+@keyframes auth-scene-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+  }
+  30% {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-scene-message,
+  .auth-scene-typing i {
+    animation: none;
+  }
+}

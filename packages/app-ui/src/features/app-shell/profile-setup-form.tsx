@@ -2,7 +2,7 @@ import { useId, useState, type FormEvent } from "react";
 import { SpinnerIcon } from "@/icons";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
-import { AuthSplitLayout } from "@/components/brand/auth-split-layout";
+import { AuthSplitLayout } from "./auth-split-layout";
 import { DraftAvatarCard } from "@/features/avatar-maker/components/draft-avatar-card";
 import { useDraftAvatar } from "@/features/avatar-maker/hooks/use-draft-avatar";
 import { rejectDisplayName } from "@/features/identity/display-name";

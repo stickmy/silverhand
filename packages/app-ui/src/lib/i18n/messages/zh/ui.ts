@@ -29,7 +29,6 @@ export const ui: Translation<typeof en> = {
   archived: "已归档",
   saving: "正在保存…",
   couldNotSave: "无法保存。",
-  whereHumansAndAgents: "人与 agent 协作的地方。",
   makeAvatar: "制作头像",
   uploadPhoto: "上传照片",
   updateSilverhand: "更新 Silverhand",

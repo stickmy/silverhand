@@ -171,7 +171,9 @@ final class AuthScreenPresenter {
     model.open(kind)
     let controller = UIHostingController(rootView: AuthSheetView(model: model))
     controller.overrideUserInterfaceStyle = screen.overrideUserInterfaceStyle
-    controller.modalPresentationStyle = .pageSheet
+    // Wide screens get a centred card sized to the form; detents only apply to compact sheets.
+    let wide = screen.traitCollection.horizontalSizeClass == .regular
+    controller.modalPresentationStyle = wide ? .formSheet : .pageSheet
     let dismissal = Dismissal { [weak self] in
       guard let self, self.sheet === controller else { return }
       self.sheet = nil
@@ -181,7 +183,7 @@ final class AuthScreenPresenter {
     controller.presentationController?.delegate = dismissal
     objc_setAssociatedObject(controller, &Self.dismissalKey, dismissal, .OBJC_ASSOCIATION_RETAIN)
     if let presentation = controller.sheetPresentationController {
-      presentation.prefersGrabberVisible = true
+      presentation.prefersGrabberVisible = !wide
       // Fitted to the form, so the scene behind stays in view.
       if #available(iOS 16.0, *) {
         presentation.detents = [
@@ -189,8 +191,12 @@ final class AuthScreenPresenter {
             min(model?.sheetHeight ?? 320, context.maximumDetentValue)
           }
         ]
-        model.onSheetHeight = { [weak presentation] in
-          presentation?.animateChanges { presentation?.invalidateDetents() }
+        model.onSheetHeight = { [weak presentation, weak controller, weak model] in
+          if wide {
+            controller?.preferredContentSize = CGSize(width: 440, height: model?.sheetHeight ?? 320)
+          } else {
+            presentation?.animateChanges { presentation?.invalidateDetents() }
+          }
         }
       } else {
         presentation.detents = [kind == .signup ? .large() : .medium()]
@@ -202,6 +208,9 @@ final class AuthScreenPresenter {
       self.sheetKind = nil
       controller.dismiss(animated: true)
       self.onEvent?(["kind": "dismiss"])
+    }
+    if wide {
+      controller.preferredContentSize = CGSize(width: 440, height: model.sheetHeight)
     }
     sheet = controller
     screen.present(controller, animated: true)
@@ -355,12 +364,19 @@ struct WelcomeView: View {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var shown = 0
   @State private var technical = false
+  @Environment(\.horizontalSizeClass) private var sizeClass
 
   var body: some View {
     if let state = model.state {
-      VStack(spacing: 0) {
-        scene(state)
-        panel(state)
+      Group {
+        if sizeClass == .regular {
+          wide(state)
+        } else {
+          VStack(spacing: 0) {
+            scene(state)
+            panel(state)
+          }
+        }
       }
       .background(Color(UIColor.systemBackground).ignoresSafeArea())
       .onAppear {
@@ -392,56 +408,93 @@ struct WelcomeView: View {
         )
         .ignoresSafeArea(edges: .top)
 
-      VStack(alignment: .leading, spacing: 22) {
-        (Text("#").foregroundColor(Color(UIColor.tertiaryLabel)) + Text(state.channel))
-          .font(.system(size: 13, weight: .semibold))
-          .foregroundColor(.secondary)
-          .padding(.vertical, 5)
-          .padding(.leading, 10)
-          .padding(.trailing, 12)
-          .background(Capsule().fill(Color(UIColor.secondarySystemBackground)))
-
-        ForEach(Array(state.messages.enumerated()), id: \.offset) { index, message in
-          HStack(alignment: .bottom, spacing: 8) {
-            face(message.avatar)
-            VStack(alignment: .leading, spacing: 2) {
-              Text(message.name)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(.secondary)
-              Text(message.text).font(.system(size: 15))
-            }
-            .padding(.vertical, 9)
-            .padding(.horizontal, 13)
-            .background(Bubble(own: false).fill(Color(UIColor.secondarySystemBackground)))
-          }
-          .padding(.leading, index == 1 ? 32 : 0)
-          .arriving(shown > index)
-        }
-
-        Text(state.own)
-          .font(.system(size: 15))
-          .foregroundColor(.white)
-          .padding(.vertical, 9)
-          .padding(.horizontal, 13)
-          .background(Bubble(own: true).fill(Color(UIColor.systemBlue)))
-          .frame(maxWidth: .infinity, alignment: .trailing)
-          .arriving(shown > state.messages.count)
-
-        HStack(alignment: .bottom, spacing: 8) {
-          face(state.typist)
-          TypingDots(still: reduceMotion)
-            .padding(.vertical, 14)
-            .padding(.horizontal, 14)
-            .background(Bubble(own: false).fill(Color(UIColor.secondarySystemBackground)))
-        }
-        .arriving(shown > state.messages.count + 1)
-      }
-      .padding(.horizontal, 28)
-      .padding(.top, 40)
+      thread(state)
+        .padding(.horizontal, 28)
+        .padding(.top, 40)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     .clipped()
     .accessibilityHidden(true)
+  }
+
+  /// Wide screens put the scene beside the actions instead of above them.
+  private func wide(_ state: AuthScreenState) -> some View {
+    HStack(spacing: 0) {
+      ZStack {
+        IsoGrid()
+          .mask(
+            RadialGradient(
+              stops: [.init(color: .black, location: 0.3), .init(color: .clear, location: 0.75)],
+              center: .center, startRadius: 0, endRadius: 520)
+          )
+          .ignoresSafeArea()
+        thread(state)
+          .frame(maxWidth: 380)
+          .padding(.horizontal, 40)
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+      .clipped()
+      .accessibilityHidden(true)
+
+      VStack(spacing: 0) {
+        Spacer(minLength: 24)
+        panel(state, wide: true)
+        Spacer(minLength: 24)
+        footer(state)
+          .padding(.horizontal, 28)
+          .padding(.bottom, 12)
+      }
+      .frame(maxWidth: 436)
+      .frame(maxWidth: .infinity)
+      .padding(.trailing, 32)
+    }
+  }
+
+  private func thread(_ state: AuthScreenState) -> some View {
+    VStack(alignment: .leading, spacing: 22) {
+      (Text("#").foregroundColor(Color(UIColor.tertiaryLabel)) + Text(state.channel))
+        .font(.system(size: 13, weight: .semibold))
+        .foregroundColor(.secondary)
+        .padding(.vertical, 5)
+        .padding(.leading, 10)
+        .padding(.trailing, 12)
+        .background(Capsule().fill(Color(UIColor.secondarySystemBackground)))
+
+      ForEach(Array(state.messages.enumerated()), id: \.offset) { index, message in
+        HStack(alignment: .bottom, spacing: 8) {
+          face(message.avatar)
+          VStack(alignment: .leading, spacing: 2) {
+            Text(message.name)
+              .font(.system(size: 12, weight: .semibold))
+              .foregroundColor(.secondary)
+            Text(message.text).font(.system(size: 15))
+          }
+          .padding(.vertical, 9)
+          .padding(.horizontal, 13)
+          .background(Bubble(own: false).fill(Color(UIColor.secondarySystemBackground)))
+        }
+        .padding(.leading, index == 1 ? 32 : 0)
+        .arriving(shown > index)
+      }
+
+      Text(state.own)
+        .font(.system(size: 15))
+        .foregroundColor(.white)
+        .padding(.vertical, 9)
+        .padding(.horizontal, 13)
+        .background(Bubble(own: true).fill(Color(UIColor.systemBlue)))
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .arriving(shown > state.messages.count)
+
+      HStack(alignment: .bottom, spacing: 8) {
+        face(state.typist)
+        TypingDots(still: reduceMotion)
+          .padding(.vertical, 14)
+          .padding(.horizontal, 14)
+          .background(Bubble(own: false).fill(Color(UIColor.secondarySystemBackground)))
+      }
+      .arriving(shown > state.messages.count + 1)
+    }
   }
 
   @ViewBuilder private func face(_ config: AvatarConfig) -> some View {
@@ -453,7 +506,7 @@ struct WelcomeView: View {
     }
   }
 
-  private func panel(_ state: AuthScreenState) -> some View {
+  private func panel(_ state: AuthScreenState, wide: Bool = false) -> some View {
     VStack(alignment: .leading, spacing: 0) {
       HStack(spacing: 8) {
         Image("Brandmark")
@@ -487,25 +540,30 @@ struct WelcomeView: View {
 
       if let connection = state.connection { status(connection) }
 
-      HStack(spacing: 16) {
-        if let url = state.privacyURL {
-          Button(state.privacyLabel) { UIApplication.shared.open(url) }
-        }
-        Spacer(minLength: 0)
-        if let server = state.serverURL {
-          Button("\(server) \u{203A}") { model.send(["kind": "open", "sheet": "server"]) }
-            .accessibilityLabel(state.serverLabel ?? server)
-        }
+      if !wide {
+        footer(state).padding(.top, 22)
       }
-      .font(.footnote)
-      .foregroundColor(.secondary)
-      .lineLimit(1)
-      .frame(minHeight: 32)
-      .padding(.top, 22)
     }
     .padding(.horizontal, 28)
     .padding(.top, 16)
-    .padding(.bottom, 12)
+    .padding(.bottom, wide ? 0 : 12)
+  }
+
+  private func footer(_ state: AuthScreenState) -> some View {
+    HStack(spacing: 16) {
+      if let url = state.privacyURL {
+        Button(state.privacyLabel) { UIApplication.shared.open(url) }
+      }
+      Spacer(minLength: 0)
+      if let server = state.serverURL {
+        Button("\(server) \u{203A}") { model.send(["kind": "open", "sheet": "server"]) }
+          .accessibilityLabel(state.serverLabel ?? server)
+      }
+    }
+    .font(.footnote)
+    .foregroundColor(.secondary)
+    .lineLimit(1)
+    .frame(minHeight: 32)
   }
 
   private func action(_ label: String, primary: Bool, enabled: Bool, run: @escaping () -> Void)

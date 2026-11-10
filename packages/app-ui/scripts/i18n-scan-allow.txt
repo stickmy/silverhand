@@ -89,5 +89,5 @@ features/messages/model/composer-activity.ts: Thinking
 features/messages/model/composer-activity.ts: Thinking…
 features/messages/model/composer-activity.ts: Waiting…
 features/messages/model/composer-activity.ts: Writing
-features/app-shell/native-auth-screen.tsx: Leo
-features/app-shell/native-auth-screen.tsx: Doge
+features/app-shell/auth-scene-model.ts: Leo
+features/app-shell/auth-scene-model.ts: Doge

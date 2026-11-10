@@ -7,7 +7,7 @@ import { Input, Label } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { nameFormatMessage } from "@/features/identity/use-name-availability";
 import { cn } from "@/lib/cn";
-import { AuthSplitLayout } from "@/components/brand/auth-split-layout";
+import { AuthSplitLayout } from "./auth-split-layout";
 import { ExternalLink, PRIVACY_POLICY_URL } from "@/features/legal/legal-links";
 import { DraftAvatarCard } from "@/features/avatar-maker/components/draft-avatar-card";
 import { useDraftAvatar } from "@/features/avatar-maker/hooks/use-draft-avatar";
@@ -15,7 +15,6 @@ import { useLoginUser, useSignupUser, useUploadDraftViewerAvatar } from "../sess
 import { PasswordRecoveryForm } from "./password-recovery-form";
 import { t } from "@/lib/i18n";
 import { getPlatform } from "@/platform";
-import { useCompactLayout } from "@/navigation/layout";
 import { NativeAuthScreen } from "./native-auth-screen";
 
 export interface RegistrationGateProps {
@@ -45,9 +44,9 @@ type AuthMode = "signup" | "login";
  * following that email the moment the user edits it.
  */
 export function RegistrationGate(props: RegistrationGateProps): JSX.Element {
-  const compact = useCompactLayout();
-  // The phone draws the whole signed-out screen natively.
-  const screen = compact ? getPlatform().authScreen : undefined;
+  // iOS draws the whole signed-out screen natively at every width, so a Duo
+  // unfolding mid-form keeps the same screen and what was typed.
+  const screen = getPlatform().authScreen;
 
   return screen ? <NativeAuthScreen screen={screen} {...props} /> : <RegistrationForm {...props} />;
 }
@@ -346,29 +345,29 @@ function RegistrationForm({
           ) : null}
         </footer>
 
-        <p data-auth-legal className="mt-6 text-xs text-text-muted">
-          <ExternalLink
-            href={PRIVACY_POLICY_URL}
-            className="underline underline-offset-3 hover:text-text-secondary"
-          >
+        <div
+          data-auth-legal
+          className="mt-7 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[13px] text-text-muted"
+        >
+          <ExternalLink href={PRIVACY_POLICY_URL} className="hover:text-text-secondary">
             {t("appShell.privacyPolicy")}
           </ExternalLink>
-        </p>
-
-        {showServerAddress && (
-          <div data-auth-server className="mt-10 border-t border-border-subtle pt-4">
+          {showServerAddress ? (
             <ServerAddressControl
               onRetry={onRetry}
               onEditingChange={setEditingServer}
               disabled={submitting}
             />
-            <ServerConnectionStatus
-              status={connectionStatus}
-              checking={connectionChecking}
-              onRetry={onRetry}
-            />
-          </div>
-        )}
+          ) : null}
+        </div>
+
+        {showServerAddress ? (
+          <ServerConnectionStatus
+            status={connectionStatus}
+            checking={connectionChecking}
+            onRetry={onRetry}
+          />
+        ) : null}
       </form>
     </AuthSplitLayout>
   );

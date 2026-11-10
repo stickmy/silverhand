@@ -373,9 +373,6 @@
   margin-top: auto;
   padding-top: 32px;
 }
-:where([data-layout="compact"]) .auth-layout [data-auth-server] {
-  margin-top: 16px;
-}
 /* Touch-sized fields: 16px text also keeps iOS from zooming on focus. */
 @media (pointer: coarse) {
   :where([data-layout="compact"]) .auth-layout [data-auth-form] input {

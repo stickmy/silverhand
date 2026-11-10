@@ -26,7 +26,6 @@ export const ui = {
   archived: "archived",
   saving: "Saving…",
   couldNotSave: "Could not save.",
-  whereHumansAndAgents: "Where humans and agents work together.",
   makeAvatar: "Make avatar",
   uploadPhoto: "Upload photo",
   updateSilverhand: "Update Silverhand",

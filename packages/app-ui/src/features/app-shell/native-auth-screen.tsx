@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { AuthScreenCapability, AuthScreenEvent, AuthScreenSheet } from "@silverhand/client";
 import {
@@ -6,7 +6,6 @@ import {
   PasswordRecoveryResetInputSchema,
   suggestParticipantNameFromEmail,
 } from "@silverhand/shared";
-import { randomAvatarConfig } from "@/features/avatar-maker/model/avatar-config";
 import { useDraftAvatar } from "@/features/avatar-maker/hooks/use-draft-avatar";
 import { useAppearance } from "@/features/appearance/use-appearance";
 import { nameFormatMessage } from "@/features/identity/use-name-availability";
@@ -14,22 +13,13 @@ import { PRIVACY_POLICY_URL } from "@/features/legal/legal-links";
 import { useServerEnvironment } from "@/features/session/server-environment";
 import { t, useLocale } from "@/lib/i18n";
 import { useLoginUser, useSignupUser, useUploadDraftViewerAvatar } from "../session/hooks";
+import { authScene } from "./auth-scene-model";
 import { authErrorMessage, type AuthError } from "./auth-error";
 import { callPasswordRecovery, recoveryFailureMessage } from "./password-recovery";
 import { describeConnectionFailure, saveServerAddress } from "./server-address-control";
 import type { RegistrationGateProps } from "./registration-gate";
 
 type Sheet = "login" | "signup" | "recovery" | "server";
-
-/** Fixed faces for the scene, so it reads the same on every launch. */
-function sceneFace(seed: number) {
-  let state = seed;
-
-  return randomAvatarConfig(undefined, () => {
-    state = (state * 16807) % 2147483647;
-    return state / 2147483647;
-  });
-}
 
 /**
  * The phone's signed-out screen, drawn natively: the product speaks first, and
@@ -64,10 +54,6 @@ export function NativeAuthScreen({
   const [recoveryEmail, setRecoveryEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [sheetError, setSheetError] = useState<string | null>(null);
-  const faces = useMemo(
-    () => ({ leo: sceneFace(11), doge: sceneFace(29), typist: sceneFace(53) }),
-    [],
-  );
 
   const submitting = signup.isPending || login.isPending;
   const handleTrimmed = handle.trim();
@@ -324,15 +310,7 @@ export function NativeAuthScreen({
     brand: "Silverhand",
     headline: t("appShell.welcome.headline"),
     headlineAccent: t("appShell.welcome.headlineAccent"),
-    scene: {
-      channel: "launch",
-      messages: [
-        { name: "Leo", text: t("appShell.welcome.leoSays"), avatar: faces.leo },
-        { name: "Doge", text: t("appShell.welcome.dogeSays"), avatar: faces.doge },
-      ],
-      own: t("appShell.welcome.youSay"),
-      typist: faces.typist,
-    },
+    scene: authScene(),
     logInLabel: t("appShell.auth.logIn"),
     createAccountLabel: signupEnabled ? t("appShell.auth.createAccountButton") : undefined,
     privacy: { label: t("appShell.privacyPolicy"), url: PRIVACY_POLICY_URL },

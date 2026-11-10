@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { ErrorIcon, RetryIcon, SpinnerIcon } from "@/icons";
+import { ChevronRightIcon, ErrorIcon, RetryIcon, SpinnerIcon } from "@/icons";
+import { cn } from "@/lib/cn";
 import { getPlatform } from "@/platform";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
@@ -73,7 +74,10 @@ export function ServerAddressControl({
     onRetry?.();
   };
   return (
-    <section className="space-y-2 text-sm" aria-label={t("appShell.server.address")}>
+    <section
+      className={cn("min-w-0 space-y-2", editing && "basis-full")}
+      aria-label={t("appShell.server.address")}
+    >
       {editing ? (
         <>
           <Label htmlFor="login-server">{t("appShell.server.address")}</Label>
@@ -119,25 +123,23 @@ export function ServerAddressControl({
           </div>
         </>
       ) : (
-        <div className="flex min-w-0 items-baseline gap-2 text-text-muted">
-          <span className="shrink-0">{t("appShell.server.label")}</span>
-          <span className="min-w-0 flex-1 truncate font-medium text-text-primary" title={url}>
+        <button
+          type="button"
+          aria-label={t("appShell.server.change")}
+          title={url}
+          className="flex min-w-0 max-w-full items-center gap-0.5 text-text-muted hover:text-text-secondary focus-outline disabled:opacity-50 max-md:min-h-11"
+          disabled={saving || disabled}
+          onClick={() => {
+            setDraft(url);
+            setEditing(true);
+            onEditingChange?.(true);
+          }}
+        >
+          <span className="truncate">
             {url ? url.replace(/^https?:\/\//, "").replace(/\/$/, "") : t("appShell.server.notSet")}
           </span>
-          <button
-            type="button"
-            aria-label={t("appShell.server.change")}
-            className="shrink-0 font-medium text-text-primary underline underline-offset-3 hover:text-text-secondary focus-outline disabled:opacity-50 max-md:min-h-11"
-            disabled={saving || disabled}
-            onClick={() => {
-              setDraft(url);
-              setEditing(true);
-              onEditingChange?.(true);
-            }}
-          >
-            {t("common.change")}
-          </button>
-        </div>
+          <ChevronRightIcon className="size-3.5 shrink-0" aria-hidden />
+        </button>
       )}
       {error && (
         <p role="alert" className="text-error">
