@@ -97,6 +97,9 @@ describe("decideHostConnectionSyncAction — host_agent_liveness_changed (#task:
         isViewerScope,
       ),
     ).toBeNull();
+  });
+
+  it("reads only host_id from a liveness payload that carries extra keys", () => {
     expect(
       decideHostConnectionSyncAction(
         evt("viewer:u1", HOST_AGENT_LIVENESS_CHANGED_EVENT, {
@@ -105,7 +108,7 @@ describe("decideHostConnectionSyncAction — host_agent_liveness_changed (#task:
         }),
         isViewerScope,
       ),
-    ).toBeNull(); // strict schema: a payload smuggling state is rejected
+    ).toEqual({ kind: "invalidate-host-status", hostId: "h1" });
   });
 
   it("ignores liveness events on non-viewer scopes", () => {

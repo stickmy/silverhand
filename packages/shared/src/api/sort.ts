@@ -145,7 +145,7 @@ export function sidebarWorkspaceBranchId(workspaceId: string): string {
 export const SidebarSortResponseSchema = z.object({
   viewer_sort: ViewerSortStateDtoSchema.extend({
     list_key: z.literal(SIDEBAR_SORT_LIST_KEY),
-    modes: z.object({ '': z.literal('manual') }).strict(),
+    modes: z.object({ '': z.literal('manual') }),
   }),
 });
 export type SidebarSortResponse = z.infer<typeof SidebarSortResponseSchema>;

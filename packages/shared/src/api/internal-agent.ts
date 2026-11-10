@@ -619,12 +619,10 @@ export const ConversationLogDebugInputSchema = z
   .strict();
 export type ConversationLogDebugInput = z.infer<typeof ConversationLogDebugInputSchema>;
 
-export const ConversationLogDebugStatusSchema = z
-  .object({
-    conversationId: z.string(),
-    enabled: z.boolean(),
-    expiresAt: z.number().int().nullable(),
-    daemonSynced: z.boolean().optional(),
-  })
-  .strict();
+export const ConversationLogDebugStatusSchema = z.object({
+  conversationId: z.string(),
+  enabled: z.boolean(),
+  expiresAt: z.number().int().nullable(),
+  daemonSynced: z.boolean().optional(),
+});
 export type ConversationLogDebugStatus = z.infer<typeof ConversationLogDebugStatusSchema>;

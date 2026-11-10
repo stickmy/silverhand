@@ -187,11 +187,9 @@ export const HOST_WS_CLOSE_REASON_DISCONNECTED = 'host_disconnected';
  *  retryable. */
 export const HOST_WS_CLOSE_REASON_UPDATE_REQUIRED = DAEMON_ADMISSION.updateRequiredCloseReason;
 
-export const HostConnectionChangedEventSchema = z
-  .object({
-    host_id: z.string(),
-  })
-  .strict();
+export const HostConnectionChangedEventSchema = z.object({
+  host_id: z.string(),
+});
 export type HostConnectionChangedEvent = z.infer<typeof HostConnectionChangedEventSchema>;
 
 /** #task:1588 slice 2 — WS event kind published on `viewer:{ownerUserId}`
@@ -202,11 +200,9 @@ export type HostConnectionChangedEvent = z.infer<typeof HostConnectionChangedEve
  *  never become a second source of truth. */
 export const HOST_AGENT_LIVENESS_CHANGED_EVENT = 'host_agent_liveness_changed';
 
-export const HostAgentLivenessChangedEventSchema = z
-  .object({
-    host_id: z.string(),
-  })
-  .strict();
+export const HostAgentLivenessChangedEventSchema = z.object({
+  host_id: z.string(),
+});
 export type HostAgentLivenessChangedEvent = z.infer<typeof HostAgentLivenessChangedEventSchema>;
 
 export const HostUnreachableReasonSchema = z.enum([
@@ -241,15 +237,13 @@ export type HostUnreachableReason = z.infer<typeof HostUnreachableReasonSchema>;
  * actionable copy needs them: which version the machine offers vs which
  * one this server requires.
  */
-export const HostAdmissionFailureSchema = z
-  .object({
-    kind: z.literal('protocol_mismatch'),
-    offered_protocol_version: z.number().int().nonnegative(),
-    expected_protocol_version: z.number().int().nonnegative(),
-    /** Epoch ms of the refused attempt. */
-    observed_at: z.number(),
-  })
-  .strict();
+export const HostAdmissionFailureSchema = z.object({
+  kind: z.literal('protocol_mismatch'),
+  offered_protocol_version: z.number().int().nonnegative(),
+  expected_protocol_version: z.number().int().nonnegative(),
+  /** Epoch ms of the refused attempt. */
+  observed_at: z.number(),
+});
 export type HostAdmissionFailure = z.infer<typeof HostAdmissionFailureSchema>;
 
 /** Per-agent registration entry returned at the top level of every
@@ -362,56 +356,48 @@ export type HostStatusSnapshot = z.infer<typeof HostStatusSnapshotSchema>;
  *                    agents all offline (registrations stay visible until
  *                    the user deletes the host); `last_seen_at` optional.
  */
-const HostStatusAvailableArmSchema = z
-  .object({
-    host_id: z.string(),
-    /** Absent from older backends; absent or `privileged` mean the same. */
-    view: z.literal('privileged').optional(),
-    availability: z.literal('available'),
-    snapshot: HostStatusSnapshotSchema,
-    agents: z.array(AgentOnHostDtoSchema),
-    last_seen_at: z.number().nullable().optional(),
-  })
-  .strict();
+const HostStatusAvailableArmSchema = z.object({
+  host_id: z.string(),
+  /** Absent from older backends; absent or `privileged` mean the same. */
+  view: z.literal('privileged').optional(),
+  availability: z.literal('available'),
+  snapshot: HostStatusSnapshotSchema,
+  agents: z.array(AgentOnHostDtoSchema),
+  last_seen_at: z.number().nullable().optional(),
+});
 
-const HostStatusDisconnectedArmSchema = z
-  .object({
-    host_id: z.string(),
-    /** Absent from older backends; absent or `privileged` mean the same. */
-    view: z.literal('privileged').optional(),
-    availability: z.literal('disconnected'),
-    agents: z.array(AgentOnHostDtoSchema),
-    last_seen_at: z.number().nullable().optional(),
-    /** #task:1631 — present only when the last authenticated connection
-     *  attempt was refused for a known terminal reason (today: wire
-     *  protocol mismatch). Absent = ordinary offline. See
-     *  {@link HostAdmissionFailureSchema}. */
-    admission_failure: HostAdmissionFailureSchema.optional(),
-  })
-  .strict();
+const HostStatusDisconnectedArmSchema = z.object({
+  host_id: z.string(),
+  /** Absent from older backends; absent or `privileged` mean the same. */
+  view: z.literal('privileged').optional(),
+  availability: z.literal('disconnected'),
+  agents: z.array(AgentOnHostDtoSchema),
+  last_seen_at: z.number().nullable().optional(),
+  /** #task:1631 — present only when the last authenticated connection
+   *  attempt was refused for a known terminal reason (today: wire
+   *  protocol mismatch). Absent = ordinary offline. See
+   *  {@link HostAdmissionFailureSchema}. */
+  admission_failure: HostAdmissionFailureSchema.optional(),
+});
 
-const HostStatusUnreachableArmSchema = z
-  .object({
-    host_id: z.string(),
-    /** Absent from older backends; absent or `privileged` mean the same. */
-    view: z.literal('privileged').optional(),
-    availability: z.literal('unreachable'),
-    reason: HostUnreachableReasonSchema,
-    agents: z.array(AgentOnHostDtoSchema),
-    last_seen_at: z.number().nullable().optional(),
-  })
-  .strict();
+const HostStatusUnreachableArmSchema = z.object({
+  host_id: z.string(),
+  /** Absent from older backends; absent or `privileged` mean the same. */
+  view: z.literal('privileged').optional(),
+  availability: z.literal('unreachable'),
+  reason: HostUnreachableReasonSchema,
+  agents: z.array(AgentOnHostDtoSchema),
+  last_seen_at: z.number().nullable().optional(),
+});
 
-const HostStatusRevokedArmSchema = z
-  .object({
-    host_id: z.string(),
-    /** Absent from older backends; absent or `privileged` mean the same. */
-    view: z.literal('privileged').optional(),
-    availability: z.literal('revoked'),
-    agents: z.array(AgentOnHostDtoSchema),
-    last_seen_at: z.number().nullable().optional(),
-  })
-  .strict();
+const HostStatusRevokedArmSchema = z.object({
+  host_id: z.string(),
+  /** Absent from older backends; absent or `privileged` mean the same. */
+  view: z.literal('privileged').optional(),
+  availability: z.literal('revoked'),
+  agents: z.array(AgentOnHostDtoSchema),
+  last_seen_at: z.number().nullable().optional(),
+});
 
 export const HostStatusResponseSchema = z.discriminatedUnion('availability', [
   HostStatusAvailableArmSchema,
@@ -439,16 +425,14 @@ const publicArmBase = {
 /** Public tier of `GET /api/hosts/{id}/status`: same arms, without the
  *  snapshot detail, the unreachable reason, or the admission failure. */
 export const HostStatusPublicResponseSchema = z.discriminatedUnion('availability', [
-  z
-    .object({
-      ...publicArmBase,
-      availability: z.literal('available'),
-      snapshot: HostStatusPublicSnapshotSchema,
-    })
-    .strict(),
-  z.object({ ...publicArmBase, availability: z.literal('disconnected') }).strict(),
-  z.object({ ...publicArmBase, availability: z.literal('unreachable') }).strict(),
-  z.object({ ...publicArmBase, availability: z.literal('revoked') }).strict(),
+  z.object({
+    ...publicArmBase,
+    availability: z.literal('available'),
+    snapshot: HostStatusPublicSnapshotSchema,
+  }),
+  z.object({ ...publicArmBase, availability: z.literal('disconnected') }),
+  z.object({ ...publicArmBase, availability: z.literal('unreachable') }),
+  z.object({ ...publicArmBase, availability: z.literal('revoked') }),
 ]);
 export type HostStatusPublicResponse = z.infer<typeof HostStatusPublicResponseSchema>;
 
@@ -465,21 +449,17 @@ export const HostProxyConfigSchema = z.object({
 });
 export type HostProxyConfig = z.infer<typeof HostProxyConfigSchema>;
 
-export const HostProxyConfigResponseSchema = z
-  .object({
-    config: HostProxyConfigSchema,
-  })
-  .strict();
+export const HostProxyConfigResponseSchema = z.object({
+  config: HostProxyConfigSchema,
+});
 export type HostProxyConfigResponse = z.infer<typeof HostProxyConfigResponseSchema>;
 
 export const HOST_PROXY_CONFIG_OFFLINE_ERROR_CODE = 'computer_offline';
 
-export const HostProxyConfigOfflineResponseSchema = z
-  .object({
-    error: z.string(),
-    error_code: z.literal(HOST_PROXY_CONFIG_OFFLINE_ERROR_CODE),
-  })
-  .strict();
+export const HostProxyConfigOfflineResponseSchema = z.object({
+  error: z.string(),
+  error_code: z.literal(HOST_PROXY_CONFIG_OFFLINE_ERROR_CODE),
+});
 export type HostProxyConfigOfflineResponse = z.infer<typeof HostProxyConfigOfflineResponseSchema>;
 
 export const HostClaimOrCreateInputSchema = z

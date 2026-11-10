@@ -187,7 +187,6 @@ export const NameAvailabilityDtoSchema = z
     available: z.boolean(),
     reason: NameAvailabilityReasonSchema,
   })
-  .strict()
   .refine((dto) => dto.available === (dto.reason === 'available'), {
     message: "available must be true iff reason === 'available'",
   });

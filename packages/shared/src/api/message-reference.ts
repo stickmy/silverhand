@@ -24,12 +24,10 @@ import { ParticipantNameSchema } from './name.js';
  * ARGUMENTS; accepting one here would mean the server had emitted a handle no
  * resolver may see.
  */
-export const MessageReferenceSchema: z.ZodType<Reference> = z
-  .object({
-    kind: z.enum(REFERENCE_KINDS),
-    handle: ParticipantNameSchema,
-  })
-  .strict();
+export const MessageReferenceSchema: z.ZodType<Reference> = z.object({
+  kind: z.enum(REFERENCE_KINDS),
+  handle: ParticipantNameSchema,
+});
 
 /**
  * The references in the sent body that addressed NOBODY: the handle names no

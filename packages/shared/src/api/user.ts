@@ -275,8 +275,8 @@ export const ChangePasswordInputSchema = z
   })
   .strict();
 export type ChangePasswordInput = z.infer<typeof ChangePasswordInputSchema>;
-export const ChangePasswordResponseSchema = z.object({ ok: z.literal(true) }).strict();
-export const PasswordStatusResponseSchema = z.object({ has_password: z.boolean() }).strict();
+export const ChangePasswordResponseSchema = z.object({ ok: z.literal(true) });
+export const PasswordStatusResponseSchema = z.object({ has_password: z.boolean() });
 export type PasswordStatusResponse = z.infer<typeof PasswordStatusResponseSchema>;
 
 /** The caller's own `GET /api/me` adds its email; no other projection carries it. */
