@@ -69,8 +69,15 @@ function isPanelTabKind(value: unknown): value is PanelTabKind {
 const BUILTIN_KINDS = ["chat", "tasks"] as const;
 type BuiltinKind = (typeof BUILTIN_KINDS)[number];
 
-/** The default order for a conversation with no persisted layout. */
-export const DEFAULT_TABS: readonly Tab[] = [{ kind: "chat" }, { kind: "tasks" }];
+/** The default order for a viewer with no persisted layout. Threads and
+ *  Attachments open by default but stay removable panel tabs, so a viewer who
+ *  closes them keeps that choice. */
+export const DEFAULT_TABS: readonly Tab[] = [
+  { kind: "chat" },
+  { kind: "tasks" },
+  { kind: "panel", panel: "threads" },
+  { kind: "panel", panel: "attachments" },
+];
 
 /** True for tabs the viewer may close. Builtins are non-removable; custom tabs
  *  (attachment previewers and panel surfaces) can be removed from a

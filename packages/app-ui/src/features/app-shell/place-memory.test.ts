@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { decodeMessageSeq } from "@silverhand/shared";
-import type { Tab } from "../conversation-shell/model/conversation-tabs";
+import { DEFAULT_TABS, type Tab } from "../conversation-shell/model/conversation-tabs";
 
 /**
  * Tiny localStorage polyfill — vitest runs this test in the node
@@ -36,6 +36,7 @@ const {
   CLOSE_WATERMARK_KEY,
   CONVERSATION_TABS_KEY,
   FUNCTIONAL_TABS_KEY,
+  DEFAULT_PANELS_SEEDED_KEY,
   getConversationActiveTab,
   recordConversationActiveTab,
   subscribeConversationTabs,
@@ -400,7 +401,7 @@ describe("place-memory", () => {
       expect(tabsByConversation.has("c1")).toBe(true);
       // Re-recording the default order must leave no key behind — a conversation
       // the viewer un-customized is indistinguishable from one never touched.
-      recordConversationTabs("c1", [{ kind: "chat" }, { kind: "tasks" }]);
+      recordConversationTabs("c1", [...DEFAULT_TABS]);
       expect(tabsByConversation.has("c1")).toBe(false);
       expect(JSON.parse(localStorage.getItem(CONVERSATION_TABS_KEY)!)).toEqual({});
     });
@@ -435,7 +436,7 @@ describe("place-memory", () => {
         JSON.stringify({
           // A stored default order is redundant with the get-time fallback and
           // must NOT be kept in the map (load-time elision).
-          cDefault: [{ kind: "chat" }, { kind: "tasks" }],
+          cDefault: [...DEFAULT_TABS],
           // A genuine custom order survives.
           cCustom: swapped,
           // A partial order (attachment only) is repaired to carry both builtins.
@@ -449,17 +450,20 @@ describe("place-memory", () => {
           ],
           // Junk entries: a non-array value and a mistyped tab are dropped.
           cBadType: "not-an-array",
-          cBadTab: [{ kind: "nope" }, { kind: "chat" }, { kind: "tasks" }],
+          cBadTab: [{ kind: "nope" }, ...DEFAULT_TABS],
         }),
       );
       vi.resetModules();
       const fresh = await import("./place-memory");
       expect(fresh.tabsByConversation.has("cDefault")).toBe(false);
-      expect(fresh.getConversationTabs("cCustom")).toEqual(swapped);
+      // Functional order comes from its own key only; a conversation's entry
+      // holds file positions, so with no stored functional order both read the
+      // default around their files.
+      expect(fresh.tabsByConversation.has("cCustom")).toBe(true);
+      expect(fresh.getConversationTabs("cCustom")).toEqual(DEFAULT_TABS);
       expect(fresh.getConversationTabs("cPartial")).toEqual([
         { kind: "attachment", attachmentId: "att-9", filename: "x.html", contentType: "text/html" },
-        { kind: "tasks" },
-        { kind: "chat" },
+        ...DEFAULT_TABS,
       ]);
       // The mistyped tab is dropped; the surviving builtins are the default, so
       // cBadTab elides to no entry.
@@ -468,12 +472,51 @@ describe("place-memory", () => {
       vi.resetModules();
     });
 
+    it("opens Threads and Attachments for a viewer with no stored layout", async () => {
+      vi.resetModules();
+      const fresh = await import("./place-memory");
+      expect(fresh.getConversationTabs("c1")).toEqual([
+        { kind: "chat" },
+        { kind: "tasks" },
+        { kind: "panel", panel: "threads" },
+        { kind: "panel", panel: "attachments" },
+      ]);
+      vi.resetModules();
+    });
+
+    it("adds the default panels once to a layout stored before they existed", async () => {
+      memoryStore.set(FUNCTIONAL_TABS_KEY, JSON.stringify([{ kind: "tasks" }, { kind: "chat" }]));
+      vi.resetModules();
+      const first = await import("./place-memory");
+      expect(first.getConversationTabs("c1")).toEqual([
+        { kind: "tasks" },
+        { kind: "chat" },
+        { kind: "panel", panel: "threads" },
+        { kind: "panel", panel: "attachments" },
+      ]);
+
+      // Closing one afterwards sticks across launches.
+      first.recordConversationTabs("c1", [
+        { kind: "tasks" },
+        { kind: "chat" },
+        { kind: "panel", panel: "attachments" },
+      ]);
+      vi.resetModules();
+      const second = await import("./place-memory");
+      expect(second.getConversationTabs("c1")).toEqual([
+        { kind: "tasks" },
+        { kind: "chat" },
+        { kind: "panel", panel: "attachments" },
+      ]);
+      vi.resetModules();
+    });
+
     it("survives a corrupt localStorage blob with an empty map", async () => {
       memoryStore.set(CONVERSATION_TABS_KEY, "{ not json");
       vi.resetModules();
       const fresh = await import("./place-memory");
       expect(fresh.tabsByConversation.size).toBe(0);
-      expect(fresh.getConversationTabs("c1")).toEqual([{ kind: "chat" }, { kind: "tasks" }]);
+      expect(fresh.getConversationTabs("c1")).toEqual(DEFAULT_TABS);
       vi.resetModules();
     });
 
@@ -542,7 +585,7 @@ describe("place-memory", () => {
       );
       vi.resetModules();
       const fresh = await import("./place-memory");
-      expect(fresh.getConversationTabs("c")).toEqual([{ kind: "chat" }, { kind: "tasks" }]);
+      expect(fresh.getConversationTabs("c")).toEqual(DEFAULT_TABS);
       fresh.recordConversationActiveTab("c", "panel:members");
       expect(fresh.getConversationActiveTab("c")).toBe("chat");
       vi.resetModules();
@@ -555,7 +598,7 @@ describe("place-memory", () => {
       recordConversationActiveTab("a", "attachment:att-1");
       expect(listener).toHaveBeenCalledTimes(2);
       clearPlaceMemory();
-      expect(getConversationTabs("a")).toEqual([{ kind: "chat" }, { kind: "tasks" }]);
+      expect(getConversationTabs("a")).toEqual(DEFAULT_TABS);
       expect(getConversationActiveTab("a")).toBe("chat");
       expect(localStorage.getItem(FUNCTIONAL_TABS_KEY)).toBeNull();
       expect(listener).toHaveBeenCalledTimes(3);
@@ -563,6 +606,7 @@ describe("place-memory", () => {
     });
 
     it("restores global panels and order but does not persist active file selection", async () => {
+      localStorage.setItem(DEFAULT_PANELS_SEEDED_KEY, "1");
       recordConversationTabs("a", [{ kind: "panel", panel: "threads" }, ...withAttachment]);
       recordConversationActiveTab("a", "attachment:att-1");
       vi.resetModules();
@@ -596,7 +640,7 @@ describe("place-memory", () => {
       clearPlaceMemory();
       expect(tabsByConversation.size).toBe(0);
       expect(localStorage.getItem(CONVERSATION_TABS_KEY)).toBeNull();
-      expect(getConversationTabs("c1")).toEqual([{ kind: "chat" }, { kind: "tasks" }]);
+      expect(getConversationTabs("c1")).toEqual(DEFAULT_TABS);
     });
   });
 });

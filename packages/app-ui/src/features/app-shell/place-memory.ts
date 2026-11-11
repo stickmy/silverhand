@@ -33,6 +33,7 @@ import type { ChannelLayout } from "@/router";
 import type { MessageSeq } from "@silverhand/shared";
 import { decodeMessageSeq } from "@silverhand/shared";
 import {
+  DEFAULT_TABS,
   firstTabKey,
   isDefaultTabs,
   normalizeTabs,
@@ -49,6 +50,10 @@ export const LAST_LAYOUT_KEY = "silverhand:layout.last-layout-by-channel";
 export const CLOSE_WATERMARK_KEY = "silverhand:layout.close-watermark-by-channel";
 export const CONVERSATION_TABS_KEY = "silverhand:layout.conversation-tabs";
 export const FUNCTIONAL_TABS_KEY = "silverhand:layout.functional-tabs";
+/** Set once the default panels (Threads, Attachments) have been offered to this
+ *  viewer. Layouts stored before they became defaults get them added once; a
+ *  later close is kept. */
+export const DEFAULT_PANELS_SEEDED_KEY = "silverhand:layout.default-panels-seeded";
 
 function loadStringValue(key: string): string | null {
   try {
@@ -338,19 +343,32 @@ function loadTabsMap(key: string): Map<string, Tab[]> {
 
 export const tabsByConversation = loadTabsMap(CONVERSATION_TABS_KEY);
 
-function loadFunctionalTabs(): Tab[] {
+function readFunctionalTabs(): Tab[] {
   try {
     const raw = localStorage.getItem(FUNCTIONAL_TABS_KEY);
     if (raw)
       return normalizeTabs(parseTabs(JSON.parse(raw)).filter((tab) => tab.kind !== "attachment"));
   } catch {
-    // Invalid storage falls back to the existing layouts.
+    // Invalid storage falls back to the default.
   }
-  return normalizeTabs(
-    Array.from(tabsByConversation.values())
-      .flat()
-      .filter((tab) => tab.kind !== "attachment"),
-  );
+  return [...DEFAULT_TABS];
+}
+
+function loadFunctionalTabs(): Tab[] {
+  const tabs = readFunctionalTabs();
+  if (loadStringValue(DEFAULT_PANELS_SEEDED_KEY)) return tabs;
+
+  const missing = DEFAULT_TABS.filter((d) => !tabs.some((t) => tabKey(t) === tabKey(d)));
+  const seeded = [...tabs, ...missing];
+  saveStringValue(DEFAULT_PANELS_SEEDED_KEY, "1");
+  if (missing.length > 0) {
+    try {
+      localStorage.setItem(FUNCTIONAL_TABS_KEY, JSON.stringify(seeded));
+    } catch {
+      // Quota / disabled storage: the in-memory order still carries the panels.
+    }
+  }
+  return seeded;
 }
 
 let functionalTabs = loadFunctionalTabs();
@@ -451,7 +469,7 @@ export function clearPlaceMemory(): void {
   lastLayoutByChannel.clear();
   closeWatermarkByChannel.clear();
   tabsByConversation.clear();
-  functionalTabs = normalizeTabs([]);
+  functionalTabs = [...DEFAULT_TABS];
   activeTabByConversation.clear();
   notifyConversationTabs();
   try {
