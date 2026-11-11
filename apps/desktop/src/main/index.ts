@@ -18,6 +18,7 @@ import { SessionGeneration } from "@silverhand/client";
 import { classifyMeFetchOutcome, type SessionValidationResult } from "@silverhand/client";
 import { desktopDaemonLauncher } from "./local-host/daemon-launcher";
 import { markEmbeddedDockIcon } from "./shell/embedded-dock-icon";
+import { watchProcessHealth } from "./shell/process-health";
 import { createMenuBar, setMenuBarConversations, setMenuBarUnread } from "./shell/menu-bar.js";
 import {
   app,
@@ -1636,6 +1637,7 @@ async function bootstrap(): Promise<void> {
       },
       "logger initialized",
     );
+    watchProcessHealth(logger);
 
     const savedBootProfileView = readServerConnectionProfileViewOrNull({
       profilePath: desktopAppPaths().desktop.serverProfile,
