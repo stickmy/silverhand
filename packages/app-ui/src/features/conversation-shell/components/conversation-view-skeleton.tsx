@@ -1,7 +1,16 @@
 import { paneChrome } from "@/components/layout/pane-chrome";
 import { SkeletonBlock } from "@/components/layout/skeleton";
 import { AVATAR_PX } from "@/components/avatar-scale";
+import { useNativeBar, type PageBarDeclaration } from "@/components/layout/native-page-bar";
 import { t } from "@/lib/i18n";
+
+const LOADING_BAR: PageBarDeclaration = {
+  title: "",
+  titleAction: null,
+  actions: [],
+  tabs: null,
+  addTabs: null,
+};
 
 // Stable examples, not inferred message data. Continuations preserve the avatar
 // column but omit repeated identity, as MessageItem does for grouped messages.
@@ -82,6 +91,10 @@ export function ConversationViewSkeleton({
 }: {
   showTabs?: boolean;
 }): JSX.Element {
+  // The native bar would otherwise fall back to the section name ("Chats") and
+  // read as the list, not the conversation that is loading.
+  useNativeBar(LOADING_BAR);
+
   return (
     <main
       data-panel="chat"
