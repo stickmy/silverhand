@@ -40,8 +40,6 @@ CapApp-SPM; the application separately references the local `native` package, so
 sync never overwrites the session implementation. Commit Package.resolved.
 `vite build` generates the native wire contract from the shared API/epoch authority.
 
-For Release archives and TestFlight preparation, see [TESTFLIGHT.md](./TESTFLIGHT.md).
-
 ## Phone navigation
 
 Compact windows use full-screen list → conversation → thread/attachments/settings
@@ -127,7 +125,7 @@ Connect a development-enabled iPhone, select the user's signing Team, and repeat
 login/WS/message/suspend/resume/switch-server checks with an isolated, reachable
 HTTPS server. Verify keyboard and message composer behavior on-device. Full-screen navigation and separate parent/thread drafts are covered by the hosted
 WebView tests; real keyboard, touch and OS suspension still require device acceptance.
-TestFlight upload/review, remaining attachment capabilities and APNs require separate acceptance.
+Remaining attachment capabilities and APNs require separate acceptance.
 
 References: [Capacitor local Swift plugins](https://capacitorjs.com/docs/ios/custom-code),
 [iOS setup](https://capacitorjs.com/docs/ios),
