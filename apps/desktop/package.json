@@ -2,7 +2,7 @@
   "license": "Apache-2.0",
   "name": "@silverhand/desktop",
   "productName": "Silverhand",
-  "version": "0.4.9",
+  "version": "0.5.0",
   "private": true,
   "description": "Silverhand \u2014 multi-agent coding hub (Electron desktop client)",
   "author": "shiki",
