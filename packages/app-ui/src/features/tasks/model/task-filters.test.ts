@@ -218,6 +218,20 @@ describe("container axis model (#task:2041)", () => {
         sel({ kind: "workspace", workspaceId: "ws-reg", container: "workspace" }, before),
       ).toMatchObject({ container: "workspace", workspaceId: "ws-reg", channelId: null });
     });
+
+    it("a direct-line pick stamps `direct_messages` with the pair as the coordinate", () => {
+      const before: TaskFilters = {
+        ...DEFAULT_TASK_FILTERS,
+        container: "workspace",
+        workspaceId: "ws-reg",
+        channelId: "c-reg",
+      };
+      expect(sel({ kind: "direct_messages", conversationId: "dp-1" }, before)).toMatchObject({
+        container: "direct_messages",
+        workspaceId: null,
+        channelId: "dp-1",
+      });
+    });
   });
 
   describe("boardScopeGroups — the dropdown sections (ownership → section, show rule)", () => {

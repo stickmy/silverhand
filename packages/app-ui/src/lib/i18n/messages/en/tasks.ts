@@ -55,6 +55,7 @@ export const tasks = {
   resetFilters: "Reset filters",
   projects: "Projects",
   agentSpaces: "Agent Spaces",
+  directMessages: "Direct messages",
   boardScope: "Board scope",
   noAssignee: "No assignee",
   selected: "Selected",

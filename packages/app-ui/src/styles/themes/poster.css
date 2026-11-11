@@ -258,6 +258,11 @@
   --bg-primary-action-hover: var(--bg-control-primary);
   --text-on-control-primary: var(--poster-ink);
 
+  /* Flat filter chips select as an ink sticker; poster-only so the soft themes
+   *  keep their neutral inset fill. */
+  --flat-chip-selected-bg: var(--poster-ink);
+  --flat-chip-selected-fg: var(--poster-paper);
+
   /* Profile activity: explicit theme scope avoids exporting its color to other themes. */
   --message-activity-color: var(--bg-control-primary);
   --message-activity-radius: 3px;

@@ -58,6 +58,7 @@ export const tasks: Translation<typeof en> = {
   resetFilters: "重置筛选",
   projects: "项目",
   agentSpaces: "Agent 空间",
+  directMessages: "私信",
   boardScope: "看板范围",
   noAssignee: "无负责人",
   selected: "已选择",

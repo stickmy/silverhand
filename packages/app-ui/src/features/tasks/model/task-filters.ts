@@ -164,7 +164,8 @@ export type BoardScopeSelection =
       kind: "workspace";
       workspaceId: string;
       container: Extract<TaskBoardContainerAxis, "workspace" | "agent_space">;
-    };
+    }
+  | { kind: "direct_messages"; conversationId: string };
 
 /**
  * Apply a board-scope pick — the second pure face of the model — setting the
@@ -176,7 +177,9 @@ export type BoardScopeSelection =
  *     included);
  *   - `workspace` — run the workspace→channel cascade (so a channel that no
  *     longer belongs to the picked workspace is dropped) and stamp the
- *     workspace's own container.
+ *     workspace's own container;
+ *   - `direct_messages` — one direct line: its conversation is the coordinate
+ *     (`channelId`), and a pair has no workspace.
  *
  * `channelWorkspaceId` resolves a channel id to its owning workspace (null if
  * unknown) — the same injected resolver `applyWorkspaceCascade` takes, so this
@@ -194,6 +197,13 @@ export function applyBoardScopeSelection(
       return {
         ...applyWorkspaceCascade(filters, selection.workspaceId, channelWorkspaceId),
         container: selection.container,
+      };
+    case "direct_messages":
+      return {
+        ...filters,
+        container: "direct_messages",
+        workspaceId: null,
+        channelId: selection.conversationId,
       };
   }
 }

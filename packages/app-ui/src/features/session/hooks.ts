@@ -26,6 +26,7 @@ import {
 } from "@/features/identity/avatar-blob-cache";
 import { CONVERSATION_MEMBERS_KEY_PREFIX } from "@/features/conversations/use-conversation-members";
 import { clearSettingsSection } from "@/features/settings/model/settings-section";
+import { clearTaskFilters } from "@/features/tasks/model/task-filters-memory";
 import { usersKey } from "@/features/users/hooks";
 import { serverEnvironmentKey } from "@/features/session/server-environment";
 
@@ -34,6 +35,7 @@ function clearViewerLocalState(): void {
   clearPlaceMemory();
   clearAvatarBlobCache();
   clearSettingsSection();
+  clearTaskFilters();
 }
 
 const meKey = ["me"] as const;

@@ -22,12 +22,14 @@ export interface PersonDirectory {
 export function PersonAvatar({
   person,
   name,
+  size = AVATAR_PX.xs,
   agentsById,
   agentAvatarUrls,
   userAvatarUrls,
 }: {
   person: PersonRef;
   name: string;
+  size?: number;
 } & PersonDirectory): JSX.Element {
   if (person.type === "agent") {
     const runtime = agentsById.get(person.id)?.runtime;
@@ -35,7 +37,7 @@ export function PersonAvatar({
       return (
         <AgentAvatar
           runtime={runtime}
-          size={AVATAR_PX.xs}
+          size={size}
           avatarObjectUrl={agentAvatarUrls.get(person.id) ?? null}
           alt={name}
         />
@@ -44,11 +46,7 @@ export function PersonAvatar({
     return <UserIcon className="size-4 shrink-0 text-text-muted" />;
   }
   return (
-    <UserAvatar
-      size={AVATAR_PX.xs}
-      avatarObjectUrl={userAvatarUrls.get(person.id) ?? null}
-      alt={name}
-    />
+    <UserAvatar size={size} avatarObjectUrl={userAvatarUrls.get(person.id) ?? null} alt={name} />
   );
 }
 

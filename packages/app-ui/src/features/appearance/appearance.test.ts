@@ -221,8 +221,15 @@ describe("theme markdown token cascade contract", () => {
     //  --pane-bg   poster paper pane ground, declared in its `[data-theme]` block
     //              (NOT `:root`). Every consumer reads `var(--pane-bg, var(--bg-base))`,
     //              so other themes paint panes with their own `--bg-base`.
+    //  --flat-chip-selected-bg / -fg
+    //              poster ink selection for the task board's flat filter chips,
+    //              declared in its `[data-theme]` block. The consumer reads
+    //              `var(--flat-chip-selected-bg, var(--bg-inset))`, so other themes
+    //              keep the neutral inset fill.
     const POSTER_ONLY = new Set([
       "--pane-bg",
+      "--flat-chip-selected-bg",
+      "--flat-chip-selected-fg",
       "--task-num",
       "--bg-nav-rail",
       "--nav-rail-border-color",

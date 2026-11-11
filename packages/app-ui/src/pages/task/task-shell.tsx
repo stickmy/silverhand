@@ -1,4 +1,5 @@
-import { DEFAULT_TASK_FILTERS, type TaskFilters } from "../../features/tasks/model/task-filters";
+import type { TaskFilters } from "@/features/tasks/model/task-filters";
+import { readTaskFilters, writeTaskFilters } from "@/features/tasks/model/task-filters-memory";
 import { SectionLayer } from "@/components/layout/section-layer";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useCompactLayout } from "@/navigation/layout";
@@ -19,7 +20,11 @@ export function TaskShell({
   mounted?: boolean;
   visible?: boolean;
 }) {
-  const [filters, setFilters] = useState<TaskFilters>(DEFAULT_TASK_FILTERS);
+  const [filters, setStoredFilters] = useState<TaskFilters>(readTaskFilters);
+  const setFilters = useCallback((next: TaskFilters) => {
+    setStoredFilters(next);
+    writeTaskFilters(next);
+  }, []);
   const route = useRouteState();
   const nav = useNav();
   const openTaskRef = useRef(nav.openTask);
