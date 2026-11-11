@@ -747,7 +747,7 @@
   align-items: stretch;
   gap: 8px;
 }
-:where([data-layout="compact"]) [data-project-settings-panel] > button {
+:where([data-layout="compact"]) [data-project-settings-panel] > :last-child {
   align-self: flex-end;
 }
 

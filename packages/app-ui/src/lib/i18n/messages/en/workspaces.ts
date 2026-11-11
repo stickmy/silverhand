@@ -137,9 +137,10 @@ export const workspaces = {
   deleteProject: "Delete project",
   allChannelsThreadsAnd:
     "All channels, threads, and messages are removed permanently and cannot be recovered.",
-  confirmDeleteProject: "Confirm delete project",
+  delete: "Delete",
+  deletePermanently: "Delete permanently",
   deleting: "Deleting…",
-  confirmLeaveProject: "Confirm leave project",
+  leave: "Leave",
   saveFailedStatus: "Save failed ({status})",
   permissionsReadOnly:
     "You can view this agent's permissions; editing requires owner / admin, or being the agent's creator.",

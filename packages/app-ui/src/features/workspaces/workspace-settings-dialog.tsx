@@ -11,7 +11,7 @@ import type { AgentCapability } from "@silverhand/shared";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input, Label } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { DeleteButton } from "@/components/ui/delete-button";
+import { ConfirmButton } from "@/components/ui/confirm-button";
 import { cn } from "@/lib/cn";
 import { SidebarRow } from "@/components/layout/sidebar-shared";
 import { nameFormatMessage } from "@/features/identity/use-name-availability";
@@ -462,7 +462,10 @@ function GeneralSection({
             </Button>
           </div>
 
-          <div className="flex flex-col gap-2 rounded-(--control-radius) border-(length:--control-border-width) border-error/30 bg-error/5 p-3">
+          <div
+            data-project-settings-panel
+            className="flex items-center justify-between gap-3 rounded-(--control-radius) border-(length:--control-border-width) border-border bg-bg-elevated/40 p-3"
+          >
             <div className="flex flex-col gap-0.5">
               <span className="text-sm font-medium text-text-primary">
                 {t("workspaces.deleteProject")}
@@ -471,47 +474,48 @@ function GeneralSection({
                 {t("workspaces.allChannelsThreadsAnd")}
               </span>
             </div>
-            <div className="flex justify-end">
-              <DeleteButton
-                onConfirm={onDelete}
-                disabled={!workspaceId || deletePending}
-                confirmLabel={t("workspaces.confirmDeleteProject")}
-              >
-                {deletePending ? t("workspaces.deleting") : t("workspaces.deleteProject")}
-              </DeleteButton>
-            </div>
+            <ConfirmButton
+              onConfirm={onDelete}
+              disabled={!workspaceId}
+              pending={deletePending}
+              pendingLabel={t("workspaces.deleting")}
+              confirmLabel={t("workspaces.deletePermanently")}
+            >
+              {t("workspaces.delete")}
+            </ConfirmButton>
           </div>
         </>
       ) : null}
 
       {/* Leave is the member/admin counterpart of the owner's Delete — the two
-          are complementary over any role, so exactly one shows. Its panel stays
-          neutral (no red border/tint): it ends only the viewer's own membership
-          and destroys no content. Access is not freely restored (rejoining
-          re-seeds no channel membership), but the caption stays terse per shiki;
-          do NOT reintroduce a "re-invite restores access" line — it is false for
-          channels. Both Leave and Delete commit through the shared DeleteButton
-          (expand-to-confirm), so the confirm gesture is one language across the
-          section. Owner never reaches here (canLeave is false for owner). */}
+          are complementary over any role, so exactly one shows. It destroys no
+          content, so its commit stays ink rather than Delete's red. Access is not freely restored (rejoining re-seeds no channel
+          membership), but the caption stays terse per shiki; do NOT reintroduce
+          a "re-invite restores access" line — it is false for channels. Owner
+          never reaches here (canLeave is false for owner). */}
       {hasLifecycle && canLeave ? (
-        <div className="flex flex-col gap-2 rounded-(--control-radius) border-(length:--control-border-width) border-border bg-bg-elevated/40 p-3">
+        <div
+          data-project-settings-panel
+          className="flex items-center justify-between gap-3 rounded-(--control-radius) border-(length:--control-border-width) border-border bg-bg-elevated/40 p-3"
+        >
           <div className="flex flex-col gap-0.5">
             <span className="text-sm font-medium text-text-primary">
               {t("workspaces.leaveProject")}
             </span>
             <span className="text-xs text-text-muted">{t("workspaces.youLeaveThisProject")}</span>
           </div>
-          <div className="flex justify-end">
-            <DeleteButton
-              onConfirm={onLeave}
-              variant="neutral"
-              disabled={!workspaceId || leavePending}
-              confirmLabel={t("workspaces.confirmLeaveProject")}
-            >
-              <LeaveIcon className="size-3.5" />
-              {leavePending ? t("workspaces.leaving") : t("workspaces.leaveProject")}
-            </DeleteButton>
-          </div>
+          <ConfirmButton
+            onConfirm={onLeave}
+            variant="neutral"
+            disabled={!workspaceId}
+            pending={leavePending}
+            pendingLabel={t("workspaces.leaving")}
+            confirmLabel={t("workspaces.leave")}
+            confirmIcon={<LeaveIcon className="size-3.5" />}
+          >
+            <LeaveIcon className="size-3.5" />
+            {t("workspaces.leave")}
+          </ConfirmButton>
         </div>
       ) : null}
     </div>
