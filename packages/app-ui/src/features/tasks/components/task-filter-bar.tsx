@@ -216,14 +216,13 @@ export function TaskFilterBar({
 }: TaskFilterBarProps): JSX.Element {
   const dirty = !taskFiltersEqual(filters, baselineFilters);
 
-  // Consumer mode fork (contract §5). A `direct_messages` BASELINE is only ever
-  // the pinned entry of a direct line's own Tasks tab, so it uniquely marks the
-  // LOCKED direct_pair context (the global board may still pick "Direct messages"):
-  // the scope trigger is hidden entirely (no scope to switch to, and it must not
-  // double as a placement display) and only the Assignee / From narrowing shows.
-  // Everywhere else (`null` All, `workspace`, `agent_space`) is the selectable
-  // workspace-like mode, where the scope + channel controls apply.
-  const scopeLocked = baselineFilters.container === "direct_messages";
+  // Consumer mode fork (contract §5). A baseline that names a conversation is
+  // only ever a conversation's own Tasks tab (a workspace channel or a direct
+  // line); the global board's baseline names none. That tab means "this
+  // conversation's tasks", so the board scope and channel axes are hidden
+  // rather than offered as a way out; only the Assignee / From narrowing shows.
+  // Looking across conversations is the global board's job.
+  const scopeLocked = baselineFilters.channelId !== null;
 
   // Person avatars for the Assignee / From dropdowns (shiki #task:1441).
   // Resolved ONCE here (agents + users directories + their avatar object URLs)
@@ -267,7 +266,7 @@ export function TaskFilterBar({
   };
 
   const channelControl =
-    scope.show && visibleChannelOptions.length > 0 ? (
+    !scopeLocked && scope.show && visibleChannelOptions.length > 0 ? (
       <ChannelFilter
         options={visibleChannelOptions}
         allChannelsLabel={allChannelsLabel}
@@ -307,11 +306,11 @@ export function TaskFilterBar({
     return (
       <div
         data-task-filter-bar
-        className={cn("flex min-w-0 flex-1 items-center gap-1.5", className)}
+        // Locked, the bar sizes to its content so New task follows the filters
+        // instead of jumping to the far end.
+        className={cn("flex min-w-0 items-center gap-1.5", !scopeLocked && "flex-1", className)}
       >
-        {scopeLocked ? (
-          <div className="flex-1" />
-        ) : (
+        {scopeLocked ? null : (
           <ScopeStrip
             workspaceOptions={workspaceOptions}
             filters={filters}

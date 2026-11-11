@@ -31,8 +31,9 @@ import { t } from "@/lib/i18n";
  * (`taskContainerBaseline` — a workspace channel anchors workspace + channel, a
  * direct line anchors its own conversation and mints no workspace), the create
  * entrance, and the main-pane fill vocabulary (columns `bg-bg-primary`, cards
- * `bg-bg-base`). Both filters stay switchable; Clear restores the baseline, not
- * global All.
+ * `bg-bg-base`). The bar hides the board scope and channel axes here (the tab is
+ * this conversation's tasks); Assignee / From narrow, and Clear restores the
+ * baseline, not global All.
  *
  * Render-window bound is surface-local: this board owns its own
  * (`useColumnWindow`) so its scrolling never inflates the global section's
