@@ -152,9 +152,9 @@ export function AttachmentTile({
     // non-interactive chip. Clicking would download-and-open (an export), so
     // the whole tile is inert and the explicit Download button is omitted.
     return (
-      <div className="flex min-w-0 max-w-full flex-col items-start gap-1">
+      <div className="flex min-w-0 max-w-[min(320px,100%)] flex-col gap-1">
         <div
-          className="flex max-w-[min(320px,100%)] items-center gap-2 overflow-hidden rounded-(--chip-radius) border border-border-subtle bg-bg-floating px-2 py-1.5 text-xs text-text-secondary"
+          className="flex items-center gap-2 overflow-hidden rounded-(--chip-radius) border border-border-subtle bg-bg-floating px-2 py-1.5 text-xs text-text-secondary"
           title={`${attachment.filename} (${formatBytes(attachment.size)})`}
         >
           <DocumentIcon className="size-4 shrink-0 text-text-muted" />
@@ -169,8 +169,11 @@ export function AttachmentTile({
   }
 
   return (
-    <div className="flex min-w-0 max-w-full flex-col items-start gap-1">
-      <div className="flex max-w-[min(320px,100%)] items-stretch overflow-hidden rounded-(--chip-radius) border border-border-subtle bg-bg-floating focus-outline-within">
+    // The cap sits on the tile, not the chip: on the chip the percentage is cyclic
+    // while the tile sizes itself, so the tile kept the full filename's width and
+    // the chip sat at its left, off the row's right edge on an own message.
+    <div className="flex min-w-0 max-w-[min(320px,100%)] flex-col gap-1">
+      <div className="flex items-stretch overflow-hidden rounded-(--chip-radius) border border-border-subtle bg-bg-floating focus-outline-within">
         <button
           type="button"
           disabled={!previewable && !getPlatform().files.openAttachmentExternal}
