@@ -76,7 +76,9 @@ import { ChannelTasksTab } from "./channel-view/channel-tasks-tab";
 import { ChannelAttachmentTab } from "./channel-view/channel-attachment-tab";
 import { ConversationPanelTab } from "./channel-view/conversation-panel-tab";
 import { useConversationTabs } from "@/features/conversations/use-conversation-tabs";
+import { useTabCycleShortcut } from "@/features/app-shell/keyboard-shortcuts";
 import {
+  adjacentTabKey,
   isRemovable,
   tabKey,
   type PanelTabKind,
@@ -869,6 +871,9 @@ function ActiveChannelView({
     },
   });
   const nativeHeader = native.active;
+  useTabCycleShortcut(findRootRef, viewTabsShown && !nativeHeader, (step) =>
+    tabController.setActive(adjacentTabKey(tabController.tabs, tabController.activeKey, step)),
+  );
 
   return (
     <TaskRefContextProvider value={taskRefContext}>

@@ -3,6 +3,7 @@ import {
   NAV_SECTION_SHORTCUTS,
   dispatchNavSection,
   resolveContextualClose,
+  tabCycleStep,
   type ContextualCloseState,
   type NavSectionApi,
 } from "./keyboard-shortcuts";
@@ -210,4 +211,35 @@ it("closes channel settings before the preserved thread", () => {
       activityChannelOpen: false,
     }),
   ).toEqual({ outcome: "closed-panel", target: "settings" });
+});
+
+describe("tabCycleStep", () => {
+  const key = (over: Partial<Parameters<typeof tabCycleStep>[0]>) => ({
+    key: "",
+    code: "",
+    metaKey: false,
+    ctrlKey: false,
+    altKey: false,
+    shiftKey: false,
+    ...over,
+  });
+
+  it("maps Tab, ⌃Tab and ⌘⇧] forward, their shifted twins back", () => {
+    expect(tabCycleStep(key({ key: "Tab" }))).toBe(1);
+    expect(tabCycleStep(key({ key: "Tab", shiftKey: true }))).toBe(-1);
+    expect(tabCycleStep(key({ key: "Tab", ctrlKey: true }))).toBe(1);
+    expect(tabCycleStep(key({ key: "Tab", ctrlKey: true, shiftKey: true }))).toBe(-1);
+    expect(
+      tabCycleStep(key({ key: "}", code: "BracketRight", metaKey: true, shiftKey: true })),
+    ).toBe(1);
+    expect(
+      tabCycleStep(key({ key: "{", code: "BracketLeft", metaKey: true, shiftKey: true })),
+    ).toBe(-1);
+  });
+
+  it("leaves other chords alone", () => {
+    expect(tabCycleStep(key({ key: "Tab", metaKey: true }))).toBe(0);
+    expect(tabCycleStep(key({ key: "Tab", ctrlKey: true, altKey: true }))).toBe(0);
+    expect(tabCycleStep(key({ key: "]", code: "BracketRight", metaKey: true }))).toBe(0);
+  });
 });

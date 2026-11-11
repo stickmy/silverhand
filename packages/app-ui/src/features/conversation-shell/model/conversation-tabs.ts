@@ -183,6 +183,18 @@ export function resolveActiveTabKey(
 }
 
 /**
+ * The tab `delta` steps from the active one, wrapping at both ends, so the
+ * keyboard cycles the strip in its visible order.
+ */
+export function adjacentTabKey(tabs: readonly Tab[], activeKey: string, delta: number): string {
+  if (tabs.length === 0) return activeKey;
+  const index = tabs.findIndex((t) => tabKey(t) === activeKey);
+  const base = index < 0 ? 0 : index;
+  const next = (((base + delta) % tabs.length) + tabs.length) % tabs.length;
+  return tabKey(tabs[next]!);
+}
+
+/**
  * Validate one persisted tab. Any shape that doesn't round-trip the {@link Tab}
  * contract is dropped rather than trusted — same discipline as `parseLayout` in
  * place-memory.ts, and the reason a hand-edited or schema-drifted localStorage

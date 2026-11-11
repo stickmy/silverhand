@@ -1,5 +1,6 @@
 import { getPlatform } from "@/platform";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type RefObject } from "react";
+import { usePageLive } from "@/navigation/page-stack";
 import type { AppSection } from "@/components/layout/nav-rail";
 import type { RouteState } from "@/router";
 
@@ -19,6 +20,9 @@ import type { RouteState } from "@/router";
  *     request and the renderer answers with the authoritative outcome below;
  *     main hides the app ONLY on `background-app`, fail-closed otherwise.
  *     See the responder hook + the main-side menu wiring.
+ *   • Tab / ⇧Tab, ⌃Tab / ⌃⇧Tab, ⌘⇧] / ⌘⇧[ — next / previous conversation tab,
+ *     while the strip is on screen. Bare Tab yields to text fields and open
+ *     dialogs / menus, where it still moves focus.
  */
 
 // ── ⌘1–5 nav-rail sections ──────────────────────────────────────────────────
@@ -95,6 +99,72 @@ export function useNavSectionShortcuts(nav: NavSectionApi): void {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+}
+
+// ── Conversation tab cycling ─────────────────────────────────────────────────
+
+/**
+ * Step through the conversation tab strip: bare Tab / ⇧Tab, plus ⌃Tab / ⌃⇧Tab
+ * (browsers, editors) and ⌘⇧] / ⌘⇧[ (macOS tab convention). Returns the step,
+ * or 0 when the key is not a tab-cycling chord. Keyed on `code` for the
+ * brackets so the binding survives keyboard layouts. Pure for tests.
+ */
+export function tabCycleStep(event: {
+  key: string;
+  code: string;
+  metaKey: boolean;
+  ctrlKey: boolean;
+  altKey: boolean;
+  shiftKey: boolean;
+}): -1 | 0 | 1 {
+  if (event.altKey) return 0;
+  if (event.key === "Tab" && !event.metaKey) {
+    return event.shiftKey ? -1 : 1;
+  }
+  if (event.metaKey && event.shiftKey && !event.ctrlKey) {
+    if (event.code === "BracketRight") return 1;
+    if (event.code === "BracketLeft") return -1;
+  }
+  return 0;
+}
+
+/** Where bare Tab must keep moving focus: form fields and any open dialog, menu
+ *  or picker, whose own focus order is the control. The message composer is not
+ *  one: focus rests there in a conversation, and its mention pick consumes Tab
+ *  first (`defaultPrevented`). */
+const BARE_TAB_EXEMPT =
+  'input, textarea:not([data-composer-input]), select, [contenteditable=""], [contenteditable="true"], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]';
+
+function bareTabExempt(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest(BARE_TAB_EXEMPT) !== null;
+}
+
+/** `rootRef` is the pane hosting the strip: a section kept mounted behind another
+ *  (display: none) has no boxes and must not take the key. */
+export function useTabCycleShortcut(
+  rootRef: RefObject<HTMLElement | null>,
+  enabled: boolean,
+  onStep: (step: -1 | 1) => void,
+): void {
+  const live = usePageLive();
+  const stepRef = useRef(onStep);
+  stepRef.current = onStep;
+
+  useEffect(() => {
+    if (!enabled || !live) return;
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      // A handler that already used the key (the composer's mention pick) wins.
+      if (event.isComposing || event.defaultPrevented) return;
+      const step = tabCycleStep(event);
+      if (step === 0) return;
+      if (event.key === "Tab" && !event.ctrlKey && bareTabExempt(event.target)) return;
+      if (!rootRef.current || rootRef.current.getClientRects().length === 0) return;
+      event.preventDefault();
+      stepRef.current(step);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [rootRef, enabled, live]);
 }
 
 // ── ⌘W contextual close ──────────────────────────────────────────────────────

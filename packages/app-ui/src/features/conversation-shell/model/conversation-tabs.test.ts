@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_TABS,
   addTab,
+  adjacentTabKey,
   firstTabKey,
   isDefaultTabs,
   isRemovable,
@@ -231,5 +232,19 @@ describe("isDefaultTabs", () => {
     expect(isDefaultTabs([chat, tasks])).toBe(true);
     expect(isDefaultTabs([tasks, chat])).toBe(false); // reordered builtins must persist
     expect(isDefaultTabs([chat, tasks, att("a")])).toBe(false);
+  });
+});
+
+describe("adjacentTabKey", () => {
+  const tabs = [chat, tasks, panel("threads")];
+
+  it("steps forward and back in strip order, wrapping at both ends", () => {
+    expect(adjacentTabKey(tabs, "chat", 1)).toBe("tasks");
+    expect(adjacentTabKey(tabs, tabKey(panel("threads")), 1)).toBe("chat");
+    expect(adjacentTabKey(tabs, "chat", -1)).toBe(tabKey(panel("threads")));
+  });
+
+  it("starts from the first tab when the active key is gone", () => {
+    expect(adjacentTabKey(tabs, "missing", 1)).toBe("tasks");
   });
 });
