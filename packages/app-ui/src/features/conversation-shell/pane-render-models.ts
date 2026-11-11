@@ -93,6 +93,7 @@ export type ThreadPaneProps = Pick<
   | "rootMessageId"
   | "onOpenAttachment"
   | "parentTitle"
+  | "parentCounterpart"
   | "closed"
   | "archived"
   | "gate"

@@ -684,6 +684,10 @@ function ActiveChannelView({
   const nativeBarAvailable = useNativeBarPlatform();
   const nativeTitle = showThreadHeader ? (parentTitle ?? conversation.title) : conversation.title;
   const counterpart = paneMode.kind === "direct_message" ? paneMode.counterpart : null;
+  const exportHeader = useMemo(
+    () => ({ title: conversation.title, counterpart }),
+    [conversation.title, counterpart],
+  );
   const nativeTitleIcon = useHeaderIdentityIcon(paneCaps.headerIdentity, counterpart);
   // A pair's title opens its counterpart, as the web header's face does.
   const openCounterpart =
@@ -1189,6 +1193,7 @@ function ActiveChannelView({
               <MessageList
                 channelId={conversation.id}
                 workspaceId={conversation.workspace_id}
+                exportHeader={exportHeader}
                 {...messageWindow.listProps}
                 canReact={!closed && !isArchived && gate.allowMutations}
                 canSave={gate.allowMutations}

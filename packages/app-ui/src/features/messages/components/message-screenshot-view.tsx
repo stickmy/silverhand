@@ -1,8 +1,15 @@
-import type { AgentDto, AttachmentSnapshot, MessageDto, UserDto } from "@silverhand/shared";
+import type {
+  AgentDto,
+  AttachmentSnapshot,
+  DirectPairCounterpart,
+  MessageDto,
+  UserDto,
+} from "@silverhand/shared";
 import { resolveAttachmentLabels } from "@silverhand/shared";
 import { DocumentIcon, HashIcon } from "@/icons";
 import { AVATAR_PX } from "@/components/avatar-scale";
 import { getAttachmentBlobUrl } from "@/features/attachments/attachment-blob-cache";
+import { presentCounterpart } from "@/features/direct-pairs/counterpart-presentation";
 import { AuthorAvatarView, AuthorName } from "./author-avatar-view";
 import { authorStateLabel, presentAuthor } from "../model/author-presentation";
 import { continuesAuthorGroup } from "../model/author-grouping";
@@ -62,6 +69,13 @@ import { t } from "@/lib/i18n";
  * saved indicator, hover bar, checkbox, thread-replies badge, task tag,
  * system rows.
  */
+/** The export's header: the conversation's own title, handed down by the pane
+ *  that owns it, and the counterpart when that pane is a DM. */
+export interface ScreenshotHeader {
+  title: string;
+  counterpart: DirectPairCounterpart | null;
+}
+
 export function MessageScreenshotView({
   compact = false,
   messages,
@@ -76,7 +90,7 @@ export function MessageScreenshotView({
   attachmentImageUrls,
   viewer,
   viewerAvatarObjectUrl,
-  channelTitle,
+  header,
   mermaidSvgByCode,
 }: {
   compact?: boolean;
@@ -96,13 +110,13 @@ export function MessageScreenshotView({
   attachmentImageUrls?: ReadonlyMap<string, string>;
   viewer?: UserDto;
   viewerAvatarObjectUrl?: string | null;
-  channelTitle?: string | null;
+  header?: ScreenshotHeader | null;
   /** Mermaid diagrams pre-rendered to SVG before capture (#task:1322), keyed
    *  by trimmed source. Threaded into each row's Markdown so the export shows
    *  rendered diagrams; a diagram absent here falls back to source. */
   mermaidSvgByCode?: ReadonlyMap<string, string>;
 }): JSX.Element {
-  const safeChannelTitle = channelTitle ? sanitizeScreenshotText(channelTitle) : null;
+  const safeTitle = header ? sanitizeScreenshotText(header.title) : null;
   return (
     <div
       data-screenshot-root
@@ -110,25 +124,14 @@ export function MessageScreenshotView({
       className="flex flex-col gap-3 bg-bg-floating text-text-primary"
       style={{ width: compact ? 360 : 760, padding: compact ? 16 : 24, overflowWrap: "anywhere" }}
     >
-      {safeChannelTitle ? (
+      {header && safeTitle ? (
         <div className="border-b border-border-subtle pb-2 text-sm font-semibold">
-          {/* Every conversation header carries the channel `#` — channel and DM
-              alike (matching the live header, #task:1179). No branch: a
-              channel-like conversation always earns it (#task:1373). Painted per
-              theme via `[data-conversation-hash-icon]` (poster = poster
-              sticker). */}
-          <span
-            data-conversation-title
-            className="inline-flex items-center font-serif text-base font-semibold text-text-primary"
-          >
-            <HashIcon
-              data-conversation-hash-icon
-              data-sticker
-              data-sticker-tone="channel"
-              className="size-4 shrink-0 align-[-0.15em]"
-            />
-            {safeChannelTitle}
-          </span>
+          <ScreenshotHeaderTitle
+            title={safeTitle}
+            counterpart={header.counterpart}
+            agentAvatarUrls={authorAgentAvatarUrls}
+            humanAvatarUrls={authorUserAvatarUrls}
+          />
         </div>
       ) : null}
       {messages.map((m, i) => {
@@ -162,6 +165,46 @@ export function MessageScreenshotView({
         );
       })}
     </div>
+  );
+}
+
+/** The same identity as the live header: a channel wears the `#`, a DM wears its
+ *  counterpart's face. */
+function ScreenshotHeaderTitle({
+  title,
+  counterpart,
+  agentAvatarUrls,
+  humanAvatarUrls,
+}: {
+  title: string;
+  counterpart: DirectPairCounterpart | null;
+  agentAvatarUrls?: ReadonlyMap<string, string | null>;
+  humanAvatarUrls?: ReadonlyMap<string, string | null>;
+}): JSX.Element {
+  return (
+    <span
+      data-conversation-title
+      className="inline-flex items-center gap-1.5 font-serif text-base font-semibold text-text-primary"
+    >
+      {counterpart ? (
+        <AuthorAvatarView
+          avatar={presentCounterpart(counterpart).avatar}
+          size={AVATAR_PX.sm}
+          label={title}
+          className="shrink-0"
+          agentAvatarUrls={agentAvatarUrls}
+          humanAvatarUrls={humanAvatarUrls}
+        />
+      ) : (
+        <HashIcon
+          data-conversation-hash-icon
+          data-sticker
+          data-sticker-tone="channel"
+          className="size-4 shrink-0 align-[-0.15em]"
+        />
+      )}
+      {title}
+    </span>
   );
 }
 

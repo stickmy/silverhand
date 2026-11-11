@@ -99,6 +99,7 @@ const base = {
   agentAvatarUrls: new Map(),
   jumpToMessageId: null,
   canReact: false,
+  exportHeader: null,
 };
 function find(node: any): any {
   if (!node || typeof node !== "object") return;

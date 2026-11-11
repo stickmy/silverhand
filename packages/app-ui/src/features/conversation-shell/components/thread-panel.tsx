@@ -30,9 +30,10 @@ import {
   useThreadRoot,
   useUnfollowThread,
 } from "@/features/channels/hooks";
-import type { AttachmentSnapshot } from "@silverhand/shared";
+import type { AttachmentSnapshot, DirectPairCounterpart } from "@silverhand/shared";
 import type { ComposerDirectory } from "@/features/conversations/pane-mode";
 import { useAgents } from "@/features/agents/hooks/hooks";
+import { presentCounterpart } from "@/features/direct-pairs/counterpart-presentation";
 import { useAgentAvatarObjectUrls } from "@/features/agents/hooks/avatar-hooks";
 import { useJoinChannel } from "@/features/workspaces/hooks";
 import type { ChannelGate } from "@/features/channels/membership";
@@ -60,8 +61,10 @@ interface ThreadPanelProps {
   directory: ComposerDirectory;
   /** The root (main-line) message whose thread this panel shows. */
   rootMessageId: string;
-  /** Parent channel title, shown in the header subtitle. */
+  /** Parent conversation title, shown in the header subtitle. */
   parentTitle?: string | null;
+  /** The parent DM's counterpart, so a shared screenshot wears its face. */
+  parentCounterpart?: DirectPairCounterpart | null;
   /** Parent channel closed → composer disabled. */
   closed?: boolean;
   archived?: boolean;
@@ -153,6 +156,7 @@ export function ThreadPanel({
   directory,
   rootMessageId,
   parentTitle,
+  parentCounterpart = null,
   closed = false,
   archived = false,
   gate,
@@ -228,6 +232,14 @@ export function ThreadPanel({
       archivedChannels.find((x) => x.id === channelId);
     return c ? c.title : (parentTitle ?? null);
   }, [liveChannels, archivedChannels, channelId, parentTitle]);
+
+  // A DM has no channel row; its title is the counterpart's name.
+  const exportTitle =
+    parentChannelTitle ?? (parentCounterpart ? presentCounterpart(parentCounterpart).label : null);
+  const exportHeader = useMemo(
+    () => (exportTitle ? { title: exportTitle, counterpart: parentCounterpart } : null),
+    [exportTitle, parentCounterpart],
+  );
 
   // Pre-bind the App handlers to this thread's workspace, mirroring
   // `ChannelView` exactly so the renderer receives the same shapes.
@@ -552,6 +564,7 @@ export function ThreadPanel({
               windowRows={windowRows}
               onTrimWindow={trimWindow}
               agentAvatarUrls={agentAvatarUrls}
+              exportHeader={exportHeader}
               // Located only once this open's around-window is authoritative:
               // a stale window still on screen while priming must not start the
               // flash, whose `onJumped` releases the window lock (#task:1317).

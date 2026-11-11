@@ -28,6 +28,7 @@ import { authorGroupContinuations } from "@/features/messages/model/author-group
 import { groupMessages, type StreamItem } from "@/features/messages/model/group-messages";
 import { useMessageActionSurface } from "@/features/messages/hooks/use-message-action-surface";
 import { MessageActionChrome } from "@/features/messages/components/message-action-chrome";
+import type { ScreenshotHeader } from "@/features/messages/components/message-screenshot-view";
 import { NativeComposerRoom } from "@/features/messages/components/native-composer-room";
 import { MessageRowsSkeleton } from "@/features/conversation-shell/components/conversation-view-skeleton";
 import { EmptyConversation } from "./empty-conversation";
@@ -66,6 +67,7 @@ export function MessageList({
   onTrimWindow,
   agentAvatarUrls,
   leadingSlot,
+  exportHeader,
   highlightedMessageId,
   jumpToMessageId,
   jumpPrimePending = false,
@@ -118,6 +120,9 @@ export function MessageList({
    *  single batch fetch instead of three independent ones. */
   agentAvatarUrls: Map<string, string | null>;
   leadingSlot?: ReactNode;
+  /** The conversation identity a shared screenshot opens with, from the pane
+   *  that owns the conversation (a DM has no channel-list row to look up). */
+  exportHeader: ScreenshotHeader | null;
   highlightedMessageId?: string | null;
   jumpToMessageId: string | null;
   /** When true, App is still resolving a `primeAround` for the current
@@ -247,8 +252,6 @@ export function MessageList({
     viewerAvatarObjectUrl,
     viewer,
     userResolver,
-    liveChannels,
-    archivedChannels,
   } = useMessageRenderContext(workspaceId, channelId, canParticipate);
   // The shell rebuilds these handlers on every navigation, and each new
   // identity would render every memoized row again. Rows get forwarders that
@@ -330,14 +333,6 @@ export function MessageList({
     jumpToMessageId,
     canSave,
   });
-  // Channel TITLE — surfaced in the screenshot header and used as the suggested
-  // filename base, and the only field the consumer reads.
-  const channelTitle = useMemo(() => {
-    const c =
-      liveChannels.find((x) => x.id === channelId) ??
-      archivedChannels.find((x) => x.id === channelId);
-    return c ? c.title : null;
-  }, [liveChannels, archivedChannels, channelId]);
   const [previousWindow, setPreviousWindow] = useState({ channelId, items });
   const lastJumpScrollKeyRef = useRef<string | null>(null);
 
@@ -697,7 +692,7 @@ export function MessageList({
         workspaceId={workspaceId}
         conversationId={channelId}
         selectionKey={streamKey}
-        channelTitle={channelTitle}
+        header={exportHeader}
       />
       <div ref={viewportRef} className="relative min-h-0 min-w-0 flex-1">
         {isLoading ? (

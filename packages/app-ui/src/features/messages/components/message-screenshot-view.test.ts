@@ -13,7 +13,7 @@ import { decodeMessageSeq } from "@silverhand/shared";
 import type { ChannelReference } from "./channel-ref";
 import type { WorkspaceChannelReference } from "./conversation-ref";
 import type { StaticTaskRefSummary } from "./task-ref";
-import { MessageScreenshotView } from "./message-screenshot-view";
+import { MessageScreenshotView, type ScreenshotHeader } from "./message-screenshot-view";
 
 // Cindy review of 2f8a2ca (P1 blocker): export view was reusing the
 // full interactive `Markdown` component, leaking copy/expand buttons,
@@ -121,7 +121,7 @@ function render(
   messages: MessageDto[],
   options: {
     compact?: boolean;
-    channelTitle?: string;
+    header?: ScreenshotHeader | null;
     agentsByName?: ReadonlyMap<string, AgentDto>;
     humansByName?: ReadonlyMap<string, UserDto>;
     channelsByName?: ReadonlyMap<string, ChannelReference | null>;
@@ -146,7 +146,8 @@ function render(
         agentsByName,
         humansByName: options.humansByName,
         channelsByName: options.channelsByName,
-        channelTitle: options.channelTitle ?? "design",
+        header:
+          options.header === undefined ? { title: "design", counterpart: null } : options.header,
         conversationRefsById: options.conversationRefsById,
         taskRefsByNumber: options.taskRefsByNumber,
         attachmentImageUrls: options.attachmentImageUrls,
@@ -176,15 +177,29 @@ describe("MessageScreenshotView — non-interactive contract", () => {
     expect(html).toContain("design");
   });
 
-  it("header always carries the channel hash — no per-kind branch (#task:1373)", () => {
-    // DM share-images used to drop the `#`; now every conversation kind renders
-    // it, matching the live header (#task:1179). No channelKind prop to branch on.
+  it("a DM header wears the counterpart's face instead of the channel hash", () => {
     const html = render([msg("m1", 1, "hello")], {
-      channelTitle: "Alice",
+      header: {
+        title: "Alice",
+        counterpart: {
+          status: "active",
+          kind: "agent",
+          id: "a1",
+          name: "alice",
+          display_name: "Alice",
+          avatar_url: null,
+          runtime: "codex",
+        },
+      },
     });
     expect(html).toContain("data-conversation-title");
-    expect(html).toContain("data-conversation-hash-icon");
+    expect(html).not.toContain("data-conversation-hash-icon");
     expect(html).toContain("Alice");
+  });
+
+  it("omits the header when the pane names no conversation", () => {
+    const html = render([msg("m1", 1, "hello")], { header: null });
+    expect(html).not.toContain("data-conversation-title");
   });
 
   it("renders zero <button> elements for fenced code blocks", () => {

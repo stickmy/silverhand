@@ -15,7 +15,7 @@ import {
   taskByNumberKey,
   type TaskRefCoord,
 } from "@/features/tasks/hooks/use-task-by-number";
-import { MessageScreenshotView } from "./message-screenshot-view";
+import { MessageScreenshotView, type ScreenshotHeader } from "./message-screenshot-view";
 import { extractMermaidSources, isDarkTheme, renderMermaidSvg } from "./mermaid-diagram";
 import { suggestImageFilename } from "../model/markdown-transcript";
 import { SelectionActionButton } from "./selection-toolbar";
@@ -187,7 +187,7 @@ export function ImagePreviewModal({
   messages,
   workspaceId,
   conversationId,
-  channelTitle,
+  header,
   agentsByName,
   humansByName,
   channelsByName,
@@ -220,7 +220,7 @@ export function ImagePreviewModal({
    *  static snapshot reads the SAME cell the live chip did; a DM (workspaceId
    *  null) keys on the pair conversation instead of dropping every task title. */
   conversationId: string;
-  channelTitle: string | null;
+  header: ScreenshotHeader | null;
   agentsByName: ReadonlyMap<string, AgentDto>;
   humansByName?: ReadonlyMap<string, UserDto>;
   channelsByName?: ReadonlyMap<string, ChannelReference | null>;
@@ -396,7 +396,7 @@ export function ImagePreviewModal({
       });
   }, [open, nativePreview, phase]);
 
-  const suggestedName = suggestImageFilename(messages, channelTitle);
+  const suggestedName = suggestImageFilename(messages, header?.title ?? null);
 
   const onShare = async (): Promise<void> => {
     if (!pngBytes || busy || !shareImage) return;
@@ -475,7 +475,7 @@ export function ImagePreviewModal({
           <MessageScreenshotView
             compact={compact}
             messages={messages}
-            channelTitle={channelTitle}
+            header={header}
             agentsByName={agentsByName}
             humansByName={humansByName}
             channelsByName={channelsByName}

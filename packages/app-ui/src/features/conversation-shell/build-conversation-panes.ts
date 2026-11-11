@@ -194,6 +194,7 @@ export function resolveSecondaryPane(
             attachment,
           }),
         parentTitle: read.selectedChannel?.title ?? null,
+        parentCounterpart: read.primaryPaneDescriptor?.counterpart ?? null,
         closed: read.selectedChannelDescriptor?.closed_at != null,
         archived: read.selectedChannelDescriptor?.archived_at != null,
         gate: read.parentMembership.gate,

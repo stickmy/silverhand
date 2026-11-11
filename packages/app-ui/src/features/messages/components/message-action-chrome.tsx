@@ -1,11 +1,15 @@
 import { useMemo, type ReactElement } from "react";
 import { SelectionToolbar } from "@/features/messages/components/selection-toolbar";
 import { ImagePreviewModal } from "@/features/messages/components/image-preview-modal";
-import { useAuthorAvatarObjectUrls } from "@/features/messages/hooks/author-avatar-hooks";
+import { useAgentAvatarObjectUrls } from "@/features/agents/hooks/avatar-hooks";
+import { collectCounterpartAvatarSources } from "@/features/direct-pairs/counterpart-presentation";
+import { useUserAvatarObjectUrls } from "@/features/users/avatar-hooks";
+import { collectAuthorAvatarSources } from "@/features/messages/model/author-presentation";
 import type { MessageActionSurface } from "@/features/messages/hooks/use-message-action-surface";
 import type { MessageRenderContext } from "@/features/messages/hooks/use-message-render-context";
 import { useNativeSelectionBar } from "@/features/messages/hooks/use-native-selection-bar";
 import type { WorkspaceChannelReference } from "./conversation-ref";
+import type { ScreenshotHeader } from "./message-screenshot-view";
 
 /** Render context the image-export modal needs: a subset of
  *  `MessageRenderContext` plus the agent avatar batch (lifted per surface
@@ -31,7 +35,7 @@ export function MessageActionChrome({
   workspaceId,
   conversationId,
   selectionKey,
-  channelTitle,
+  header,
 }: {
   surface: MessageActionSurface;
   renderCtx: MessageActionChromeRenderContext;
@@ -46,19 +50,29 @@ export function MessageActionChrome({
   /** Names this pane's selection apart from another pane's on the same
    *  conversation (the channel and its open thread). */
   selectionKey: string;
-  channelTitle: string | null;
+  header: ScreenshotHeader | null;
 }): ReactElement {
   // The screenshot byline resolves each selected author's avatar bytes STRICTLY
   // from its own `MessageAuthorDto` (#task:1792 B2) — never the live directory.
   // The directory batch (`renderCtx.agentAvatarUrls`) stays for the Markdown
   // body's inline @-mention pills, a separate axis. Active authors already
-  // resolved in the live view are session-cached by url, so this is a hit.
-  const previewAuthors = useMemo(
-    () => surface.previewSnapshots.map((m) => m.author),
-    [surface.previewSnapshots],
-  );
-  const { agentAvatarUrls: authorAgentAvatarUrls, humanAvatarUrls: authorUserAvatarUrls } =
-    useAuthorAvatarObjectUrls(previewAuthors);
+  // resolved in the live view are session-cached by url, so this is a hit. A DM
+  // header's face joins the same batch: the selection may hold only the viewer's
+  // own rows, so the counterpart is not always among the authors.
+  const counterpart = header?.counterpart ?? null;
+  const avatarSources = useMemo(() => {
+    const authors = collectAuthorAvatarSources(surface.previewSnapshots.map((m) => m.author));
+    if (!counterpart) {
+      return authors;
+    }
+    const face = collectCounterpartAvatarSources([{ counterpart }]);
+    return {
+      agents: [...authors.agents, ...face.agents],
+      users: [...authors.users, ...face.users],
+    };
+  }, [surface.previewSnapshots, counterpart]);
+  const authorAgentAvatarUrls = useAgentAvatarObjectUrls(avatarSources.agents);
+  const authorUserAvatarUrls = useUserAvatarObjectUrls(avatarSources.users);
   const nativeBar = useNativeSelectionBar({
     key: selectionKey,
     active: surface.selection.active,
@@ -86,7 +100,7 @@ export function MessageActionChrome({
         messages={surface.previewSnapshots}
         workspaceId={workspaceId}
         conversationId={conversationId}
-        channelTitle={channelTitle}
+        header={header}
         agentsByName={renderCtx.agentsByName}
         humansByName={renderCtx.humansByName}
         channelsByName={renderCtx.channelsByName}
