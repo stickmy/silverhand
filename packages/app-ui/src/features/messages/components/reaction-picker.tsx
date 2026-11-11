@@ -5,10 +5,10 @@ import { t } from "@/lib/i18n";
 /**
  * Curated quick-reaction set for v1. Rendered with the OS-native emoji font
  * (Apple on macOS, the only v1 target) — no third-party emoji library, so
- * the bundle stays lean and the picker stays simple
- * (docs/reactions-design.md; shiki 2026-06-14 拍板 native Apple + 这 8 个).
+ * the bundle stays lean and the picker stays simple (docs/reactions-design.md).
+ * The grid is one row: its column count follows the length of this list.
  */
-export const QUICK_REACTIONS = ["👍", "🎉", "👀", "💯", "🔥", "🚀", "😄", "🤣"] as const;
+export const QUICK_REACTIONS = ["👍", "👌", "🎉", "💯", "🔥", "🚀", "😄", "🤣"] as const;
 
 export interface ReactionPickerProps {
   /** The popover anchor. Must be a single ref-forwarding element (a native
