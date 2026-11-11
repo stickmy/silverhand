@@ -8,13 +8,13 @@ import {
   ReactionChipBody,
   reactionChipClass,
   reactionChipCountLabel,
-  reactionRowClass,
+  REACTION_ROW_CLASS,
 } from "./reaction-chip-row";
 import { t } from "@/lib/i18n";
+import { useMessageAlignEnd } from "./message-row-content";
 
 export interface MessageReactionsProps {
   message: MessageDto;
-  alignRight: boolean;
   /** Toggle the viewer's reaction. `remove` is the current `viewer_reacted`
    *  for an existing chip (re-click removes own), or always `false` from the
    *  picker (picking adds). */
@@ -46,28 +46,28 @@ export interface MessageReactionsProps {
  */
 export function MessageReactions({
   message,
-  alignRight,
   onReact,
   onPickerOpenChange,
   canReact = true,
 }: MessageReactionsProps): JSX.Element | null {
+  const alignEnd = useMessageAlignEnd();
   const reactions = message.reactions;
   if (!reactions || reactions.length === 0) return null;
   return (
-    <div data-reaction-row className={reactionRowClass(alignRight)}>
+    <div data-reaction-row className={REACTION_ROW_CLASS}>
       {reactions.map((agg) => (
         <ReactionChip
           key={agg.emoji}
           messageId={message.id}
           agg={agg}
-          alignRight={alignRight}
+          alignEnd={alignEnd}
           interactive={canReact}
           onClick={() => onReact(agg.emoji, agg.viewer_reacted)}
         />
       ))}
       {canReact ? (
         <ReactionPicker
-          align={alignRight ? "end" : "start"}
+          align={alignEnd ? "end" : "start"}
           onOpenChange={onPickerOpenChange}
           onPick={(emoji) => onReact(emoji, false)}
           trigger={
@@ -90,14 +90,14 @@ export function MessageReactions({
 function ReactionChip({
   messageId,
   agg,
-  alignRight,
+  alignEnd,
   onClick,
   interactive,
 }: {
   messageId: string;
   agg: ReactionAggregateDto;
   /** Only to mirror the reactor card's growth direction — see its `align`. */
-  alignRight: boolean;
+  alignEnd: boolean;
   onClick: () => void;
   interactive: boolean;
 }): JSX.Element {
@@ -146,7 +146,7 @@ function ReactionChip({
           // on an own message), so its chips sit against the row's right
           // edge and the card has to grow leftward from there instead of
           // outward (#task:1840).
-          align={alignRight ? "end" : "start"}
+          align={alignEnd ? "end" : "start"}
           sideOffset={6}
           collisionPadding={8}
           data-popover-frame="info"

@@ -18,7 +18,6 @@ dayjs.extend(relativeTime);
 
 export interface MessageThreadSummaryInput {
   message: CachedMessage;
-  alignRight: boolean;
   threadReplyCount?: number;
   threadReplySummary?: ReplyBadgeSummary;
   threadUnread?: StreamUnreadDto;
@@ -33,7 +32,6 @@ export interface MessageThreadSummaryInput {
  *  (`threadPreview`). Exactly one of the two is non-null. */
 export function messageThreadSummary({
   message,
-  alignRight,
   threadReplyCount,
   threadReplySummary,
   threadUnread,
@@ -191,26 +189,11 @@ export function messageThreadSummary({
           // must stay one line high; when it cannot fit, the time segment gives
           // way (see below) rather than the row growing.
           "inline-flex min-w-0 max-w-full items-center gap-1.5 text-xs leading-none text-text-muted transition-colors hover:text-text-primary focus-outline " +
-          // Mirrored ONLY as the preview block's header, and only for an
-          // own-message row (#task:1855). The badge's glyph is this block's
-          // COLUMN MARKER — it is supposed to sit in the same column as the
-          // lines' avatars, which is what makes the badge read as their header
-          // — and those lines are themselves `flex-row-reverse` under
-          // `alignRight`, so their avatars are in the RIGHT column. Left
-          // unmirrored, the header's marker sat a whole line-width away from
-          // the faces it heads.
-          //
-          // Deliberately NOT applied to the standalone pill: there the glyph
-          // has no column to line up with, and `icon → N replies → freshness`
-          // is one PHRASE (type marker, subject, modifier), which reads
-          // left-to-right on either side of the room. user-right mirrors the
-          // ARRANGEMENT of siblings (the bottom adornment row reverses so the
-          // task tag hugs the reading edge; the reaction row justifies to the
-          // end) and never the word order inside a single label — the same
-          // reason the prose keeps `text-align: left` in a right-hugging
-          // bubble (shiki 2026-08-06). Reaction chips are the other precedent:
-          // `emoji → count` does not flip either.
-          (badgeHeadsPreview && alignRight ? "flex-row-reverse " : "") +
+          // On an own message, the badge heading the reply block mirrors (in
+          // message-row-content.css) so its glyph shares a column with the
+          // lines' avatars. The standalone pill never mirrors: `icon → N
+          // replies → freshness` is one phrase, and user-right mirrors the
+          // arrangement of siblings, never the word order inside a label.
           // Its own fill / corner / inset ONLY when it stands alone. Inside the
           // preview block the wrapper owns all three: two stacked translucent
           // fills of the same token compose darker and would redraw the seam
@@ -257,7 +240,6 @@ export function messageThreadSummary({
     <ThreadReplyPreview
       rows={threadPreviewRows}
       badge={replyBadgeNode}
-      alignRight={alignRight}
       title={replyBadgeTitle}
       onOpen={() => onStartThread?.(message, threadFirstUnreadId ?? undefined)}
       renderAuthorAvatar={renderReplierAvatar}

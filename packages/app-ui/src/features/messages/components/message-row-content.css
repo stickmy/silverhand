@@ -1,0 +1,26 @@
+/* An own message in user-right mode mirrors here and nowhere else. Its column
+   fills the same cap as the other side, so every part resolves its widths
+   against one definite box; only the parts' end alignment differs, and each
+   is listed once below. A shrink-to-fit column made every percentage inside
+   it cyclic, which is what kept breaking one part at a time. */
+[data-message-column][data-align="end"] :is([data-attachment-list], [data-reaction-row]) {
+  justify-content: flex-end;
+}
+
+/* Siblings swap order so the task tag hugs the reading edge; the words inside
+   a single label never flip. */
+[data-message-column][data-align="end"] [data-adornment-row] {
+  flex-direction: row-reverse;
+}
+
+/* The reply block's lines put their avatars on the right, and the badge heading
+   them puts its glyph in that same column. */
+[data-message-column][data-align="end"]
+  :is([data-thread-reply-group], [data-thread-reply-preview]) {
+  align-items: flex-end;
+  text-align: right;
+}
+[data-message-column][data-align="end"] [data-thread-reply-preview] > *,
+[data-message-column][data-align="end"] [data-thread-reply-group] > [data-panel-pill="thread"] {
+  flex-direction: row-reverse;
+}

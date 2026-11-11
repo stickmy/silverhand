@@ -402,13 +402,8 @@ function ActorMessageItem({
   // utility affordances and take the neutral row-hover border instead.
   const emphasized = highlighted || searchActive || (selectionMode && selected);
 
-  const {
-    trailing: trailingNode,
-    threadPreview: threadPreviewNode,
-    badgeHeadsPreview,
-  } = messageThreadSummary({
+  const { trailing: trailingNode, threadPreview: threadPreviewNode } = messageThreadSummary({
     message,
-    alignRight,
     threadReplyCount,
     threadReplySummary,
     threadUnread,
@@ -462,29 +457,6 @@ function ActorMessageItem({
       searchQuery={searchQuery}
     />
   ) : null;
-  const attachmentsNode =
-    message.attachments && message.attachments.length > 0 ? (
-      <AttachmentList
-        attachments={message.attachments}
-        alignRight={alignRight}
-        canExport={canParticipate}
-        onOpenAttachment={onOpenAttachment}
-      />
-    ) : null;
-  // Null when the message has no reactions — keeps the shared bottom row
-  // (task tag · replies · reactions) from rendering an empty slot.
-  const reactionsNode =
-    isCommittedMessage(message) && message.reactions && message.reactions.length > 0 ? (
-      <MessageReactions
-        message={message}
-        alignRight={alignRight}
-        canReact={canReact}
-        onReact={(emoji, remove) =>
-          toggleReaction.mutate({ target: reactionTarget, emoji, remove })
-        }
-        onPickerOpenChange={setReactionPickerOpen}
-      />
-    ) : null;
   /* Continuation rail — occupies the avatar column's exact WIDTH (`w-8`)
      so the body lands on the same text baseline as the group head's, but
      only ONE body line of HEIGHT: a taller rail would pad the row back out
@@ -494,8 +466,9 @@ function ActorMessageItem({
      body's first line at any font-size slider value.
 
      It carries THIS row's own clock time, revealed on row hover. An own
-     right-aligned message shows it too, beside the bubble: alignment and the
-     bubble already say who wrote it, so it has no avatar or byline. Driven by
+     right-aligned message shows it too, beside its bubble or ahead of its
+     first tile: alignment and the bubble already say who wrote it, so it has
+     no avatar or byline. Driven by
      the row's `hover` state rather than a `group-hover:` variant — Tailwind's
      variant ties with the base opacity class and loses in the compiled sheet.
      Only opacity animates, so the time stays in the a11y tree throughout. */
@@ -515,6 +488,29 @@ function ActorMessageItem({
       {continuationTimeLabel}
     </time>
   );
+
+  const attachmentsNode =
+    message.attachments && message.attachments.length > 0 ? (
+      <AttachmentList
+        attachments={message.attachments}
+        lead={alignRight && !bodyNode ? hoverTime : null}
+        canExport={canParticipate}
+        onOpenAttachment={onOpenAttachment}
+      />
+    ) : null;
+  // Null when the message has no reactions — keeps the shared bottom row
+  // (task tag · replies · reactions) from rendering an empty slot.
+  const reactionsNode =
+    isCommittedMessage(message) && message.reactions && message.reactions.length > 0 ? (
+      <MessageReactions
+        message={message}
+        canReact={canReact}
+        onReact={(emoji, remove) =>
+          toggleReaction.mutate({ target: reactionTarget, emoji, remove })
+        }
+        onPickerOpenChange={setReactionPickerOpen}
+      />
+    ) : null;
 
   const row = (
     <div
@@ -592,35 +588,15 @@ function ActorMessageItem({
       )}
       <MessageRowContent
         alignRight={alignRight}
-        // The column FILLS its `max-w-[85%]` cap on the left side and HUGS its
-        // content on the own-message side. A shrink-to-fit flex item is as wide
-        // as its widest child's max-content, and a code fence's `pre`
-        // (`white-space: pre`) has a max-content of its LONGEST LINE — so a
-        // short message rendered its fence at whatever width the code happened
-        // to be, i.e. the fence's width was set by the sentence above it
-        // (shiki 2026-08-14, #task:2010). Prose never showed this:
-        // `.markdown-body` sets `overflow-wrap: anywhere`, so a paragraph
-        // reaches the cap by itself. Filling changes nothing visible for prose
-        // (no bubble on this side); it only gives the blocks that opt out of
-        // wrapping — fence, table, mermaid — and the reply-preview wash ONE
-        // stable width, the same geometry `.system-message-row`'s
-        // `max-width: 85%` and both non-live surfaces (screenshot column,
-        // loading skeleton) already use.
-        //
-        // The own side keeps hugging: there the prose box IS the bubble and its
-        // shrink-to-fit is the point (#task:1838 / #task:1852) — a bubble
-        // stretched to 85% would no longer read as "the words", so a fence
-        // there stays as wide as its code. `badgeHeadsPreview` remains that
-        // side's one exception: a root heading a reply cluster fills the cap so
-        // every root in the cluster reads at one width.
-        //
-        // The own side also stops short of the other side's text edge: a row
-        // spends avatar + gap (2.75rem) on its leading side, so leaving that
-        // twice keeps an own bubble from starting left of where others' text
-        // starts. 85% still binds on wide panes; this binds on a phone.
+        // The column FILLS its 85% cap on both sides. A fixed column is what
+        // gives every percentage inside it (bubble, tiles, fences, tables, the
+        // reply wash) a definite width; the own side's end alignment is the
+        // column's business (`data-align`), not each part's. The own side also
+        // stops short of the other side's text edge: a row spends avatar + gap
+        // (2.75rem) on its leading side, so leaving that twice keeps an own
+        // bubble from starting left of where others' text starts on a phone.
         columnClassName={
-          (alignRight ? "min-w-0 max-w-[min(85%,calc(100%-5.5rem))]" : "min-w-0 max-w-[85%]") +
-          (!alignRight || badgeHeadsPreview ? " w-full" : "")
+          "w-full min-w-0 " + (alignRight ? "max-w-[min(85%,calc(100%-5.5rem))]" : "max-w-[85%]")
         }
         /* A continuation row states neither author nor time in the content
            column: the group head already named the author, and this row's own
@@ -634,10 +610,8 @@ function ActorMessageItem({
         reactions={reactionsNode}
         trailing={trailingNode}
         threadPreview={threadPreviewNode}
+        aside={alignRight && bodyNode ? hoverTime : null}
       />
-      {/* Own messages sit on the right edge; their time shows on the bubble's
-          leading side, where a reversed row puts what follows the column. */}
-      {alignRight ? hoverTime : null}
 
       {/* Hover actions (react, thread, save) — one framed toolbar on the row's
           top-right corner for every message, own right-aligned ones included,

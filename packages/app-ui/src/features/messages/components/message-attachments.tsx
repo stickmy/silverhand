@@ -1,6 +1,6 @@
 import { getPlatform } from "@/platform";
 import { fetchAttachmentBytes } from "@/lib/api";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { DocumentIcon, ViewIcon } from "@/icons";
 import type { AttachmentSnapshot } from "@silverhand/shared";
 import { resolveAttachmentLabels } from "@silverhand/shared";
@@ -17,12 +17,16 @@ import { t } from "@/lib/i18n";
 
 export function AttachmentList({
   attachments,
-  alignRight,
+  lead,
   canExport = true,
   onOpenAttachment,
 }: {
   attachments: AttachmentSnapshot[];
-  alignRight: boolean;
+  /** Leads the strip as its first item, so it sits right before the first tile
+   *  on either side: an own attachment-only message's hover time. Wrapping the
+   *  strip in a box beside it instead would size the tiles against their own
+   *  width again. */
+  lead?: ReactNode;
   /** Whether the viewer may export (download / open-external) an attachment.
    *  `false` for a non-member browsing a public channel: inline
    *  PREVIEW stays, but the download / open affordances are withheld. */
@@ -36,7 +40,8 @@ export function AttachmentList({
   // reader map an agent's "Image #1" back to the actual tile (#task:1324).
   const labels = resolveAttachmentLabels(attachments);
   return (
-    <div className={"mt-2 flex flex-wrap gap-2 " + (alignRight ? "justify-end" : "justify-start")}>
+    <div data-attachment-list className="mt-2 flex flex-wrap gap-2">
+      {lead}
       {attachments.map((att, i) => (
         <AttachmentTile
           key={att.id}

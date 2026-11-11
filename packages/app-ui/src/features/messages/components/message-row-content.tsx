@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { createContext, useContext, type ReactNode } from "react";
+import "./message-row-content.css";
 
 /**
  * The shared, presentational content column for a message row — the single
@@ -36,8 +37,9 @@ import type { ReactNode } from "react";
  * surfaces only supply the node.
  */
 export interface MessageRowContentProps {
-  /** User-right layout (current viewer's own messages flush right). Drives
-   *  header order (time/author swap) and body text alignment. */
+  /** User-right layout (the viewer's own message, flush right). The column marks
+   *  itself `data-align="end"`; every part's mirroring is stated once in
+   *  `message-row-content.css`, and popovers read `useMessageAlignEnd`. */
   alignRight: boolean;
   /** Outer column width class. Differs by surface BY DESIGN — live is
    *  responsive (`max-w-[85%]`), export is the fixed capture width
@@ -73,6 +75,19 @@ export interface MessageRowContentProps {
    *  row (shiki 2026-07-31). Export passes `null`. Read-inert (see
    *  ThreadReplyPreview). Mutually exclusive with `trailing`. */
   threadPreview: ReactNode;
+  /** Live-only: the own message's hover time, drawn beside its bubble so it hugs
+   *  the words it labels however short they are. `null` without a bubble (an
+   *  attachment-only message leads its tile strip with it instead) and in the
+   *  export. */
+  aside: ReactNode;
+}
+
+const MessageAlignEnd = createContext(false);
+
+/** Whether the message being rendered sits on the right edge, for the parts
+ *  whose popovers must grow inward from it. */
+export function useMessageAlignEnd(): boolean {
+  return useContext(MessageAlignEnd);
 }
 
 export function MessageRowContent({
@@ -86,117 +101,82 @@ export function MessageRowContent({
   reactions,
   trailing,
   threadPreview,
+  aside,
 }: MessageRowContentProps): JSX.Element {
   return (
-    <div className={columnClassName}>
-      {/* Header renders only when it has something to say. A grouped
+    <MessageAlignEnd.Provider value={alignRight}>
+      <div
+        data-message-column
+        data-align={alignRight ? "end" : undefined}
+        className={columnClassName}
+      >
+        {/* Header renders only when it has something to say. A grouped
           continuation row (#task:1737) passes BOTH slots as null — its author
           is already stated by the group head and its timestamp moved to the
           row's hover rail — so the whole element (and its `mb-1`) drops out
           rather than leaving an empty band above the body. Same
           render-only-when-present shape as the bottom adornment row below. */}
-      {author || timestamp ? (
-        <header className={"mb-1 text-xs " + (alignRight ? "text-right" : "")}>
-          {alignRight ? (
-            <>
-              {timestamp}
-              <span className="ml-2 inline-block">{author}</span>
-            </>
-          ) : (
-            <>
-              {author}
-              <span className="ml-2">{timestamp}</span>
-            </>
-          )}
-        </header>
-      ) : null}
+        {author || timestamp ? (
+          <header className="mb-1 text-xs">
+            {author}
+            <span className="ml-2">{timestamp}</span>
+          </header>
+        ) : null}
 
-      {/* The BLOCK moves to the right edge in `user-right` mode (the row is
-          `flex-row-reverse` and this column hugs its content under
-          `max-w-[85%]`); the TEXT inside it does not. `text-align: right` on
-          prose gives a ragged LEFT edge — every line after the first starts at
-          an unpredictable x, so a two-line message reads as if it were
-          centred — and it inherits into every block the markdown renderer
-          emits: list markers, table cells, and `pre` lines all flip too
-          (shiki 2026-08-06「user-right side 感觉很奇怪」). Alignment is a
-          property of the container here, not of the paragraph.
-
-          Which is why the prose gets its OWN box (`w-fit ml-auto`) instead of
-          inheriting the column's width: this side's column is as wide as its
-          widest child (only this side hugs — the left column fills its cap,
-          #task:2010), and an attachment strip or a code block is usually wider
-          than the words above it. Left-aligned text in a box sized by something
-          else dangles in mid-row; a shrink-to-fit box keeps a short message
-          flush with the right edge and only lets prose that actually wraps
-          reach the 85% cap — where a straight left edge is what we want.
-
-          That same box is the bubble (shiki 2026-08-06「给消息文本内容加上一个
-          有背景色的气泡」, #task:1838) — the fill belongs to the words, not to
-          the row, so attachments / reactions / the adornment row / the reply
-          preview all stay outside it. `alignRight` is already
-          `user-right && isCurrentUser` and `isCurrentUser` implies
-          `from_kind === 'user'`, so "own side + human" needs no second
-          predicate. Colour + corner are per-theme tokens (see the own-message
-          bubble tokens in tokens.css); only the padding is stated here, because
-          spacing is this layout's business and the token cluster's is
-          identity. The `max-w-full` on that box is load-bearing, not
-          belt-and-braces: `w-fit` is `width: fit-content`, whose floor is the
-          content's MIN-content width, and a code fence's `pre`
-          (`white-space: pre`, `overflow-wrap: normal`) has a min-content width
-          of its LONGEST LINE. Without the cap a long fence pushes the bubble
-          straight past the column's `max-w-[85%]` and the row overflows the
-          chat pane (#task:1852). Prose never showed this because
-          `.markdown-body` sets `overflow-wrap: anywhere`, which DOES lower
-          min-content; `pre` and `table` are the two blocks that opt out, and
-          both already carry `max-width: 100%` + their own `overflow: auto`, so
-          capping the bubble is what hands them a definite width to scroll
-          inside. Left-aligned messages never overflowed — there the prose box
-          is a plain block at the column's width, and that column now fills its
-          cap (#task:2010) rather than hugging, so a fence there is as wide as
-          the message column instead of as wide as its own longest line. */}
-      <div data-message-body className="text-sm text-text-primary">
-        {/* `body` is null on an attachment-only message (Composer allows
+        {/* An own message's words keep a straight LEFT edge inside a box that
+          hugs them at the right edge: `text-align: right` would rag every line
+          after the first and flip lists, tables and code with it (shiki
+          2026-08-06). That box is the bubble (#task:1838); the fill belongs to
+          the words, so attachments, reactions and the reply block stay outside
+          it. `max-w-full` is load-bearing: `w-fit` never goes below its
+          content's min-content, and a code fence's `pre` has a min-content of
+          its longest line, so without the cap a wide fence would push the
+          bubble out of the column instead of scrolling inside it (#task:1852).
+          The column itself fills its cap on both sides, which is what gives
+          that percentage a definite width to resolve against. */}
+        <div data-message-body className="text-sm text-text-primary">
+          {/* `body` is null on an attachment-only message (Composer allows
             sending one) — without that the bubble would render as an empty
             padded blob above the attachments. */}
-        {body ? (
-          <div
-            data-own-bubble={alignRight || undefined}
-            className={
-              alignRight
-                ? "ml-auto w-fit max-w-full rounded-(--message-bubble-radius) bg-(--bg-message-bubble) px-3 py-2"
-                : undefined
-            }
-          >
-            {body}
-          </div>
-        ) : null}
-        {attachments}
-      </div>
+          {body ? (
+            alignRight ? (
+              <div className="relative ml-auto w-fit max-w-full">
+                {aside ? <div className="absolute top-0 right-full mr-3">{aside}</div> : null}
+                <div
+                  data-own-bubble
+                  className="rounded-(--message-bubble-radius) bg-(--bg-message-bubble) px-3 py-2"
+                >
+                  {body}
+                </div>
+              </div>
+            ) : (
+              body
+            )
+          ) : null}
+          {attachments}
+        </div>
 
-      {/* One shared bottom row — task tag · replies · reactions on a single
+        {/* One shared bottom row — task tag · replies · reactions on a single
           line, no wrapping (shiki #task:1185). Each child is a bare inline
           element; this row owns the top spacing + alignment + gap, so they
           never stack. Renders only when at least one is present. Reversed for
-          own-messages so the task tag hugs the reading (right) edge. The
-          replies badge is absent from this row when it heads the reply block
+          own messages (in the stylesheet) so the task tag hugs the reading
+          edge. The replies badge is absent from this row when it heads the reply block
           below — grouping it with the lines it counts outranks keeping it here
           (shiki 2026-07-31). */}
-      {taskTag || trailing || reactions ? (
-        <div
-          className={
-            "mt-1.5 flex flex-nowrap items-center gap-2 " + (alignRight ? "flex-row-reverse" : "")
-          }
-        >
-          {taskTag}
-          {trailing}
-          {reactions}
-        </div>
-      ) : null}
+        {taskTag || trailing || reactions ? (
+          <div data-adornment-row className="mt-1.5 flex flex-nowrap items-center gap-2">
+            {taskTag}
+            {trailing}
+            {reactions}
+          </div>
+        ) : null}
 
-      {/* The reply block — badge header + preview lines under one wash. Its own
+        {/* The reply block — badge header + preview lines under one wash. Its own
           block below the adornment row: the lines are full-width, so they never
           share a line with anything else. */}
-      {threadPreview}
-    </div>
+        {threadPreview}
+      </div>
+    </MessageAlignEnd.Provider>
   );
 }

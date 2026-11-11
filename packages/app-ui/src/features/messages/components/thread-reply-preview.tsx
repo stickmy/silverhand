@@ -65,8 +65,6 @@ interface ThreadReplyPreviewProps {
    *  from the wrapper here, because two stacked translucent fills of the same
    *  token compose darker and would draw exactly the seam this change removes. */
   badge: ReactNode;
-  /** Own-message layout (flush right) — mirrors the line composition. */
-  alignRight: boolean;
   /** Same human-readable action label the reply badge uses; it titles the whole
    *  block, since the whole block performs that action. */
   title: string;
@@ -127,7 +125,6 @@ interface ThreadReplyPreviewProps {
 export function ThreadReplyPreview({
   rows,
   badge,
-  alignRight,
   title,
   onOpen,
   renderAuthorAvatar,
@@ -169,8 +166,7 @@ export function ThreadReplyPreview({
         // one shape there). All three themes declare the pair — `poster.css`
         // owns `:root`, so an omitted token inherits poster's value instead of
         // reaching the fallback below.
-        "bg-(--thread-preview-bg,var(--chip-bg)) hover:bg-(--thread-preview-bg-hover,var(--chip-bg-hover)) " +
-        (alignRight ? "items-end" : "items-start")
+        "items-start bg-(--thread-preview-bg,var(--chip-bg)) hover:bg-(--thread-preview-bg-hover,var(--chip-bg-hover))"
       }
     >
       {badge}
@@ -196,17 +192,11 @@ export function ThreadReplyPreview({
           // fallback here only covers a theme that does not exist yet. The ink
           // lifts on a hover ANYWHERE in the block (`group-hover`), not only
           // over the lines: one target, one response.
-          "flex w-full flex-col gap-1 text-xs leading-tight text-(--thread-preview-text,var(--text-muted)) transition-colors group-hover:text-text-secondary " +
-          (alignRight ? "items-end text-right" : "items-start text-left")
+          "flex w-full flex-col items-start gap-1 text-left text-xs leading-tight text-(--thread-preview-text,var(--text-muted)) transition-colors group-hover:text-text-secondary"
         }
       >
         {rows.map((row) => (
-          <span
-            key={row.message_id}
-            className={
-              "flex w-full min-w-0 items-center gap-1.5 " + (alignRight ? "flex-row-reverse" : "")
-            }
-          >
+          <span key={row.message_id} className="flex w-full min-w-0 items-center gap-1.5">
             {renderAuthorAvatar(row.author, 14, row.message_id)}
             {/* WHO said it: the mainline's own name rule, with no `@` for either
               actor kind (shiki 2026-07-31) — the avatar directly to its left

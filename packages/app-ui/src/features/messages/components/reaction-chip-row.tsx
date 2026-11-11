@@ -25,10 +25,8 @@ import { t } from "@/lib/i18n";
  *  never drift in spacing / wrapping / alignment. Top spacing + alignment of
  *  the message's bottom row is owned by `MessageRowContent` (task tag ·
  *  replies · reactions share one line, #task:1185); this class only governs
- *  the chips' own flex/gap. */
-export function reactionRowClass(alignRight: boolean): string {
-  return "flex flex-wrap items-center gap-1.5 " + (alignRight ? "justify-end" : "justify-start");
-}
+ *  the chips' own flex/gap; an own message's end alignment is the column's. */
+export const REACTION_ROW_CLASS = "flex flex-wrap items-center gap-1.5";
 
 /** The chip fill recipe. `interactive` only adds the hover-fill shift; the
  *  static export chip and the read-only live chip both pass false so neither
@@ -77,14 +75,12 @@ export function reactionChipCountLabel(agg: ReactionAggregateDto): string {
  */
 export function ReactionChipRow({
   reactions,
-  alignRight = false,
 }: {
   reactions: readonly ReactionAggregateDto[] | null | undefined;
-  alignRight?: boolean;
 }): JSX.Element | null {
   if (!reactions || reactions.length === 0) return null;
   return (
-    <div data-reaction-row className={reactionRowClass(alignRight)}>
+    <div data-reaction-row className={REACTION_ROW_CLASS}>
       {reactions.map((agg) => (
         <div
           key={agg.emoji}
