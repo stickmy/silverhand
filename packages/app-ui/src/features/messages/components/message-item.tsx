@@ -29,6 +29,7 @@ import { useMessageLayoutMode } from "../hooks/use-message-layout-mode";
 import { useCoarsePointer } from "@/navigation/layout";
 import { MessageTaskTag } from "./message-task-tag";
 import { AttachmentList } from "./message-attachments";
+import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 
 export interface MessageItemProps {
@@ -570,8 +571,15 @@ function ActorMessageItem({
           : "border-transparent")
       }
     >
+      {/* The checkbox keeps the left edge on every row, own ones included, so
+          the eye runs down one column while picking messages. In the reversed
+          own row that means sitting last, past the right-hugging column. */}
       {selectionMode && committed ? (
-        <SelectionCheckbox checked={selected} onChange={() => onToggleSelected?.(message)} />
+        <SelectionCheckbox
+          className={alignRight ? "order-last mr-auto" : undefined}
+          checked={selected}
+          onChange={() => onToggleSelected?.(message)}
+        />
       ) : null}
       {alignRight ? null : continuesPrevious ? (
         hoverTime
@@ -676,9 +684,11 @@ function ActorMessageItem({
  * with a styled button.
  */
 function SelectionCheckbox({
+  className,
   checked,
   onChange,
 }: {
+  className?: string;
   checked: boolean;
   onChange: () => void;
 }): JSX.Element {
@@ -690,7 +700,11 @@ function SelectionCheckbox({
       aria-label={checked ? t("messages.deselectMessage") : t("messages.selectMessage")}
       onClick={onChange}
       className={
-        "mt-1.5 inline-flex size-4 shrink-0 items-center justify-center rounded-(--control-radius) border transition-colors focus-outline " +
+        cn(
+          "mt-1.5 inline-flex size-4 shrink-0 items-center justify-center rounded-(--control-radius) border transition-colors focus-outline",
+          className,
+        ) +
+        " " +
         (checked
           ? "border-accent bg-accent text-bg-floating"
           : "border-border bg-bg-floating text-transparent hover:border-accent")
