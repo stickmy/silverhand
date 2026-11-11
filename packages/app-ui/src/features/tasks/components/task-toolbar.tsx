@@ -2,6 +2,8 @@ import { PlusIcon } from "@/icons";
 import { Button } from "@/components/ui/button";
 import { TaskFilterBar, FILTER_ROW_TRIGGER_BOX, type TaskFilterBarProps } from "./task-filter-bar";
 import { t } from "@/lib/i18n";
+import { cn } from "@/lib/cn";
+import { useCompactLayout } from "@/navigation/layout";
 
 /** Global and conversation boards share the entire responsive toolbar. Without
  * `onCreate` the row holds filters only (the page puts New task elsewhere). */
@@ -9,10 +11,17 @@ export function TaskToolbar({
   onCreate,
   ...filters
 }: TaskFilterBarProps & { onCreate?: () => void }) {
+  // Wide keeps one line: the filter bar shrinks (its project chips scroll) so
+  // New task stays right after it instead of wrapping below.
+  const compact = useCompactLayout();
+
   return (
     <div
       data-task-board-toolbar
-      className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border-subtle px-4 py-2"
+      className={cn(
+        "flex shrink-0 items-center gap-2 border-b border-border-subtle px-4 py-2",
+        compact && "flex-wrap",
+      )}
     >
       <TaskFilterBar {...filters} />
       {onCreate ? (

@@ -306,9 +306,9 @@ export function TaskFilterBar({
     return (
       <div
         data-task-filter-bar
-        // Locked, the bar sizes to its content so New task follows the filters
-        // instead of jumping to the far end.
-        className={cn("flex min-w-0 items-center gap-1.5", !scopeLocked && "flex-1", className)}
+        // The bar sizes to its content so New task follows the filters instead of
+        // jumping to the far end; it shrinks (project chips scroll) when narrow.
+        className={cn("flex min-w-0 items-center gap-1.5", className)}
       >
         {scopeLocked ? null : (
           <ScopeStrip
@@ -1181,7 +1181,7 @@ function ScopeStrip({
     <div
       role="radiogroup"
       aria-label={t("tasks.boardScope")}
-      className="flex min-w-0 flex-1 items-center gap-0.5"
+      className="flex min-w-0 items-center gap-0.5"
     >
       <FlatChip selected={filters.container === null} onSelect={() => onSelect({ kind: "all" })}>
         {t("tasks.all")}
