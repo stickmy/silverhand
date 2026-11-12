@@ -1378,7 +1378,16 @@ function AssigneeAvatars({
             onToggle={() => toggle({ kind: "unassigned" })}
             nameWhenSelected={false}
           >
-            <span className="flex size-5 shrink-0 items-center justify-center rounded-(--avatar-radius) border border-dashed border-text-muted text-text-muted">
+            <span
+              className={cn(
+                "flex size-5 shrink-0 items-center justify-center rounded-(--avatar-radius) border border-dashed",
+                // Selected inherits the chip's foreground: Poster paints the
+                // selected chip ink, where the muted grey disappears.
+                value.kind === "unassigned"
+                  ? "border-current"
+                  : "border-text-muted text-text-muted",
+              )}
+            >
               <UserIcon className="size-3" />
             </span>
           </AvatarToggle>
