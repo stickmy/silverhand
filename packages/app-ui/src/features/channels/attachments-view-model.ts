@@ -4,7 +4,8 @@ import type {
   AttachmentListItemSource,
   UserDto,
 } from "@silverhand/shared";
-import { localeTag, t } from "@/lib/i18n";
+import dayjs from "dayjs";
+import { dayLabel } from "./day-label";
 
 /**
  * Pure helpers for the channel Attachments panel: sender resolution and
@@ -97,7 +98,7 @@ export interface AttachmentDayGroup {
 /**
  * Group attachments by their `source.appeared_at` day boundary in the
  * viewer's local timezone, preserving the input's reverse-chronological
- * order (newest first). Pure: takes `now` + optional locale via `deps` so
+ * order (newest first). Pure: takes `now` via `deps` so
  * tests pin behavior against a fixed clock.
  *
  * Groups are ordered by their first-appearing item (i.e. the same reverse
@@ -109,23 +110,18 @@ export function groupAttachmentsByDay(
   items: readonly AttachmentListItem[],
   deps: {
     now: number;
-    /** Injected for tests; defaults to the runtime's locale. */
-    locale?: string;
   },
 ): AttachmentDayGroup[] {
-  const { now, locale } = deps;
-  const todayKey = localDayKey(now);
-  const yesterdayKey = yesterdayLocalKey(now);
-
+  const { now } = deps;
   const groups: AttachmentDayGroup[] = [];
   const byKey = new Map<string, AttachmentDayGroup>();
   for (const item of items) {
-    const key = localDayKey(item.source.appeared_at);
+    const key = dayjs(item.source.appeared_at).format("YYYY-MM-DD");
     let group = byKey.get(key);
     if (!group) {
       group = {
         key,
-        label: dayLabel(key, todayKey, yesterdayKey, item.source.appeared_at, locale),
+        label: dayLabel(item.source.appeared_at, now),
         items: [],
       };
       byKey.set(key, group);
@@ -134,41 +130,4 @@ export function groupAttachmentsByDay(
     group.items.push(item);
   }
   return groups;
-}
-
-/** `YYYY-MM-DD` in the viewer's local timezone. */
-function localDayKey(msSinceEpoch: number): string {
-  const d = new Date(msSinceEpoch);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-/** Local-calendar previous day. Naive `now - 24h` misfires on DST-transition
- *  days (23h or 25h windows), so we step through the Date API's own calendar
- *  arithmetic: normalize to local midnight first, then subtract one day. */
-function yesterdayLocalKey(nowMs: number): string {
-  const d = new Date(nowMs);
-  d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() - 1);
-  return localDayKey(d.getTime());
-}
-
-function dayLabel(
-  key: string,
-  todayKey: string,
-  yesterdayKey: string,
-  appearedAt: number,
-  locale: string | undefined,
-): string {
-  if (key === todayKey) return t("channels.today");
-  if (key === yesterdayKey) return t("channels.yesterday");
-  // Full date for older rows — the panel is a reference index, so a
-  // localized `Jul 12, 2026` reads faster than an ISO string.
-  return new Date(appearedAt).toLocaleDateString(locale ?? localeTag, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
 }

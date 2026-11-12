@@ -48,7 +48,9 @@ import {
   shouldRemountForWindowReplacement,
 } from "@/features/conversation-shell/model/message-list-window";
 import { MessageScroller, type MessageScrollerHandle } from "./message-scroller";
-import { t } from "@/lib/i18n";
+import { t, useLocale } from "@/lib/i18n";
+import dayjs from "dayjs";
+import { dayLabel } from "@/features/channels/day-label";
 
 // ── Message list ────────────────────────────────────────────────────────
 
@@ -281,6 +283,30 @@ export function MessageList({
   // correctly breaks the run. Same call in the ThreadPanel — one rule, both
   // surfaces.
   const authorContinuations = useMemo(() => authorGroupContinuations(items), [items]);
+
+  // A day separator sits above every row whose local day differs from the row
+  // above. In a thread the root counts as the row above the first reply. The
+  // window's first row is labelled only at the true start of the stream: above
+  // it may sit an unloaded row of the same day, and a label that later moves
+  // off the reader's anchor row would shift what they are reading.
+  const locale = useLocale();
+  const dayLabels = useMemo(() => {
+    const now = Date.now();
+    const labels = new Map<string, string>();
+    let previous = leadingMessage ? dayjs(leadingMessage.created_at) : null;
+    for (const [index, item] of items.entries()) {
+      const at = item.kind === "cluster" ? item.messages[0]!.created_at : item.message.created_at;
+      const day = dayjs(at);
+      const unknownAbove = index === 0 && previous === null && hasMoreBefore;
+      if (!previous?.isSame(day, "day") && !unknownAbove) {
+        labels.set(item.kind === "cluster" ? item.id : item.message.id, dayLabel(at, now));
+      }
+      previous = day;
+    }
+    return labels;
+    // `locale` re-labels in place when the language changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, leadingMessage, hasMoreBefore, locale]);
 
   // Byline + stacked-replier avatar bytes come STRICTLY from each rendered row's
   // own author DTO (#task:1792 B2) — committed messages' `author` plus every
@@ -670,10 +696,18 @@ export function MessageList({
   );
 
   const renderRow = useCallback(
-    (item: StreamItem) => (
-      <div className="mx-auto max-w-300 px-(--message-list-gutter) py-0.5">{renderItem(item)}</div>
-    ),
-    [renderItem],
+    (item: StreamItem) => {
+      const key = itemKey(item);
+      const dayLabel = dayLabels.get(key);
+
+      return (
+        <div className="mx-auto max-w-300 px-(--message-list-gutter) py-0.5">
+          {dayLabel ? <DaySeparator label={dayLabel} /> : null}
+          {renderItem(item)}
+        </div>
+      );
+    },
+    [renderItem, itemKey, dayLabels],
   );
 
   return (
@@ -723,7 +757,9 @@ export function MessageList({
                 ) : null}
                 {leadingMessage ? (
                   <>
-                    {renderRow({ kind: "message", message: leadingMessage })}
+                    <div className="mx-auto max-w-300 px-(--message-list-gutter) py-0.5">
+                      {renderItem({ kind: "message", message: leadingMessage })}
+                    </div>
                     <div className="my-2 shrink-0 border-t border-border-subtle" />
                     {items.length === 0 ? emptyState : null}
                   </>
@@ -797,6 +833,25 @@ export function MessageList({
           </button>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+function DaySeparator({ label }: { label: string }): JSX.Element {
+  return (
+    <div
+      role="separator"
+      aria-label={label}
+      data-day-separator
+      // px-2.5 matches a message row's own inset (2px hover frame + 8px), so
+      // the hairlines end where avatars and bubbles do.
+      className="my-3 flex items-center gap-3 px-2.5 text-(length:--text-meta) text-text-muted"
+    >
+      <span aria-hidden className="h-px flex-1 bg-border-subtle" />
+      <span aria-hidden className="shrink-0 font-medium">
+        {label}
+      </span>
+      <span aria-hidden className="h-px flex-1 bg-border-subtle" />
     </div>
   );
 }

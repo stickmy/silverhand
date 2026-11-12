@@ -210,7 +210,7 @@ describe("groupAttachmentsByDay", () => {
       item({ id: "a3" }, { appeared_at: yesterday }),
     ];
 
-    const groups = groupAttachmentsByDay(items, { now: NOW, locale: "en-US" });
+    const groups = groupAttachmentsByDay(items, { now: NOW });
 
     expect(groups.map((g) => g.label)).toEqual([t("channels.today"), t("channels.yesterday")]);
     expect(groups[0]!.items.map((i) => i.attachment.id)).toEqual(["a1", "a2"]);
@@ -221,7 +221,6 @@ describe("groupAttachmentsByDay", () => {
     const older = NOW - 10 * 24 * 60 * 60 * 1000;
     const groups = groupAttachmentsByDay([item({ id: "x" }, { appeared_at: older })], {
       now: NOW,
-      locale: "en-US",
     });
 
     expect(groups).toHaveLength(1);
@@ -250,7 +249,7 @@ describe("groupAttachmentsByDay", () => {
         item({ id: "after" }, { appeared_at: justAfterMidnight }),
         item({ id: "before" }, { appeared_at: justBeforeMidnight }),
       ],
-      { now, locale: "en-US" },
+      { now },
     );
 
     expect(groups.map((g) => g.label)).toEqual([t("channels.today"), t("channels.yesterday")]);

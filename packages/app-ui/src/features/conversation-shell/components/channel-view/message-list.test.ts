@@ -44,6 +44,10 @@ vi.mock("react", async (load) => {
 });
 vi.mock("@/navigation/layout", () => ({ useCompactLayout: () => h.compact }));
 vi.mock("@/navigation/view-memory", () => ({ useViewMemory: () => null }));
+vi.mock("@/lib/i18n", async (load) => ({
+  ...(await load<typeof import("@/lib/i18n")>()),
+  useLocale: () => "en",
+}));
 vi.mock("@/features/messages/hooks/use-message-render-context", () => ({
   useMessageRenderContext: () => ({ liveChannels: [], archivedChannels: [] }),
 }));
