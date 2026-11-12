@@ -5,7 +5,7 @@ import {
   useQueryClient,
   type InfiniteData,
 } from "@tanstack/react-query";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   type TaskBoardColumnDto,
   type TaskBoardCountsDto,
@@ -99,6 +99,27 @@ export type BoardColumns = Readonly<Record<TaskStatus, BoardColumnRead>>;
 
 const EMPTY_ITEMS: TaskSummaryDto[] = [];
 
+// A filter change keeps the previous answer on screen (`keepPreviousData`) so a
+// fast response swaps in without a skeleton frame. Past this delay the old
+// answer would read as the new filter's result, so the surface drops to its
+// loading state instead.
+const PLACEHOLDER_GRACE_MS = 300;
+
+function usePlaceholderOverdue(isPlaceholder: boolean): boolean {
+  const [overdue, setOverdue] = useState(false);
+
+  useEffect(() => {
+    if (!isPlaceholder) {
+      setOverdue(false);
+      return;
+    }
+    const timer = setTimeout(() => setOverdue(true), PLACEHOLDER_GRACE_MS);
+    return () => clearTimeout(timer);
+  }, [isPlaceholder]);
+
+  return isPlaceholder && overdue;
+}
+
 function useBoardColumn(
   status: TaskStatus,
   filterKey: string,
@@ -115,8 +136,6 @@ function useBoardColumn(
   >({
     queryKey: boardColumnKey(status, filterKey),
     enabled,
-    // A filter change swaps the key; holding the previous answer until the new
-    // one lands keeps the cards in place instead of flashing to the skeleton.
     placeholderData: keepPreviousData,
     initialPageParam: null,
     queryFn: ({ pageParam, signal }) =>
@@ -152,12 +171,14 @@ function useBoardColumn(
     fetchNextPage,
   ]);
 
+  const overdue = usePlaceholderOverdue(isPlaceholderData);
   const items = useMemo(
-    () => query.data?.pages.flatMap((p) => p.items) ?? EMPTY_ITEMS,
-    [query.data],
+    () => (overdue ? EMPTY_ITEMS : (query.data?.pages.flatMap((p) => p.items) ?? EMPTY_ITEMS)),
+    [overdue, query.data],
   );
 
-  const { isLoading, isError, isFetching, dataUpdatedAt, errorUpdateCount, refetch } = query;
+  const { isError, isFetching, dataUpdatedAt, errorUpdateCount, refetch } = query;
+  const isLoading = query.isLoading || overdue;
 
   return useMemo(
     () => ({
@@ -280,7 +301,6 @@ export function useBoardCounts(
   const query = useQuery({
     queryKey: boardCountsKey(boardFilterKey(filters)),
     enabled,
-    // Same as the columns: a filter change keeps the old totals, not a dash.
     placeholderData: keepPreviousData,
     queryFn: ({ signal }) =>
       api<TaskBoardCountsDto>(boardCountsPath(boardFilterParams(filters)), {
@@ -288,7 +308,9 @@ export function useBoardCounts(
       }),
     select: (dto) => dto.counts as BoardCounts,
   });
-  const { data, isError } = query;
+  const overdue = usePlaceholderOverdue(query.isPlaceholderData);
+  const data = overdue ? undefined : query.data;
+  const { isError } = query;
   return useMemo(() => boardAuthority({ data, isError }), [data, isError]);
 }
 
