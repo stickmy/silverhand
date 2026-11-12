@@ -1,4 +1,5 @@
 import {
+  keepPreviousData,
   useInfiniteQuery,
   useQuery,
   useQueryClient,
@@ -114,6 +115,9 @@ function useBoardColumn(
   >({
     queryKey: boardColumnKey(status, filterKey),
     enabled,
+    // A filter change swaps the key; holding the previous answer until the new
+    // one lands keeps the cards in place instead of flashing to the skeleton.
+    placeholderData: keepPreviousData,
     initialPageParam: null,
     queryFn: ({ pageParam, signal }) =>
       api<TaskBoardColumnDto>(boardColumnPath(status, boardFilterParams(filters), pageParam), {
@@ -123,7 +127,7 @@ function useBoardColumn(
   });
 
   const loadedPages = query.data?.pages.length ?? 0;
-  const { hasNextPage, isFetchingNextPage, fetchNextPage } = query;
+  const { hasNextPage, isFetchingNextPage, fetchNextPage, isPlaceholderData } = query;
 
   // The window asks, the query answers. Page N+1 is fetched only because some
   // surface wants to render it — there is no prefetch-ahead and no polling, so
@@ -132,11 +136,21 @@ function useBoardColumn(
     if (!enabled) return;
     // No first page yet: it is already in flight (or the query is off). Asking
     // for a next page here would fetch the same window twice.
-    if (loadedPages === 0) return;
+    // Placeholder pages belong to the previous filter; paging from them would
+    // race the new key's first read.
+    if (loadedPages === 0 || isPlaceholderData) return;
     if (loadedPages >= wantedPages) return;
     if (!hasNextPage || isFetchingNextPage) return;
     void fetchNextPage();
-  }, [enabled, loadedPages, wantedPages, hasNextPage, isFetchingNextPage, fetchNextPage]);
+  }, [
+    enabled,
+    loadedPages,
+    isPlaceholderData,
+    wantedPages,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  ]);
 
   const items = useMemo(
     () => query.data?.pages.flatMap((p) => p.items) ?? EMPTY_ITEMS,
@@ -266,6 +280,8 @@ export function useBoardCounts(
   const query = useQuery({
     queryKey: boardCountsKey(boardFilterKey(filters)),
     enabled,
+    // Same as the columns: a filter change keeps the old totals, not a dash.
+    placeholderData: keepPreviousData,
     queryFn: ({ signal }) =>
       api<TaskBoardCountsDto>(boardCountsPath(boardFilterParams(filters)), {
         signal,
@@ -304,6 +320,9 @@ export function useBoardFacets(
   const query = useQuery({
     queryKey: boardFacetsKey(container),
     enabled,
+    // A container switch keeps the old avatars until the new set lands, so the
+    // toolbar row does not collapse and reflow.
+    placeholderData: keepPreviousData,
     queryFn: ({ signal }) => api<TaskBoardFacetsDto>(boardFacetsPath(container), { signal }),
     select: (dto): BoardFacets => {
       const toOptions = (people: TaskBoardFacetsDto["assignees"]): PersonOption[] =>
