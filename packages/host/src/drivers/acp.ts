@@ -51,6 +51,9 @@ export interface AcpRuntimeAdapter {
     sessionId: string,
     text: string,
   ): { method: string; params: Record<string, unknown> };
+  /** True when a busy-request result says the text was not taken (its turn had
+   *  ended). Opting in also redelivers, best effort, on error responses. */
+  busyRequestNeedsPrompt?(result: unknown): boolean;
   sessionMethod?(ctx: DriverSpawnContext, initializeResult: unknown): string;
   buildSessionFinalizeRequest?(
     ctx: DriverSpawnContext,
@@ -84,6 +87,8 @@ export class AcpClient {
   private sessionFinalizeRequestId: JsonRpcId | null = null;
   private sessionFinalized = false;
   private activePromptRequestId: JsonRpcId | null = null;
+  private pendingBusyRequests = new Map<JsonRpcId, { text: string; promptId: JsonRpcId }>();
+  private redeliveries: string[] = [];
   private sessionId: string | null = null;
   private sessionAnnounced = false;
   private sessionResult: Record<string, unknown> = {};
@@ -113,6 +118,9 @@ export class AcpClient {
     const id = this.nextRequestId();
     if (this.activePromptRequestId !== null && this.adapter.buildBusyRequest) {
       const request = this.adapter.buildBusyRequest(this.sessionId, text);
+      if (this.adapter.busyRequestNeedsPrompt) {
+        this.pendingBusyRequests.set(id, { text, promptId: this.activePromptRequestId });
+      }
       return serialize({ jsonrpc: '2.0', id, ...request });
     }
     this.activePromptRequestId = id;
@@ -190,7 +198,10 @@ export class AcpClient {
     const events: ParsedEvent[] = [];
 
     if (message.error) {
+      const busy = this.pendingBusyRequests.get(message.id);
       this.clearPendingForResponse(message.id);
+      // A refused busy request did not take the text either.
+      if (busy) this.redeliver(busy);
       events.push({
         kind: 'error',
         message:
@@ -199,9 +210,15 @@ export class AcpClient {
             : `${this.adapter.runtimeLabel} ACP request failed`,
       });
       if (message.id === this.activePromptRequestId) {
-        this.activePromptRequestId = null;
-        events.push({ kind: 'turn_end', sessionId: this.sessionId ?? undefined });
+        this.endPrompt(events);
       }
+      return events;
+    }
+
+    const busy = this.pendingBusyRequests.get(message.id);
+    if (busy) {
+      this.pendingBusyRequests.delete(message.id);
+      if (this.adapter.busyRequestNeedsPrompt?.(message.result)) this.redeliver(busy);
       return events;
     }
 
@@ -260,18 +277,46 @@ export class AcpClient {
     }
 
     if (message.id === this.activePromptRequestId) {
-      this.activePromptRequestId = null;
-      events.push({ kind: 'turn_end', sessionId: this.sessionId ?? undefined });
+      this.endPrompt(events);
       return events;
     }
 
     return events;
   }
 
+  private endPrompt(events: ParsedEvent[]): void {
+    this.activePromptRequestId = null;
+    events.push({ kind: 'turn_end', sessionId: this.sessionId ?? undefined });
+    this.flushRedeliveries();
+  }
+
+  /** Best effort: busy input refused because its turn ended joins the turn
+   *  that has since started, or starts the next one. */
+  private redeliver(busy: { text: string; promptId: JsonRpcId }): void {
+    if (this.activePromptRequestId === null) {
+      this.redeliveries.push(busy.text);
+      this.flushRedeliveries();
+    } else if (this.activePromptRequestId === busy.promptId) {
+      // The refused turn's own response is still in flight.
+      this.redeliveries.push(busy.text);
+    } else {
+      const line = this.encodeStdinMessage(busy.text);
+      if (line) void this.writeLine(line);
+    }
+  }
+
+  private flushRedeliveries(): void {
+    if (this.redeliveries.length === 0) return;
+    const line = this.encodeStdinMessage(this.redeliveries.join('\n\n'));
+    this.redeliveries = [];
+    if (line) void this.writeLine(line);
+  }
+
   private clearPendingForResponse(id: JsonRpcId): void {
     if (id === this.initializeRequestId) this.initializeRequestId = null;
     if (id === this.sessionRequestId) this.sessionRequestId = null;
     if (id === this.sessionFinalizeRequestId) this.sessionFinalizeRequestId = null;
+    this.pendingBusyRequests.delete(id);
     if (id === this.activeSessionConfigRequestId) {
       this.activeSessionConfigRequestId = null;
       this.pendingSessionConfigRequests = [];
@@ -453,8 +498,10 @@ export class AcpClient {
     return this.requestId;
   }
 
+  /** Fire-and-forget: a failed write surfaces through process exit, never as
+   *  an unhandled rejection. */
   private async writeLine(line: string): Promise<void> {
-    await this.io?.writeLine(line);
+    await this.io?.writeLine(line).catch(() => {});
   }
 }
 

@@ -1877,6 +1877,10 @@ export class Supervisor implements SupervisorContract {
               'driver.writeLine: line must not end with "\\n" (writeStdinPayload appends the newline)',
             );
           }
+          // A stopping runtime must not start new work from driver-initiated writes.
+          if (handle.phase === 'draining' || handle.phase === 'exited') {
+            return Promise.reject(new Error(`runtime is ${handle.phase}`));
+          }
           return this.writeStdinPayload(handle, line);
         },
         spawnCtx,

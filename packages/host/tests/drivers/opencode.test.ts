@@ -68,10 +68,10 @@ describe('OpenCodeDriver static config', () => {
     expect(d.supportsNativeStandingPrompt).toBe(true);
   });
 
-  it('builds opencode acp args with cwd', () => {
+  it('builds opencode acp args without --cwd (removed in opencode 2.x)', () => {
     const { ctx, cleanup } = makeSpawnCtx();
     try {
-      expect(new OpenCodeDriver().buildArgs(ctx)).toEqual(['acp', '--cwd', ctx.workspacePath]);
+      expect(new OpenCodeDriver().buildArgs(ctx)).toEqual(['acp']);
     } finally {
       cleanup();
     }
@@ -359,6 +359,185 @@ describe('OpenCodeDriver prompt-boundary contract (#task:1565, probed on opencod
       expect(events.some((e) => e.kind === 'error')).toBe(true);
       expect(events.some((e) => e.kind === 'turn_end')).toBe(true);
       expect(d.readyToEncode()).toBe(true);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe('OpenCodeDriver native steer (opencode >= 2.2.7, probed)', () => {
+  // Probed on 2.2.7: `_session/steering` answers `{outcome:'injected'}` while a
+  // turn runs, and `{outcome:'promptRequired'}` once it has ended (the text is
+  // not taken). 2.2.6 and earlier have no such method.
+  async function readyDriver(version: string | null): Promise<{
+    d: OpenCodeDriver;
+    io: CapturedIO;
+    cleanup: () => void;
+  }> {
+    const { ctx, cleanup } = makeSpawnCtx();
+    const d = new OpenCodeDriver();
+    d.bindRuntimeVersion(version);
+    const io = makeIO(ctx);
+    d.bindIO(io);
+    await tick();
+    d.parseLine(JSON.stringify({ jsonrpc: '2.0', id: 1, result: {} }));
+    d.parseLine(JSON.stringify({ jsonrpc: '2.0', id: 2, result: { sessionId: 'ses_1' } }));
+    d.parseLine(JSON.stringify({ jsonrpc: '2.0', id: 3, result: { configOptions: [] } }));
+    return { d, io, cleanup };
+  }
+
+  const respond = (d: OpenCodeDriver, id: number, result: unknown) =>
+    d.parseLine(JSON.stringify({ jsonrpc: '2.0', id, result }));
+
+  it('pins the release profile to the CLI version and fails closed', () => {
+    const profile = (v: string | null | undefined) => {
+      const d = new OpenCodeDriver();
+      if (v !== undefined) d.bindRuntimeVersion(v);
+      return d.releaseProfile;
+    };
+    expect(profile('2.2.7')).toBe('native-steer');
+    expect(profile('2.3.0')).toBe('native-steer');
+    expect(profile('2.2.6')).toBe('prompt-boundary');
+    expect(profile('1.18.1')).toBe('prompt-boundary');
+    expect(profile(null)).toBe('prompt-boundary');
+    expect(profile(undefined)).toBe('prompt-boundary');
+  });
+
+  it('steers busy input into the running turn without taking the prompt slot', async () => {
+    const { d, cleanup } = await readyDriver('2.2.7');
+    try {
+      const prompt = JSON.parse(d.encodeStdinMessage('task', null)!);
+      expect(prompt.method).toBe('session/prompt');
+      expect(d.readyToEncode()).toBe(true);
+      const steer = JSON.parse(d.encodeStdinMessage('more', null)!);
+      expect(steer).toMatchObject({
+        method: '_session/steering',
+        params: { sessionId: 'ses_1', prompt: [{ type: 'text', text: 'more' }] },
+      });
+      expect(respond(d, steer.id, { outcome: 'injected' })).toEqual([]);
+      expect(respond(d, prompt.id, { stopReason: 'end_turn' })).toEqual([
+        { kind: 'turn_end', sessionId: 'ses_1' },
+      ]);
+      expect(JSON.parse(d.encodeStdinMessage('next', null)!).method).toBe('session/prompt');
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('redelivers a steer refused after its turn ended as the next prompt', async () => {
+    const { d, io, cleanup } = await readyDriver('2.2.7');
+    try {
+      const prompt = JSON.parse(d.encodeStdinMessage('task', null)!);
+      const a = JSON.parse(d.encodeStdinMessage('a', null)!);
+      const b = JSON.parse(d.encodeStdinMessage('b', null)!);
+      // Refusals can arrive before the refused turn's own response.
+      respond(d, a.id, { outcome: 'promptRequired', reason: 'noRunningTurn' });
+      respond(d, b.id, { outcome: 'promptRequired', reason: 'noRunningTurn' });
+      const before = io.lines.length;
+      respond(d, prompt.id, { stopReason: 'end_turn' });
+      await tick();
+      expect(io.lines.length).toBe(before + 1);
+      const next = parseLast(io);
+      expect(next.method).toBe('session/prompt');
+      expect(next.params.prompt[0].text).toBe('a\n\nb');
+      expect(d.readyToEncode()).toBe(true);
+      expect(JSON.parse(d.encodeStdinMessage('c', null)!).method).toBe('_session/steering');
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('redelivers a refused steer immediately when the turn already settled', async () => {
+    const { d, io, cleanup } = await readyDriver('2.2.7');
+    try {
+      const prompt = JSON.parse(d.encodeStdinMessage('task', null)!);
+      const steer = JSON.parse(d.encodeStdinMessage('late', null)!);
+      respond(d, prompt.id, { stopReason: 'end_turn' });
+      respond(d, steer.id, { outcome: 'promptRequired', reason: 'noRunningTurn' });
+      await tick();
+      expect(parseLast(io)).toMatchObject({
+        method: 'session/prompt',
+        params: { prompt: [{ type: 'text', text: 'late' }] },
+      });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('a refused steer joins a turn that has since started instead of opening another', async () => {
+    const { d, io, cleanup } = await readyDriver('2.2.7');
+    try {
+      const first = JSON.parse(d.encodeStdinMessage('task', null)!);
+      const steer = JSON.parse(d.encodeStdinMessage('late', null)!);
+      respond(d, first.id, { stopReason: 'end_turn' });
+      JSON.parse(d.encodeStdinMessage('second', null)!);
+      respond(d, steer.id, { outcome: 'promptRequired', reason: 'noRunningTurn' });
+      await tick();
+      expect(parseLast(io)).toMatchObject({
+        method: '_session/steering',
+        params: { prompt: [{ type: 'text', text: 'late' }] },
+      });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('redelivers a steer that fails with an error instead of dropping it', async () => {
+    const { d, io, cleanup } = await readyDriver('2.2.7');
+    try {
+      const prompt = JSON.parse(d.encodeStdinMessage('task', null)!);
+      const steer = JSON.parse(d.encodeStdinMessage('more', null)!);
+      const events = d.parseLine(
+        JSON.stringify({ jsonrpc: '2.0', id: steer.id, error: { code: -32000, message: 'x' } }),
+      );
+      expect(events).toEqual([{ kind: 'error', message: 'x' }]);
+      respond(d, prompt.id, { stopReason: 'end_turn' });
+      await tick();
+      expect(parseLast(io)).toMatchObject({
+        method: 'session/prompt',
+        params: { prompt: [{ type: 'text', text: 'more' }] },
+      });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('a failed redelivery write is swallowed, not an unhandled rejection', async () => {
+    const { ctx, cleanup } = makeSpawnCtx();
+    try {
+      const d = new OpenCodeDriver();
+      d.bindRuntimeVersion('2.2.7');
+      const lines: string[] = [];
+      let broken = false;
+      d.bindIO({
+        spawnCtx: ctx,
+        writeLine: async (line: string) => {
+          if (broken) throw new Error('EPIPE');
+          lines.push(line);
+        },
+      });
+      await tick();
+      d.parseLine(JSON.stringify({ jsonrpc: '2.0', id: 1, result: {} }));
+      d.parseLine(JSON.stringify({ jsonrpc: '2.0', id: 2, result: { sessionId: 'ses_1' } }));
+      d.parseLine(JSON.stringify({ jsonrpc: '2.0', id: 3, result: { configOptions: [] } }));
+      const prompt = JSON.parse(d.encodeStdinMessage('task', null)!);
+      const steer = JSON.parse(d.encodeStdinMessage('late', null)!);
+      respond(d, steer.id, { outcome: 'promptRequired', reason: 'noRunningTurn' });
+      broken = true;
+      respond(d, prompt.id, { stopReason: 'end_turn' });
+      await new Promise((r) => setTimeout(r, 0));
+      expect(lines.some((l) => l.includes('late'))).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('below 2.2.7 keeps single-in-flight prompts', async () => {
+    const { d, cleanup } = await readyDriver('2.2.6');
+    try {
+      expect(d.encodeStdinMessage('task', null)).not.toBeNull();
+      expect(d.readyToEncode()).toBe(false);
+      expect(d.encodeStdinMessage('more', null)).toBeNull();
     } finally {
       cleanup();
     }

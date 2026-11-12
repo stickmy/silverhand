@@ -592,7 +592,7 @@ export class CodexDriver implements Driver {
     const prompt = this.pendingInitialPrompt;
     this.pendingInitialPrompt = null;
     const encoded = this.encodeStdinMessage(prompt, this.threadId);
-    if (encoded) void this.io?.writeLine(encoded);
+    if (encoded) this.write(encoded);
   }
 
   private buildThreadRequest(
@@ -626,12 +626,17 @@ export class CodexDriver implements Driver {
 
   private sendRequest(method: string, params: unknown): number {
     const id = this.nextRequestId();
-    void this.io?.writeLine(JSON.stringify({ jsonrpc: '2.0', id, method, params }));
+    this.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }));
     return id;
   }
 
   private sendNotification(method: string, params: unknown): void {
-    void this.io?.writeLine(JSON.stringify({ jsonrpc: '2.0', method, params }));
+    this.write(JSON.stringify({ jsonrpc: '2.0', method, params }));
+  }
+
+  /** Fire-and-forget: a failed write surfaces through process exit. */
+  private write(line: string): void {
+    void this.io?.writeLine(line).catch(() => {});
   }
 }
 

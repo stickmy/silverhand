@@ -29,7 +29,7 @@ import { composeRuntimeDeliveryPresentation, parseDeliveryTarget } from '@silver
 import { Supervisor } from '../src/daemon/supervisor/index.js';
 import type { DeliveryOwnerContext } from '../src/daemon/supervisor-contract.js';
 import { CodexDriver } from '../src/drivers/codex.js';
-import type { Driver, DriverSpawnContext, ParsedEvent } from '../src/drivers/index.js';
+import type { Driver, DriverIO, DriverSpawnContext, ParsedEvent } from '../src/drivers/index.js';
 import { QoderDriver } from '../src/drivers/qoder.js';
 import { PiDriver } from '../src/drivers/pi.js';
 import { GrokDriver } from '../src/drivers/grok.js';
@@ -6375,6 +6375,31 @@ describe('Supervisor Stage 3 — daemon mid-turn deferred queue', () => {
       }
     },
   );
+
+  it('driver-initiated writes are refused once the runtime is draining (#task:3048)', async () => {
+    const h = makeDriven('direct');
+    let io: DriverIO | undefined;
+    h.driver.bindIO = (bound) => {
+      io = bound;
+    };
+    expect((await h.deliver([1])).disposition).toBe('spawning');
+    h.drive([{ kind: 'session_init', sessionId: 's1' }]);
+    await waitForDeliveryConsumed(h.events, 1);
+    await expect(io!.writeLine('before-stop')).resolves.toBeUndefined();
+
+    let stub = h.stub;
+    stub.kill = () => true;
+    const stopping = h.supervisor.stop({
+      runtime_scope: { kind: 'conversation', conversation_id: 'Conversation0001', agent_id: 'a1' },
+      runtime_generation: 1,
+      mode: 'hard',
+    });
+    await wait(0);
+    await expect(io!.writeLine('after-stop')).rejects.toThrow('runtime is draining');
+    expect(stub.written.some((w) => w.includes('after-stop'))).toBe(false);
+    stub.emit('exit', 0, null);
+    await stopping;
+  });
 
   it('prompt-boundary falsifier (#task:1565): deliveries during an active prompt DEFER; the prompt response reopens the boundary → ONE combined prompt, batch-boundary admission', async () => {
     const logs: Array<Record<string, unknown>> = [];
