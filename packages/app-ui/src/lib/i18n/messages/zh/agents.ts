@@ -77,7 +77,6 @@ export const agents: Translation<typeof en> = {
   created: "创建于",
   runtimeConfiguration: "运行时配置",
   editRuntimeConfiguration: "编辑运行时配置",
-  onlyTheCreatorCan: "只有创建者可以编辑这个 agent 的资料。",
   all: "全部",
   done: "已完成",
   cancelled2: "已取消",

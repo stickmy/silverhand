@@ -58,8 +58,6 @@ export function AgentProfileCard({ agent }: AgentProfileCardProps): JSX.Element 
 
   return (
     <div ref={profileRef} data-profile-layout className="mx-auto flex flex-col gap-6">
-      {!canEdit ? <ReadOnlyNotice /> : null}
-
       <section
         aria-label={t("agents.agentProfile")}
         data-compact={compactHero}
@@ -230,14 +228,6 @@ export function AgentProfileCard({ agent }: AgentProfileCardProps): JSX.Element 
         <div className="text-xs text-error">{String(update.error)}</div>
       ) : null}
     </div>
-  );
-}
-
-function ReadOnlyNotice(): JSX.Element {
-  return (
-    <p role="note" className="text-xs text-text-muted" data-testid="agent-profile-readonly-notice">
-      {t("agents.onlyTheCreatorCan")}
-    </p>
   );
 }
 

@@ -77,7 +77,6 @@ export const agents = {
   created: "Created",
   runtimeConfiguration: "Runtime configuration",
   editRuntimeConfiguration: "Edit runtime configuration",
-  onlyTheCreatorCan: "Only the creator can edit this agent's profile.",
   all: "All",
   done: "Done",
   cancelled2: "Cancelled",
