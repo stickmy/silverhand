@@ -2610,6 +2610,10 @@ async fn a_workspace_send_fans_out_across_ports_without_duplicate_or_widening() 
         Some(ProductEvent::ConversationLatestChanged(_))
     ));
     assert!(
+        matches!(reader.pop(), Some(ProductEvent::MessageAlert(alert)) if alert["reason"] == "mention"),
+        "the named reader is alerted once, as a mention"
+    );
+    assert!(
         matches!(
             reader.as_slice(),
             [
@@ -4502,6 +4506,7 @@ const SUPPORTED_EVENT_KINDS: &[&str] = &[
     "message_reaction_changed",
     "attachment_changed",
     "conversation_latest_changed",
+    "message_alert",
 ];
 
 /// The wire `kind` a product event MUST serialize as. Exhaustive by construction: a new
@@ -4540,6 +4545,7 @@ fn wire_kind(event: &ProductEvent) -> &'static str {
         ProductEvent::MessageReactionChanged(_) => "message_reaction_changed",
         ProductEvent::AttachmentChanged(_) => "attachment_changed",
         ProductEvent::ConversationLatestChanged(_) => "conversation_latest_changed",
+        ProductEvent::MessageAlert(_) => "message_alert",
         ProductEvent::Test { .. } => "test",
     }
 }
@@ -4658,6 +4664,7 @@ fn the_supported_wire_kinds_are_a_closed_named_set() {
             json!({ "attachment_id": "attachment-1", "content_revision": 2 }),
         ),
         ProductEvent::ConversationLatestChanged(json!({ "conversation_id": "c-1" })),
+        ProductEvent::MessageAlert(json!({ "conversation_id": "c-1", "reason": "direct" })),
     ];
     let mut produced = std::collections::BTreeSet::new();
     for event in &samples {
@@ -5661,6 +5668,9 @@ async fn thread_reply_announces_unread_through_production_aftermath() {
             next_json(&mut socket).await["kind"],
             "attention_badge_updated"
         );
+        let alert = next_json(&mut socket).await;
+        assert_eq!(alert["kind"], "message_alert", "{alert}");
+        assert_eq!(alert["payload"]["reason"], "ambient");
         assert_eq!(
             next_json(&mut socket).await["kind"],
             "conversation_latest_changed"
@@ -5791,6 +5801,10 @@ async fn agent_dm_thread_unread_is_immediate_before_wait_or_mainline_send() {
         let frame = next_json(&mut socket).await;
         assert_eq!(frame["kind"], "direct_pairs_changed", "{frame}");
         assert_eq!(frame["scope"], "viewer:user-1");
+        let alert = next_json(&mut socket).await;
+        assert_eq!(alert["kind"], "message_alert", "{alert}");
+        assert_eq!(alert["payload"]["reason"], "direct");
+        assert_eq!(alert["payload"]["thread_root_id"], root_id.as_str());
         assert_eq!(
             next_json(&mut socket).await["kind"],
             "conversation_latest_changed"
@@ -5851,6 +5865,7 @@ async fn agent_dm_thread_unread_is_immediate_before_wait_or_mainline_send() {
         )
         .await;
         assert_eq!(next_json(&mut socket).await["kind"], "direct_pairs_changed");
+        assert_eq!(next_json(&mut socket).await["kind"], "message_alert");
         assert_eq!(
             next_json(&mut socket).await["kind"],
             "conversation_latest_changed"
@@ -5890,6 +5905,7 @@ async fn agent_dm_thread_unread_is_immediate_before_wait_or_mainline_send() {
         )
         .await;
         assert_eq!(next_json(&mut socket).await["kind"], "direct_pairs_changed");
+        assert_eq!(next_json(&mut socket).await["kind"], "message_alert");
         assert_eq!(
             next_json(&mut socket).await["kind"],
             "conversation_latest_changed"
@@ -5923,6 +5939,7 @@ async fn agent_dm_thread_unread_is_immediate_before_wait_or_mainline_send() {
                     event,
                     ProductEvent::DirectPairsChanged { .. }
                         | ProductEvent::ConversationLatestChanged(_)
+                        | ProductEvent::MessageAlert(_)
                 ))
         );
         socket.close(None).await.unwrap();

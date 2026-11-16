@@ -1,4 +1,4 @@
-import type { MessageAuthorDto, NotificationDto } from "@silverhand/shared";
+import type { MessageAlert, MessageAuthorDto, NotificationDto } from "@silverhand/shared";
 import { presentAuthor } from "@/features/messages/model/author-presentation";
 import { readableExcerpt } from "./mention-banner";
 import { t } from "@/lib/i18n";
@@ -13,21 +13,20 @@ export interface SystemNotice {
   groupId?: string;
 }
 
+/** A message alert: who, where (channels only), what they said. */
+export function alertNotice(alert: MessageAlert): SystemNotice {
+  return {
+    title: senderLabel(alert.sender) ?? t("attention.someone"),
+    subtitle: alert.conversation_title
+      ? t("attention.inChannel", { channel: alert.conversation_title })
+      : undefined,
+    body: alert.excerpt ? readableExcerpt(alert.excerpt) : undefined,
+    groupId: alert.conversation_id,
+  };
+}
+
 export function systemNoticeOf(n: NotificationDto, fallback: string): SystemNotice {
   const groupId = n.conversation_id ?? undefined;
-  if (n.kind === "mention_self") {
-    const conversationTitle = payloadString(n, "conversation_title");
-    const excerpt = payloadString(n, "mention_excerpt");
-    return {
-      title:
-        senderLabel(n.sender ?? null) ?? payloadString(n, "trigger_name") ?? t("attention.someone"),
-      subtitle: conversationTitle
-        ? t("attention.inChannel", { channel: conversationTitle })
-        : undefined,
-      body: excerpt ? readableExcerpt(excerpt) : t("attention.mentionedYou"),
-      groupId,
-    };
-  }
   if (n.kind === "agent_start_failed") {
     const name = payloadString(n, "agent_name") ?? n.agent_id ?? t("attention.agent");
     const reason = payloadString(n, "reason");

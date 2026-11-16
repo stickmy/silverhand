@@ -24,11 +24,11 @@ use silverhand_backend_core::conversation_messaging::messaging::{
     },
     mention_cc::MentionCopySkip,
     post_commit::{
-        CommittedMessagePublication, CopyNotification, DirectLineInvalidation, EffectReport,
-        EffectStep, IdleStart, LatestPublication, MainDelivery, MainEffects, MentionSkipRecord,
-        MentionedViewerRecord, MessagePublication, ReplyDelivery, ReplyEffects, RuntimeDelivery,
-        RuntimeStart, SendEffects, SkippedMention, UnreadPublication, ViewerNotification,
-        announce_main_send, announce_reply_send, announce_send,
+        AlertPublication, CommittedMessagePublication, CopyNotification, DirectLineInvalidation,
+        EffectReport, EffectStep, IdleStart, LatestPublication, MainDelivery, MainEffects,
+        MentionSkipRecord, MentionedViewerRecord, MessagePublication, ReplyDelivery, ReplyEffects,
+        RuntimeDelivery, RuntimeStart, SendEffects, SkippedMention, UnreadPublication,
+        ViewerNotification, announce_main_send, announce_reply_send, announce_send,
     },
 };
 
@@ -230,7 +230,7 @@ where
         + Sync,
     D: RuntimeStart + RuntimeDelivery + MainDelivery + ReplyDelivery + IdleStart + Send + Sync,
     M: MentionedViewerRecord + Send + Sync,
-    U: UnreadPublication + LatestPublication + Send + Sync,
+    U: UnreadPublication + LatestPublication + AlertPublication + Send + Sync,
 {
     async fn announce(&self, outcome: &SendMessageOutcome) {
         let committed = outcome.committed();
@@ -290,6 +290,28 @@ where
                 "committed send has neither a main-line nor reply aftermath"
             );
         }
+
+        let named = committed
+            .main_line()
+            .and_then(|main| main.mentions())
+            .or_else(|| committed.reply_cluster().and_then(|reply| reply.mentions()))
+            .map_or(&[][..], |intent| intent.handles());
+        let mut report = EffectReport::default();
+        let id = committed.message().id.clone();
+        report
+            .attempted
+            .push((id.clone(), EffectStep::AlertPublished));
+        if let Err(failure) = self
+            .inner
+            .unread
+            .publish_alerts(committed.message(), named)
+            .await
+        {
+            report
+                .failed
+                .push((id, EffectStep::AlertPublished, failure));
+        }
+        report_failures(report);
 
         if let Some(latest) = ConversationLatest::from_created(committed.message()) {
             let mut report = EffectReport::default();

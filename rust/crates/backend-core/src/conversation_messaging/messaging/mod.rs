@@ -70,6 +70,7 @@ mod principal;
 pub(crate) use crate::foundation::identity::{AgentId, ConversationId, UserId, WorkspaceId};
 
 pub mod agent_onboarding;
+pub mod alert;
 pub mod attachments;
 pub mod collaboration;
 pub mod conversation_title;

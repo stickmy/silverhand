@@ -467,3 +467,26 @@ export const ObserveDtoSchema = z.object({
   changed: z.boolean(),
 });
 export type ObserveDto = z.infer<typeof ObserveDtoSchema>;
+
+/** Why a message interrupts its reader (#task:3053): a fixed-roster line (direct pair
+ *  or a home channel), a mention of the reader, or a channel set to 所有消息 (main line
+ *  or a followed thread). */
+export const MESSAGE_ALERT_REASONS = ['direct', 'mention', 'ambient'] as const;
+
+/** The viewer-scoped `message_alert` event: one per message per reader it should
+ *  interrupt, decided by the server. Not stored; a reader offline at the time misses it. */
+export const MessageAlertSchema = z.object({
+  conversation_id: z.string(),
+  workspace_id: z.string().nullable(),
+  /** The channel's title; null for a direct line. */
+  conversation_title: z.string().nullable(),
+  message_id: z.string(),
+  thread_root_id: z.string().nullable(),
+  reason: z.enum(MESSAGE_ALERT_REASONS),
+  sender: MessageAuthorDtoSchema.nullable(),
+  /** Whitespace-collapsed body, at most 160 characters. */
+  excerpt: z.string(),
+});
+export type MessageAlert = z.infer<typeof MessageAlertSchema>;
+
+export const MESSAGE_ALERT_EVENT = 'message_alert';

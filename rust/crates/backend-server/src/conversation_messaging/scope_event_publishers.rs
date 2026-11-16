@@ -3,7 +3,9 @@
 use serde_json::json;
 use silverhand_backend_core::{
     conversation_messaging::messaging::{
-        CommittedMessageView, DirectPairOpenedFact, DirectPairOpenedPort, PrincipalIdentity,
+        CommittedMessageView, CreatedMessage, DirectPairOpenedFact, DirectPairOpenedPort,
+        ParticipantHandle, PrincipalIdentity,
+        alert::{AlertPlace, AlertReason, MessageAlertAudience, alert_reason},
         collaboration::{
             attachment::{AttachmentChangedFact, AttachmentChangedPublisher},
             conversation_latest::ConversationLatest,
@@ -19,9 +21,9 @@ use silverhand_backend_core::{
                 BoundWorkspaceRenameMessage, WorkspaceRenamePublicationPort,
             },
         },
-        mention_cc::CommittedMentionCopy,
+        mention_cc::{CommittedMentionCopy, mention_excerpt},
         post_commit::{
-            CommittedMentionRow, CommittedMessagePublication, CopyNotification,
+            AlertPublication, CommittedMentionRow, CommittedMessagePublication, CopyNotification,
             DirectLineInvalidation, EffectFailure, LatestPublication, MessagePublication,
             UnreadPublication, ViewerNotification,
         },
@@ -37,6 +39,7 @@ use silverhand_backend_core::{
 use crate::{
     conversation_messaging::messaging::{
         aftermath::MessagingAftermath,
+        author_wire::author_dto,
         collaboration::{
             attachment::changed_event as attachment_changed_payload,
             conversation_latest::latest_dto, reaction::changed_event as reaction_changed_payload,
@@ -654,6 +657,56 @@ impl<R: ConversationHumanAudience + Send + Sync> LatestPublication for HubUnread
         }
         first_failure.map_or(Ok(()), Err)
     }
+}
+
+impl<R: MessageAlertAudience + Send + Sync> AlertPublication for HubUnreadPublisher<R> {
+    async fn publish_alerts(
+        &self,
+        message: &CreatedMessage,
+        named: &[ParticipantHandle],
+    ) -> Result<(), EffectFailure> {
+        let Some(audience) = self
+            .read_model
+            .alert_audience(&message.conversation_id, message)
+            .await
+            .map_err(EffectFailure::from_source)?
+        else {
+            return Ok(());
+        };
+        let mut first_failure = None;
+        for recipient in &audience.recipients {
+            let Some(reason) = alert_reason(message, named, recipient) else {
+                continue;
+            };
+            if let Err(cause) = self.hub.publish(
+                EventScope::Viewer(recipient.viewer.clone()),
+                ProductEvent::MessageAlert(message_alert_payload(message, &audience.place, reason)),
+            ) && first_failure.is_none()
+            {
+                first_failure = Some(EffectFailure::from_source(cause));
+            }
+        }
+        first_failure.map_or(Ok(()), Err)
+    }
+}
+
+/// One reader's alert: where the message is, who sent it, what it says and why it
+/// interrupts them.
+fn message_alert_payload(
+    message: &CreatedMessage,
+    place: &AlertPlace,
+    reason: AlertReason,
+) -> serde_json::Value {
+    json!({
+        "conversation_id": message.conversation_id.as_str(),
+        "workspace_id": place.workspace.as_ref().map(|id| id.as_str()),
+        "conversation_title": place.channel_title,
+        "message_id": message.id.as_str(),
+        "thread_root_id": message.thread_root_id.as_ref().map(|id| id.as_str()),
+        "reason": reason.as_str(),
+        "sender": message.author.as_ref().map(author_dto),
+        "excerpt": mention_excerpt(message.content.as_str()),
+    })
 }
 
 /// Notification-clear post-commit effect. It emits only the acting viewer's thin

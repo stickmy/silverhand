@@ -23,7 +23,8 @@ use std::{collections::HashMap, path::Path, time::Duration};
 
 use silverhand_backend_core::{
     conversation_messaging::messaging::{
-        MessageId, ThreadRootId,
+        CreatedMessage, MessageId, ParticipantHandle, ThreadRootId,
+        alert::{AlertAudience, AlertPlace, AlertRecipient, AlertStanding, MessageAlertAudience},
         unread::{
             ConversationHumanAudience, LatestUnread, UnreadAudience, UnreadReadModel, ViewerUnread,
         },
@@ -679,6 +680,93 @@ impl ConversationHumanAudience for SqliteUnreadReadModel {
             let viewers = participants(&mut tx, conversation).await?;
             tx.commit().await?;
             Ok::<_, UnreadReadModelError>(viewers)
+        }
+        .await
+        .map_err(PersistenceFailure::from_source)
+    }
+}
+
+/// The conversation an alert points into.
+const SELECT_ALERT_PLACE: &str =
+    "SELECT workspace_id, roster_policy, title FROM conversations WHERE id = ?";
+
+/// Each live human participant with what the alert decision reads: their handle, the
+/// effective channel level under workspace mute, and whether they follow the thread.
+const ALERT_RECIPIENTS: &str = concat!(
+    "WITH p(conv, root, cdm) AS (SELECT ?, ?, ?) SELECT u.id AS user_id, u.name AS name, \
+     (COALESCE((SELECT cap.mode FROM channel_attention_preferences cap WHERE cap.user_id = u.id \
+     AND cap.conversation_id = c.id), (SELECT cdm FROM p)) = 'all' AND NOT EXISTS (SELECT 1 FROM \
+     workspace_attention_preferences wap WHERE wap.user_id = u.id AND wap.workspace_id = \
+     c.workspace_id AND wap.muted = 1)) AS ambient, EXISTS (SELECT 1 FROM thread_followers tf \
+     WHERE tf.thread_root_id = (SELECT root FROM p) AND tf.principal_kind = 'human' AND \
+     tf.principal_id = u.id) AS follows_thread FROM (",
+    participant_user_ids!(),
+    ") src JOIN users u ON u.id = src.user_id JOIN conversations c ON c.id = (SELECT conv FROM p) \
+     ORDER BY u.id"
+);
+
+impl MessageAlertAudience for SqliteUnreadReadModel {
+    async fn alert_audience(
+        &self,
+        conversation: &ConversationId,
+        message: &CreatedMessage,
+    ) -> Result<Option<AlertAudience>, PersistenceFailure> {
+        async {
+            let mut tx =
+                crate::foundation::statement_metrics::begin(&self.pool, Some(DEFERRED_READ_BEGIN))
+                    .await?;
+            let Some(place) = sqlx::query(SELECT_ALERT_PLACE)
+                .bind(conversation.as_str())
+                .fetch_optional(&mut *tx)
+                .await?
+            else {
+                return Ok::<_, UnreadReadModelError>(None);
+            };
+            let direct = place.try_get::<String, _>("roster_policy")? == "fixed";
+            let workspace = place
+                .try_get::<Option<String>, _>("workspace_id")?
+                .map(WorkspaceId::parse)
+                .transpose()
+                .map_err(|_| {
+                    UnreadReadModelError::MalformedIdentity("conversations.workspace_id")
+                })?;
+            let rows = sqlx::query(ALERT_RECIPIENTS)
+                .bind(conversation.as_str())
+                .bind(message.thread_root_id.as_ref().map(ThreadRootId::as_str))
+                .bind(CHANNEL_DEFAULT_MODE)
+                .fetch_all(&mut *tx)
+                .await?;
+            tx.commit().await?;
+            let recipients = rows
+                .into_iter()
+                .map(|row| {
+                    Ok(AlertRecipient {
+                        viewer: UserId::parse(row.try_get::<String, _>("user_id")?)
+                            .map_err(|_| UnreadReadModelError::MalformedIdentity("users.id"))?,
+                        handle: ParticipantHandle::parse(row.try_get::<String, _>("name")?)
+                            .map_err(|_| UnreadReadModelError::MalformedIdentity("users.name"))?,
+                        standing: if direct {
+                            AlertStanding::Direct
+                        } else {
+                            AlertStanding::Channel {
+                                ambient: row.try_get("ambient")?,
+                                follows_thread: row.try_get("follows_thread")?,
+                            }
+                        },
+                    })
+                })
+                .collect::<Result<Vec<_>, UnreadReadModelError>>()?;
+            Ok(Some(AlertAudience {
+                place: AlertPlace {
+                    workspace,
+                    channel_title: if direct {
+                        None
+                    } else {
+                        Some(place.try_get("title")?)
+                    },
+                },
+                recipients,
+            }))
         }
         .await
         .map_err(PersistenceFailure::from_source)

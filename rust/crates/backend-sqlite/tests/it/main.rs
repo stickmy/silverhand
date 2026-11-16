@@ -42,6 +42,7 @@ mod direct_pair_read;
 mod human_search_store;
 mod inbox_contention;
 mod mention_cc_contract;
+mod message_alert_audience;
 mod messaging_authorities;
 mod messaging_create_message;
 mod messaging_peer_profile_gates;

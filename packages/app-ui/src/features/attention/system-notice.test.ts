@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { NotificationDto } from "@silverhand/shared";
-import { systemNoticeOf } from "./system-notice";
+import type { MessageAlert, NotificationDto } from "@silverhand/shared";
+import { alertNotice, systemNoticeOf } from "./system-notice";
 
 const notification = (over: Partial<NotificationDto>): NotificationDto => ({
   id: "n-1",
@@ -19,28 +19,29 @@ const notification = (over: Partial<NotificationDto>): NotificationDto => ({
   ...over,
 });
 
-describe("systemNoticeOf", () => {
-  it("leads a mention with the sender, then where, then what was said", () => {
-    const notice = systemNoticeOf(
-      notification({
-        payload: {
-          trigger_name: "alice",
-          conversation_title: "design",
-          mention_excerpt: "<silverhand://human/bob> take a look",
-        },
-        sender: {
-          kind: "user",
-          status: "active",
-          id: "u-2",
-          name: "alice",
-          display_name: "Alice",
-          avatar_url: null,
-          runtime: null,
-        },
-      }),
-      "fallback",
-    );
-    expect(notice).toEqual({
+const alert = (over: Partial<MessageAlert>): MessageAlert => ({
+  conversation_id: "c-1",
+  workspace_id: "w-1",
+  conversation_title: "design",
+  message_id: "m-1",
+  thread_root_id: null,
+  reason: "mention",
+  sender: {
+    kind: "user",
+    status: "active",
+    id: "u-2",
+    name: "alice",
+    display_name: "Alice",
+    avatar_url: null,
+    runtime: null,
+  },
+  excerpt: "<silverhand://human/bob> take a look",
+  ...over,
+});
+
+describe("alertNotice", () => {
+  it("leads with the sender, then the channel, then what was said", () => {
+    expect(alertNotice(alert({}))).toEqual({
       title: "Alice",
       subtitle: "in #design",
       body: "@bob take a look",
@@ -48,15 +49,20 @@ describe("systemNoticeOf", () => {
     });
   });
 
-  it("falls back to the trigger name and a plain line without an excerpt", () => {
-    const notice = systemNoticeOf(notification({ payload: { trigger_name: "alice" } }), "x");
-    expect([notice.title, notice.subtitle, notice.body]).toEqual([
-      "alice",
-      undefined,
-      "Mentioned you",
-    ]);
+  it("names no place for a direct line and no body for an empty message", () => {
+    const notice = alertNotice(
+      alert({ reason: "direct", conversation_title: null, sender: null, excerpt: "" }),
+    );
+    expect(notice).toEqual({
+      title: "Someone",
+      subtitle: undefined,
+      body: undefined,
+      groupId: "c-1",
+    });
   });
+});
 
+describe("systemNoticeOf", () => {
   it("puts a failed start's reason under the agent", () => {
     const failed = (payload: Record<string, unknown>) =>
       systemNoticeOf(notification({ kind: "agent_start_failed", payload }), "x");

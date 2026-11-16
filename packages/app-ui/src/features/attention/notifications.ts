@@ -3,7 +3,11 @@ import { useCallback, useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/lib/toast";
 import {
+  MESSAGE_ALERT_EVENT,
+  MessageAlertSchema,
+  UnreadUpdatedMessagePayloadSchema,
   type MarkNotificationsReadInput,
+  type MessageAlert,
   type NotificationDto,
   type UnreadUpdatedBadgePayload,
 } from "@silverhand/shared";
@@ -13,7 +17,7 @@ import { conversationRefQueryOptions } from "@/features/conversations/conversati
 import { recordChannelWorkspace } from "@/features/channels/channel-workspace-index";
 import type { MessageJumpTarget } from "@/features/channels/use-message-jump-controller";
 import { showMentionBanner } from "./mention-banner";
-import { payloadString, systemNoticeOf } from "./system-notice";
+import { alertNotice, systemNoticeOf } from "./system-notice";
 import { t } from "@/lib/i18n";
 
 const unreadKey = ["notifications", "unread"] as const;
@@ -118,21 +122,22 @@ export function useMarkNotificationsRead() {
 }
 
 /**
- * Mount this once at the App root. Listens for WS viewer-scoped notification
- * events and surfaces each new one the way messaging apps do:
- *  - nothing while the viewer is looking at it: the window has focus and the
- *    conversation (and, for a reply, its thread) is on screen;
- *  - a message never toasts in the desktop app. A mention of the viewer goes
- *    to the OS even over a focused window (`force`); other kinds only when no
- *    window has focus (main gates them);
- *  - on iOS, which has no OS notifications, a mention of the viewer shows the
- *    native banner;
+ * Mount this once at the App root. Surfaces what the server says should
+ * interrupt the viewer, the way messaging apps do:
+ *  - a message alerts through the viewer-scoped `message_alert` event, decided
+ *    per message by the server (direct line, mention, or a 所有消息 channel);
+ *    nothing while that message is on screen in a focused window. A direct
+ *    line or a mention reaches the OS even over a focused window (`force`);
+ *    an ambient channel message only when no window has focus. On iOS, which
+ *    has no OS notifications, direct and mention alerts show the native banner.
+ *    A conversation's alerts are taken down once it is opened or read.
  *  - an agent start failure is an error, not a message: a sticky toast plus
  *    the OS notification, wherever the viewer is.
+ *  - other notification rows (a mention of an agent outside the conversation)
+ *    reach the OS only when no window has focus.
  *
- * Click navigation: the OS notification, the banner and the mention card all
- * route through `onJump`. When omitted, notifications still show but are
- * inert. `agent_start_failed` is not clickable (no message anchor).
+ * Click navigation: the OS notification and the banner route through
+ * `onJump`. When omitted, notifications still show but are inert.
  */
 export function useNotificationToasts(
   viewing: { conversationId: string | null; threadRootId: string | null },
@@ -157,6 +162,14 @@ export function useNotificationToasts(
   // closing over `data` so a stale closure (delivered to main yesterday,
   // clicked today) still resolves correctly.
   const clickableById = useRef<Map<string, NotificationDto>>(new Map());
+  // Alerts shown by this device, by notification id, and the ids per conversation
+  // so opening or reading the conversation takes them down.
+  const alertsById = useRef<Map<string, MessageAlert>>(new Map());
+  const alertIdsByConversation = useRef<Map<string, Set<string>>>(new Map());
+  const viewingRef = useRef(viewing);
+  useEffect(() => {
+    viewingRef.current = viewing;
+  }, [viewing]);
   // Stable callback ref so the WS subscribe effect doesn't tear down
   // every time the parent's nav handler re-renders.
   const onJumpRef = useRef(onJump);
@@ -164,8 +177,21 @@ export function useNotificationToasts(
     onJumpRef.current = onJump;
   }, [onJump]);
 
+  const dismissAlerts = useCallback((conversationId: string): void => {
+    const ids = alertIdsByConversation.current.get(conversationId);
+    if (!ids) return;
+    alertIdsByConversation.current.delete(conversationId);
+    for (const id of ids) alertsById.current.delete(id);
+    void getPlatform().notifications?.dismissSystemNotifications([...ids]);
+  }, []);
+
   const handleClickById = useCallback(
     (notificationId: string): void => {
+      const alert = alertsById.current.get(notificationId);
+      if (alert) {
+        onJumpRef.current?.(alertJumpTarget(alert));
+        return;
+      }
       const n = clickableById.current.get(notificationId);
       if (!n) return;
       const handler = onJumpRef.current;
@@ -188,8 +214,21 @@ export function useNotificationToasts(
     const toastKey = [...listKey, { unread: true, toasts: true }] as const;
     const unsub = onWsFrame((frame) => {
       if (frame.type === "event" && isCurrentViewerScope(frame.scope)) {
-        if (frame.kind === "notification") {
+        if (frame.kind === MESSAGE_ALERT_EVENT) {
+          const parsed = MessageAlertSchema.safeParse(frame.payload);
+          if (parsed.success) {
+            showAlert(parsed.data);
+          }
+        } else if (frame.kind === "notification") {
           invalidateQueryDebounced(qc, toastKey);
+        } else if (
+          frame.kind === "unread_updated" &&
+          isMessageUnreadUpdatedPayload(frame.payload)
+        ) {
+          const unread = UnreadUpdatedMessagePayloadSchema.safeParse(frame.payload);
+          if (unread.success && unread.data.conversation_unread_count === 0) {
+            dismissAlerts(unread.data.conversation_id);
+          }
         } else if (
           frame.kind === "unread_updated" &&
           !isMessageUnreadUpdatedPayload(frame.payload)
@@ -207,11 +246,47 @@ export function useNotificationToasts(
         invalidateQueryDebounced(qc, toastKey);
       }
     });
+
+    function showAlert(alert: MessageAlert): void {
+      if (document.hasFocus() && isOnScreen(alert, viewingRef.current)) {
+        return;
+      }
+      const id = `alert:${alert.message_id}`;
+      alertsById.current.set(id, alert);
+      const ids = alertIdsByConversation.current.get(alert.conversation_id) ?? new Set<string>();
+      ids.add(id);
+      alertIdsByConversation.current.set(alert.conversation_id, ids);
+      const urgent = alert.reason !== "ambient";
+      if (urgent) {
+        showMentionBanner(
+          {
+            sender: alert.sender,
+            fallbackName: t("attention.someone"),
+            conversationTitle: alert.conversation_title,
+            excerpt: alert.excerpt || null,
+          },
+          id,
+        );
+      }
+      void getPlatform().notifications?.showSystemNotification({
+        ...alertNotice(alert),
+        force: urgent,
+        notificationId: id,
+      });
+    }
+
     return () => {
       sub.unsubscribe();
       unsub();
     };
-  }, [qc]);
+  }, [qc, dismissAlerts]);
+
+  // Opening a conversation in a focused window takes its alerts down.
+  useEffect(() => {
+    if (viewing.conversationId && document.hasFocus()) {
+      dismissAlerts(viewing.conversationId);
+    }
+  }, [viewing.conversationId, dismissAlerts]);
 
   // Native-notification click bridge. Main process forwards the
   // `notificationId` originally passed to `showSystemNotification`
@@ -299,25 +374,13 @@ export function useNotificationToasts(
         continue;
       }
 
-      if (document.hasFocus() && isOnScreen(n, viewing)) {
+      // A mention of the viewer alerts through `message_alert`; its row only
+      // feeds Activity and the badge.
+      if (n.kind === "mention_self") {
         continue;
-      }
-
-      const isViewerMention = n.kind === "mention_self";
-      if (isViewerMention) {
-        showMentionBanner(
-          {
-            sender: n.sender ?? null,
-            fallbackName: payloadString(n, "trigger_name") ?? t("attention.someone"),
-            conversationTitle: payloadString(n, "conversation_title"),
-            excerpt: payloadString(n, "mention_excerpt"),
-          },
-          n.id,
-        );
       }
       void getPlatform().notifications?.showSystemNotification({
         ...systemNoticeOf(n, buildToastLabel(n)),
-        force: isViewerMention,
         notificationId: isClickableKind(n.kind) ? n.id : undefined,
       });
     }
@@ -330,19 +393,30 @@ export function useNotificationToasts(
     // read-state, so the notification correctly stays unread until an ACTIVE
     // eliminate path clears it: visible read advancing the cursor, clicking the
     // toast/notification to jump to source, or the Activity Mark-as-read ✓.
-  }, [data, viewing.conversationId, viewing.threadRootId, qc, handleClickById, markRead]);
+  }, [data, qc, handleClickById, markRead]);
 }
 
-/** Whether the notification's message is on screen: its conversation is the
- *  focused one and, for a reply, that reply's thread is open. */
+/** Whether the alert's message is on screen: its conversation is the focused
+ *  one and, for a reply, that reply's thread is open. */
 function isOnScreen(
-  n: NotificationDto,
+  alert: MessageAlert,
   viewing: { conversationId: string | null; threadRootId: string | null },
 ): boolean {
-  if (!n.conversation_id || n.conversation_id !== viewing.conversationId) {
+  if (alert.conversation_id !== viewing.conversationId) {
     return false;
   }
-  return !n.thread_root_id || n.thread_root_id === viewing.threadRootId;
+  return !alert.thread_root_id || alert.thread_root_id === viewing.threadRootId;
+}
+
+/** Where an alert's click lands: the message itself, inside its thread for a reply. */
+function alertJumpTarget(alert: MessageAlert): MessageJumpTarget {
+  if (alert.workspace_id) recordChannelWorkspace(alert.conversation_id, alert.workspace_id);
+  return {
+    workspaceId: alert.workspace_id ?? undefined,
+    channelId: alert.conversation_id,
+    threadRootId: alert.thread_root_id,
+    messageId: alert.message_id,
+  };
 }
 
 /**
@@ -512,12 +586,6 @@ function buildToastLabel(n: NotificationDto): string {
     return workspaceName
       ? t("attention.newMentionIn", { project: workspaceName })
       : t("attention.newMention");
-  }
-  if (n.kind === "mention_self") {
-    const conversationTitle = n.payload?.["conversation_title"] as string | undefined;
-    return conversationTitle
-      ? t("attention.mentionedIn", { channel: conversationTitle })
-      : t("attention.youWereMentioned");
   }
   return t("attention.newNotification");
 }

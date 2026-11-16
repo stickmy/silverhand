@@ -332,6 +332,8 @@ pub enum EffectStep {
     UnreadPublished,
     /// The conversation's latest-message summary, to every participant.
     LatestPublished,
+    /// Each reader the message should interrupt, told now.
+    AlertPublished,
     MainDelivered,
     /// Only for recipients that are not already running.
     IdleStarted,
@@ -487,6 +489,17 @@ pub trait LatestPublication {
     fn publish_latest(
         &self,
         latest: &super::collaboration::conversation_latest::ConversationLatest,
+    ) -> impl Future<Output = Result<(), EffectFailure>> + Send;
+}
+
+/// The per-reader alerts this message owes, decided by
+/// [`alert_reason`](super::alert::alert_reason) over the committed participants.
+/// `named` is the human handles the body addressed.
+pub trait AlertPublication {
+    fn publish_alerts(
+        &self,
+        message: &CreatedMessage,
+        named: &[ParticipantHandle],
     ) -> impl Future<Output = Result<(), EffectFailure>> + Send;
 }
 
