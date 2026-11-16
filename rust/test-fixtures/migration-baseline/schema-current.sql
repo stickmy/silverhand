@@ -1416,3 +1416,11 @@ CREATE TRIGGER conversation_inboxes_settlement_state_update
     OR (NEW.in_flight_owner IS NOT NULL
         AND (NEW.delivered_at IS NOT NULL OR NEW.failed_at IS NOT NULL))
   BEGIN SELECT RAISE(ABORT, 'invalid conversation inbox settlement state'); END;
+
+CREATE TABLE agent_runtime_credentials (
+        token_hash TEXT PRIMARY KEY,
+        slot_id    INTEGER NOT NULL REFERENCES agent_runtime_slots(id) ON DELETE CASCADE,
+        generation INTEGER NOT NULL
+      );
+
+CREATE INDEX idx_agent_runtime_credentials_slot ON agent_runtime_credentials(slot_id);

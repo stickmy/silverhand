@@ -3,8 +3,9 @@ use std::{error::Error, path::Path};
 use silverhand_backend_core::{
     foundation::identity::{AgentId, ConversationId, DaemonInstanceId},
     host_runtime::runtime_credential::{
-        ClaimRuntimeCustody, FinalizeRuntimeCustody, RuntimeCustody, RuntimeCustodyPort,
-        RuntimeEventTime, RuntimeFinalStatus, RuntimeGeneration, RuntimePrincipal, RuntimeScope,
+        ClaimRuntimeCustody, FinalizeRuntimeCustody, RuntimeCredentialHash, RuntimeCustody,
+        RuntimeCustodyPort, RuntimeEventTime, RuntimeFinalStatus, RuntimeGeneration,
+        RuntimePrincipal, RuntimeScope,
     },
 };
 use silverhand_backend_sqlite::host_runtime::runtime_credential::SqliteRuntimeCustodyStore;
@@ -112,7 +113,12 @@ fn probe_principal() -> RuntimePrincipal {
 }
 
 fn claim(scope: RuntimeScope, daemon: &str, time: RuntimeEventTime) -> ClaimRuntimeCustody {
-    ClaimRuntimeCustody::new(scope, DaemonInstanceId::parse(daemon).unwrap(), time)
+    ClaimRuntimeCustody::new(
+        scope,
+        DaemonInstanceId::parse(daemon).unwrap(),
+        RuntimeCredentialHash::of_plaintext(&format!("bearer-{daemon}-{}", time.as_unix_millis())),
+        time,
+    )
 }
 
 async fn open(path: &Path) -> SqliteConnection {
@@ -468,4 +474,80 @@ fn error_chain(error: &(dyn Error + 'static)) -> String {
         current = cause.source();
     }
     messages.join(": ")
+}
+
+#[tokio::test]
+async fn credentials_follow_exactly_the_current_generation() {
+    let (_directory, path, store) = fixture().await;
+    let first = RuntimeCredentialHash::of_plaintext("first");
+    let second = RuntimeCredentialHash::of_plaintext("second");
+    let issue = |daemon: &str, credential: &RuntimeCredentialHash| {
+        ClaimRuntimeCustody::new(
+            conversation_scope(),
+            DaemonInstanceId::parse(daemon).unwrap(),
+            credential.clone(),
+            CLAIMED_AT,
+        )
+    };
+    let principal = store
+        .claim_or_current(issue("daemon-1", &first))
+        .await
+        .unwrap()
+        .unwrap()
+        .into_principal();
+    store
+        .claim_or_current(issue("daemon-1", &second))
+        .await
+        .unwrap()
+        .unwrap();
+    for credential in [&first, &second] {
+        assert_eq!(
+            store.authenticate(credential.clone()).await.unwrap(),
+            Some(principal.clone())
+        );
+    }
+    assert!(store.holds_credential(principal.clone()).await.unwrap());
+
+    store.revoke_credential(second.clone()).await.unwrap();
+    assert_eq!(store.authenticate(second.clone()).await.unwrap(), None);
+    assert!(store.holds_credential(principal.clone()).await.unwrap());
+
+    let successor_credential = RuntimeCredentialHash::of_plaintext("successor");
+    let successor = store
+        .claim_or_current(issue("daemon-2", &successor_credential))
+        .await
+        .unwrap()
+        .unwrap()
+        .into_principal();
+    assert_eq!(store.authenticate(first.clone()).await.unwrap(), None);
+    assert!(!store.holds_credential(principal).await.unwrap());
+    assert_eq!(
+        store
+            .authenticate(successor_credential.clone())
+            .await
+            .unwrap(),
+        Some(successor.clone())
+    );
+
+    assert!(
+        store
+            .finalize(FinalizeRuntimeCustody::new(
+                successor.clone(),
+                RuntimeFinalStatus::Idle,
+                FINALIZED_AT,
+            ))
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        store.authenticate(successor_credential).await.unwrap(),
+        None
+    );
+    assert!(!store.holds_credential(successor).await.unwrap());
+    let mut connection = open(&path).await;
+    let remaining: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM agent_runtime_credentials")
+        .fetch_one(&mut connection)
+        .await
+        .unwrap();
+    assert_eq!(remaining, 0);
 }

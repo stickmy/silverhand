@@ -1225,6 +1225,7 @@ impl DaemonEventDurablePort for SqliteRuntimeDeliveryStore {
         if changed != 1 {
             return Err(PersistenceFailure::from_source(RuntimeExitInvariant));
         }
+        crate::host_runtime::runtime_credential::revoke_slot_credentials(&mut tx, slot_id).await?;
         insert_runtime_projection_event(
             &mut tx,
             slot_id,

@@ -80,7 +80,8 @@ use silverhand_backend_core::{
     foundation::identity::{AgentId, ConversationId},
     foundation::persistence::PersistenceFailure,
     host_runtime::runtime_credential::{
-        ClaimRuntimeCustody, RuntimeCustodyPort, RuntimeEventTime, RuntimePrincipal, RuntimeScope,
+        ClaimRuntimeCustody, RuntimeCredentialHash, RuntimeCustodyPort, RuntimeEventTime,
+        RuntimePrincipal, RuntimeScope,
     },
     host_runtime::{
         aftermath::DaemonConnectionControl, read::ComputerReadModel, rotation::DaemonRotationAck,
@@ -2005,6 +2006,27 @@ impl silverhand_backend_core::host_runtime::runtime_credential::RuntimeCustodyPo
     ) -> Result<bool, PersistenceFailure> {
         Ok(true)
     }
+
+    async fn authenticate(
+        &self,
+        _credential: RuntimeCredentialHash,
+    ) -> Result<Option<RuntimePrincipal>, PersistenceFailure> {
+        unreachable!("ClearCustody never authenticates custody")
+    }
+
+    async fn holds_credential(
+        &self,
+        _principal: RuntimePrincipal,
+    ) -> Result<bool, PersistenceFailure> {
+        unreachable!("ClearCustody never hydrates custody")
+    }
+
+    async fn revoke_credential(
+        &self,
+        _credential: RuntimeCredentialHash,
+    ) -> Result<(), PersistenceFailure> {
+        Ok(())
+    }
 }
 
 #[derive(Clone)]
@@ -2423,6 +2445,27 @@ impl silverhand_backend_core::host_runtime::runtime_credential::RuntimeCustodyPo
         _finalization: silverhand_backend_core::host_runtime::runtime_credential::FinalizeRuntimeCustody,
     ) -> Result<bool, PersistenceFailure> {
         Ok(true)
+    }
+
+    async fn authenticate(
+        &self,
+        _credential: RuntimeCredentialHash,
+    ) -> Result<Option<RuntimePrincipal>, PersistenceFailure> {
+        unreachable!("StartCustody never authenticates custody")
+    }
+
+    async fn holds_credential(
+        &self,
+        _principal: RuntimePrincipal,
+    ) -> Result<bool, PersistenceFailure> {
+        unreachable!("StartCustody never hydrates custody")
+    }
+
+    async fn revoke_credential(
+        &self,
+        _credential: RuntimeCredentialHash,
+    ) -> Result<(), PersistenceFailure> {
+        Ok(())
     }
 }
 
@@ -3130,6 +3173,7 @@ async fn a_restarted_process_cannot_release_an_old_hosts_real_inbox_lease() {
         .claim_or_current(ClaimRuntimeCustody::new(
             scope,
             DaemonInstanceId::parse("daemon-old").unwrap(),
+            RuntimeCredentialHash::of_plaintext("test-bearer-0"),
             RuntimeEventTime::from_unix_millis(1),
         ))
         .await

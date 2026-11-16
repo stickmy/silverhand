@@ -1,7 +1,7 @@
-//! Process-local runtime bearer custody and its HTTP/runtime handoff boundary.
+//! Runtime bearer issuance, durable hash custody and the HTTP/runtime handoff boundary.
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     error::Error,
     fmt,
     future::Future,
@@ -17,14 +17,13 @@ use axum::{
 };
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use serde::Deserialize;
-use sha2::{Digest, Sha256};
 use silverhand_backend_core::{
     foundation::identity::{AgentId, ConversationId, DaemonInstanceId},
     foundation::persistence::PersistenceFailure,
     host_runtime::runtime_credential::{
         AgentSlotPresentationFocusPort, ClaimRuntimeCustody, FinalizeRuntimeCustody,
-        RuntimeCustodyPort, RuntimeCustodyReadPort, RuntimeEventTime, RuntimeFinalStatus,
-        RuntimePrincipal, RuntimeScope,
+        RuntimeCredentialHash, RuntimeCustodyPort, RuntimeCustodyReadPort, RuntimeEventTime,
+        RuntimeFinalStatus, RuntimePrincipal, RuntimeScope,
     },
     host_runtime::runtime_event::{
         CommitRuntimeExit, DaemonEventDurablePort, RuntimeExitCommitResult, RuntimeExitDisposition,
@@ -41,7 +40,6 @@ use crate::{
 };
 
 const TOKEN_BYTES: usize = 32;
-const TOKEN_GENERATION_ATTEMPTS: usize = 8;
 const LEGACY_PRINCIPAL_HEADER: &str = "x-silverhand-principal";
 
 /// A bearer presented by one runtime child.
@@ -89,8 +87,8 @@ impl RuntimeBearer {
         (!normalized.is_empty()).then_some(Self(normalized))
     }
 
-    fn hash(&self) -> TokenHash {
-        TokenHash(Sha256::digest(self.0.as_bytes()).into())
+    fn hash(&self) -> RuntimeCredentialHash {
+        RuntimeCredentialHash::of_plaintext(&self.0)
     }
 }
 
@@ -98,20 +96,6 @@ impl fmt::Debug for RuntimeBearer {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str("RuntimeBearer([REDACTED])")
     }
-}
-
-#[derive(Clone, Copy, Eq, Hash, PartialEq)]
-struct TokenHash([u8; 32]);
-
-enum TokenRecord {
-    Reserved,
-    Active(RuntimePrincipal),
-}
-
-#[derive(Default)]
-struct ProcessTokenStore {
-    tokens: HashMap<TokenHash, TokenRecord>,
-    by_principal: HashMap<RuntimePrincipal, HashSet<TokenHash>>,
 }
 
 #[derive(Default)]
@@ -136,72 +120,6 @@ impl ScopeGuards {
     }
 }
 
-impl ProcessTokenStore {
-    fn reserve(&mut self, hash: TokenHash) -> bool {
-        if self.tokens.contains_key(&hash) {
-            return false;
-        }
-        self.tokens.insert(hash, TokenRecord::Reserved);
-        true
-    }
-
-    fn release_reservation(&mut self, hash: TokenHash) {
-        if matches!(self.tokens.get(&hash), Some(TokenRecord::Reserved)) {
-            self.tokens.remove(&hash);
-        }
-    }
-
-    fn activate(&mut self, hash: TokenHash, principal: RuntimePrincipal) -> bool {
-        if !matches!(self.tokens.get(&hash), Some(TokenRecord::Reserved)) {
-            return false;
-        }
-        self.tokens
-            .insert(hash, TokenRecord::Active(principal.clone()));
-        self.by_principal.entry(principal).or_default().insert(hash);
-        true
-    }
-
-    fn principal(&self, hash: TokenHash) -> Option<RuntimePrincipal> {
-        match self.tokens.get(&hash) {
-            Some(TokenRecord::Active(principal)) => Some(principal.clone()),
-            Some(TokenRecord::Reserved) | None => None,
-        }
-    }
-
-    fn revoke_hash(&mut self, hash: TokenHash) {
-        let Some(record) = self.tokens.remove(&hash) else {
-            return;
-        };
-        let TokenRecord::Active(principal) = record else {
-            return;
-        };
-        let remove_principal = if let Some(tokens) = self.by_principal.get_mut(&principal) {
-            tokens.remove(&hash);
-            tokens.is_empty()
-        } else {
-            false
-        };
-        if remove_principal {
-            self.by_principal.remove(&principal);
-        }
-    }
-
-    fn revoke_for(&mut self, principal: &RuntimePrincipal) {
-        let Some(hashes) = self.by_principal.remove(principal) else {
-            return;
-        };
-        for hash in hashes {
-            self.tokens.remove(&hash);
-        }
-    }
-
-    fn has_active_for(&self, principal: &RuntimePrincipal) -> bool {
-        self.by_principal
-            .get(principal)
-            .is_some_and(|hashes| !hashes.is_empty())
-    }
-}
-
 pub trait RuntimeEntropy: Clone + Send + Sync + 'static {
     type Error: Error + Send + Sync + 'static;
 
@@ -222,24 +140,14 @@ impl RuntimeEntropy for SystemRuntimeEntropy {
 #[derive(Debug)]
 pub enum PrepareRuntimeCredentialError {
     Entropy(Box<dyn Error + Send + Sync + 'static>),
-    CollisionExhausted,
     Persistence(PersistenceFailure),
-    ReservationLost,
-    ReservationCompensation(PersistenceFailure),
 }
 
 impl fmt::Display for PrepareRuntimeCredentialError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
             Self::Entropy(_) => "runtime credential entropy failed",
-            Self::CollisionExhausted => {
-                "runtime credential entropy repeatedly produced an active token"
-            }
             Self::Persistence(_) => "persistence operation failed",
-            Self::ReservationLost => "runtime credential reservation disappeared before activation",
-            Self::ReservationCompensation(_) => {
-                "runtime credential reservation was lost and custody compensation failed"
-            }
         })
     }
 }
@@ -248,8 +156,7 @@ impl Error for PrepareRuntimeCredentialError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::Entropy(source) => Some(source.as_ref()),
-            Self::Persistence(source) | Self::ReservationCompensation(source) => Some(source),
-            Self::CollisionExhausted | Self::ReservationLost => None,
+            Self::Persistence(source) => Some(source),
         }
     }
 }
@@ -263,7 +170,6 @@ impl From<PersistenceFailure> for PrepareRuntimeCredentialError {
 pub struct RuntimeStartHandoff {
     principal: RuntimePrincipal,
     bearer: RuntimeBearer,
-    token_hash: TokenHash,
     newly_claimed: bool,
 }
 
@@ -291,7 +197,6 @@ impl fmt::Debug for RuntimeStartHandoff {
 #[derive(Clone)]
 pub struct RuntimeCredentialAuthority<C, E = SystemRuntimeEntropy, K = SystemProcessClock> {
     custody: C,
-    tokens: Arc<RwLock<ProcessTokenStore>>,
     presentation_focus: Arc<RwLock<HashMap<RuntimePrincipal, ConversationId>>>,
     scope_guards: Arc<ScopeGuards>,
     entropy: E,
@@ -318,7 +223,6 @@ where
     pub fn new(custody: C, entropy: E, clock: K) -> Self {
         Self {
             custody,
-            tokens: Arc::new(RwLock::new(ProcessTokenStore::default())),
             presentation_focus: Arc::new(RwLock::new(HashMap::new())),
             scope_guards: Arc::new(ScopeGuards::default()),
             entropy,
@@ -336,58 +240,22 @@ where
         scope: RuntimeScope,
         daemon_instance: DaemonInstanceId,
     ) -> Result<Option<RuntimeStartHandoff>, PrepareRuntimeCredentialError> {
-        let (bearer, token_hash) = self.reserve_secret().await?;
-        let claim = self
+        let bearer = self.mint_secret()?;
+        let Some(claimed) = self
             .custody
             .claim_or_current(ClaimRuntimeCustody::new(
                 scope,
                 daemon_instance,
+                bearer.hash(),
                 self.event_time(),
             ))
-            .await;
-        let claimed = match claim {
-            Ok(Some(claimed)) => claimed,
-            Ok(None) => {
-                self.tokens.write().await.release_reservation(token_hash);
-                return Ok(None);
-            }
-            Err(error) => {
-                self.tokens.write().await.release_reservation(token_hash);
-                return Err(error.into());
-            }
+            .await?
+        else {
+            return Ok(None);
         };
-        let principal = claimed.principal().clone();
-        if !self
-            .tokens
-            .write()
-            .await
-            .activate(token_hash, principal.clone())
-        {
-            if claimed.is_newly_claimed() {
-                let compensated = self
-                    .custody
-                    .finalize(FinalizeRuntimeCustody::new(
-                        principal,
-                        RuntimeFinalStatus::Crashed,
-                        self.event_time(),
-                    ))
-                    .await;
-                match compensated {
-                    Ok(true) => {}
-                    Ok(false) => return Err(PrepareRuntimeCredentialError::ReservationLost),
-                    Err(error) => {
-                        return Err(PrepareRuntimeCredentialError::ReservationCompensation(
-                            error,
-                        ));
-                    }
-                }
-            }
-            return Err(PrepareRuntimeCredentialError::ReservationLost);
-        }
         Ok(Some(RuntimeStartHandoff {
-            principal,
+            principal: claimed.principal().clone(),
             bearer,
-            token_hash,
             newly_claimed: claimed.is_newly_claimed(),
         }))
     }
@@ -397,17 +265,11 @@ where
         bearer: RuntimeBearer,
         route_agent: AgentId,
     ) -> Result<Option<RuntimePrincipal>, PersistenceFailure> {
-        let principal = self.tokens.read().await.principal(bearer.hash());
-        let Some(principal) = principal else {
-            return Ok(None);
-        };
-        if principal.agent() != &route_agent {
-            return Ok(None);
-        }
-        if !self.custody.is_current(principal.clone()).await? {
-            return Ok(None);
-        }
-        Ok(Some(principal))
+        Ok(self
+            .custody
+            .authenticate(bearer.hash())
+            .await?
+            .filter(|principal| principal.agent() == &route_agent))
     }
 
     pub async fn finalize(
@@ -431,7 +293,6 @@ where
         let _scope_guard = self.scope_guards.acquire(&principal.scope()).await;
         let disposition = durable.commit_exit(event).await?;
         if disposition.disposition() == RuntimeExitDisposition::Applied {
-            self.tokens.write().await.revoke_for(&principal);
             self.presentation_focus.write().await.remove(&principal);
         }
         Ok(disposition)
@@ -451,7 +312,6 @@ where
             ))
             .await?;
         if finalized {
-            self.tokens.write().await.revoke_for(&principal);
             self.presentation_focus.write().await.remove(&principal);
         }
         Ok(finalized)
@@ -464,25 +324,12 @@ where
         self.custody.current(scope).await
     }
 
-    async fn has_active_for(&self, principal: &RuntimePrincipal) -> bool {
-        self.tokens.read().await.has_active_for(principal)
-    }
-
-    async fn reserve_secret(
-        &self,
-    ) -> Result<(RuntimeBearer, TokenHash), PrepareRuntimeCredentialError> {
-        for _ in 0..TOKEN_GENERATION_ATTEMPTS {
-            let mut bytes = [0_u8; TOKEN_BYTES];
-            self.entropy
-                .fill(&mut bytes)
-                .map_err(|error| PrepareRuntimeCredentialError::Entropy(Box::new(error)))?;
-            let bearer = RuntimeBearer(URL_SAFE_NO_PAD.encode(bytes));
-            let hash = bearer.hash();
-            if self.tokens.write().await.reserve(hash) {
-                return Ok((bearer, hash));
-            }
-        }
-        Err(PrepareRuntimeCredentialError::CollisionExhausted)
+    fn mint_secret(&self) -> Result<RuntimeBearer, PrepareRuntimeCredentialError> {
+        let mut bytes = [0_u8; TOKEN_BYTES];
+        self.entropy
+            .fill(&mut bytes)
+            .map_err(|error| PrepareRuntimeCredentialError::Entropy(Box::new(error)))?;
+        Ok(RuntimeBearer(URL_SAFE_NO_PAD.encode(bytes)))
     }
 
     pub async fn dispatch_start<T>(
@@ -519,26 +366,25 @@ where
                 Err(RuntimeStartFailure::Ambiguous(source))
             }
             Err(RuntimeDispatchFailure::ProvenNotDispatched(source)) => {
-                if handoff.newly_claimed {
+                let compensated = if handoff.newly_claimed {
                     match self
                         .finalize_locked(principal, RuntimeFinalStatus::Crashed)
                         .await
                     {
-                        Ok(true) => {}
-                        Ok(false) => {
-                            self.tokens.write().await.revoke_hash(handoff.token_hash);
-                        }
-                        Err(compensation) => {
-                            return Err(RuntimeStartFailure::Compensation {
-                                dispatch: source,
-                                compensation,
-                            });
-                        }
+                        Ok(true) => Ok(()),
+                        Ok(false) => self.custody.revoke_credential(handoff.bearer.hash()).await,
+                        Err(error) => Err(error),
                     }
                 } else {
-                    self.tokens.write().await.revoke_hash(handoff.token_hash);
+                    self.custody.revoke_credential(handoff.bearer.hash()).await
+                };
+                match compensated {
+                    Ok(()) => Err(RuntimeStartFailure::ProvenNotDispatched(source)),
+                    Err(compensation) => Err(RuntimeStartFailure::Compensation {
+                        dispatch: source,
+                        compensation,
+                    }),
                 }
-                Err(RuntimeStartFailure::ProvenNotDispatched(source))
             }
         }
     }
@@ -560,7 +406,12 @@ where
         {
             return Ok(HydrateCredentialDisposition::Superseded);
         }
-        if self.has_active_for(&principal).await {
+        if self
+            .custody
+            .holds_credential(principal.clone())
+            .await
+            .map_err(HydrateCredentialFailure::Persistence)?
+        {
             return Ok(HydrateCredentialDisposition::CredentialPresent);
         }
         transport
@@ -1017,6 +868,27 @@ mod tests {
             }
             *current = None;
             Ok(true)
+        }
+
+        async fn authenticate(
+            &self,
+            _credential: RuntimeCredentialHash,
+        ) -> Result<Option<RuntimePrincipal>, PersistenceFailure> {
+            Ok(None)
+        }
+
+        async fn holds_credential(
+            &self,
+            _principal: RuntimePrincipal,
+        ) -> Result<bool, PersistenceFailure> {
+            Ok(false)
+        }
+
+        async fn revoke_credential(
+            &self,
+            _credential: RuntimeCredentialHash,
+        ) -> Result<(), PersistenceFailure> {
+            Ok(())
         }
     }
 

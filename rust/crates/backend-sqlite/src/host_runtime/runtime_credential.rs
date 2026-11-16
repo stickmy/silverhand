@@ -7,11 +7,12 @@ use std::{path::Path, time::Duration};
 
 use crate::foundation::agent_lifecycle_sql::agent_transition_clear;
 use silverhand_backend_core::{
-    foundation::identity::DaemonInstanceId,
+    foundation::identity::{AgentId, ConversationId, DaemonInstanceId},
     foundation::persistence::PersistenceFailure,
     host_runtime::runtime_credential::{
-        ClaimRuntimeCustody, ClaimedRuntime, FinalizeRuntimeCustody, RuntimeCustody,
-        RuntimeCustodyPort, RuntimeFinalStatus, RuntimeGeneration, RuntimePrincipal, RuntimeScope,
+        ClaimRuntimeCustody, ClaimedRuntime, FinalizeRuntimeCustody, RuntimeCredentialHash,
+        RuntimeCustody, RuntimeCustodyPort, RuntimeFinalStatus, RuntimeGeneration,
+        RuntimePrincipal, RuntimeScope,
     },
 };
 use sqlx::{Row, SqliteConnection};
@@ -68,6 +69,13 @@ impl SqliteRuntimeCustodyStore {
                 claim.scope().clone(),
                 RuntimeCustody::new(slot.generation, daemon.clone()),
             );
+            insert_credential(
+                &mut transaction,
+                slot.id,
+                slot.generation,
+                claim.credential(),
+            )
+            .await?;
             transaction.commit().await.map_err(persistence)?;
             return Ok(Some(ClaimedRuntime::new(principal, false)));
         }
@@ -99,6 +107,14 @@ impl SqliteRuntimeCustodyStore {
         .ok_or_else(|| PersistenceFailure::from_source(RuntimeSlotChangedDuringClaim))?;
         let cli_session_id: Option<String> =
             updated.try_get("cli_session_id").map_err(persistence)?;
+        revoke_slot_credentials(&mut transaction, slot.id).await?;
+        insert_credential(
+            &mut transaction,
+            slot.id,
+            next_generation,
+            claim.credential(),
+        )
+        .await?;
 
         insert_event(
             &mut transaction,
@@ -202,6 +218,7 @@ impl SqliteRuntimeCustodyStore {
         .map_err(persistence)?
         .ok_or_else(|| PersistenceFailure::from_source(RuntimeSlotChangedDuringFinalize))?;
         let cli_session_id: Option<String> = row.try_get("cli_session_id").map_err(persistence)?;
+        revoke_slot_credentials(&mut transaction, slot.id).await?;
         insert_event(
             &mut transaction,
             EventRecord {
@@ -219,6 +236,105 @@ impl SqliteRuntimeCustodyStore {
         transaction.commit().await.map_err(persistence)?;
         Ok(true)
     }
+
+    async fn authenticate_credential(
+        &self,
+        credential: RuntimeCredentialHash,
+    ) -> Result<Option<RuntimePrincipal>, PersistenceFailure> {
+        let mut connection = self.pool.acquire().await.map_err(persistence)?;
+        let row = sqlx::query(
+            "SELECT s.agent_id, s.conversation_id, s.generation, s.claimed_by_daemon_instance_id
+               FROM agent_runtime_credentials c
+               JOIN agent_runtime_slots s ON s.id = c.slot_id
+              WHERE c.token_hash = ?
+                AND s.generation = c.generation
+                AND s.claimed_by_daemon_instance_id IS NOT NULL",
+        )
+        .bind(credential.as_str())
+        .fetch_optional(&mut *connection)
+        .await
+        .map_err(persistence)?;
+        let Some(row) = row else { return Ok(None) };
+        let agent = AgentId::parse(row.try_get::<String, _>("agent_id").map_err(persistence)?)
+            .map_err(PersistenceFailure::from_source)?;
+        let scope = match row
+            .try_get::<Option<String>, _>("conversation_id")
+            .map_err(persistence)?
+        {
+            Some(source) => RuntimeScope::ConversationSlot {
+                agent,
+                source: ConversationId::parse(source).map_err(PersistenceFailure::from_source)?,
+            },
+            None => RuntimeScope::AgentSlot { agent },
+        };
+        let slot = decode_slot(PersistedSlot {
+            id: 0,
+            generation: row.try_get("generation").map_err(persistence)?,
+            claimed_by_daemon_instance_id: row
+                .try_get("claimed_by_daemon_instance_id")
+                .map_err(persistence)?,
+        })?;
+        Ok(slot.daemon_instance.map(|daemon| {
+            RuntimePrincipal::for_scope(scope, RuntimeCustody::new(slot.generation, daemon))
+        }))
+    }
+
+    async fn principal_holds_credential(
+        &self,
+        principal: RuntimePrincipal,
+    ) -> Result<bool, PersistenceFailure> {
+        let mut connection = self.pool.acquire().await.map_err(persistence)?;
+        let Some(slot) = read_slot(&mut connection, &principal.scope()).await? else {
+            return Ok(false);
+        };
+        let slot = decode_slot(slot)?;
+        if slot.generation != principal.custody().generation()
+            || slot.daemon_instance.as_ref() != Some(principal.custody().daemon_instance())
+        {
+            return Ok(false);
+        }
+        sqlx::query_scalar(
+            "SELECT EXISTS (
+               SELECT 1 FROM agent_runtime_credentials WHERE slot_id = ? AND generation = ?
+             )",
+        )
+        .bind(slot.id)
+        .bind(slot.generation.as_i64())
+        .fetch_one(&mut *connection)
+        .await
+        .map_err(persistence)
+    }
+}
+
+async fn insert_credential(
+    connection: &mut SqliteConnection,
+    slot_id: i64,
+    generation: RuntimeGeneration,
+    credential: &RuntimeCredentialHash,
+) -> Result<(), PersistenceFailure> {
+    sqlx::query(
+        "INSERT INTO agent_runtime_credentials (token_hash, slot_id, generation) VALUES (?, ?, ?)",
+    )
+    .bind(credential.as_str())
+    .bind(slot_id)
+    .bind(generation.as_i64())
+    .execute(&mut *connection)
+    .await
+    .map_err(persistence)?;
+    Ok(())
+}
+
+/// Runs in the same transaction that ends or replaces a slot's custody.
+pub(crate) async fn revoke_slot_credentials(
+    connection: &mut SqliteConnection,
+    slot_id: i64,
+) -> Result<(), PersistenceFailure> {
+    sqlx::query("DELETE FROM agent_runtime_credentials WHERE slot_id = ?")
+        .bind(slot_id)
+        .execute(&mut *connection)
+        .await
+        .map_err(persistence)?;
+    Ok(())
 }
 
 async fn agent_transition_is_clear(
@@ -267,6 +383,32 @@ impl RuntimeCustodyPort for SqliteRuntimeCustodyStore {
         finalization: FinalizeRuntimeCustody,
     ) -> Result<bool, PersistenceFailure> {
         self.finalize_transaction(finalization).await
+    }
+
+    async fn authenticate(
+        &self,
+        credential: RuntimeCredentialHash,
+    ) -> Result<Option<RuntimePrincipal>, PersistenceFailure> {
+        self.authenticate_credential(credential).await
+    }
+
+    async fn holds_credential(
+        &self,
+        principal: RuntimePrincipal,
+    ) -> Result<bool, PersistenceFailure> {
+        self.principal_holds_credential(principal).await
+    }
+
+    async fn revoke_credential(
+        &self,
+        credential: RuntimeCredentialHash,
+    ) -> Result<(), PersistenceFailure> {
+        sqlx::query("DELETE FROM agent_runtime_credentials WHERE token_hash = ?")
+            .bind(credential.as_str())
+            .execute(&self.pool)
+            .await
+            .map_err(persistence)?;
+        Ok(())
     }
 }
 

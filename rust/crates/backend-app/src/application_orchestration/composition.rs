@@ -1335,9 +1335,8 @@ pub(super) async fn compose_after_audit(
         PublicJsonUnauthorized,
     );
     // #2234 CP7a (test-only): capture a clone of the runtime-credential authority BEFORE it is
-    // moved into the perimeter below. The authority is `Arc`-backed (its process-local token
-    // map is an `Arc<RwLock<…>>`), so the clone and the perimeter share ONE token store — a
-    // bearer a test mints through this clone authenticates against the mounted router.
+    // moved into the perimeter below; a bearer a test mints through this clone authenticates
+    // against the mounted router.
     #[cfg(test)]
     let test_runtime_credentials = runtime_credentials.clone();
     // #2250/#2261: both CLI audit facades ride this runtime-credential perimeter. The

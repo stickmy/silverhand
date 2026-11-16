@@ -8,7 +8,8 @@ use silverhand_backend_core::{
     foundation::persistence::PersistenceFailure,
     host_runtime::agent_presence,
     host_runtime::runtime_credential::{
-        ClaimRuntimeCustody, RuntimeCustodyPort, RuntimeEventTime, RuntimeScope,
+        ClaimRuntimeCustody, RuntimeCredentialHash, RuntimeCustodyPort, RuntimeEventTime,
+        RuntimeScope,
     },
     host_runtime::runtime_event::{
         CommitRuntimeConsumed, CommitRuntimeExit, CommitRuntimeSessionInit, DaemonEventDurablePort,
@@ -189,6 +190,7 @@ async fn claim_runtime(
         .claim_or_current(ClaimRuntimeCustody::new(
             scope(),
             DaemonInstanceId::parse(daemon).unwrap(),
+            RuntimeCredentialHash::of_plaintext("test-bearer-0"),
             RuntimeEventTime::from_unix_millis(10),
         ))
         .await
@@ -960,6 +962,7 @@ async fn agent_slot_status_targets_every_placement_participation_and_only_origin
         .claim_or_current(ClaimRuntimeCustody::new(
             scope,
             DaemonInstanceId::parse("daemon-agent-slot").unwrap(),
+            RuntimeCredentialHash::of_plaintext("test-bearer-1"),
             RuntimeEventTime::from_unix_millis(10),
         ))
         .await
@@ -1151,7 +1154,8 @@ async fn exit_finalization_status_activity_and_lease_cleanup_are_one_root_transa
              (SELECT COUNT(in_flight_owner) FROM conversation_inboxes) AS leased,
              (SELECT COUNT(*) FROM conversation_events WHERE kind = 'text') AS activities,
              (SELECT COUNT(*) FROM agent_runtime_events
-               WHERE event_kind = 'generation_finalized') AS finalized",
+               WHERE event_kind = 'generation_finalized') AS finalized,
+             (SELECT COUNT(*) FROM agent_runtime_credentials) AS credentials",
     )
     .bind(CONVERSATION)
     .bind(AGENT)
@@ -1169,6 +1173,7 @@ async fn exit_finalization_status_activity_and_lease_cleanup_are_one_root_transa
     assert_eq!(row.get::<i64, _>("leased"), 0);
     assert_eq!(row.get::<i64, _>("activities"), 1);
     assert_eq!(row.get::<i64, _>("finalized"), 1);
+    assert_eq!(row.get::<i64, _>("credentials"), 0);
 }
 
 #[tokio::test]

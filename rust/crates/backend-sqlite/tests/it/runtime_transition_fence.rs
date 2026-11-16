@@ -7,7 +7,8 @@ use silverhand_backend_core::{
     },
     foundation::identity::{AgentId, ConversationId, DaemonInstanceId},
     host_runtime::runtime_credential::{
-        ClaimRuntimeCustody, RuntimeCustodyPort, RuntimeEventTime, RuntimeScope,
+        ClaimRuntimeCustody, RuntimeCredentialHash, RuntimeCustodyPort, RuntimeEventTime,
+        RuntimeScope,
     },
     host_runtime::runtime_event::RuntimeObservedStatus,
     host_runtime::runtime_transition::{
@@ -123,6 +124,7 @@ async fn fixture() -> Fixture {
         .claim_or_current(ClaimRuntimeCustody::new(
             scope(),
             DaemonInstanceId::parse("daemon-a").unwrap(),
+            RuntimeCredentialHash::of_plaintext("test-bearer-0"),
             RuntimeEventTime::from_unix_millis(7),
         ))
         .await
@@ -187,6 +189,7 @@ async fn held_marker_fences_custody_and_claim_then_exact_reclaim_stays_stable() 
             .claim_or_current(ClaimRuntimeCustody::new(
                 scope(),
                 DaemonInstanceId::parse(daemon).unwrap(),
+                RuntimeCredentialHash::of_plaintext("test-bearer-1"),
                 RuntimeEventTime::from_unix_millis(101),
             ))
             .await

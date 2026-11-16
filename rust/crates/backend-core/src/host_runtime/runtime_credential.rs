@@ -6,6 +6,8 @@
 
 use std::future::Future;
 
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 use crate::{
@@ -163,10 +165,25 @@ impl RuntimeEventTime {
     }
 }
 
+/// SHA-256 of a runtime bearer: the only persisted form of the bearer.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct RuntimeCredentialHash(String);
+
+impl RuntimeCredentialHash {
+    pub fn of_plaintext(plaintext: &str) -> Self {
+        Self(URL_SAFE_NO_PAD.encode(Sha256::digest(plaintext.as_bytes())))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ClaimRuntimeCustody {
     scope: RuntimeScope,
     daemon_instance: DaemonInstanceId,
+    credential: RuntimeCredentialHash,
     observed_at: RuntimeEventTime,
 }
 
@@ -174,13 +191,19 @@ impl ClaimRuntimeCustody {
     pub fn new(
         scope: RuntimeScope,
         daemon_instance: DaemonInstanceId,
+        credential: RuntimeCredentialHash,
         observed_at: RuntimeEventTime,
     ) -> Self {
         Self {
             scope,
             daemon_instance,
+            credential,
             observed_at,
         }
+    }
+
+    pub fn credential(&self) -> &RuntimeCredentialHash {
+        &self.credential
     }
 
     pub fn scope(&self) -> &RuntimeScope {
@@ -265,7 +288,9 @@ impl FinalizeRuntimeCustody {
 pub trait RuntimeCustodyPort: Clone + Send + Sync + 'static {
     /// Reuses the current generation only when the same daemon still owns it.
     /// Otherwise the adapter must advance by one and atomically append the
-    /// generation-claim event before returning the new principal.
+    /// generation-claim event before returning the new principal. Either way the
+    /// claim's credential is bound to the returned generation in the same
+    /// transaction, and a new generation drops every older credential.
     fn claim_or_current(
         &self,
         claim: ClaimRuntimeCustody,
@@ -287,13 +312,32 @@ pub trait RuntimeCustodyPort: Clone + Send + Sync + 'static {
         principal: RuntimePrincipal,
     ) -> impl Future<Output = Result<bool, PersistenceFailure>> + Send;
 
-    /// Clears one exact generation+daemon custody and appends its finalization
-    /// event in the same transaction. A stale principal returns `false` and
-    /// cannot mutate its successor.
+    /// Clears one exact generation+daemon custody, revokes its credentials and
+    /// appends its finalization event in the same transaction. A stale principal
+    /// returns `false` and cannot mutate its successor.
     fn finalize(
         &self,
         finalization: FinalizeRuntimeCustody,
     ) -> impl Future<Output = Result<bool, PersistenceFailure>> + Send;
+
+    /// Resolves a credential to the principal of its slot, only while that slot
+    /// is still claimed at the credential's generation.
+    fn authenticate(
+        &self,
+        credential: RuntimeCredentialHash,
+    ) -> impl Future<Output = Result<Option<RuntimePrincipal>, PersistenceFailure>> + Send;
+
+    /// Whether the exact current principal still has at least one credential.
+    fn holds_credential(
+        &self,
+        principal: RuntimePrincipal,
+    ) -> impl Future<Output = Result<bool, PersistenceFailure>> + Send;
+
+    /// Revokes one credential whose start was proven never to reach a process.
+    fn revoke_credential(
+        &self,
+        credential: RuntimeCredentialHash,
+    ) -> impl Future<Output = Result<(), PersistenceFailure>> + Send;
 }
 
 /// The read-only slice of custody the runtime-switch saga depends on.

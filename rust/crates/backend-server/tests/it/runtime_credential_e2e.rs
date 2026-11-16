@@ -905,27 +905,30 @@ async fn hydrate_reconcile_cannot_finalize_a_same_scope_handoff_in_flight() {
 }
 
 #[tokio::test]
-async fn restart_refuses_the_old_token_then_stops_and_finalizes_before_successor_claim() {
+async fn restart_keeps_the_old_token_and_process_until_its_custody_ends() {
     let fixture = fixture().await;
     let old = issue(&fixture.authority, conversation_scope(), "daemon-old").await;
     let restarted = RuntimeCredentialAuthority::new(
         fixture.store.clone(),
-        SequenceEntropy::default(),
+        SequenceEntropy(Arc::new(AtomicU64::new(100))),
         FixedClock,
     );
     let calls = Calls(Arc::new(AtomicUsize::new(0)));
     let restarted_app = app(restarted.clone(), calls.clone());
-    assert_eq!(
+    let old_status = |app: Router, bearer: String| async move {
         request(
-            &restarted_app,
+            &app,
             CONVERSATION_AGENT,
-            Some(&format!("Bearer {}", old.bearer)),
+            Some(&format!("Bearer {bearer}")),
             None,
             None,
         )
         .await
-        .status,
-        StatusCode::UNAUTHORIZED
+        .status
+    };
+    assert_eq!(
+        old_status(restarted_app.clone(), old.bearer.clone()).await,
+        StatusCode::OK
     );
 
     let hydrated = restarted
@@ -933,49 +936,87 @@ async fn restart_refuses_the_old_token_then_stops_and_finalizes_before_successor
         .await
         .unwrap()
         .unwrap();
+    assert_eq!(hydrated, old.principal);
     let stop = StopTransport::default();
     assert_eq!(
         restarted
             .reconcile_hydrated(hydrated.clone(), &stop)
             .await
             .unwrap(),
-        HydrateCredentialDisposition::Finalized
+        HydrateCredentialDisposition::CredentialPresent
     );
+    assert!(stop.0.lock().unwrap().is_empty());
     assert_eq!(
-        stop.0.lock().unwrap().as_slice(),
-        std::slice::from_ref(&hydrated)
-    );
-    assert!(
-        restarted
-            .current(conversation_scope())
-            .await
-            .unwrap()
-            .is_none()
+        old_status(restarted_app.clone(), old.bearer.clone()).await,
+        StatusCode::OK
     );
 
     let successor = issue(&restarted, conversation_scope(), "daemon-next").await;
     assert_eq!(successor.principal.custody().generation().as_i64(), 2);
     assert_eq!(
+        old_status(restarted_app.clone(), old.bearer.clone()).await,
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
         restarted.reconcile_hydrated(hydrated, &stop).await.unwrap(),
         HydrateCredentialDisposition::Superseded
     );
-    assert_eq!(stop.0.lock().unwrap().len(), 1);
+    assert!(stop.0.lock().unwrap().is_empty());
     assert_eq!(
-        request(
-            &restarted_app,
-            CONVERSATION_AGENT,
-            Some(&format!("Bearer {}", successor.bearer)),
-            None,
-            None,
-        )
-        .await
-        .status,
+        old_status(restarted_app.clone(), successor.bearer.clone()).await,
         StatusCode::OK
+    );
+
+    assert!(
+        restarted
+            .finalize(successor.principal.clone(), RuntimeFinalStatus::Idle)
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        old_status(restarted_app, successor.bearer.clone()).await,
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(calls.0.load(Ordering::SeqCst), 3);
+    assert_secret_absent_from_database(&fixture.path, [&old.bearer, &successor.bearer]);
+}
+
+#[tokio::test]
+async fn hydration_without_a_stored_credential_stops_and_finalizes() {
+    let fixture = fixture().await;
+    let old = issue(&fixture.authority, conversation_scope(), "daemon-old").await;
+    let mut connection = open(&fixture.path).await;
+    sqlx::query("DELETE FROM agent_runtime_credentials")
+        .execute(&mut connection)
+        .await
+        .unwrap();
+    connection.close().await.unwrap();
+
+    let stop = StopTransport::default();
+    assert_eq!(
+        fixture
+            .authority
+            .reconcile_hydrated(old.principal.clone(), &stop)
+            .await
+            .unwrap(),
+        HydrateCredentialDisposition::Finalized
+    );
+    assert_eq!(
+        stop.0.lock().unwrap().as_slice(),
+        std::slice::from_ref(&old.principal)
+    );
+    assert!(
+        fixture
+            .authority
+            .current(conversation_scope())
+            .await
+            .unwrap()
+            .is_none()
     );
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn unknown_token_skips_custody_but_known_token_surfaces_one_safe_driver_error() {
+async fn storage_failure_surfaces_one_safe_driver_error_without_the_secret() {
     let fixture = fixture().await;
     let issued = issue(&fixture.authority, conversation_scope(), "daemon-1").await;
     let mut connection = open(&fixture.path).await;
@@ -1005,28 +1046,6 @@ async fn unknown_token_skips_custody_but_known_token_surfaces_one_safe_driver_er
     )
     .await;
     assert_eq!(malformed_aid.status, StatusCode::UNAUTHORIZED);
-    assert!(logs.error_events().is_empty());
-
-    let unknown = request(
-        &app,
-        CONVERSATION_AGENT,
-        Some("Bearer never-issued"),
-        None,
-        None,
-    )
-    .await;
-    assert_eq!(unknown.status, StatusCode::UNAUTHORIZED);
-    assert!(logs.error_events().is_empty());
-
-    let wrong_aid = request(
-        &app,
-        GLOBAL_AGENT,
-        Some(&format!("Bearer {}", issued.bearer)),
-        None,
-        None,
-    )
-    .await;
-    assert_eq!(wrong_aid.status, StatusCode::UNAUTHORIZED);
     assert!(logs.error_events().is_empty());
 
     let failed = request(
@@ -1167,7 +1186,6 @@ fn assert_secret_absent_from_database<'a>(
     }
     for bearer in bearers {
         assert!(!contains_bytes(&bytes, bearer.as_bytes()));
-        assert!(!contains_bytes(&bytes, token_hash_text(bearer).as_bytes()));
     }
 }
 

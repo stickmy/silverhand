@@ -4380,6 +4380,21 @@ export const migrations: Migration[] = [
       ALTER TABLE conversations DROP COLUMN close_summary;
     `,
   },
+  {
+    version: 104,
+    name: 'agent_runtime_credentials',
+    // SHA-256 of each bearer issued to a runtime generation, so a restarted server
+    // still authenticates the processes it started. Rows live only while that
+    // generation is claimed.
+    up: `
+      CREATE TABLE agent_runtime_credentials (
+        token_hash TEXT PRIMARY KEY,
+        slot_id    INTEGER NOT NULL REFERENCES agent_runtime_slots(id) ON DELETE CASCADE,
+        generation INTEGER NOT NULL
+      );
+      CREATE INDEX idx_agent_runtime_credentials_slot ON agent_runtime_credentials(slot_id);
+    `,
+  },
 ];
 
 /**

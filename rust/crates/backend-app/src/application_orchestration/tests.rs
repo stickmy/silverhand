@@ -5643,7 +5643,7 @@ async fn the_composition_agent_write_faces_share_one_profile_authority_and_avata
 /// no anonymous probe can show is that the handlers BEHIND that perimeter reach real
 /// durable authority. So this mints a bearer through the SAME `Arc`-backed
 /// `RuntimeCredentialAuthority` the perimeter authenticates against (the `#[cfg(test)]`
-/// `test_runtime_credentials` handle is a clone sharing its process-local token store),
+/// `test_runtime_credentials` handle is a clone of it),
 /// then drives the family end to end:
 ///   * a valid bearer reaches its OWN `{aid}`; a foreign `{aid}` and a missing/invalid
 ///     bearer are the uniform perimeter 401; an unlisted method is the ROUTE's 405.
@@ -5714,8 +5714,7 @@ async fn the_composition_internal_self_scope_family_reaches_and_effects_over_one
     let app = prepare(&config(fixture.path.clone())).await.unwrap();
 
     // Mint a REAL bearer through the SAME authority the mounted perimeter holds — BEFORE
-    // `serve` consumes `app`. The authority is `Arc`-backed, so the token this records in
-    // the shared process-local store is exactly the one the running router authenticates.
+    // `serve` consumes `app`, so the running router authenticates exactly this token.
     #[derive(Clone, Default)]
     struct CapturingStart(Arc<Mutex<Option<String>>>);
     impl RuntimeStartTransport for CapturingStart {

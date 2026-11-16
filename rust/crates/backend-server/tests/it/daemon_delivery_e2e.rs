@@ -41,8 +41,8 @@ use silverhand_backend_core::{
     foundation::persistence::PersistenceFailure,
     host_runtime::aftermath::{CustodyEffectFailure, DaemonConnectionControl},
     host_runtime::runtime_credential::{
-        ClaimRuntimeCustody, RuntimeCustodyPort, RuntimeEventTime, RuntimeGeneration,
-        RuntimePrincipal, RuntimeScope,
+        ClaimRuntimeCustody, RuntimeCredentialHash, RuntimeCustodyPort, RuntimeEventTime,
+        RuntimeGeneration, RuntimePrincipal, RuntimeScope,
     },
     host_runtime::runtime_event::{
         CommitRuntimeConsumed, CommitRuntimeExit, CommitRuntimeSessionInit, DaemonEventDurablePort,
@@ -2275,6 +2275,7 @@ async fn compatible_ready_cannot_finalize_or_settle_before_hydration_attaches() 
         .claim_or_current(ClaimRuntimeCustody::new(
             runtime_scope(),
             DaemonInstanceId::parse("instance-test").unwrap(),
+            RuntimeCredentialHash::of_plaintext("test-bearer-0"),
             RuntimeEventTime::from_unix_millis(10),
         ))
         .await
@@ -2713,7 +2714,7 @@ async fn ambiguous_disconnect_releases_the_lease_but_preserves_custody_for_hydra
 }
 
 #[tokio::test]
-async fn restart_hydration_stops_the_new_process_and_finalizes_old_daemon_custody() {
+async fn restart_hydration_keeps_a_process_whose_credential_survived() {
     let fixture = fixture("hydrate.sqlite").await;
     let custody = SqliteRuntimeCustodyStore::open(&fixture.path)
         .await
@@ -2721,7 +2722,8 @@ async fn restart_hydration_stops_the_new_process_and_finalizes_old_daemon_custod
     let principal = custody
         .claim_or_current(ClaimRuntimeCustody::new(
             runtime_scope(),
-            DaemonInstanceId::parse("previous-daemon").unwrap(),
+            DaemonInstanceId::parse("instance-test").unwrap(),
+            RuntimeCredentialHash::of_plaintext("test-bearer-1"),
             RuntimeEventTime::from_unix_millis(10),
         ))
         .await
@@ -2729,6 +2731,84 @@ async fn restart_hydration_stops_the_new_process_and_finalizes_old_daemon_custod
         .unwrap()
         .into_principal();
     assert_eq!(principal.custody().generation().as_i64(), 1);
+
+    let mut socket = connect(fixture.address).await;
+    send_ready(&mut socket, OUTBOUND_PROTOCOL_VERSION).await;
+    let status = next_json(&mut socket).await;
+    assert_eq!(status["kind"], "runtime_status");
+    respond(
+        &mut socket,
+        &status,
+        json!({
+            "runtimes": [{
+                "runtime_scope": {
+                    "kind": "conversation",
+                    "conversation_id": CONVERSATION,
+                    "agent_id": AGENT,
+                },
+                "conversation_id": CONVERSATION,
+                "agent_id": AGENT,
+                "runtime_generation": 1,
+                "pid": 7,
+                "phase": "ready",
+                "run_state": null,
+                "started_at": 100,
+            }]
+        }),
+    )
+    .await;
+    wait_for_attachment(&fixture.controller).await;
+    // Hydration would have stopped the runtime before attaching; the first
+    // post-attach frame is the ordinary host probe.
+    assert_eq!(next_json(&mut socket).await["kind"], "host_status");
+
+    let mut db = open(&fixture.path).await;
+    let slot = sqlx::query(
+        "SELECT generation, claimed_by_daemon_instance_id
+           FROM agent_runtime_slots
+          WHERE agent_id = ? AND conversation_id = ?",
+    )
+    .bind(AGENT)
+    .bind(CONVERSATION)
+    .fetch_one(&mut db)
+    .await
+    .unwrap();
+    assert_eq!(slot.get::<i64, _>("generation"), 1);
+    assert_eq!(
+        slot.get::<Option<String>, _>("claimed_by_daemon_instance_id")
+            .as_deref(),
+        Some("instance-test")
+    );
+
+    socket.close(None).await.unwrap();
+    fixture.controller.close().await;
+    fixture.server.abort();
+}
+
+#[tokio::test]
+async fn restart_hydration_stops_a_process_without_a_stored_credential() {
+    let fixture = fixture("hydrate.sqlite").await;
+    let custody = SqliteRuntimeCustodyStore::open(&fixture.path)
+        .await
+        .unwrap();
+    let principal = custody
+        .claim_or_current(ClaimRuntimeCustody::new(
+            runtime_scope(),
+            DaemonInstanceId::parse("instance-test").unwrap(),
+            RuntimeCredentialHash::of_plaintext("test-bearer-1"),
+            RuntimeEventTime::from_unix_millis(10),
+        ))
+        .await
+        .unwrap()
+        .unwrap()
+        .into_principal();
+    assert_eq!(principal.custody().generation().as_i64(), 1);
+    // A runtime started by a build that kept credentials only in memory.
+    let mut db = open(&fixture.path).await;
+    sqlx::query("DELETE FROM agent_runtime_credentials")
+        .execute(&mut db)
+        .await
+        .unwrap();
 
     let mut socket = connect(fixture.address).await;
     send_ready(&mut socket, OUTBOUND_PROTOCOL_VERSION).await;
@@ -2766,7 +2846,6 @@ async fn restart_hydration_stops_the_new_process_and_finalizes_old_daemon_custod
     .await;
     wait_for_attachment(&fixture.controller).await;
 
-    let mut db = open(&fixture.path).await;
     let slot = sqlx::query(
         "SELECT generation, claimed_by_daemon_instance_id
            FROM agent_runtime_slots

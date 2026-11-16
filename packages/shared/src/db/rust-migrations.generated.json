@@ -19,7 +19,7 @@
     {
       "epoch": 71,
       "firstStep": 100,
-      "lastStep": 103,
+      "lastStep": 104,
       "released": false
     }
   ],
@@ -29,8 +29,8 @@
     "packages/shared/src/conversation-title.ts": "5b8f0b3766618373619ea589e632d566e9a43e469d821de4298da76f1bb3b680",
     "packages/shared/src/db/baseline-schema.ts": "7e5b7e9a0aca9b79fa433dca341d68ef4f761c5a545069c6005a4519851130e6",
     "packages/shared/src/db/migration-contracts/task-title-v96.ts": "98b0881301cb959962489178aefca16aa4228c786f03b0b849a654d58504d583",
-    "packages/shared/src/db/migrations.ts": "21d8726c143143e3a43ec39cb78e0fb246bf65c9dabeec9b4841cda566e3b717",
-    "packages/shared/src/db/schema-epochs.ts": "5084126e9bc774d654f7a2c815aa8fbaced5794c34037d29c91a61f3bb1fb425",
+    "packages/shared/src/db/migrations.ts": "86b2186d574fb1d90b2e77a4bceacbcd3baa7e4f760ab0a85b5354de8103f79d",
+    "packages/shared/src/db/schema-epochs.ts": "06bc30a39e6aab3be7df9a37ed4b468e923701127620e6bdd74f74a99f14c762",
     "packages/shared/src/display-name-charset.ts": "9d5b574480b3956f37d53bba816b7bff6d3e3edfc861e58c32b896a919f2f8ba",
     "packages/shared/src/unicode-case-fold.ts": "b5cb75d46582dc93b640434ad78fe8f0a741e5e1aa183adbb27368ce2aceb120",
     "packages/shared/src/unicode-name-charset.ts": "bbcda81d89d738fdfe6a9ff0dd4dad633a79a84cd8f82e203753910196967879",
@@ -455,6 +455,13 @@
       "version": 103,
       "name": "retire_conversation_status_and_close",
       "up": "\n      UPDATE conversations SET archived_at = COALESCE(archived_at, closed_at)\n        WHERE closed_at IS NOT NULL;\n      DROP INDEX idx_conversations_status;\n      ALTER TABLE conversations DROP COLUMN status;\n      ALTER TABLE conversations DROP COLUMN closed_at;\n      ALTER TABLE conversations DROP COLUMN close_summary;\n    ",
+      "foreignKeyEscape": false,
+      "precondition": false
+    },
+    {
+      "version": 104,
+      "name": "agent_runtime_credentials",
+      "up": "\n      CREATE TABLE agent_runtime_credentials (\n        token_hash TEXT PRIMARY KEY,\n        slot_id    INTEGER NOT NULL REFERENCES agent_runtime_slots(id) ON DELETE CASCADE,\n        generation INTEGER NOT NULL\n      );\n      CREATE INDEX idx_agent_runtime_credentials_slot ON agent_runtime_credentials(slot_id);\n    ",
       "foreignKeyEscape": false,
       "precondition": false
     }
