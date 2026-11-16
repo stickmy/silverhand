@@ -580,23 +580,13 @@
 .mobile-header-action[aria-expanded="true"] > svg {
   background: color-mix(in srgb, var(--text-primary) 12%, var(--bg-floating));
 }
-/* Touch-sized pills. An unset filter is glass; a set one keeps its fill. */
+/* Touch-sized filter triggers; their fill stays the flat chip's. */
 [data-layout="compact"] [data-pane-chrome] [data-filter-trigger] {
   height: 34px;
   max-width: none;
   padding: 0 12px;
   border-radius: 999px;
   font-size: 14px;
-}
-[data-layout="compact"] [data-pane-chrome] [data-filter-trigger]:not([data-active]) {
-  border-color: transparent;
-  color: var(--text-primary);
-  background: color-mix(in srgb, var(--bg-base) 55%, transparent);
-  -webkit-backdrop-filter: blur(24px) saturate(1.8);
-  backdrop-filter: blur(24px) saturate(1.8);
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--bg-base) 90%, transparent),
-    inset 0 0 0 0.5px color-mix(in srgb, var(--text-primary) 12%, transparent);
 }
 /* A mask would make the strip a backdrop root and leave the pills nothing to
    blur, so the strip runs to the screen edge unmasked instead. */

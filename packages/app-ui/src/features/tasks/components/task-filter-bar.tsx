@@ -272,7 +272,6 @@ export function TaskFilterBar({
         allChannelsLabel={allChannelsLabel}
         value={filters.channelId}
         onChange={(channelId) => onChange({ ...filters, channelId })}
-        ghost={!compact}
       />
     ) : null;
   const creatorControl = (
@@ -283,7 +282,6 @@ export function TaskFilterBar({
       population={mapBoardAuthority(people, (f) => f.creators)}
       value={filters.creator}
       onChange={(creator) => onChange({ ...filters, creator })}
-      ghost={!compact}
       {...personDirectory}
     />
   );
@@ -405,60 +403,25 @@ const FilterTrigger = forwardRef<
   ButtonHTMLAttributes<HTMLButtonElement> & {
     icon: ReactNode;
     active: boolean;
-    /** Borderless, for the wide toolbar where it sits beside the flat scope chips. */
-    ghost?: boolean;
   }
->(function FilterTrigger({ icon, active, ghost = false, children, className, ...props }, ref) {
+>(function FilterTrigger({ icon, active, children, className, ...props }, ref) {
   return (
     <button
       ref={ref}
       type="button"
       data-filter-trigger
       data-active={active || undefined}
-      data-ink-selected={(active && !ghost) || undefined}
       className={cn(
         "flex max-w-50 items-center gap-1.5 rounded-(--control-radius)",
-        "border-(length:--control-border-width) px-2 py-1 text-(length:--text-meta) transition-colors",
-        // Hover always paints the theme's control hover border
-        // (`--border-control-hover`: poster near-black ink / warm
-        // accent / slack-dark `--border` 10% white). Note this is a
-        // CONTROL-surface hover token, not the row-state token —
-        // slack-dark intentionally sets `--border-row-hover:
-        // transparent` (sidebar bg veil expresses hover there), and
-        // we don't want that to bleed into control triggers where the
-        // border is the only hover signal (#task:912 review round 3).
-        ghost
-          ? cn("border-transparent", flatChipTone(active))
-          : "hover:border-(--border-control-hover)",
-        ghost
-          ? null
-          : active
-            ? // Non-default value → theme selected-row fill (poster festive
-              // lime) + on-selected ink + the selected-row border colour
-              // (`--border-row-selected`, same near-black as hover) so the
-              // chip reads as a framed poster sticker, not a borderless fill
-              // (shiki #task:790).
-              "border-(--border-row-selected) bg-(--bg-row-selected) text-text-on-selected"
-            : "border-border-subtle bg-bg-primary text-text-secondary hover:text-text-primary",
+        "border-(length:--control-border-width) border-transparent px-2 py-1 text-(length:--text-meta) transition-colors",
+        flatChipTone(active),
         className,
       )}
       {...props}
     >
-      <span
-        className={cn(
-          "flex shrink-0 items-center",
-          ghost ? "opacity-70" : active ? "text-text-on-selected" : "text-text-muted",
-        )}
-      >
-        {icon}
-      </span>
+      <span className="flex shrink-0 items-center opacity-70">{icon}</span>
       <span className="truncate leading-[14px]">{children}</span>
-      <ChevronDownIcon
-        className={cn(
-          "size-3 shrink-0",
-          ghost ? "opacity-70" : active ? "text-text-on-selected" : "text-text-muted",
-        )}
-      />
+      <ChevronDownIcon className="size-3 shrink-0 opacity-70" />
     </button>
   );
 });
@@ -578,13 +541,11 @@ function ChannelFilter({
   allChannelsLabel,
   value,
   onChange,
-  ghost,
 }: {
   options: ChannelOption[];
   allChannelsLabel: string;
   value: string | null;
   onChange: (id: string | null) => void;
-  ghost?: boolean;
 }): JSX.Element {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -693,7 +654,6 @@ function ChannelFilter({
           // there.
           icon={<ChannelIcon variant="sticker" density="md" className="task-filter-channel-hash" />}
           active={value !== null}
-          ghost={ghost}
           aria-label={t("tasks.channel")}
         >
           {t("tasks.channelFilter", { value: selected?.label ?? allChannelsLabel })}
@@ -945,12 +905,10 @@ function PersonFilterControl({
   allowUnassigned = false,
   value,
   onChange,
-  ghost,
   agentsById,
   agentAvatarUrls,
   userAvatarUrls,
 }: {
-  ghost?: boolean;
   icon: ReactNode;
   label: string;
   anyLabel: string;
@@ -1013,7 +971,7 @@ function PersonFilterControl({
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
-        <FilterTrigger icon={icon} active={value.kind !== "any"} ghost={ghost} aria-label={label}>
+        <FilterTrigger icon={icon} active={value.kind !== "any"} aria-label={label}>
           {`${label}:${valuePart}`}
         </FilterTrigger>
       </Popover.Trigger>
