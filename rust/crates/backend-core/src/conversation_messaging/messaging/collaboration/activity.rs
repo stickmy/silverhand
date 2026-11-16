@@ -1,10 +1,10 @@
 //! The viewer's Activity cold projection.
 //!
-//! Activity owns no durable state. It assembles two ordered source families:
-//! notification-backed directed claims, then positional unread streams after
-//! subtracting the messages already claimed by the directed family. This module
-//! owns the closed projected values and the consumer-language read port; SQL and
-//! HTTP remain in their adapter crates.
+//! Activity owns no durable state. It lists one row per stream (main line or thread)
+//! that waits on the viewer — unread messages it ambiently enters, or an unread
+//! mention of the viewer — plus agent start failures. This module owns the closed
+//! projected values and the consumer-language read port; SQL and HTTP remain in
+//! their adapter crates.
 
 use std::{cmp::Ordering, error::Error, future::Future};
 
@@ -147,16 +147,16 @@ fn is_ecmascript_space(value: char) -> bool {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ActivitySource {
-    Mention {
-        notification: NotificationId,
-        message: MessageId,
-    },
     AgentFailed {
         notification: NotificationId,
     },
-    Unread {
+    /// A stream waiting on the viewer, anchored at its first unread mention, else its
+    /// first unread message. `unread` counts every unread message in it; `mentions`
+    /// the unread ones that name the viewer.
+    Stream {
         message: MessageId,
-        count: ActivityUnreadCount,
+        unread: ActivityUnreadCount,
+        mentions: ActivityUnreadCount,
     },
 }
 
@@ -174,34 +174,6 @@ pub struct ActivityItem {
 }
 
 impl ActivityItem {
-    #[allow(clippy::too_many_arguments)]
-    pub fn mention(
-        notification: NotificationId,
-        message: MessageId,
-        conversation: ConversationId,
-        thread_root: Option<ThreadRootId>,
-        location: ActivityLocation,
-        thread_root_preview: Option<ActivityPreview>,
-        preview: Option<ActivityPreview>,
-        preview_sender: Option<MessageAuthor>,
-        timestamp_ms: i64,
-    ) -> Self {
-        Self {
-            source: ActivitySource::Mention {
-                notification,
-                message,
-            },
-            salience: ActivitySalience::Directed,
-            conversation,
-            thread_root,
-            location,
-            thread_root_preview,
-            preview,
-            preview_sender,
-            timestamp_ms,
-        }
-    }
-
     pub fn agent_failed(
         notification: NotificationId,
         conversation: ConversationId,
@@ -223,9 +195,10 @@ impl ActivityItem {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn unread(
+    pub fn stream(
         message: MessageId,
-        count: ActivityUnreadCount,
+        unread: ActivityUnreadCount,
+        mentions: ActivityUnreadCount,
         salience: ActivitySalience,
         conversation: ConversationId,
         thread_root: Option<ThreadRootId>,
@@ -236,7 +209,11 @@ impl ActivityItem {
         timestamp_ms: i64,
     ) -> Self {
         Self {
-            source: ActivitySource::Unread { message, count },
+            source: ActivitySource::Stream {
+                message,
+                unread,
+                mentions,
+            },
             salience,
             conversation,
             thread_root,
@@ -283,10 +260,8 @@ pub struct ActivityList {
 }
 
 impl ActivityList {
-    /// The Rust cutover closes the legacy projection's undefined timestamp ties
-    /// with persistent coordinates. Source family order preserves the registry
-    /// order (mention, agent failure, positional unread); identities then make
-    /// every visible item total without consulting rowid or query-plan order.
+    /// Timestamp ties close on persistent coordinates: agent failures before streams,
+    /// then by identity, never by rowid or query-plan order.
     pub fn projected(mut items: Vec<ActivityItem>) -> Self {
         items.sort_by(|left, right| {
             left.salience()
@@ -303,44 +278,24 @@ impl ActivityList {
 }
 
 fn source_coordinate(left: &ActivityItem, right: &ActivityItem) -> Ordering {
-    let left_rank = source_rank(left.source());
-    let right_rank = source_rank(right.source());
-    left_rank
-        .cmp(&right_rank)
-        .then_with(|| match (left.source(), right.source()) {
-            (
-                ActivitySource::Mention {
-                    notification: left, ..
-                },
-                ActivitySource::Mention {
-                    notification: right,
-                    ..
-                },
-            )
-            | (
-                ActivitySource::AgentFailed { notification: left },
-                ActivitySource::AgentFailed {
-                    notification: right,
-                },
-            ) => left.as_str().cmp(right.as_str()),
-            (ActivitySource::Unread { .. }, ActivitySource::Unread { .. }) => left
-                .conversation()
-                .as_str()
-                .cmp(right.conversation().as_str())
-                .then_with(|| {
-                    left.thread_root()
-                        .map(ThreadRootId::as_str)
-                        .cmp(&right.thread_root().map(ThreadRootId::as_str))
-                }),
-            _ => Ordering::Equal,
-        })
-}
-
-fn source_rank(source: &ActivitySource) -> u8 {
-    match source {
-        ActivitySource::Mention { .. } => 0,
-        ActivitySource::AgentFailed { .. } => 1,
-        ActivitySource::Unread { .. } => 2,
+    match (left.source(), right.source()) {
+        (
+            ActivitySource::AgentFailed { notification: left },
+            ActivitySource::AgentFailed {
+                notification: right,
+            },
+        ) => left.as_str().cmp(right.as_str()),
+        (ActivitySource::Stream { .. }, ActivitySource::Stream { .. }) => left
+            .conversation()
+            .as_str()
+            .cmp(right.conversation().as_str())
+            .then_with(|| {
+                left.thread_root()
+                    .map(ThreadRootId::as_str)
+                    .cmp(&right.thread_root().map(ThreadRootId::as_str))
+            }),
+        (ActivitySource::AgentFailed { .. }, ActivitySource::Stream { .. }) => Ordering::Less,
+        (ActivitySource::Stream { .. }, ActivitySource::AgentFailed { .. }) => Ordering::Greater,
     }
 }
 
@@ -376,89 +331,49 @@ mod tests {
         assert_eq!(compact.as_str().encode_utf16().count(), 139);
     }
 
-    #[test]
-    fn source_sum_closes_nullable_wire_combinations_and_registry_ties() {
-        let conversation = ConversationId::parse("c-1").unwrap();
-        let location = ActivityLocation::workspace_channel(
-            WorkspaceId::parse("w-1").unwrap(),
-            "General".to_owned(),
-        );
-        let first = ActivityItem::agent_failed(
-            NotificationId::parse("n-1").unwrap(),
-            conversation.clone(),
-            location.clone(),
+    fn stream(conversation: &str, salience: ActivitySalience, timestamp_ms: i64) -> ActivityItem {
+        ActivityItem::stream(
+            MessageId::parse(format!("m-{conversation}")).unwrap(),
+            ActivityUnreadCount::new(1).unwrap(),
+            ActivityUnreadCount::new(0).unwrap(),
+            salience,
+            ConversationId::parse(conversation).unwrap(),
             None,
-            10,
-        );
-        let second = ActivityItem::mention(
-            NotificationId::parse("n-2").unwrap(),
-            MessageId::parse("m-1").unwrap(),
-            conversation,
-            None,
-            location,
+            ActivityLocation::workspace_channel(
+                WorkspaceId::parse("w-1").unwrap(),
+                "General".to_owned(),
+            ),
             None,
             None,
             None,
-            10,
-        );
-        let list = ActivityList::projected(vec![first.clone(), second.clone()]);
-        assert_eq!(list.items(), &[second, first]);
-        assert!(matches!(
-            list.items()[0].source(),
-            ActivitySource::Mention { .. }
-        ));
+            timestamp_ms,
+        )
     }
 
     #[test]
     fn persistent_coordinates_total_order_timestamp_ties() {
-        let location = ActivityLocation::workspace_channel(
-            WorkspaceId::parse("w-1").unwrap(),
-            "General".to_owned(),
-        );
-        let mention = ActivityItem::mention(
-            NotificationId::parse("n-b").unwrap(),
-            MessageId::parse("m-directed").unwrap(),
+        let failed = ActivityItem::agent_failed(
+            NotificationId::parse("n-1").unwrap(),
             ConversationId::parse("c-z").unwrap(),
-            None,
-            location.clone(),
-            None,
-            None,
-            None,
-            10,
-        );
-        let unread_z = ActivityItem::unread(
-            MessageId::parse("m-z").unwrap(),
-            ActivityUnreadCount::new(1).unwrap(),
-            ActivitySalience::Directed,
-            ConversationId::parse("c-z").unwrap(),
-            None,
-            location.clone(),
-            None,
-            None,
+            ActivityLocation::workspace_channel(
+                WorkspaceId::parse("w-1").unwrap(),
+                "General".to_owned(),
+            ),
             None,
             10,
         );
-        let unread_a = ActivityItem::unread(
-            MessageId::parse("m-a").unwrap(),
-            ActivityUnreadCount::new(1).unwrap(),
-            ActivitySalience::Directed,
-            ConversationId::parse("c-a").unwrap(),
-            None,
-            location,
-            None,
-            None,
-            None,
-            10,
-        );
+        let z = stream("c-z", ActivitySalience::Directed, 10);
+        let a = stream("c-a", ActivitySalience::Directed, 10);
+        let ambient = stream("c-0", ActivitySalience::Ambient, 20);
 
-        let expected = vec![mention.clone(), unread_a.clone(), unread_z.clone()];
+        let expected = vec![failed.clone(), a.clone(), z.clone(), ambient.clone()];
         assert_eq!(
-            ActivityList::projected(vec![unread_z.clone(), mention.clone(), unread_a.clone()])
+            ActivityList::projected(vec![z.clone(), ambient.clone(), failed.clone(), a.clone()])
                 .items(),
             expected
         );
         assert_eq!(
-            ActivityList::projected(vec![unread_a, unread_z, mention]).items(),
+            ActivityList::projected(vec![ambient, a, z, failed]).items(),
             expected
         );
     }

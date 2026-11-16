@@ -81,25 +81,22 @@ fn activity_wire(value: &ActivityList) -> Response {
 }
 
 fn item_wire(item: &ActivityItem) -> Value {
-    let (id, kind, message_id, notification_id, unread_count) = match item.source() {
-        ActivitySource::Mention {
-            notification,
-            message,
-        } => (
-            format!("mention:{}", notification.as_str()),
-            "mention",
-            Value::from(message.as_str()),
-            Value::from(notification.as_str()),
-            Value::Null,
-        ),
+    // A stream row keeps the wire kind `unread` from before mentions merged into
+    // streams: renaming it would break every client parsing the closed kind enum.
+    let (id, kind, message_id, notification_id, unread_count, mention_count) = match item.source() {
         ActivitySource::AgentFailed { notification } => (
             format!("agent_failed:{}", notification.as_str()),
             "agent_failed",
             Value::Null,
             Value::from(notification.as_str()),
             Value::Null,
+            Value::Null,
         ),
-        ActivitySource::Unread { message, count } => (
+        ActivitySource::Stream {
+            message,
+            unread,
+            mentions,
+        } => (
             format!(
                 "unread:{}::{}",
                 item.conversation().as_str(),
@@ -108,7 +105,8 @@ fn item_wire(item: &ActivityItem) -> Value {
             "unread",
             Value::from(message.as_str()),
             Value::Null,
-            Value::from(count.get()),
+            Value::from(unread.get()),
+            Value::from(mentions.get()),
         ),
     };
     let salience = match item.salience() {
@@ -140,6 +138,7 @@ fn item_wire(item: &ActivityItem) -> Value {
         "preview_sender": item.preview_sender().map(author_dto),
         "timestamp": item.timestamp_ms(),
         "unread_count": unread_count,
+        "mention_count": mention_count,
     })
 }
 

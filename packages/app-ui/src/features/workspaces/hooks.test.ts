@@ -593,6 +593,7 @@ describe("removeWorkspaceFromActivity (#task:1409)", () => {
     preview_sender: null,
     timestamp: 1,
     unread_count: 2,
+    mention_count: 0,
   });
   const activityItem = (id: string, workspaceId: string): ActivityItemDto => ({
     ...baseItem(id),

@@ -109,9 +109,10 @@ export function explicitStreamClearHead(
  * salience would route DM unread to the notification path, find no
  * `notification_id`, and silently drop the most attention-worthy unread from both
  * hover-✓ and Mark-all. So:
- *   - `mention` / `agent_failed` → by `notification_id` (a directed dismiss sets
- *     that one notification's `read_at`; it never reverse-advances a cursor, §3).
- *   - `unread` (mainline, thread, OR DM) → an EXPLICIT stream clear to head
+ *   - `agent_failed` → by `notification_id` (a directed dismiss sets that one
+ *     notification's `read_at`; it never reverse-advances a cursor, §3).
+ *   - `unread` (mainline, thread, OR DM, with or without mentions — the stream
+ *     clear also reads its mentions) → an EXPLICIT stream clear to head
  *     (`explicitStreamClearHead`): clearing without opening has no seen-seq to
  *     pin, so `stream_head` marks to now and knowingly tail-swallows (§2, R3).
  *     MAY carry a thread root — explicit thread clears are legal on the §9.10
@@ -127,7 +128,6 @@ export function explicitStreamClearHead(
  */
 export function activityItemSource(item: ActivityItemDto): ObserveSource | null {
   switch (item.kind) {
-    case "mention":
     case "agent_failed":
       // Directed: by notification_id; a directed dismiss never moves a cursor.
       return item.notification_id != null ? notificationSource(item.notification_id) : null;

@@ -59,6 +59,7 @@ describe('ActivityItemDto keys identity on placement, never on roster (#task:207
     'preview_sender',
     'timestamp',
     'unread_count',
+    'mention_count',
   ];
 
   it('publishes exactly this key set', () => {

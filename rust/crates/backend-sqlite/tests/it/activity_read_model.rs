@@ -67,7 +67,7 @@ async fn ordered_sources_dedupe_and_subtract_in_one_complete_projection() {
     let viewer = UserId::parse("u").unwrap();
 
     let list = read.list_activity(&viewer, None).await.unwrap();
-    assert_eq!(list.items().len(), 4);
+    assert_eq!(list.items().len(), 3);
     assert!(matches!(
         list.items()[0].source(),
         ActivitySource::AgentFailed { notification }
@@ -75,33 +75,30 @@ async fn ordered_sources_dedupe_and_subtract_in_one_complete_projection() {
     ));
     assert!(matches!(
         list.items()[1].source(),
-        ActivitySource::Mention { notification, message }
-            if notification.as_str() == "n-new" && message.as_str() == "m-mention"
+        ActivitySource::Stream { message, unread, mentions }
+            if message.as_str() == "m-pair" && unread.get() == 1 && mentions.get() == 0
     ));
+    assert_eq!(list.items()[1].salience(), ActivitySalience::Directed);
     assert!(matches!(
-        list.items()[2].source(),
-        ActivitySource::Unread { message, count }
-            if message.as_str() == "m-pair" && count.get() == 1
-    ));
-    assert_eq!(list.items()[2].salience(), ActivitySalience::Directed);
-    assert!(matches!(
-        list.items()[2].location(),
+        list.items()[1].location(),
         ActivityLocation::DirectPair { .. }
     ));
+    // The channel's mention and its plain unread are one stream row, anchored at the
+    // mention; two notifications for one message count once.
     assert!(matches!(
-        list.items()[3].source(),
-        ActivitySource::Unread { message, count }
-            if message.as_str() == "m-plain" && count.get() == 1
+        list.items()[2].source(),
+        ActivitySource::Stream { message, unread, mentions }
+            if message.as_str() == "m-mention" && unread.get() == 2 && mentions.get() == 1
     ));
-    assert_eq!(list.items()[3].salience(), ActivitySalience::Ambient);
-    assert_eq!(list.items()[1].preview().unwrap().as_str(), "directed text");
-    assert!(list.items()[1].preview_sender().is_some());
+    assert_eq!(list.items()[2].salience(), ActivitySalience::Directed);
+    assert_eq!(list.items()[2].preview().unwrap().as_str(), "directed text");
+    assert!(list.items()[2].preview_sender().is_some());
 
     let scoped = read
         .list_activity(&viewer, Some(&WorkspaceId::parse("w").unwrap()))
         .await
         .unwrap();
-    assert_eq!(scoped.items().len(), 3);
+    assert_eq!(scoped.items().len(), 2);
     assert!(scoped.items().iter().all(|item| matches!(
         item.location(),
         ActivityLocation::WorkspaceChannel { workspace, .. } if workspace.as_str() == "w"
@@ -213,15 +210,12 @@ async fn cursor_archive_and_attention_tier_drive_both_sources_without_mutating_c
         .await
         .unwrap();
     let after_cursor = read.list_activity(&viewer, None).await.unwrap();
-    assert!(
-        !after_cursor
-            .items()
-            .iter()
-            .any(|item| matches!(item.source(), ActivitySource::Mention { .. }))
-    );
     assert!(after_cursor.items().iter().any(|item| matches!(
-        item.source(), ActivitySource::Unread { message, .. } if message.as_str() == "m-plain"
-    )));
+        item.source(),
+        ActivitySource::Stream { message, unread, mentions }
+            if message.as_str() == "m-plain" && unread.get() == 1 && mentions.get() == 0
+    ) && item.salience()
+        == ActivitySalience::Ambient));
 
     sqlx::query("INSERT INTO channel_attention_preferences(user_id,conversation_id,mode,updated_at) VALUES('u','c','mentions',6)")
         .execute(&mut db)
@@ -233,7 +227,7 @@ async fn cursor_archive_and_attention_tier_drive_both_sources_without_mutating_c
             .items()
             .iter()
             .any(|item| item.conversation().as_str() == "c"
-                && matches!(item.source(), ActivitySource::Unread { .. }))
+                && matches!(item.source(), ActivitySource::Stream { .. }))
     );
     assert!(
         mentions_only
@@ -347,6 +341,11 @@ async fn duplicate_winner_and_timestamp_ties_use_persistent_coordinates() {
             .list_activity(&UserId::parse("u").unwrap(), None)
             .await
             .unwrap();
+        assert!(list.items().iter().any(|item| matches!(
+            item.source(),
+            ActivitySource::Stream { message, mentions, .. }
+                if message.as_str() == "m-mention" && mentions.get() == 1
+        )));
         let tied = list
             .items()
             .iter()
@@ -354,16 +353,84 @@ async fn duplicate_winner_and_timestamp_ties_use_persistent_coordinates() {
                 item.salience() == ActivitySalience::Directed && item.timestamp_ms() == 2
             })
             .collect::<Vec<_>>();
-        assert_eq!(tied.len(), 3);
-        assert!(matches!(
-            tied[0].source(),
-            ActivitySource::Mention { notification, .. } if notification.as_str() == "n-a"
-        ));
-        assert!(matches!(tied[1].source(), ActivitySource::Unread { .. }));
-        assert_eq!(tied[1].conversation().as_str(), "pair");
-        assert!(matches!(tied[2].source(), ActivitySource::Unread { .. }));
-        assert_eq!(tied[2].conversation().as_str(), "pair-b");
+        assert_eq!(tied.len(), 2);
+        assert_eq!(tied[0].conversation().as_str(), "pair");
+        assert_eq!(tied[1].conversation().as_str(), "pair-b");
     }
+}
+
+#[tokio::test]
+async fn a_mention_alone_brings_its_stream_in() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("activity-mention-only.sqlite");
+    seed(&path).await;
+    let mut db = sqlx::SqliteConnection::connect(&format!("sqlite:{}", path.display()))
+        .await
+        .unwrap();
+    for sql in [
+        "INSERT INTO channel_attention_preferences(user_id,conversation_id,mode,updated_at) \
+         VALUES('u','c','mentions',6)",
+        "INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,seq,created_at,\
+         thread_root_id,author_id,author_name,author_display_name) VALUES \
+         ('m-reply','c','user','other','thread ping',3,3,'m-plain','other','other-activity','Other')",
+        "INSERT INTO conversation_stream_heads(conversation_id,thread_root_id,latest_seq) \
+         VALUES('c','m-plain',3)",
+        "INSERT INTO notifications(id,kind,user_id,workspace_id,conversation_id,message_id,\
+         payload,created_at) VALUES('n-thread','mention_self','u','w','c','m-reply','{}',3)",
+    ] {
+        sqlx::query(sql).execute(&mut db).await.unwrap();
+    }
+    db.close().await.unwrap();
+
+    let list = MessagingStore::open(&path)
+        .await
+        .unwrap()
+        .activity_read_model()
+        .list_activity(
+            &UserId::parse("u").unwrap(),
+            Some(&WorkspaceId::parse("w").unwrap()),
+        )
+        .await
+        .unwrap();
+    let streams = list
+        .items()
+        .iter()
+        .filter_map(|item| match item.source() {
+            ActivitySource::Stream {
+                message,
+                unread,
+                mentions,
+            } => Some((
+                item.thread_root().map(|root| root.as_str().to_owned()),
+                message.as_str().to_owned(),
+                unread.get(),
+                mentions.get(),
+                item.salience(),
+            )),
+            ActivitySource::AgentFailed { .. } => None,
+        })
+        .collect::<Vec<_>>();
+    // A quiet channel's main line and an unfollowed thread enter only through their
+    // mentions, and count only those.
+    assert_eq!(
+        streams,
+        vec![
+            (
+                Some("m-plain".to_owned()),
+                "m-reply".to_owned(),
+                1,
+                1,
+                ActivitySalience::Directed
+            ),
+            (
+                None,
+                "m-mention".to_owned(),
+                1,
+                1,
+                ActivitySalience::Directed
+            ),
+        ]
+    );
 }
 
 #[tokio::test]
@@ -372,13 +439,11 @@ async fn every_selected_candidate_is_strictly_decoded_before_dedupe() {
     enum Corruption {
         PairOpen,
         WorkspaceEndpoint,
-        DuplicateLoserIdentity,
     }
 
     for (name, corruption) in [
         ("pair-open", Corruption::PairOpen),
         ("workspace-endpoint", Corruption::WorkspaceEndpoint),
-        ("duplicate-loser", Corruption::DuplicateLoserIdentity),
     ] {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join(format!("activity-corrupt-{name}.sqlite"));
@@ -411,15 +476,6 @@ async fn every_selected_candidate_is_strictly_decoded_before_dedupe() {
                     .await
                     .unwrap();
             }
-            Corruption::DuplicateLoserIdentity => {
-                // The valid newer notification wins product de-duplication. The
-                // older empty-id row is nevertheless a selected persisted
-                // candidate and must fail before that de-duplication can hide it.
-                sqlx::query("INSERT INTO notifications(id,kind,user_id,workspace_id,conversation_id,message_id,payload,created_at) VALUES('','mention_self','u','w','c','m-mention','{}',1)")
-                    .execute(&mut db)
-                    .await
-                    .unwrap();
-            }
         }
         db.close().await.unwrap();
 
@@ -431,16 +487,9 @@ async fn every_selected_candidate_is_strictly_decoded_before_dedupe() {
             .await
             .unwrap_err();
         assert!(error.source().is_some(), "{name}");
-        match corruption {
-            Corruption::PairOpen | Corruption::WorkspaceEndpoint => {
-                assert!(
-                    format!("{error:?}").contains("MalformedPlacement"),
-                    "{name}"
-                );
-            }
-            Corruption::DuplicateLoserIdentity => {
-                assert!(format!("{error:?}").contains("notifications.id"), "{name}");
-            }
-        }
+        assert!(
+            format!("{error:?}").contains("MalformedPlacement"),
+            "{name}"
+        );
     }
 }

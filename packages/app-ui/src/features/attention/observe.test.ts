@@ -108,18 +108,12 @@ function activityItem(overrides: Partial<ActivityItemDto>): ActivityItemDto {
     preview_sender: null,
     timestamp: 0,
     unread_count: 1,
+    mention_count: 0,
     ...overrides,
   };
 }
 
 describe("activityItemSource (eliminate-route chokepoint)", () => {
-  it("routes a mention to its notification_id (never a stream clear)", () => {
-    const src = activityItemSource(
-      activityItem({ kind: "mention", salience: "directed", notification_id: "notif-7" }),
-    );
-    expect(src).toEqual({ kind: "notification", notification_id: "notif-7" });
-  });
-
   it("routes an agent_failed to its notification_id", () => {
     const src = activityItemSource(
       activityItem({
@@ -174,7 +168,12 @@ describe("activityItemSource (eliminate-route chokepoint)", () => {
 
   it("returns null for a malformed notification-backed item with no id", () => {
     const src = activityItemSource(
-      activityItem({ kind: "mention", salience: "directed", notification_id: null }),
+      activityItem({
+        kind: "agent_failed",
+        salience: "directed",
+        notification_id: null,
+        message_id: null,
+      }),
     );
     expect(src).toBeNull();
   });

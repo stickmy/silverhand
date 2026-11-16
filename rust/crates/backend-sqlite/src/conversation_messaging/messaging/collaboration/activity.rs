@@ -1,14 +1,11 @@
 //! SQLite Activity cold projection.
 //!
-//! Both ordered sources run inside one deferred snapshot. The directed source
-//! claims message ids first; the positional source subtracts that exact set.
-//! Existing unread, attention-tier, author, and direct-pair authorities are
-//! composed rather than transcribed.
+//! Agent failures and streams are read in one deferred snapshot. A stream enters when
+//! the viewer ambiently enters its unread or has an unread mention in it. Existing
+//! unread, attention-tier, author, and direct-pair authorities are composed rather
+//! than transcribed.
 
 use crate::foundation::conversation_lifecycle_sql::conversation_open;
-use silverhand_backend_observability::Observe;
-use std::collections::HashSet;
-
 use crate::{
     conversation_messaging::direct_pair_read::{DirectPairReadError, LivePrincipals, PairEvidence},
     conversation_messaging::messaging::{
@@ -31,37 +28,60 @@ use silverhand_backend_core::{
     foundation::identity::{ConversationId, UserId, WorkspaceId},
     foundation::persistence::PersistenceFailure,
 };
+use silverhand_backend_observability::Observe;
 use sqlx::{Row, sqlite::SqliteRow};
 use thiserror::Error;
 
 pub mod observe;
 
-const DIRECTED: &str = concat!(
-    "WITH p(viewer, ws) AS (SELECT ?, ?) SELECT n.id AS notification_id, n.kind, \
-     c.id AS conversation_id, n.message_id, m.thread_root_id, root.content AS root_content, \
-     m.content AS message_content, n.payload, n.created_at AS item_created_at, ",
-    "c.id AS id, c.created_at AS created_at, c.placement_kind, c.workspace_id, \
-     c.roster_policy, c.title AS conversation_title, c.title_key AS conversation_title_key, \
-     c.endpoint_a_kind, c.endpoint_a_id, \
-     c.endpoint_a_deleted_at, c.endpoint_b_kind, c.endpoint_b_id, \
-     c.endpoint_b_deleted_at, ",
-    "m.from_kind, m.from_user_id, m.from_agent_id, m.author_id, m.author_name, \
-     m.author_display_name FROM notifications n LEFT JOIN messages m ON m.id=n.message_id \
-     LEFT JOIN messages root ON root.id=m.thread_root_id \
-     LEFT JOIN conversations c ON c.id=n.conversation_id WHERE \
-     n.user_id=(SELECT viewer FROM p) AND (",
-    effective_directed_mention!(),
-    " OR (n.kind='agent_start_failed' AND n.read_at IS NULL)) AND c.id IS NOT NULL AND \
-     ",
-    conversation_open!("c."),
-    " AND (c.placement_kind='workspace' OR \
-     (c.placement_kind='direct_pair' AND ((c.endpoint_a_kind='human' AND \
-     c.endpoint_a_id=(SELECT viewer FROM p)) OR (c.endpoint_b_kind='human' AND \
-     c.endpoint_b_id=(SELECT viewer FROM p))))) AND ((SELECT ws FROM p) IS NULL OR \
-     c.workspace_id=(SELECT ws FROM p)) ORDER BY n.created_at DESC, n.id ASC"
+/// The viewer can see this conversation: open, a workspace channel or a direct pair
+/// they are an endpoint of, inside the requested workspace if any.
+macro_rules! activity_visible {
+    () => {
+        concat!(
+            conversation_open!("c."),
+            " AND (c.placement_kind='workspace' OR (c.placement_kind='direct_pair' AND \
+             ((c.endpoint_a_kind='human' AND c.endpoint_a_id=(SELECT viewer FROM p)) OR \
+             (c.endpoint_b_kind='human' AND c.endpoint_b_id=(SELECT viewer FROM p))))) AND \
+             ((SELECT ws FROM p) IS NULL OR c.workspace_id=(SELECT ws FROM p))"
+        )
+    };
+}
+
+macro_rules! conversation_columns {
+    () => {
+        "c.id AS id, c.created_at AS created_at, c.placement_kind, c.workspace_id, \
+         c.roster_policy, c.title AS conversation_title, c.title_key AS conversation_title_key, \
+         c.endpoint_a_kind, c.endpoint_a_id, c.endpoint_a_deleted_at, c.endpoint_b_kind, \
+         c.endpoint_b_id, c.endpoint_b_deleted_at, "
+    };
+}
+
+macro_rules! author_columns {
+    () => {
+        "m.from_kind, m.from_user_id, m.from_agent_id, m.author_id, m.author_name, \
+         m.author_display_name "
+    };
+}
+
+const AGENT_FAILURES: &str = concat!(
+    "WITH p(viewer, ws) AS (SELECT ?, ?) SELECT n.id AS notification_id, \
+     c.id AS conversation_id, NULL AS thread_root_id, NULL AS root_content, n.payload, \
+     n.created_at AS item_created_at, ",
+    conversation_columns!(),
+    "NULL AS from_kind, NULL AS from_user_id, NULL AS from_agent_id, NULL AS author_id, \
+     NULL AS author_name, NULL AS author_display_name FROM notifications n JOIN conversations c \
+     ON c.id=n.conversation_id WHERE n.user_id=(SELECT viewer FROM p) AND \
+     n.kind='agent_start_failed' AND n.read_at IS NULL AND ",
+    activity_visible!(),
+    " ORDER BY n.created_at DESC, n.id ASC"
 );
 
-const POSITIONAL: &str = concat!(
+/// One row per stream that waits on the viewer: ambiently entered unread, or an
+/// unread mention of the viewer. `unread_count` is every unread message of an entered
+/// stream, else just its mentions; the anchor is the first unread mention, else the
+/// first unread message.
+const STREAMS: &str = concat!(
     "WITH p(viewer, ws, cdm) AS (SELECT ?, ?, ?), viewer_conversation AS (\
        SELECT cu.conversation_id FROM conversation_users cu JOIN conversations c_seat ON \
        c_seat.id=cu.conversation_id WHERE cu.user_id=(SELECT viewer FROM p) AND \
@@ -74,8 +94,7 @@ const POSITIONAL: &str = concat!(
        COALESCE(cr.last_read_seq,0) AS cursor_seq FROM viewer_conversation vc \
        JOIN conversations c ON c.id=vc.conversation_id JOIN conversation_stream_heads sh ON \
        sh.conversation_id=c.id LEFT JOIN conversation_reads cr ON cr.user_id=(SELECT viewer FROM p) \
-       AND cr.conversation_id=c.id AND cr.thread_root_id IS sh.thread_root_id WHERE \
-       c.id IS NOT NULL AND ",
+       AND cr.conversation_id=c.id AND cr.thread_root_id IS sh.thread_root_id WHERE ",
     conversation_open!("c."),
     " AND ((SELECT ws FROM p) IS NULL OR \
        c.workspace_id=(SELECT ws FROM p)) AND ((sh.thread_root_id IS NULL AND \
@@ -93,23 +112,32 @@ const POSITIONAL: &str = concat!(
     // entering_stream already excludes archived conversations in this snapshot.
     // Do not look up that same conversation again for every unread message.
     message_unread_guards!(),
-    " AND m.id NOT IN (SELECT value FROM json_each(?))\
-     ), per_stream AS (\
+    "), entered AS (\
        SELECT conversation_id, root, COUNT(*) AS unread_count, MIN(seq) AS first_unread_seq \
        FROM unread_tail GROUP BY conversation_id, root\
-     ) SELECT ps.conversation_id, ps.root AS thread_root_id, root.content AS root_content, \
-       c.roster_policy, m.id AS message_id, m.content AS message_content, \
-       m.created_at AS item_created_at, ps.unread_count, ",
-    "c.id AS id, c.created_at AS created_at, c.placement_kind, c.workspace_id, \
-       c.title AS conversation_title, c.title_key AS conversation_title_key, \
-       c.endpoint_a_kind, c.endpoint_a_id, \
-       c.endpoint_a_deleted_at, c.endpoint_b_kind, c.endpoint_b_id, \
-       c.endpoint_b_deleted_at, ",
-    "m.from_kind, m.from_user_id, m.from_agent_id, m.author_id, m.author_name, \
-       m.author_display_name FROM per_stream ps JOIN messages m ON \
-       m.conversation_id=ps.conversation_id AND m.seq=ps.first_unread_seq JOIN conversations c ON \
-       c.id=ps.conversation_id LEFT JOIN messages root ON root.id=ps.root \
-       ORDER BY ps.conversation_id ASC, ps.root IS NOT NULL ASC, ps.root ASC"
+     ), mentioned AS (\
+       SELECT c.id AS conversation_id, m.thread_root_id AS root, \
+       COUNT(DISTINCT n.message_id) AS mention_count, MIN(m.seq) AS first_mention_seq \
+       FROM notifications n JOIN messages m ON m.id=n.message_id JOIN conversations c ON \
+       c.id=n.conversation_id WHERE n.user_id=(SELECT viewer FROM p) AND ",
+    effective_directed_mention!(),
+    " AND ",
+    activity_visible!(),
+    " GROUP BY c.id, m.thread_root_id\
+     ), stream AS (\
+       SELECT conversation_id, root FROM entered UNION SELECT conversation_id, root FROM mentioned\
+     ) SELECT s.conversation_id, s.root AS thread_root_id, root.content AS root_content, \
+       m.id AS message_id, m.content AS message_content, m.created_at AS item_created_at, \
+       COALESCE(e.unread_count, mn.mention_count) AS unread_count, \
+       COALESCE(mn.mention_count, 0) AS mention_count, ",
+    conversation_columns!(),
+    author_columns!(),
+    "FROM stream s LEFT JOIN entered e ON e.conversation_id=s.conversation_id AND e.root IS s.root \
+       LEFT JOIN mentioned mn ON mn.conversation_id=s.conversation_id AND mn.root IS s.root \
+       JOIN messages m ON m.conversation_id=s.conversation_id AND \
+       m.seq=COALESCE(mn.first_mention_seq, e.first_unread_seq) JOIN conversations c ON \
+       c.id=s.conversation_id LEFT JOIN messages root ON root.id=s.root \
+       ORDER BY s.conversation_id ASC, s.root IS NOT NULL ASC, s.root ASC"
 );
 
 #[derive(Clone)]
@@ -129,16 +157,12 @@ impl<E> MessagingStore<E> {
 pub enum ActivityStoreError {
     #[error("database operation failed")]
     Sql(#[from] sqlx::Error),
-    #[error("Activity coordinate serialization failed")]
-    Serialization(#[from] serde_json::Error),
     #[error("stored Activity identity is malformed in {0}")]
     MalformedIdentity(&'static str),
     #[error("stored Activity placement is outside the closed set")]
     MalformedPlacement,
     #[error("stored Activity author kind is outside the closed set")]
     MalformedAuthorKind,
-    #[error("stored Activity notification kind is outside the closed set")]
-    MalformedNotificationKind,
     #[error("stored Activity roster policy is outside the closed set")]
     MalformedRoster,
     #[error("stored Activity unread count is negative")]
@@ -185,57 +209,29 @@ impl SqliteActivityReadModel {
                 crate::foundation::statement_metrics::begin(&self.pool, Some("BEGIN DEFERRED"))
                     .await?;
             let ws = workspace.map(WorkspaceId::as_str);
-            let directed_rows = sqlx::query(DIRECTED)
+            let failure_rows = sqlx::query(AGENT_FAILURES)
                 .bind(viewer.as_str())
                 .bind(ws)
                 .fetch_all(&mut *tx)
                 .observe(silverhand_backend_observability::operation_span!(
-                    "db.activity.directed"
+                    "db.activity.agent_failures"
                 ))
                 .await?;
-
-            let mut directed_message_ids = HashSet::<String>::new();
-            let mut directed_mentions = Vec::<RawItem>::new();
-            let mut agent_failures = Vec::<RawItem>::new();
-            for row in directed_rows {
-                let kind: String = row.try_get("kind")?;
-                let raw_message: Option<String> = row.try_get("message_id")?;
-                match kind.as_str() {
-                    "mention_self" => {
-                        let Some(message) = raw_message else {
-                            return Err(ActivityStoreError::MalformedIdentity(
-                                "notifications.message_id",
-                            ));
-                        };
-                        // Decode every selected row before product de-duplication.
-                        // A malformed duplicate is still a malformed persisted
-                        // candidate and must fail the whole snapshot rather than
-                        // hiding behind a valid winner.
-                        let item = RawItem::directed_mention(&row, message.clone())?;
-                        if directed_message_ids.insert(message) {
-                            directed_mentions.push(item);
-                        }
-                    }
-                    "agent_start_failed" => agent_failures.push(RawItem::agent_failed(&row)?),
-                    _ => return Err(ActivityStoreError::MalformedNotificationKind),
-                }
-            }
-            let mut projected = directed_mentions;
-            projected.extend(agent_failures);
-
-            let excluded = serde_json::to_string(&directed_message_ids)?;
-            let positional_rows = sqlx::query(POSITIONAL)
+            let mut projected = failure_rows
+                .iter()
+                .map(RawItem::agent_failed)
+                .collect::<Result<Vec<_>, _>>()?;
+            let stream_rows = sqlx::query(STREAMS)
                 .bind(viewer.as_str())
                 .bind(ws)
                 .bind(CHANNEL_DEFAULT_MODE)
-                .bind(excluded)
                 .fetch_all(&mut *tx)
                 .observe(silverhand_backend_observability::operation_span!(
-                    "db.activity.positional"
+                    "db.activity.streams"
                 ))
                 .await?;
-            for row in positional_rows {
-                projected.push(RawItem::positional(&row)?);
+            for row in stream_rows {
+                projected.push(RawItem::stream(&row)?);
             }
 
             let evidence = projected
@@ -272,16 +268,13 @@ impl SqliteActivityReadModel {
 
 #[derive(Clone)]
 enum RawSource {
-    Mention {
-        notification: NotificationId,
-        message: MessageId,
-    },
     AgentFailed {
         notification: NotificationId,
     },
-    Unread {
+    Stream {
         message: MessageId,
-        count: ActivityUnreadCount,
+        unread: ActivityUnreadCount,
+        mentions: ActivityUnreadCount,
         salience: ActivitySalience,
     },
 }
@@ -308,20 +301,6 @@ enum RawPlacement {
 }
 
 impl RawItem {
-    fn directed_mention(row: &SqliteRow, message: String) -> Result<Self, ActivityStoreError> {
-        Ok(Self {
-            source: RawSource::Mention {
-                notification: notification_id(row)?,
-                message: message_id(message, "notifications.message_id")?,
-            },
-            preview: ActivityPreview::from_source(
-                row.try_get::<Option<String>, _>("message_content")?
-                    .as_deref(),
-            ),
-            ..Self::common(row)?
-        })
-    }
-
     fn agent_failed(row: &SqliteRow) -> Result<Self, ActivityStoreError> {
         let payload: Option<String> = row.try_get("payload")?;
         let summary = payload
@@ -348,21 +327,26 @@ impl RawItem {
         Ok(item)
     }
 
-    fn positional(row: &SqliteRow) -> Result<Self, ActivityStoreError> {
-        let count: i64 = row.try_get("unread_count")?;
-        let count =
-            ActivityUnreadCount::new(count).map_err(|_| ActivityStoreError::NegativeUnreadCount)?;
+    fn stream(row: &SqliteRow) -> Result<Self, ActivityStoreError> {
+        let count = |column| {
+            ActivityUnreadCount::new(row.try_get::<i64, _>(column)?)
+                .map_err(|_| ActivityStoreError::NegativeUnreadCount)
+        };
+        let unread = count("unread_count")?;
+        let mentions = count("mention_count")?;
         let roster: String = row.try_get("roster_policy")?;
         let salience = match roster.as_str() {
+            _ if mentions.get() > 0 => ActivitySalience::Directed,
             "fixed" => ActivitySalience::Directed,
             "open" => ActivitySalience::Ambient,
             _ => return Err(ActivityStoreError::MalformedRoster),
         };
         let message: String = row.try_get("message_id")?;
         Ok(Self {
-            source: RawSource::Unread {
+            source: RawSource::Stream {
                 message: message_id(message, "messages.id")?,
-                count,
+                unread,
+                mentions,
                 salience,
             },
             preview: ActivityPreview::from_source(
@@ -471,20 +455,6 @@ impl RawItem {
             }
         };
         Ok(match self.source {
-            RawSource::Mention {
-                notification,
-                message,
-            } => ActivityItem::mention(
-                notification,
-                message,
-                self.conversation,
-                self.thread_root,
-                location,
-                self.root_preview,
-                self.preview,
-                author,
-                self.timestamp_ms,
-            ),
             RawSource::AgentFailed { notification } => ActivityItem::agent_failed(
                 notification,
                 self.conversation,
@@ -492,13 +462,15 @@ impl RawItem {
                 self.preview,
                 self.timestamp_ms,
             ),
-            RawSource::Unread {
+            RawSource::Stream {
                 message,
-                count,
+                unread,
+                mentions,
                 salience,
-            } => ActivityItem::unread(
+            } => ActivityItem::stream(
                 message,
-                count,
+                unread,
+                mentions,
                 salience,
                 self.conversation,
                 self.thread_root,

@@ -70,9 +70,10 @@ import { t } from "@/lib/i18n";
  *
  * Clearing (§5.3 source_ref-out) — by EXPLICIT fields, never by parsing `id`,
  * and routed through one chokepoint (`activityItemSource`):
- *   - mention / agent_failed (directed) → mark the `notification_id` read.
- *   - unread (ambient)                  → advance the stream cursor via an
- *     EXPLICIT stream-head clear (#task:1231 phase B; knowingly tail-swallows, §2).
+ *   - agent_failed → mark the `notification_id` read.
+ *   - unread (a stream, with or without mentions) → advance the stream cursor via
+ *     an EXPLICIT stream-head clear, which also reads its mentions (#task:1231
+ *     phase B; knowingly tail-swallows, §2).
  *   Each row exposes a hover-✓ that clears WITHOUT navigating. The header's
  *   mark-all clears the whole list regardless of the active filter, plus every
  *   unread directed notification the list cannot show. Navigating to a source
@@ -121,7 +122,7 @@ function matchesFilter(item: ActivityItemDto, key: FilterKey): boolean {
     case "all":
       return true;
     case "mention":
-      return item.kind === "mention";
+      return (item.mention_count ?? 0) > 0;
     case "thread":
       // A "Thread" item is anything located in a reply cluster, regardless of
       // kind — overlapping facet, not a partition (a thread @me matches both
@@ -425,7 +426,7 @@ export function ActivityView({
     const c: Record<FilterKey, number> = { all: 0, mention: 0, thread: 0 };
     for (const it of items) {
       c.all += 1;
-      if (it.kind === "mention") c.mention += 1;
+      if ((it.mention_count ?? 0) > 0) c.mention += 1;
       if (it.thread_root_id != null) c.thread += 1;
     }
     return c;
@@ -649,7 +650,7 @@ function ActivityRow({
   //   - thread WITH a root summary → row 2 = thread glyph + `thread_root_preview`
   //     (no sender — v1 shows no root author); row 3 = the reply (`preview`) with
   //     its sender.
-  //   - otherwise (mainline / mention / thread missing a root preview) → the
+  //   - otherwise (mainline / thread missing a root preview) → the
   //     `preview` line IS the last row and carries the sender; no separate row 3.
   // Server-resolved fields only, never a client-stitched message cache.
   const hasRootLine = isThread && item.thread_root_preview != null;
@@ -665,8 +666,8 @@ function ActivityRow({
   const senderObjectUrl = senderKey ? (avatarUrls.get(senderKey) ?? null) : null;
   // The §5.3 source_ref-out for this item, resolved through the single routing
   // chokepoint (`activityItemSource`, keyed on KIND not salience):
-  //   - mention / agent_failed → by `notification_id`
-  //   - unread (incl DM positional, which is salience:'directed') → stream-head
+  //   - agent_failed → by `notification_id`
+  //   - unread (incl DM and mention streams, salience:'directed') → stream-head
   //     clear (may carry a thread root)
   // null only for a malformed item — then the row offers no ✓.
   const clearSource = activityItemSource(item);
@@ -676,13 +677,20 @@ function ActivityRow({
   // edge) and carries a soft-accent fill so the unread signal reads at a glance
   // — louder than the old borderless neutral, but a step below the sidebar's
   // full-accent pill so the dense header line stays scannable (#task:1269
-  // item 2).
-  const countEl =
-    item.unread_count != null && item.unread_count > 0 ? (
-      <span className="shrink-0 rounded-(--control-radius) bg-accent-soft px-1.5 py-px text-xs font-medium leading-tight tabular-nums text-accent">
-        {t("activity.newCount", { n: item.unread_count > 99 ? "99+" : item.unread_count })}
-      </span>
-    ) : null;
+  // item 2). Mentions get their own `@N`; "N new" shows only the rest's existence.
+  const pill =
+    "shrink-0 rounded-(--control-radius) bg-accent-soft px-1.5 py-px text-xs font-medium leading-tight tabular-nums text-accent";
+  const mentions = item.mention_count ?? 0;
+  const countEl = (
+    <>
+      {mentions > 0 ? <span className={pill}>@{mentions > 99 ? "99+" : mentions}</span> : null}
+      {item.unread_count != null && item.unread_count > mentions ? (
+        <span className={pill}>
+          {t("activity.newCount", { n: item.unread_count > 99 ? "99+" : item.unread_count })}
+        </span>
+      ) : null}
+    </>
+  );
 
   const handleRowClick = () => {
     if (!canJump) return;

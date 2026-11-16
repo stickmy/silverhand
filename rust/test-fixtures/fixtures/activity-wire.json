@@ -4,14 +4,18 @@
     "setup": "empty",
     "path": "/api/activity",
     "status": 200,
-    "body": { "items": [] }
+    "body": {
+      "items": []
+    }
   },
   {
     "name": "empty_workspace_query_is_global",
     "setup": "empty",
     "path": "/api/activity?workspace_id=",
     "status": 200,
-    "body": { "items": [] }
+    "body": {
+      "items": []
+    }
   },
   {
     "name": "first_workspace_query_wins",
@@ -28,22 +32,31 @@
           "thread_root_id": null,
           "message_id": null,
           "notification_id": "n-fail",
-          "location": { "kind": "workspace_channel", "workspace_id": "w", "title": "General" },
+          "location": {
+            "kind": "workspace_channel",
+            "workspace_id": "w",
+            "title": "General"
+          },
           "thread_root_preview": null,
           "preview": "Alice — runtime down",
           "preview_sender": null,
           "timestamp": 4,
-          "unread_count": null
+          "unread_count": null,
+          "mention_count": null
         },
         {
-          "id": "mention:n-new",
-          "kind": "mention",
+          "id": "unread:c::",
+          "kind": "unread",
           "salience": "directed",
           "conversation_id": "c",
           "thread_root_id": null,
           "message_id": "m-mention",
-          "notification_id": "n-new",
-          "location": { "kind": "workspace_channel", "workspace_id": "w", "title": "General" },
+          "notification_id": null,
+          "location": {
+            "kind": "workspace_channel",
+            "workspace_id": "w",
+            "title": "General"
+          },
           "thread_root_preview": null,
           "preview": "directed text",
           "preview_sender": {
@@ -55,31 +68,9 @@
             "avatar_url": null,
             "runtime": null
           },
-          "timestamp": 3,
-          "unread_count": null
-        },
-        {
-          "id": "unread:c::",
-          "kind": "unread",
-          "salience": "ambient",
-          "conversation_id": "c",
-          "thread_root_id": null,
-          "message_id": "m-plain",
-          "notification_id": null,
-          "location": { "kind": "workspace_channel", "workspace_id": "w", "title": "General" },
-          "thread_root_preview": null,
-          "preview": "plain unread",
-          "preview_sender": {
-            "status": "active",
-            "kind": "user",
-            "id": "activity-other",
-            "name": "other-activity",
-            "display_name": "Other",
-            "avatar_url": null,
-            "runtime": null
-          },
-          "timestamp": 2,
-          "unread_count": 1
+          "timestamp": 1,
+          "unread_count": 2,
+          "mention_count": 1
         }
       ]
     }
@@ -123,7 +114,8 @@
             "runtime": null
           },
           "timestamp": 2,
-          "unread_count": 1
+          "unread_count": 1,
+          "mention_count": 0
         }
       ]
     }
