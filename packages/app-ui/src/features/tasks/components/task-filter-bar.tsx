@@ -1124,7 +1124,7 @@ function FlatChip({
 }
 
 /**
- * The board scope laid flat: All, each project, and Direct messages are one
+ * The board scope laid flat: All, each project, and Direct Messages are one
  * click; agent spaces read like people's names beside projects, so they sit
  * behind one picker that shows the chosen space in place.
  */
