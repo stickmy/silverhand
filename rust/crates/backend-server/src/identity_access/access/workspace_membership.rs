@@ -619,8 +619,6 @@ struct WorkspaceAgentDto {
     runtime: String,
     model: Option<String>,
     reasoning_effort: Option<String>,
-    /// Derived for clients predating `service_tier`.
-    fast_mode: Option<bool>,
     service_tier: Option<String>,
     host_id: String,
     host_label: Option<String>,
@@ -680,7 +678,6 @@ impl From<WorkspaceRoster> for WorkspaceRosterDto {
                     runtime: row.runtime,
                     model: row.model,
                     reasoning_effort: row.reasoning_effort,
-                    fast_mode: silverhand_backend_core::identity_access::agents::runtime_capability::fast_mode_from_service_tier(row.service_tier.as_deref()),
                     service_tier: row.service_tier,
                     host_id: row.host_id,
                     host_label: row

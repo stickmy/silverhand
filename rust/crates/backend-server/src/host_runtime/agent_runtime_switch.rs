@@ -83,7 +83,7 @@ use silverhand_backend_core::{
         runtime::RuntimeKind,
         runtime_capability::{
             is_reasoning_effort_token, reasoning_effort_valid_for_runtime,
-            service_tier_from_fast_mode, service_tier_valid_for_runtime,
+            service_tier_valid_for_runtime,
         },
     },
     identity_access::capability::{
@@ -95,7 +95,7 @@ use silverhand_backend_core::{
 use crate::foundation::clock::ProcessClock;
 use crate::foundation::error;
 use crate::foundation::wire_admission::{self, ValidatedJson};
-use crate::foundation::wire_patch::{PatchField, RequiredNullable};
+use crate::foundation::wire_patch::RequiredNullable;
 use crate::identity_access::agent_wire::{AgentDto, reproject_committed_agent};
 
 /// The product route template, in axum's `{id}` capture syntax.
@@ -425,9 +425,8 @@ where
 /// is the `.strict()` policy; every field is a REQUIRED key (no `#[serde(default)]`), so a
 /// missing key is the native serde data fault, never a silent default. `runtime` is a
 /// required non-null enum (decoded as a string, mapped by the closed-set `TryFrom`);
-/// `model`/`reasoning_effort` are required-AND-nullable via
-/// [`RequiredNullable::deserialize_present`]. The tier key may be spelled `service_tier`
-/// or legacy `fast_mode`, so its presence is checked in `TryFrom`.
+/// the three tuning keys are required-AND-nullable via
+/// [`RequiredNullable::deserialize_present`], so a missing key is a native data fault.
 ///
 /// Every remaining rule is normalization or cross-field (the runtime enum, `model`
 /// trim/non-empty, the reasoning-token shape, and the two target-runtime tuning-legality
@@ -444,13 +443,9 @@ struct SwitchBodyRaw {
     #[serde(deserialize_with = "RequiredNullable::deserialize_present")]
     #[garde(skip)]
     reasoning_effort: RequiredNullable<String>,
-    /// Exactly one of `service_tier` and the legacy `fast_mode` must be present.
-    #[serde(default)]
+    #[serde(deserialize_with = "RequiredNullable::deserialize_present")]
     #[garde(skip)]
-    service_tier: PatchField<String>,
-    #[serde(default)]
-    #[garde(skip)]
-    fast_mode: PatchField<bool>,
+    service_tier: RequiredNullable<String>,
 }
 
 impl TryFrom<SwitchBodyRaw> for SwitchAgentRuntimeConfig {
@@ -485,15 +480,9 @@ impl TryFrom<SwitchBodyRaw> for SwitchAgentRuntimeConfig {
             RequiredNullable::Value(_) => return Err(()),
         };
 
-        let service_tier = match (raw.service_tier, raw.fast_mode) {
-            (PatchField::Null, PatchField::Missing) | (PatchField::Missing, PatchField::Null) => {
-                None
-            }
-            (PatchField::Value(tier), PatchField::Missing) => Some(tier),
-            (PatchField::Missing, PatchField::Value(fast)) => {
-                Some(service_tier_from_fast_mode(fast).to_owned())
-            }
-            _ => return Err(()),
+        let service_tier = match raw.service_tier {
+            RequiredNullable::Null => None,
+            RequiredNullable::Value(tier) => Some(tier),
         };
 
         // `.superRefine`: reasoning-effort must be valid for the TARGET runtime + model, and
@@ -1234,7 +1223,8 @@ mod tests {
             r#"{"runtime":"codex","model":5,"reasoning_effort":null,"service_tier":null}"#, // model wrong type
             r#"{"runtime":"codex","model":null,"reasoning_effort":5,"service_tier":null}"#, // token wrong type
             r#"{"runtime":"codex","model":null,"reasoning_effort":null,"service_tier":true}"#, // service_tier wrong type
-            r#"{"runtime":"codex","model":null,"reasoning_effort":null,"fast_mode":"yes"}"#, // fast_mode wrong type
+            r#"{"runtime":"codex","model":null,"reasoning_effort":null}"#, // service_tier key missing
+            r#"{"runtime":"codex","model":null,"reasoning_effort":null,"fast_mode":null}"#, // legacy key
         ] {
             let (status, text, reads) = run(
                 FakeReads::new(present(creator_facts())),
@@ -1266,8 +1256,6 @@ mod tests {
             r#"{"runtime":"opencode","model":null,"reasoning_effort":"high","service_tier":null}"#, // valid shape, wrong runtime allowlist
             r#"{"runtime":"claude","model":null,"reasoning_effort":null,"service_tier":"priority"}"#, // service-tier refine
             r#"{"runtime":"codex","model":null,"reasoning_effort":null,"service_tier":"Bad Tier"}"#, // tier shape
-            r#"{"runtime":"codex","model":null,"reasoning_effort":null}"#, // tier key missing
-            r#"{"runtime":"codex","model":null,"reasoning_effort":null,"service_tier":null,"fast_mode":null}"#, // both spellings
         ] {
             let (status, text, reads) = run(
                 FakeReads::new(present(creator_facts())),
@@ -1366,7 +1354,7 @@ mod tests {
     #[test]
     fn a_valid_body_trims_the_model_and_carries_the_tuning() {
         let config = admit(
-            r#"{"runtime":"codex","model":"  gpt-5  ","reasoning_effort":null,"fast_mode":true}"#,
+            r#"{"runtime":"codex","model":"  gpt-5  ","reasoning_effort":null,"service_tier":"priority"}"#,
         )
         .expect("valid");
         assert_eq!(

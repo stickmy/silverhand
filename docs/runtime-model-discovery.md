@@ -94,10 +94,10 @@ to Standard when the model or CLI lacks the tier. The Speed control lists Standa
 plus the model's discovered tiers, else the static `priority`. Only Codex ≥0.169
 reports `ultrafast` (currently `gpt-6.2-sol`).
 
-The daemon advertises `runtime.service_tier.v1`; an older daemon is sent the
-derived `fast_mode` boolean instead. Clients predating the field may still send
-`fast_mode` (true → `priority`, false → `default`); agent DTOs keep a derived
-`fast_mode`.
+The old `fast_mode` flag never selected a tier, so nothing maps onto it. Only
+strict old decoders are kept working: a daemon without `runtime.service_tier.v1` is
+sent `fast_mode: null`, and the agent DTO carries `fast_mode: null`. Writes no longer
+accept `fast_mode`.
 
 ## Compatibility and verification
 

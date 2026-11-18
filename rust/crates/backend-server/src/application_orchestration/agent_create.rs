@@ -113,7 +113,7 @@ use silverhand_backend_core::{
         runtime::RuntimeKind,
         runtime_capability::{
             is_reasoning_effort_token, reasoning_effort_valid_for_runtime,
-            service_tier_from_fast_mode, service_tier_valid_for_runtime,
+            service_tier_valid_for_runtime,
         },
         session_scope::AgentSessionScope,
     },
@@ -678,10 +678,6 @@ struct RawCreateBody {
     #[serde(default)]
     #[garde(skip)]
     service_tier: RequiredPatchField<String>,
-    /// Legacy spelling from clients predating `service_tier`.
-    #[serde(default)]
-    #[garde(skip)]
-    fast_mode: RequiredPatchField<bool>,
     #[serde(default)]
     #[garde(skip)]
     description: RequiredPatchField<String>,
@@ -714,9 +710,7 @@ impl TryFrom<RawCreateBody> for CreateAgentInput {
     fn try_from(raw: RawCreateBody) -> Result<Self, Self::Error> {
         let model = present(raw.model);
         let reasoning_effort = present(raw.reasoning_effort);
-        let service_tier = present(raw.service_tier).or_else(|| {
-            present(raw.fast_mode).map(|fast| service_tier_from_fast_mode(fast).to_owned())
-        });
+        let service_tier = present(raw.service_tier);
         let description = present(raw.description);
         let host_id = present(raw.host_id);
         let session_scope = present(raw.session_scope);
@@ -1738,11 +1732,9 @@ mod tests {
             r#"{"name":"a"}"#,
             r#"{"name":123,"runtime":"codex"}"#,
             r#"{"name":"a","runtime":"codex","service_tier":true}"#,
-            r#"{"name":"a","runtime":"codex","fast_mode":"yes"}"#,
             r#"{"name":"a","runtime":"codex","model":null}"#,
             r#"{"name":"a","runtime":"codex","reasoning_effort":null}"#,
             r#"{"name":"a","runtime":"codex","service_tier":null}"#,
-            r#"{"name":"a","runtime":"codex","fast_mode":null}"#,
             r#"{"name":"a","runtime":"codex","description":null}"#,
             r#"{"name":"a","runtime":"codex","host_id":null}"#,
             r#"{"name":"a","runtime":"codex","session_scope":null}"#,
@@ -1773,7 +1765,6 @@ mod tests {
             r#"{"name":"a","runtime":"codex","reasoning_effort":"HIGH"}"#,
             r#"{"name":"a","runtime":"opencode","reasoning_effort":"high"}"#,
             r#"{"name":"a","runtime":"claude","service_tier":"default"}"#,
-            r#"{"name":"a","runtime":"claude","fast_mode":false}"#,
             r#"{"name":"a","runtime":"codex","service_tier":"Bad Tier"}"#,
             r#"{"name":"a","runtime":"codex","session_scope":"team"}"#,
         ] {

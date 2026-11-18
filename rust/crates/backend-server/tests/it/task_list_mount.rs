@@ -339,31 +339,29 @@ fn valid_migration_titles() -> Vec<MigrationTitleCase> {
         .collect()
 }
 
-const UNDO_STEP_100: &str = "ALTER TABLE agents ADD COLUMN fast_mode INTEGER; \
-     ALTER TABLE agents DROP COLUMN service_tier; \
-     DROP TABLE agent_runtime_credentials; \
-     ALTER TABLE conversations ADD COLUMN status TEXT NOT NULL DEFAULT 'idle'; \
-     ALTER TABLE conversations ADD COLUMN closed_at INTEGER; \
-     ALTER TABLE conversations ADD COLUMN close_summary TEXT; \
-     CREATE INDEX idx_conversations_status ON conversations(status); \
-     DROP TRIGGER users_avatar_design_follows_image; \
-     DROP TRIGGER users_avatar_design_release; DROP TRIGGER users_avatar_design_delete; \
-     DROP TRIGGER agents_avatar_design_follows_image; DROP TRIGGER agents_avatar_design_release; \
-     DROP TRIGGER agents_avatar_design_delete; DROP INDEX idx_users_avatar_design; \
-     DROP INDEX idx_agents_avatar_design; ALTER TABLE users DROP COLUMN avatar_design_id; \
-     ALTER TABLE agents DROP COLUMN avatar_design_id; DROP TABLE avatar_designs; \
-     DROP TABLE password_recovery_state; \
-     DROP TRIGGER conversation_inboxes_settlement_state_insert; \
-     DROP TRIGGER conversation_inboxes_settlement_state_update;";
-
 async fn seed_step95_titles(path: &std::path::Path, cases: &[MigrationTitleCase]) {
-    use sqlx::Executor;
+    use silverhand_backend_sqlite::foundation::database_startup::prepare_database_through;
+    use sqlx::{Connection, Executor, SqliteConnection};
 
-    let mut db = current_schema::create_current_schema(path).await;
-    // The snapshot already carries steps 100-105; undo them so the replay from 96 is real.
-    db.execute(sqlx::raw_sql(UNDO_STEP_100)).await.unwrap();
+    prepare_database_through(path, 95).await.unwrap();
+    let mut db = SqliteConnection::connect_with(
+        &sqlx::sqlite::SqliteConnectOptions::new()
+            .filename(path)
+            .foreign_keys(true),
+    )
+    .await
+    .unwrap();
+    // Step 95 still requires `conversations.status` (dropped by step 103).
     for statement in SEED {
-        db.execute(*statement).await.unwrap();
+        let statement = if statement.starts_with("INSERT INTO conversations ") {
+            "INSERT INTO conversations (id, workspace_id, placement_kind, roster_policy, title, \
+             title_key, visibility, status, created_at, updated_at, latest_message_seq) \
+             VALUES ('conv000000000001', 'workspace-1', 'workspace', 'open', 'General Chat', \
+             'general chat', 'private', 'idle', 0, 0, 0)"
+        } else {
+            statement
+        };
+        db.execute(statement).await.unwrap();
     }
     db.execute("DELETE FROM tasks").await.unwrap();
 
@@ -383,30 +381,6 @@ async fn seed_step95_titles(path: &std::path::Path, cases: &[MigrationTitleCase]
         .execute(&mut db)
         .await
         .unwrap();
-    }
-
-    db.execute(
-        "CREATE TABLE _migrations (version INTEGER PRIMARY KEY, \
-         name TEXT NOT NULL, applied_at INTEGER NOT NULL)",
-    )
-    .await
-    .unwrap();
-    let plan: Value = serde_json::from_str(include_str!(
-        "../../../../../packages/shared/src/db/rust-migrations.generated.json"
-    ))
-    .unwrap();
-    for step in plan["steps"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .filter(|step| step["version"].as_i64().unwrap() <= 95)
-    {
-        sqlx::query("INSERT INTO _migrations VALUES (?, ?, 1)")
-            .bind(step["version"].as_i64().unwrap())
-            .bind(step["name"].as_str().unwrap())
-            .execute(&mut db)
-            .await
-            .unwrap();
     }
     db.close().await.unwrap();
 }

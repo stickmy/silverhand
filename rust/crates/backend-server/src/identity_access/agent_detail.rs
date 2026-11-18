@@ -435,7 +435,7 @@ mod tests {
                     "model": "sonnet",
                     "reasoning_effort": "high",
                     "service_tier": "priority",
-                    "fast_mode": true,
+                    "fast_mode": null,
                     "host_id": "h1",
                     "host_label": "Host One Label",
                     "description": "a description",

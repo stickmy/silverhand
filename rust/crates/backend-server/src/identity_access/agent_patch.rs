@@ -85,9 +85,7 @@ use silverhand_backend_core::{
         AgentProfileWriteUnitOfWork, AgentTuningEdit, FieldEdit, RequiredEdit, TuningRejection,
         update_agent_profile_and_announce,
     },
-    identity_access::agents::runtime_capability::{
-        is_reasoning_effort_token, service_tier_from_fast_mode,
-    },
+    identity_access::agents::runtime_capability::is_reasoning_effort_token,
     identity_access::capability::{
         agent_authority::{AgentAuthority, can_edit_agent},
         agent_view::{VisibleStages, can_view_agent},
@@ -335,11 +333,6 @@ struct AgentPatchRaw {
     #[garde(custom(reasoning_token))]
     service_tier: PatchField<String>,
 
-    /// Legacy spelling from clients predating `service_tier`; never both.
-    #[serde(default)]
-    #[garde(skip)]
-    fast_mode: PatchField<bool>,
-
     /// `runtime: z.never().optional()` — a present key (any value, `null` included) is a
     /// decode error, so this never carries a value past admission.
     #[serde(default)]
@@ -369,7 +362,6 @@ impl TryFrom<AgentPatchRaw> for AgentTuningEdit {
             model,
             reasoning_effort,
             service_tier,
-            fast_mode,
             // A present `runtime` key was already rejected at decode; matched here to
             // prove the field is consumed.
             runtime: Forbidden,
@@ -386,14 +378,7 @@ impl TryFrom<AgentPatchRaw> for AgentTuningEdit {
         let description = field_edit(description);
         let model = field_edit(model);
         let reasoning_effort = field_edit(reasoning_effort);
-        let service_tier = match (service_tier, fast_mode) {
-            (tier, PatchField::Missing) => field_edit(tier),
-            (PatchField::Missing, PatchField::Null) => FieldEdit::Clear,
-            (PatchField::Missing, PatchField::Value(fast)) => {
-                FieldEdit::Set(service_tier_from_fast_mode(fast).to_owned())
-            }
-            _ => return Err(()),
-        };
+        let service_tier = field_edit(service_tier);
 
         // `.refine(Object.keys(v).length > 0)` on the STRIPPED object: at least one KNOWN
         // field must be named (a null clear counts as named); unknown-only bodies, whose
@@ -1030,7 +1015,6 @@ mod tests {
             r#"{"description":5}"#,     // not a string
             r#"{"model":5}"#,           // not a string
             r#"{"service_tier":true}"#, // not a string
-            r#"{"fast_mode":"yes"}"#,   // not a boolean
         ] {
             let reply = ok_run(body).await;
             assert_eq!(
@@ -1107,14 +1091,14 @@ mod tests {
 
     #[tokio::test]
     async fn a_service_tier_set_on_a_claude_agent_is_the_typed_tuning_400() {
-        // A claude agent has no service tier, so the legacy `fast_mode` request is
-        // re-rejected under the lock.
+        // A claude agent has no service tier, so the request is re-rejected under the
+        // lock.
         let reply = patch_with(
             FakeReads::new(present(creator_facts()), present(committed_facts())),
             SealingWrites::new(WriteOutcome::Commits).with_context(claude_context()),
             FakeSink::new(false),
             "a1",
-            r#"{"fast_mode":true}"#,
+            r#"{"service_tier":"priority"}"#,
             true,
         )
         .await;

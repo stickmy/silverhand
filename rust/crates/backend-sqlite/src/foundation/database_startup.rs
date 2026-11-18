@@ -105,6 +105,25 @@ pub async fn prepare_database(
     path: &Path,
     allow_upgrade: bool,
 ) -> Result<DatabasePreparation, DatabaseStartupError> {
+    prepare_with_plan(path, allow_upgrade, plan()).await
+}
+
+/// Test support: build an older database by migrating only through `step`.
+#[doc(hidden)]
+pub async fn prepare_database_through(
+    path: &Path,
+    step: i64,
+) -> Result<DatabasePreparation, DatabaseStartupError> {
+    let mut plan = plan();
+    plan.steps.retain(|s| s.version <= step);
+    prepare_with_plan(path, true, plan).await
+}
+
+async fn prepare_with_plan(
+    path: &Path,
+    allow_upgrade: bool,
+    plan: Plan,
+) -> Result<DatabasePreparation, DatabaseStartupError> {
     let path = if path.is_absolute() {
         path.to_owned()
     } else {
@@ -128,7 +147,7 @@ pub async fn prepare_database(
     let mut db = SqliteConnection::connect_with(&options).await?;
     let result = async {
         db.execute("BEGIN EXCLUSIVE; COMMIT;").await?;
-        prepare_connected(&mut db, &path, allow_upgrade, &plan()).await
+        prepare_connected(&mut db, &path, allow_upgrade, &plan).await
     }
     .await;
     let closed = db.close().await;

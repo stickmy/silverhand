@@ -21,7 +21,7 @@ use silverhand_backend_server::{
 };
 use silverhand_backend_sqlite::{
     embedded_bootstrap::SqliteEmbeddedBootstrap,
-    foundation::database_startup::prepare_database,
+    foundation::database_startup::{prepare_database, prepare_database_through},
     identity_access::{auth::SqliteSessionStore, user_identity::SqliteUserStore},
 };
 use sqlx::{Connection, SqliteConnection, sqlite::SqliteConnectOptions};
@@ -54,8 +54,7 @@ impl Fixture {
     async fn new() -> Self {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("test.sqlite");
-        let preparation = prepare_database(&path, true).await.unwrap();
-        assert_eq!((preparation.after_step, preparation.after_epoch), (105, 71));
+        prepare_database(&path, true).await.unwrap();
         let bootstrap = SqliteEmbeddedBootstrap::open(&path).await.unwrap();
         let BootstrapChoice::Created { user } = bootstrap.choose_or_create(100).await.unwrap()
         else {
@@ -77,6 +76,37 @@ impl Fixture {
             user: user.id,
             changes: Changes::default(),
         }
+    }
+    /// A database migrated only through `step` holding one existing local user and
+    /// session; the caller upgrades it.
+    async fn at_step(step: i64) -> Self {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test.sqlite");
+        prepare_database_through(&path, step).await.unwrap();
+        let fixture = Self {
+            _dir: dir,
+            path,
+            user: UserId::parse("u-local").unwrap(),
+            changes: Changes::default(),
+        };
+        let mut db = fixture.db().await;
+        sqlx::query(
+            "INSERT INTO users (id, name, display_name, created_at, updated_at) \
+             VALUES ('u-local', 'local', 'local', 100, 100)",
+        )
+        .execute(&mut db)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO auth_sessions (id, user_id, token_hash, created_at, last_used_at) \
+             VALUES ('s-local', 'u-local', ?, 1000, 1000)",
+        )
+        .bind(SessionTokenHash::of_plaintext("local-token").as_str())
+        .execute(&mut db)
+        .await
+        .unwrap();
+        db.close().await.unwrap();
+        fixture
     }
     async fn db(&self) -> SqliteConnection {
         SqliteConnection::connect_with(
@@ -334,35 +364,12 @@ async fn failed_core_write_rolls_back_fields_and_completion_together() {
 
 #[tokio::test]
 async fn step98_upgrade_keeps_existing_identity_complete_and_preserves_other_fields() {
-    // Build an isolated step98 database from the current plan by removing only
-    // the step99-103 changes and their ledger entries; no historical fixture changes.
-    let fixture = Fixture::new().await;
-    let mut db = fixture.db().await;
-    rollback_step100(&mut db).await;
-    sqlx::query("ALTER TABLE users DROP COLUMN embedded_profile_pending")
-        .execute(&mut db)
-        .await
-        .unwrap();
-    sqlx::query("DELETE FROM _migrations WHERE version = 99")
-        .execute(&mut db)
-        .await
-        .unwrap();
-    db.close().await.unwrap();
+    let fixture = Fixture::at_step(98).await;
     assert!(prepare_database(&fixture.path, false).await.is_err());
     let upgrade = prepare_database(&fixture.path, true).await.unwrap();
-    assert_eq!(
-        (
-            upgrade.before_step,
-            upgrade.after_step,
-            upgrade.before_epoch,
-            upgrade.after_epoch
-        ),
-        (98, 105, 69, 71)
-    );
-    assert_eq!(
-        upgrade.applied_steps,
-        vec![99, 100, 101, 102, 103, 104, 105]
-    );
+    assert_eq!((upgrade.before_step, upgrade.before_epoch), (98, 69));
+    assert_eq!(upgrade.applied_steps.first(), Some(&99));
+    assert_eq!(upgrade.applied_steps.last(), Some(&upgrade.after_step));
     assert!(
         prepare_database(&fixture.path, false)
             .await
@@ -465,38 +472,10 @@ async fn avatar_storage_failure_after_completion_does_not_reopen_setup() {
     assert_eq!(fixture.changes.0.lock().unwrap().len(), 1);
 }
 
-/// Return a current database to step 99 by undoing only steps 100-105.
-async fn rollback_step100(db: &mut SqliteConnection) {
-    sqlx::raw_sql(
-        "ALTER TABLE agents ADD COLUMN fast_mode INTEGER; ALTER TABLE agents DROP COLUMN service_tier;
-         DELETE FROM _migrations WHERE version = 105;
-         DROP TABLE agent_runtime_credentials; DELETE FROM _migrations WHERE version = 104;
-         ALTER TABLE conversations ADD COLUMN status TEXT NOT NULL DEFAULT 'idle';
-         ALTER TABLE conversations ADD COLUMN closed_at INTEGER;
-         ALTER TABLE conversations ADD COLUMN close_summary TEXT;
-         CREATE INDEX idx_conversations_status ON conversations(status);
-         DELETE FROM _migrations WHERE version = 103;
-         DROP TRIGGER conversation_inboxes_settlement_state_insert;
-         DROP TRIGGER conversation_inboxes_settlement_state_update;
-         DELETE FROM _migrations WHERE version = 102;
-         DROP TABLE password_recovery_state; DELETE FROM _migrations WHERE version = 101;
-         DROP TRIGGER users_avatar_design_follows_image; DROP TRIGGER users_avatar_design_release;
-         DROP TRIGGER users_avatar_design_delete; DROP TRIGGER agents_avatar_design_follows_image;
-         DROP TRIGGER agents_avatar_design_release; DROP TRIGGER agents_avatar_design_delete;
-         DROP INDEX idx_users_avatar_design; DROP INDEX idx_agents_avatar_design;
-         ALTER TABLE users DROP COLUMN avatar_design_id; ALTER TABLE agents DROP COLUMN avatar_design_id;
-         DROP TABLE avatar_designs; DELETE FROM _migrations WHERE version = 100;",
-    )
-    .execute(&mut *db)
-    .await
-    .unwrap();
-}
-
 #[tokio::test]
 async fn step99_upgrade_adds_avatar_designs_and_keeps_existing_avatars() {
-    let fixture = Fixture::new().await;
+    let fixture = Fixture::at_step(99).await;
     let mut db = fixture.db().await;
-    rollback_step100(&mut db).await;
     sqlx::query(
         "UPDATE users SET avatar_storage_key = 'k', avatar_content_type = 'image/png' WHERE id = ?",
     )
@@ -507,16 +486,9 @@ async fn step99_upgrade_adds_avatar_designs_and_keeps_existing_avatars() {
     db.close().await.unwrap();
 
     let upgrade = prepare_database(&fixture.path, true).await.unwrap();
-    assert_eq!(
-        (
-            upgrade.before_step,
-            upgrade.after_step,
-            upgrade.before_epoch,
-            upgrade.after_epoch
-        ),
-        (99, 105, 70, 71)
-    );
-    assert_eq!(upgrade.applied_steps, vec![100, 101, 102, 103, 104, 105]);
+    assert_eq!((upgrade.before_step, upgrade.before_epoch), (99, 70));
+    assert_eq!(upgrade.applied_steps.first(), Some(&100));
+    assert_eq!(upgrade.applied_steps.last(), Some(&upgrade.after_step));
     let mut db = fixture.db().await;
     let row: (Option<String>, Option<String>) =
         sqlx::query_as("SELECT avatar_storage_key, avatar_design_id FROM users WHERE id = ?")

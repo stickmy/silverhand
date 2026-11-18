@@ -32,7 +32,6 @@ use silverhand_backend_core::{
     foundation::name_canonicalization::is_ecmascript_trim_whitespace,
     foundation::persistence::PersistenceFailure,
     identity_access::agent_detail_read::{AgentDetailFacts, AgentDetailReadModel},
-    identity_access::agents::runtime_capability::fast_mode_from_service_tier,
 };
 
 /// The wire projection of one agent row. Field-for-field the TypeScript `AgentDto`:
@@ -51,8 +50,8 @@ pub(crate) struct AgentDto {
     runtime: &'static str,
     model: Option<String>,
     reasoning_effort: Option<String>,
-    /// Derived for clients predating `service_tier`.
-    fast_mode: Option<bool>,
+    /// Always null; clients predating `service_tier` require the key.
+    fast_mode: (),
     service_tier: Option<String>,
     host_id: String,
     host_label: Option<String>,
@@ -87,8 +86,8 @@ pub(crate) struct AgentPublicDto {
     runtime: &'static str,
     model: Option<String>,
     reasoning_effort: Option<String>,
-    /// Derived for clients predating `service_tier`.
-    fast_mode: Option<bool>,
+    /// Always null; clients predating `service_tier` require the key.
+    fast_mode: (),
     service_tier: Option<String>,
     host_id: String,
     host_label: Option<String>,
@@ -128,7 +127,7 @@ pub(crate) fn agent_dto(detail: &AgentDetailFacts) -> AgentDto {
         runtime: projection.runtime.as_str(),
         model: projection.model.clone(),
         reasoning_effort: projection.reasoning_effort.clone(),
-        fast_mode: fast_mode_from_service_tier(projection.service_tier.as_deref()),
+        fast_mode: (),
         service_tier: projection.service_tier.clone(),
         host_id: projection.host_id.clone(),
         host_label: host_label(
@@ -324,7 +323,7 @@ mod tests {
             json!({
                 "id": "a1", "name": "agent-one", "display_name": "Agent One",
                 "runtime": "codex", "model": "gpt-5.6-sol", "reasoning_effort": "high",
-                "service_tier": "priority", "fast_mode": true, "host_id": "h1", "host_label": "Host One",
+                "service_tier": "priority", "fast_mode": null, "host_id": "h1", "host_label": "Host One",
                 "description": "a description", "session_scope": "agent",
                 "created_by_user_id": "creator-1",
                 "avatar_url": "/api/agents/a1/avatar?v=2000",

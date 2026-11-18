@@ -116,7 +116,7 @@ async fn an_admitted_creator_reads_the_full_dto_through_the_real_stack() {
                 "model": "opus",
                 "reasoning_effort": "high",
                 "service_tier": "priority",
-                "fast_mode": true,
+                "fast_mode": null,
                 "host_id": "h1",
                 "host_label": "Prod Box",
                 "description": "the first agent",

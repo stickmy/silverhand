@@ -48,16 +48,6 @@ pub fn service_tier_valid_for_runtime(kind: RuntimeKind, value: Option<&str>) ->
         .is_none_or(|value| runtime_supports_service_tier(kind) && is_reasoning_effort_token(value))
 }
 
-/// The tier a client predating `service_tier` means by its `fast_mode` flag.
-pub fn service_tier_from_fast_mode(fast_mode: bool) -> &'static str {
-    if fast_mode { "priority" } else { "default" }
-}
-
-/// The `fast_mode` flag still read by clients and daemons predating `service_tier`.
-pub fn fast_mode_from_service_tier(service_tier: Option<&str>) -> Option<bool> {
-    service_tier.map(|tier| tier != "default")
-}
-
 /// The model a runtime FORCES at create time when the request omits one (or gives a
 /// blank one), or `None` when the runtime has no forced create-time default.
 ///

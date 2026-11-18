@@ -292,7 +292,6 @@ fn agent_rows(
             runtime: agent.runtime.as_str(),
             model: agent.model.clone(),
             reasoning_effort: agent.reasoning_effort.clone(),
-            fast_mode: silverhand_backend_core::identity_access::agents::runtime_capability::fast_mode_from_service_tier(agent.service_tier.as_deref()),
             service_tier: agent.service_tier.clone(),
             avatar_url: agent
                 .avatar_storage_key
@@ -481,8 +480,6 @@ struct AgentOnHost {
     runtime: &'static str,
     model: Option<String>,
     reasoning_effort: Option<String>,
-    /// Derived for clients predating `service_tier`.
-    fast_mode: Option<bool>,
     service_tier: Option<String>,
     avatar_url: Option<String>,
     online: &'static str,

@@ -122,7 +122,7 @@ fn agent_one() -> Value {
         "model": "opus",
         "reasoning_effort": "high",
         "service_tier": "priority",
-        "fast_mode": true,
+        "fast_mode": null,
         "host_id": "h1",
         "host_label": "Prod Box",
         "description": "the first agent",
@@ -147,7 +147,7 @@ fn agent_two() -> Value {
         "model": "sonnet",
         "reasoning_effort": "low",
         "service_tier": "default",
-        "fast_mode": false,
+        "fast_mode": null,
         "host_id": "h2",
         // No `display_label` on h2, so the label falls back to the host name.
         "host_label": "host-two",

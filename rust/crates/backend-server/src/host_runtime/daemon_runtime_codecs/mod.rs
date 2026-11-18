@@ -7,7 +7,6 @@ use silverhand_backend_core::{
     },
     foundation::identity::AgentId,
     host_runtime::runtime_credential::RuntimeScope,
-    identity_access::agents::runtime_capability::fast_mode_from_service_tier,
 };
 
 use crate::foundation::daemon_transport::DaemonFeatures;
@@ -27,13 +26,12 @@ pub(crate) fn spawn_options(
         "model": plan.agent.model,
         "reasoning_effort": plan.agent.reasoning_effort,
     });
-    // An older daemon strict-decodes the driver options with `fast_mode` only.
+    // An older daemon strict-decodes the driver options and requires `fast_mode`; its
+    // flag never selected a tier, so it is sent as null.
     if features.service_tier {
         driver["service_tier"] = json!(plan.agent.service_tier);
     } else {
-        driver["fast_mode"] = json!(fast_mode_from_service_tier(
-            plan.agent.service_tier.as_deref()
-        ));
+        driver["fast_mode"] = Value::Null;
     }
     let common = json!({
         "agent": { "id": plan.agent.id.as_str(), "name": plan.agent.name },
@@ -150,7 +148,7 @@ mod tests {
         assert!(driver.get("fast_mode").is_none());
 
         let driver = &spawn_options(&plan, "t", DaemonFeatures::default())["driver"];
-        assert_eq!(driver["fast_mode"], true);
+        assert_eq!(driver["fast_mode"], Value::Null);
         assert!(driver.get("service_tier").is_none());
     }
 }
