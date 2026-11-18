@@ -67,8 +67,6 @@ export const appShell = {
     signUp: "Sign up",
     logIn: "Log in",
     passwordReset: "Your password has been reset. Log in with your new password.",
-    createAccount: "Create your account.",
-    welcomeBack: "Welcome back.",
     handlePlaceholder: "username",
     handlePermanent: "Your username is permanent and cannot be changed.",
     optional: "Optional",

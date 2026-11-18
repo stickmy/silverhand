@@ -184,14 +184,9 @@ function RegistrationForm({
         className="w-full max-w-90"
         style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
       >
-        <header className="mb-7 flex flex-col gap-1.5">
-          <h1 className="text-3xl font-semibold tracking-tight">
-            {isSignup ? t("appShell.auth.signUp") : t("appShell.auth.logIn")}
-          </h1>
-          <p className="text-sm text-text-muted">
-            {isSignup ? t("appShell.auth.createAccount") : t("appShell.auth.welcomeBack")}
-          </p>
-        </header>
+        <h1 className="mb-7 text-3xl font-semibold tracking-tight">
+          {isSignup ? t("appShell.auth.signUp") : t("appShell.auth.logIn")}
+        </h1>
 
         <div data-auth-fields className="flex flex-col gap-4">
           {isSignup ? <DraftAvatarCard draft={draftAvatar} disabled={submitting} /> : null}

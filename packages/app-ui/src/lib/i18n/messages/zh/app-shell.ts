@@ -67,8 +67,6 @@ export const appShell: Translation<typeof en> = {
     signUp: "注册",
     logIn: "登录",
     passwordReset: "密码已重置，请使用新密码登录。",
-    createAccount: "创建账号。",
-    welcomeBack: "欢迎回来。",
     handlePlaceholder: "用户名",
     handlePermanent: "用户名设置后不能更改。",
     optional: "选填",
