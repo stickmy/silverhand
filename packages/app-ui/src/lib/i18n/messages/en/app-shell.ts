@@ -111,7 +111,7 @@ export const appShell = {
     title: "Silverhand could not start",
     needsServer: "This build needs a server to connect to.",
     savedUnusable: "The saved server address cannot be used.",
-    failed: "The local server did not start.",
+    failed: "Startup stopped on an error.",
     connect: "Connect and Relaunch",
     connecting: "Checking…",
     relaunch: "Relaunch",

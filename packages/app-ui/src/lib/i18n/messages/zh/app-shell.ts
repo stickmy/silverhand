@@ -111,7 +111,7 @@ export const appShell: Translation<typeof en> = {
     title: "Silverhand 无法启动",
     needsServer: "此版本需要连接到一台服务器。",
     savedUnusable: "已保存的服务器地址无法使用。",
-    failed: "本机服务器未能启动。",
+    failed: "启动过程中出现错误。",
     connect: "连接并重新启动",
     connecting: "正在检查…",
     relaunch: "重新启动",
