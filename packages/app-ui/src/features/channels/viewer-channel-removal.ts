@@ -403,6 +403,10 @@ export const VIEWER_LOCAL_CHANNEL_KEY_CLASSIFICATION: Record<string, ChannelKeyC
     verdicts: ["exempt"],
     reason: "computer-scoped host resource sampling; no conversation axis",
   },
+  "runtime-models": {
+    verdicts: ["exempt"],
+    reason: "computer/runtime-scoped model suggestions; no conversation axis",
+  },
   "host-runtime-catalog": {
     verdicts: ["exempt"],
     reason: "computer-scoped runtime inventory; no conversation axis",

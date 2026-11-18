@@ -12,7 +12,7 @@
 //!     #2234 CP6 mount. Framework body extraction precedes this composition check.
 //!  2. WIRE ADMISSION (body) — parse against `CreateAgentInputSchema`: the handle
 //!     grammar, the runtime enum, the reasoning-effort token shape AND its
-//!     runtime/model allowlist, the fast-mode runtime allowlist, and the session-scope
+//!     runtime tuning policy, the fast-mode runtime allowlist, and the session-scope
 //!     enum. Structural failures keep native JSON `400/422/415`; semantic rule
 //!     failures return `422 {"error":"invalid input"}` without an issues array.
 //!     `host_id: ""` is FALSY in the TS
@@ -332,7 +332,7 @@ where
     };
 
     // SEMANTIC ADMISSION — the cross-field `TryFrom` settles handle grammar, the runtime
-    // enum, reasoning shape+allowlist, fast-mode capability, session-scope enum, and
+    // enum, reasoning shape+runtime policy, fast-mode capability, session-scope enum, and
     // host_id normalization; any fault is the one terminal `422 {"error":"invalid input"}`.
     let input = match CreateAgentInput::try_from(raw) {
         Ok(input) => input,
@@ -656,7 +656,7 @@ fn materialize_failure_message(code: MaterializeFailureCode) -> &'static str {
 /// (no `deny_unknown_fields`).
 ///
 /// Every rule create needs is cross-field or normalization (the handle grammar, the
-/// runtime enum, the reasoning-token shape AND its runtime/model allowlist, the
+/// runtime enum, the reasoning-token shape AND its runtime tuning policy, the
 /// fast-mode runtime allowlist, the session-scope enum, the `host_id` empty→default
 /// normalization), so all of it lives in `TryFrom<RawCreateBody>`; there is no stateless
 /// single-field garde rule to run, hence every field is `#[garde(skip)]`.
@@ -718,7 +718,7 @@ impl TryFrom<RawCreateBody> for CreateAgentInput {
         let runtime = RuntimeKind::parse(&raw.runtime).ok_or(())?;
 
         // `reasoning_effort`: the token SHAPE (ReasoningEffortTokenSchema) then the
-        // runtime/model allowlist (the superRefine). A present token must clear both.
+        // runtime tuning policy (the superRefine). A present token must clear both.
         if let Some(token) = reasoning_effort.as_deref()
             && !is_reasoning_token(token)
         {
@@ -1785,7 +1785,7 @@ mod tests {
             r#"{"name":"has space","runtime":"codex"}"#,
             r#"{"name":"a","runtime":"nope"}"#,
             r#"{"name":"a","runtime":"codex","reasoning_effort":"HIGH"}"#,
-            r#"{"name":"a","runtime":"claude","reasoning_effort":"high"}"#,
+            r#"{"name":"a","runtime":"opencode","reasoning_effort":"high"}"#,
             r#"{"name":"a","runtime":"claude","fast_mode":false}"#,
             r#"{"name":"a","runtime":"codex","session_scope":"team"}"#,
         ] {

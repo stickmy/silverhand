@@ -53,6 +53,15 @@ describe('ClaudeDriver.buildArgs', () => {
     expect(args[idx + 1]).toBe('opus');
   });
 
+  it('forwards explicit effort verbatim and leaves an unset effort to the CLI', () => {
+    const built = makeSpawnCtx({ model: 'custom-model', reasoningEffort: 'future-tier' });
+    cleanup = built.cleanup;
+    const driver = new ClaudeDriver();
+    const args = driver.buildArgs(built.ctx);
+    expect(args[args.indexOf('--effort') + 1]).toBe('future-tier');
+    expect(driver.buildArgs({ ...built.ctx, reasoningEffort: null })).not.toContain('--effort');
+  });
+
   it('uses an explicitly configured model', () => {
     const built = makeSpawnCtx({ model: 'sonnet' });
     cleanup = built.cleanup;

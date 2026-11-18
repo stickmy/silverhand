@@ -39,8 +39,8 @@
 //! ([`crate::identity_access::agents::runtime_capability`]) is judged against the runtime/model/effort
 //! read UNDER THE WRITE LOCK — not a pre-read snapshot. Judging it earlier would open a
 //! TOCTOU window: two concurrent PATCHes, each legal against the same stale state,
-//! could compose an illegal final row (e.g. one moves the model off `sol`, the other
-//! sets `ultra`, and the combined row is `ultra` on a model that forbids it). Admitting
+//! could compose an illegal final row (e.g. one moves off `grok-4.6`, the other
+//! sets `xhigh`, outside the new Grok model's curated options). Admitting
 //! the raw request inside the lock, against the locked current values, closes that
 //! window — and because the port never accepts a pre-sealed edit, there is nothing a
 //! caller could admit against a stale snapshot in the first place. `reasoning_effort`
@@ -780,15 +780,15 @@ mod tests {
 
     #[test]
     fn a_reasoning_effort_illegal_for_the_stored_runtime_is_refused() {
-        // Claude exposes no reasoning control, so any concrete effort is out of range.
+        // OpenCode exposes no reasoning control, so any concrete effort is out of range.
         let request = AgentTuningEdit {
             reasoning_effort: FieldEdit::Set("high".to_owned()),
             ..leave_all()
         };
         assert_eq!(
-            admit_public_tuning_edit(&ctx(RuntimeKind::Claude), request),
+            admit_public_tuning_edit(&ctx(RuntimeKind::Opencode), request),
             Err(TuningRejection::ReasoningEffortInvalidForRuntime {
-                runtime: RuntimeKind::Claude,
+                runtime: RuntimeKind::Opencode,
                 reasoning_effort: "high".to_owned(),
                 model: None,
             })
@@ -796,27 +796,24 @@ mod tests {
     }
 
     #[test]
-    fn a_model_change_re_judges_a_left_alone_effort_against_the_new_model() {
-        // Stored codex effort `ultra` is only legal for the sol model. Clearing the
-        // model (→ baseline) while leaving the effort makes the pair illegal, even
-        // though the effort itself was not named.
-        let context = AgentTuningContext {
-            runtime: RuntimeKind::Codex,
-            model: Some("gpt-5.6-sol".to_owned()),
-            reasoning_effort: Some("ultra".to_owned()),
-        };
-        let request = AgentTuningEdit {
-            model: FieldEdit::Clear,
-            ..leave_all()
-        };
-        assert_eq!(
-            admit_public_tuning_edit(&context, request),
-            Err(TuningRejection::ReasoningEffortInvalidForRuntime {
-                runtime: RuntimeKind::Codex,
-                reasoning_effort: "ultra".to_owned(),
-                model: None,
-            })
-        );
+    fn a_native_model_change_preserves_the_explicit_effort() {
+        for runtime in [RuntimeKind::Claude, RuntimeKind::Codex] {
+            let context = AgentTuningContext {
+                runtime,
+                model: Some("custom-model".to_owned()),
+                reasoning_effort: Some("future-tier".to_owned()),
+            };
+            let request = AgentTuningEdit {
+                model: FieldEdit::Clear,
+                ..leave_all()
+            };
+            assert!(admit_public_tuning_edit(&context, request).is_ok());
+            let request = AgentTuningEdit {
+                reasoning_effort: FieldEdit::Set("BAD".to_owned()),
+                ..leave_all()
+            };
+            assert!(admit_public_tuning_edit(&context, request).is_err());
+        }
     }
 
     #[test]
@@ -827,7 +824,7 @@ mod tests {
         let context = AgentTuningContext {
             runtime: RuntimeKind::Codex,
             model: None,
-            reasoning_effort: Some("ultra".to_owned()), // illegal on baseline, but untouched
+            reasoning_effort: Some("INVALID".to_owned()), // old malformed value, but untouched
         };
         let request = AgentTuningEdit {
             fast_mode: FieldEdit::Set(true),
@@ -858,12 +855,12 @@ mod tests {
             fast_mode: FieldEdit::Clear,
             ..leave_all()
         };
-        assert!(admit_public_tuning_edit(&ctx(RuntimeKind::Claude), request).is_ok());
+        assert!(admit_public_tuning_edit(&ctx(RuntimeKind::Opencode), request).is_ok());
     }
 
     #[test]
     fn reasoning_is_judged_before_fast_mode_when_a_body_trips_both() {
-        // Claude: reasoning `high` is illegal AND fast_mode is unsupported. The
+        // OpenCode: reasoning `high` is illegal AND fast_mode is unsupported. The
         // reasoning refusal wins, matching the product's order.
         let request = AgentTuningEdit {
             reasoning_effort: FieldEdit::Set("high".to_owned()),
@@ -871,9 +868,9 @@ mod tests {
             ..leave_all()
         };
         assert_eq!(
-            admit_public_tuning_edit(&ctx(RuntimeKind::Claude), request),
+            admit_public_tuning_edit(&ctx(RuntimeKind::Opencode), request),
             Err(TuningRejection::ReasoningEffortInvalidForRuntime {
-                runtime: RuntimeKind::Claude,
+                runtime: RuntimeKind::Opencode,
                 reasoning_effort: "high".to_owned(),
                 model: None,
             })
@@ -1049,9 +1046,9 @@ mod tests {
     async fn an_unchanged_witness_whose_before_refuses_is_a_typed_rejection_and_never_announces() {
         // The port wrote nothing and reported the before-image it read under the lock.
         // The DOMAIN — not the adapter — replays the pure rule against that witness to
-        // mint the product refusal: Claude exposes no reasoning control, so `high` is
+        // mint the product refusal: OpenCode exposes no reasoning control, so `high` is
         // out of range. Zero announce.
-        let before = before(RuntimeKind::Claude);
+        let before = before(RuntimeKind::Opencode);
         let request = AgentTuningEdit {
             reasoning_effort: FieldEdit::Set("high".to_owned()),
             ..leave_all()
@@ -1067,7 +1064,7 @@ mod tests {
         assert_eq!(
             carried,
             TuningRejection::ReasoningEffortInvalidForRuntime {
-                runtime: RuntimeKind::Claude,
+                runtime: RuntimeKind::Opencode,
                 reasoning_effort: "high".to_owned(),
                 model: None,
             }
@@ -1105,7 +1102,7 @@ mod tests {
             ..leave_all()
         };
         let writes = FakeWrites(AgentProfileRowWrite::Committed {
-            before: before(RuntimeKind::Claude),
+            before: before(RuntimeKind::Opencode),
             // Match every requested/untouched column, so only the illegal effort
             // rejects this fact; an unrelated seal mismatch must not mask a bypass.
             row: CommittedAgentRow {
@@ -1142,7 +1139,7 @@ mod tests {
             description: None,
             fast_mode: None,
             avatar: AgentAvatarRow::Absent,
-            context: ctx(RuntimeKind::Claude),
+            context: ctx(RuntimeKind::Opencode),
         };
         let request = AgentTuningEdit {
             reasoning_effort: FieldEdit::Set("high".to_owned()),

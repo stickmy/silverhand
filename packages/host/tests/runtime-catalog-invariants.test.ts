@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { RUNTIME_CATALOG } from '@silverhand/shared';
+import { RUNTIME_CATALOG, runtimeSupportsReasoningEffort } from '@silverhand/shared';
 import { describe, expect, it } from 'vitest';
 
 import { getDriver, hasDriver } from '../src/drivers/index.js';
@@ -58,7 +58,7 @@ describe('runtime catalog ⟺ host invariants', () => {
     }
   });
 
-  it('reasoningEffortOptions non-empty ⟺ the driver forwards the value', async () => {
+  it('runtimeSupportsReasoningEffort ⟺ the driver forwards the value', async () => {
     // Only exercise runtimes with a driver that accepts stdin-style
     // buildArgs (skip cursor's one-shot argv kickoff / gemini's absence).
     for (const entry of RUNTIME_CATALOG) {
@@ -97,7 +97,7 @@ describe('runtime catalog ⟺ host invariants', () => {
               r.params.configId === 'reasoning_effort' &&
               r.params.value === 'high',
           );
-        expect(forwardsReasoning).toBe(entry.reasoningEffortOptions.length > 0);
+        expect(forwardsReasoning).toBe(runtimeSupportsReasoningEffort(entry.kind));
       } finally {
         built.cleanup();
       }

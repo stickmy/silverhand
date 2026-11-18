@@ -21,9 +21,9 @@ export type AgentSessionScope = z.infer<typeof AgentSessionScopeSchema>;
 // global legality semantics: this schema only bounds the STRUCTURE (charset +
 // length), it is NOT a registry of which values are legal. Reasoning effort has
 // no cross-vendor standard, so the value namespace belongs to each runtime — the
-// SOLE allowlist of which tokens a given runtime/model pair accepts lives in the
-// runtime catalog (`reasoningEffortValidForRuntime` /
-// `reasoningEffortOptionsByModel`), never in a global enum.
+// admission policy lives in `reasoningEffortValidForRuntime`, never a global
+// enum. Claude/Codex delegate model-specific support to their native CLI; other
+// runtimes keep their curated option sets.
 //
 // Two consequences of the bound:
 //   - it stops a malformed value from reaching a CLI as a config override;

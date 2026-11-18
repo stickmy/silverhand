@@ -132,12 +132,8 @@ export const CreateAgentInputSchema = z
     /** Defaults to the established one-runtime-per-conversation model. */
     session_scope: AgentSessionScopeSchema.optional(),
   })
-  // reasoning_effort is a bounded opaque token (see ReasoningEffortTokenSchema):
-  // the schema accepts ANY structurally-valid token, and the SOLE legality gate
-  // is per-runtime/model via `reasoningEffortValidForRuntime`. So a token like
-  // Qoder's `none` parses structurally but is simply not in Codex's catalog set,
-  // while Codex `max`/`ultra` are legal only on a verified 5.6 model. All fields
-  // are present in the create payload, so the authoritative gate closes here.
+  // Shape is bounded globally; the runtime policy below retains curated sets
+  // where applicable. Claude/Codex own their model-specific capability checks.
   .superRefine((val, ctx) => {
     if (!reasoningEffortValidForRuntime(val.runtime, val.reasoning_effort, val.model)) {
       ctx.addIssue({

@@ -1276,7 +1276,7 @@ mod tests {
             r#"{"runtime":"bogus","model":null,"reasoning_effort":null,"fast_mode":null}"#, // bad enum
             r#"{"runtime":"codex","model":"   ","reasoning_effort":null,"fast_mode":null}"#, // trims empty
             r#"{"runtime":"codex","model":null,"reasoning_effort":"BAD","fast_mode":null}"#, // token regex
-            r#"{"runtime":"claude","model":null,"reasoning_effort":"high","fast_mode":null}"#, // valid shape, wrong runtime allowlist
+            r#"{"runtime":"opencode","model":null,"reasoning_effort":"high","fast_mode":null}"#, // valid shape, wrong runtime allowlist
             r#"{"runtime":"claude","model":null,"reasoning_effort":null,"fast_mode":true}"#, // fast-mode refine
         ] {
             let (status, text, reads) = run(

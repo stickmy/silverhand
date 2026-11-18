@@ -27,18 +27,9 @@ export interface RuntimeCatalogEntry {
    * offer a runtime we can't actually spawn.
    */
   selectable: boolean;
-  /**
-   * User-facing reasoning-effort options for this runtime, in display
-   * order (empty = no Reasoning control). These are the per-runtime
-   * allowed values (lowercase tokens) stored + passed to the driver
-   * verbatim — the AUTHORITATIVE and SOLE allowlist of what this runtime
-   * accepts. The shared `ReasoningEffort` type is only a bounded opaque
-   * token (structure, not semantics); it grants no legality. This is the
-   * runtime baseline; `reasoningEffortOptionsByModel` may replace it for a
-   * verified model. Keeping the allowed set here means a value legal for
-   * one runtime/model (e.g. qoder's `none`, Codex's model-specific `ultra`)
-   * cannot leak into another runtime or model picker.
-   */
+  /** Static effort suggestions, also the admission set for curated runtimes.
+   * Claude/Codex prefer native discovery and delegate semantic validation to
+   * their CLI; their fallback suggestions never restrict stored tokens. */
   reasoningEffortOptions: readonly ReasoningEffort[];
   /**
    * Full replacement option lists for models whose effort capability differs
@@ -241,7 +232,7 @@ export function runtimeDefaultModel(kind: RuntimeKind): string | null {
 
 /** True if the runtime exposes a reasoning-effort control. */
 export function runtimeSupportsReasoningEffort(kind: RuntimeKind): boolean {
-  return CATALOG[kind].reasoningEffortOptions.length > 0;
+  return kind === 'claude' || CATALOG[kind].reasoningEffortOptions.length > 0;
 }
 
 /** Model-aware reasoning options. The runtime baseline is the safe fallback
@@ -271,32 +262,20 @@ export function runtimeSupportsFastMode(kind: RuntimeKind): boolean {
   return CATALOG[kind].supportsFastMode;
 }
 
-/**
- * Domain invariant: a stored `reasoning_effort` must be `null` (unset) OR a
- * token this runtime/model pair actually supports (per its catalog options).
- * The UI picker only offers valid values, but this is the AUTHORITATIVE check
- * every write boundary enforces — create/switch (schema superRefine) and
- * update (`normalizeRuntimeTuning`) — so a direct-API call or a runtime switch
- * can't persist e.g. qoder's `none` onto a codex agent (which would then
- * forward an out-of-range token to the codex driver). Keeping the rule here —
- * beside the options it reads — means every write boundary shares one
- * definition instead of hand-copied allowlists.
- */
+/** Claude/Codex own model capability validation. Static options are UI fallbacks,
+ * not an admission allowlist. Other runtimes retain their existing contract. */
 export function reasoningEffortValidForRuntime(
   kind: RuntimeKind,
   value: ReasoningEffort | null | undefined,
   model?: string | null,
 ): boolean {
   if (value === null || value === undefined) return true;
+  if (kind === 'claude' || kind === 'codex')
+    return value.length <= 32 && /^[a-z][a-z0-9_-]*$/u.test(value);
   return reasoningEffortOptionsForRuntime(kind, model).includes(value);
 }
 
-/** True when `value` is part of the runtime's HISTORICAL baseline — the set
- *  every daemon (old or new) accepts without any capability proof. A
- *  non-baseline value (e.g. Codex `ultra`) is an EXTENSION the backend only
- *  sends when the target host's daemon advertises `runtime.codex.reasoning.v1`;
- *  product validity (which model may use it) is enforced by the static product
- *  table (`reasoningEffortOptionsByModel`). */
+/** Whether a token is offered by the static fallback list (not an admission rule). */
 export function isBaselineReasoningEffort(kind: RuntimeKind, value: ReasoningEffort): boolean {
   return CATALOG[kind].reasoningEffortOptions.includes(value);
 }

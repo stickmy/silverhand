@@ -75,6 +75,9 @@ import {
   type RuntimeStopParams,
 } from '../protocol.js';
 import { detectRuntimeCatalog } from '../runtimes.js';
+import { RuntimeModelDiscoveryCache } from '../runtime-models.js';
+import { getDriver } from '../drivers/index.js';
+import { expandProxyEnv } from '@silverhand/shared';
 import { DAEMON_VERSION, createDaemonHelloResult } from './version.js';
 import { composeHostOs, hostOsArch } from './host-os.js';
 import { readHostMachineFacts } from './host-machine.js';
@@ -249,6 +252,7 @@ export interface DispatcherOptions {
 }
 
 export class IntentDispatcher {
+  private readonly modelDiscovery = new RuntimeModelDiscoveryCache();
   private readonly logger: DaemonLogger;
   private readonly startedAt: number;
   private readonly now: () => number;
@@ -710,9 +714,18 @@ export class IntentDispatcher {
       }
       case 'host_runtime_catalog': {
         const p = params as HostRuntimeCatalogParams;
-        return detectRuntimeCatalog({
-          force: p.force === true,
-        });
+        const catalog = await detectRuntimeCatalog({ force: p.force === true });
+        if (!p.models_for) return catalog;
+        const runtime = catalog.runtimes.find((row) => row.kind === p.models_for);
+        if (!runtime) return catalog;
+        let env = getDriver(runtime.kind).applyEnv({ ...process.env });
+        const config = (await this.hostProxyConfigGetHandler?.())?.config;
+        if (config?.proxy_url && config.proxy_runtimes.includes(runtime.kind))
+          env = { ...env, ...expandProxyEnv(config.proxy_url) };
+        return {
+          ...catalog,
+          model_discovery: await this.modelDiscovery.read(runtime, env, p.force === true),
+        };
       }
       case 'conversation_log_debug': {
         const p = params as ConversationLogDebugParams;

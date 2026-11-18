@@ -3259,6 +3259,48 @@ async fn the_unmounted_host_management_router_composes_sqlite_live_transport_and
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body, json!({ "runtimes": [], "detected_at": 5 }));
 
+    let (status, _) = management_request_as(
+        &app,
+        "u-stranger",
+        "GET",
+        "/api/hosts/host-1/runtime-catalog?models_for=pi",
+        "",
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (status, _) = management_request(
+        &app,
+        "GET",
+        "/api/hosts/host-1/runtime-catalog?models_for=invalid",
+        "",
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let models_app = app.clone();
+    let models_read = tokio::spawn(async move {
+        management_request(
+            &models_app,
+            "GET",
+            "/api/hosts/host-1/runtime-catalog?models_for=codex&force=1",
+            "",
+        )
+        .await
+    });
+    let command = next_json(&mut daemon).await;
+    assert_eq!(
+        command["params"],
+        json!({"force":true,"models_for":"codex"})
+    );
+    let result = json!({"runtimes":[],"detected_at":5,"model_discovery":{
+        "runtime":"codex","status":"ok","models":["provider/custom-model"],
+        "reasoning_by_model":{"provider/custom-model":{"supported_efforts":["future-tier"],"default_effort":"future-tier"}},
+        "default_model":"provider/custom-model","detected_at":5,"cached":false
+    }});
+    respond(&mut daemon, &command, result.clone()).await;
+    let (status, body) = models_read.await.unwrap();
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body, result);
+
     let (status, body) = management_request(&app, "POST", "/api/hosts/host-1/disconnect", "").await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["disconnected"], true);
@@ -4099,6 +4141,45 @@ async fn the_runtime_catalog_probe_binds_its_answer_to_the_custody_that_produced
     assert_eq!(view.runtimes[0].kind.as_str(), "codex");
     assert_eq!(view.runtimes[0].binary.as_deref(), Some("/opt/codex"));
 
+    socket.close(None).await.unwrap();
+    fixture.controller.close().await;
+    fixture.server.abort();
+}
+
+#[tokio::test]
+async fn runtime_model_discovery_round_trips_and_rejects_a_different_runtime() {
+    let fixture = fixture("runtime-model-discovery.sqlite").await;
+    let mut socket = connect(fixture.address).await;
+    complete_attachment(&mut socket, &fixture.controller).await;
+    let dispatch = fixture.controller.owning_host_data_plane();
+    for (runtime, accepted) in [("pi", true), ("codex", false)] {
+        let request = catalog_request(custody(&dispatch, "host-1"), true).with_models_for(
+            silverhand_backend_core::identity_access::agents::runtime::RuntimeKind::parse("pi"),
+        );
+        let probing = probe_in_background(&dispatch, request);
+        let command = next_json(&mut socket).await;
+        assert_eq!(command["params"], json!({"force":true,"models_for":"pi"}));
+        respond(&mut socket, &command, json!({
+            "runtimes":[], "detected_at":1,
+            "model_discovery":{"runtime":runtime,"status":"ok","models":["provider/model"],"detected_at":1,"cached":false}
+        })).await;
+        let outcome = probing.await.unwrap();
+        if accepted {
+            let RuntimeCatalogOutcome::Detected(catalog) = outcome else {
+                panic!("expected catalog")
+            };
+            let view = catalog.rows_for(&custody(&dispatch, "host-1")).unwrap();
+            assert_eq!(
+                serde_json::to_value(view.model_discovery.unwrap()).unwrap()["models"],
+                json!(["provider/model"])
+            );
+        } else {
+            assert!(matches!(
+                outcome,
+                RuntimeCatalogOutcome::DaemonInternalError
+            ));
+        }
+    }
     socket.close(None).await.unwrap();
     fixture.controller.close().await;
     fixture.server.abort();

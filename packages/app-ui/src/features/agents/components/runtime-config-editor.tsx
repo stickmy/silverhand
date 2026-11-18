@@ -1,3 +1,5 @@
+import { useRuntimeModels } from "../hooks/use-runtime-models";
+import { ModelDiscoveryHint } from "./model-discovery-hint";
 import { useEffect, useMemo, useRef, useState, type JSX } from "react";
 import * as Select from "@radix-ui/react-select";
 import { ChevronDownIcon, RefreshIcon } from "@/icons";
@@ -13,9 +15,7 @@ import type {
 import {
   RUNTIME_CATALOG,
   reasoningEffortLabel,
-  reasoningEffortOptionsForRuntime,
   reasoningEffortValidForRuntime,
-  runtimeCatalogEntry,
   runtimeCliLabel,
   runtimeSupportsFastMode,
   runtimeSupportsReasoningEffort,
@@ -136,8 +136,8 @@ export function draftIsDirty(agent: AgentDto, draft: RuntimeConfigDraft): boolea
  *  driver default"). Same discipline as the old transition dialog:
  *  the system NEVER picks a default silently.
  *
- *  Reasoning validity uses the static product table (`reasoningEffortValidForRuntime`),
- *  which encodes the model-specific rules (e.g. Codex `ultra` only on sol). */
+ *  Reasoning admission follows the runtime contract (`reasoningEffortValidForRuntime`),
+ *  which leaves Claude/Codex model-specific validation to their CLI. */
 export function canSaveRuntimeConfig(agent: AgentDto, draft: RuntimeConfigDraft): boolean {
   if (!draftIsDirty(agent, draft)) return false;
   if (draft.modelChoice === "unset") return false;
@@ -297,8 +297,6 @@ export function RuntimeConfigEditor({
 
   const targets = useMemo(() => RUNTIME_CATALOG.filter((entry) => entry.selectable), []);
 
-  const catalogEntry = runtimeCatalogEntry(draft.runtime);
-
   // The host runtime catalog + availability are fetched HERE (the parent that
   // owns Save/canSave) and passed to EditForm for the runtime install display.
   // The probe LIFECYCLE is edit-only: a readonly profile view must never fetch
@@ -377,7 +375,6 @@ export function RuntimeConfigEditor({
           agent={agent}
           draft={draft}
           onDraft={setDraft}
-          catalogEntry={catalogEntry}
           targets={targets}
           triggerRef={runtimeTriggerRef}
           allSettled={allSettled}
@@ -504,7 +501,6 @@ function EditForm({
   agent,
   draft,
   onDraft,
-  catalogEntry,
   targets,
   triggerRef,
   allSettled,
@@ -514,7 +510,6 @@ function EditForm({
   agent: AgentDto;
   draft: RuntimeConfigDraft;
   onDraft: (next: RuntimeConfigDraft) => void;
-  catalogEntry: ReturnType<typeof runtimeCatalogEntry>;
   targets: readonly { kind: RuntimeKind }[];
   triggerRef: React.Ref<HTMLButtonElement>;
   // Availability + runtime catalog are lifted to the parent (which owns
@@ -523,6 +518,7 @@ function EditForm({
   hostAvailable: boolean;
   runtimeCatalog: ReturnType<typeof useHostRuntimeCatalog>;
 }): JSX.Element {
+  const modelDiscovery = useRuntimeModels(agent.host_id, draft.runtime, hostAvailable);
   const supportsReasoning = runtimeSupportsReasoningEffort(draft.runtime);
   const supportsFastMode = runtimeSupportsFastMode(draft.runtime);
 
@@ -533,15 +529,11 @@ function EditForm({
     }
     return map;
   }, [runtimeCatalog.data]);
-  // Reasoning options come from the static product table (model-aware): the
-  // per-model allowlist encodes extensions like Codex Ultra (sol only). The
-  // open wire token + daemon capability keep this from bumping the protocol.
+  // Native metadata supplies suggestions, not a whitelist for the stored value.
   const reasoningModel = draft.modelChoice === "specify" ? draft.modelValue : null;
-  const reasoningOptions = reasoningEffortOptionsForRuntime(draft.runtime, reasoningModel);
-  // Re-add an already-selected value when it isn't in the current options — a
-  // legal persisted value must not vanish from the picker (e.g. after a model
-  // change the commit path clears it into a positive re-pick; this is the
-  // load-time guard so the stored value stays visible until then).
+  const { options: reasoningOptions, defaultEffort } =
+    modelDiscovery.reasoningForModel(reasoningModel);
+  // Refreshing capabilities must never hide a saved or in-progress selection.
   const reasoningDisplayOptions =
     draft.reasoning !== "" &&
     draft.reasoning !== "__default__" &&
@@ -612,9 +604,10 @@ function EditForm({
           <ModelPicker
             id="rc-model"
             draft={draft}
-            suggestions={catalogEntry.modelSuggestions}
+            suggestions={modelDiscovery.suggestions}
             onDraft={onDraft}
           />
+          <ModelDiscoveryHint discovery={modelDiscovery} />
         </div>
 
         {supportsReasoning ? (
@@ -629,7 +622,12 @@ function EditForm({
               value={draft.reasoning}
               placeholder={t("agents.choose")}
               options={[
-                { value: "__default__", label: t("agents.useDriverDefault") },
+                {
+                  value: "__default__",
+                  label: defaultEffort
+                    ? `${t("agents.useDriverDefault")} (${reasoningEffortLabel(defaultEffort)})`
+                    : t("agents.useDriverDefault"),
+                },
                 ...reasoningDisplayOptions.map((v) => ({
                   value: v,
                   label: reasoningEffortLabel(v),
@@ -902,10 +900,8 @@ export function modelDraftAfterCommit(draft: RuntimeConfigDraft, next: string): 
   });
 }
 
-/** Clear an effort the newly-chosen model can no longer support per the static
- *  product table (e.g. switching off a sol model clears Ultra), forcing a
- *  positive re-pick instead of leaving a stale selection Save would reject. A
- *  baseline value stays valid for any model. */
+/** Curated runtimes require a re-pick when a model change invalidates the effort.
+ * Claude/Codex retain explicit values independently of discovery freshness. */
 function clearIncompatibleReasoning(draft: RuntimeConfigDraft): RuntimeConfigDraft {
   if (!runtimeSupportsReasoningEffort(draft.runtime)) return draft;
   if (draft.reasoning === "" || draft.reasoning === "__default__") return draft;
@@ -913,8 +909,7 @@ function clearIncompatibleReasoning(draft: RuntimeConfigDraft): RuntimeConfigDra
   if (reasoningEffortValidForRuntime(draft.runtime, draft.reasoning, model)) {
     return draft;
   }
-  // Force a positive re-pick instead of silently downgrading (Ultra→…) when the
-  // model changes to one the product table excludes.
+  // Force a positive re-pick instead of silently downgrading a curated value.
   return { ...draft, reasoning: "" };
 }
 

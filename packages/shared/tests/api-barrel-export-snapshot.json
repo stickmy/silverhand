@@ -275,6 +275,7 @@
   "RuntimeCatalogResponseSchema",
   "RuntimeDetectionReasonSchema",
   "RuntimeInfoSchema",
+  "RuntimeModelDiscoverySchema",
   "SCHEDULE_MAX_ACTIVE_PER_AGENT",
   "SCHEDULE_MAX_DELAY_SECONDS",
   "SCHEDULE_MESSAGE_MAX_LEN",

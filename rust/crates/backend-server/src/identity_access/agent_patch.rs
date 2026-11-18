@@ -1110,22 +1110,11 @@ mod tests {
     // ---- tuning legality (typed 400) ----
 
     #[tokio::test]
-    async fn an_illegal_reasoning_effort_is_the_typed_tuning_400() {
-        // `none` is qoder's token; against the write's locked codex/sol context it is
-        // out of range, so the UoW re-admits and returns a typed rejection.
-        let reply = ok_run(r#"{"reasoning_effort":"none"}"#).await;
-        assert_eq!(reply.status, StatusCode::BAD_REQUEST);
-        assert_eq!(
-            parsed(&reply.body),
-            json!({
-                "error": "reasoning_effort 'none' is not valid for runtime 'codex' and model 'gpt-5.6-sol'",
-                "code": "reasoning_effort_invalid_for_runtime"
-            })
-        );
-        // The UoW WAS consulted (that is where legality is now judged), but it committed
-        // nothing: no `agent_changed` announce fired.
+    async fn native_effort_tokens_are_committed_without_a_static_model_allowlist() {
+        let reply = ok_run(r#"{"reasoning_effort":"future-tier"}"#).await;
+        assert_eq!(reply.status, StatusCode::OK);
         assert_eq!(reply.writes, 1);
-        assert_eq!(reply.announces, 0);
+        assert_eq!(reply.announces, 1);
     }
 
     #[tokio::test]

@@ -16,9 +16,9 @@
 //! fractional value is refused rather than truncated. A route signing this leaf
 //! must not describe it as schema-exact.
 
-use std::time::Duration;
+use std::{collections::BTreeMap, time::Duration};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use silverhand_backend_core::identity_access::agents::runtime::RuntimeKind;
 
@@ -37,11 +37,21 @@ const PROBE_TIMEOUT: Duration = Duration::from_secs(45);
 pub struct RuntimeCatalogRequest {
     custody: HostDataPlaneCustody,
     pub force: bool,
+    models_for: Option<RuntimeKind>,
 }
 
 impl RuntimeCatalogRequest {
     pub fn new(custody: HostDataPlaneCustody, force: bool) -> Self {
-        Self { custody, force }
+        Self {
+            custody,
+            force,
+            models_for: None,
+        }
+    }
+
+    pub fn with_models_for(mut self, runtime: Option<RuntimeKind>) -> Self {
+        self.models_for = runtime;
+        self
     }
 }
 
@@ -93,6 +103,7 @@ pub struct RuntimeCatalog {
     custody: HostDataPlaneCustody,
     runtimes: Vec<DetectedRuntime>,
     detected_at: i64,
+    model_discovery: Option<Box<ModelDiscovery>>,
 }
 
 impl RuntimeCatalog {
@@ -112,6 +123,7 @@ impl RuntimeCatalog {
         Ok(CatalogView {
             runtimes: &self.runtimes,
             detected_at: self.detected_at,
+            model_discovery: self.model_discovery.as_deref(),
         })
     }
 }
@@ -121,6 +133,7 @@ impl RuntimeCatalog {
 pub struct CatalogView<'a> {
     pub runtimes: &'a [DetectedRuntime],
     pub detected_at: i64,
+    pub model_discovery: Option<&'a ModelDiscovery>,
 }
 
 /// Which coordinate a reader named that the catalog is not about.
@@ -198,15 +211,93 @@ impl RuntimeDetectionReason {
     }
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ModelDiscovery {
+    runtime: String,
+    status: ModelDiscoveryStatus,
+    models: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    reasoning_by_model: Option<BTreeMap<String, ModelReasoning>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    default_model: Option<String>,
+    detected_at: i64,
+    cached: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct ModelReasoning {
+    supported_efforts: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    default_effort: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum ModelDiscoveryStatus {
+    Ok,
+    Unsupported,
+    Error,
+}
+
+impl ModelDiscovery {
+    fn decode(value: Value, requested: Option<RuntimeKind>) -> Option<Self> {
+        let result: Self = serde_json::from_value(value).ok()?;
+        if RuntimeKind::parse(&result.runtime) != requested
+            || requested.is_none()
+            || !js_safe_integer(result.detected_at)
+            || result.models.len() > 5000
+            || result.models.iter().any(|id| {
+                id.is_empty() || id.encode_utf16().count() > 512 || id.chars().any(char::is_control)
+            })
+            || result
+                .default_model
+                .as_ref()
+                .is_some_and(|id| !result.models.contains(id))
+            || result.reasoning_by_model.as_ref().is_some_and(|entries| {
+                entries.iter().any(|(id, reasoning)| {
+                    !result.models.contains(id)
+                        || reasoning.supported_efforts.len() > 64
+                        || reasoning.supported_efforts.iter().any(|token| {
+                            token.len() > 32
+                                || !token.as_bytes().first().is_some_and(u8::is_ascii_lowercase)
+                                || !token.bytes().all(|c| {
+                                    c.is_ascii_lowercase()
+                                        || c.is_ascii_digit()
+                                        || c == b'_'
+                                        || c == b'-'
+                                })
+                        })
+                        || reasoning
+                            .default_effort
+                            .as_ref()
+                            .is_some_and(|token| !reasoning.supported_efforts.contains(token))
+                })
+            })
+            || (!matches!(result.status, ModelDiscoveryStatus::Ok) && !result.models.is_empty())
+        {
+            return None;
+        }
+        Some(result)
+    }
+}
+
 pub async fn probe(
     dispatch: &OwningHostDataPlane,
     request: RuntimeCatalogRequest,
 ) -> RuntimeCatalogOutcome {
+    let mut params = json!({ "force": request.force });
+    if let Some(runtime) = request.models_for {
+        params["models_for"] = json!(runtime.as_str());
+    }
     let answer = match dispatch
         .dispatch(HostDataPlaneRequest {
             custody: request.custody.clone(),
-            command: command::runtime_catalog(json!({ "force": request.force })),
-            timeout: PROBE_TIMEOUT,
+            command: command::runtime_catalog(params),
+            timeout: if request.models_for.is_some() {
+                Duration::from_secs(75)
+            } else {
+                PROBE_TIMEOUT
+            },
         })
         .await
     {
@@ -218,6 +309,13 @@ pub async fn probe(
     let Ok(result) = answer.into_result_for(&request.custody) else {
         return RuntimeCatalogOutcome::TransportContractViolation;
     };
+    let model_discovery = match result.get("model_discovery") {
+        None => None,
+        Some(value) => match ModelDiscovery::decode(value.clone(), request.models_for) {
+            Some(models) => Some(models),
+            None => return RuntimeCatalogOutcome::DaemonInternalError,
+        },
+    };
     let Some((runtimes, detected_at)) = CatalogWire::decode(result) else {
         return RuntimeCatalogOutcome::DaemonInternalError;
     };
@@ -225,6 +323,7 @@ pub async fn probe(
         custody: request.custody,
         runtimes,
         detected_at,
+        model_discovery: model_discovery.map(Box::new),
     })
 }
 
@@ -450,5 +549,55 @@ mod tests {
 
         assert!(CatalogWire::decode(json!({ "runtimes": [] })).is_none());
         assert!(CatalogWire::decode(json!({ "runtimes": [], "detected_at": 1.5 })).is_none());
+    }
+    #[test]
+    fn model_effort_metadata_round_trips_without_using_the_static_product_table() {
+        let valid = json!({"runtime":"codex","status":"ok","models":["custom"],"default_model":"custom",
+            "reasoning_by_model":{"custom":{"supported_efforts":["future-tier"],"default_effort":"future-tier"}},
+            "detected_at":1,"cached":false});
+        let kind = Some(RuntimeKind::Codex);
+        let decoded = ModelDiscovery::decode(valid.clone(), kind).unwrap();
+        assert_eq!(serde_json::to_value(decoded).unwrap(), valid);
+        for patch in [
+            json!({"default_model":"foreign"}),
+            json!({"reasoning_by_model":{"foreign":{"supported_efforts":[]}}}),
+            json!({"reasoning_by_model":{"custom":{"supported_efforts":["BAD"]}}}),
+            json!({"reasoning_by_model":{"custom":{"supported_efforts":["high"],"default_effort":"max"}}}),
+        ] {
+            let mut value = valid.clone();
+            value
+                .as_object_mut()
+                .unwrap()
+                .extend(patch.as_object().unwrap().clone());
+            assert!(ModelDiscovery::decode(value, kind).is_none());
+        }
+    }
+
+    #[test]
+    fn model_discovery_is_bound_to_the_requested_runtime_and_validated() {
+        let valid = json!({"runtime":"pi","status":"ok","models":["provider/custom"],"detected_at":1,"cached":false});
+        let pi = RuntimeKind::parse("pi");
+        assert!(ModelDiscovery::decode(valid.clone(), pi).is_some());
+        assert!(ModelDiscovery::decode(valid.clone(), None).is_none());
+        assert!(ModelDiscovery::decode(valid.clone(), RuntimeKind::parse("codex")).is_none());
+        for patch in [
+            json!({"status":"invalid"}),
+            json!({"status":"error"}),
+            json!({"models":[""]}),
+            json!({"models":["bad\nmodel"]}),
+            json!({"models":["x".repeat(513)]}),
+        ] {
+            let mut value = valid.clone();
+            value
+                .as_object_mut()
+                .unwrap()
+                .extend(patch.as_object().unwrap().clone());
+            assert!(ModelDiscovery::decode(value, pi).is_none());
+        }
+        let mut empty = valid;
+        empty["models"] = json!([]);
+        assert!(ModelDiscovery::decode(empty.clone(), pi).is_some());
+        empty["status"] = json!("unsupported");
+        assert!(ModelDiscovery::decode(empty, pi).is_some());
     }
 }

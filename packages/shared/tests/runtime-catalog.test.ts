@@ -42,7 +42,7 @@ describe('runtime catalog (shared source of truth)', () => {
   });
 
   it('every catalog reasoning option is a structurally-valid bounded token', () => {
-    // There is no shared closed enum any more: the catalog IS the allowlist.
+    // Static suggestions must remain well-formed tokens.
     // The only global constraint is that each option is a well-formed token
     // (lowercase, bounded) — legality is per-runtime, proven elsewhere.
     for (const entry of RUNTIME_CATALOG) {
@@ -54,9 +54,9 @@ describe('runtime catalog (shared source of truth)', () => {
           expect(ReasoningEffortTokenSchema.safeParse(opt).success).toBe(true);
         }
       }
-      // `runtimeSupportsReasoningEffort` mirrors the options list.
+      // Claude obtains its options from native metadata.
       expect(runtimeSupportsReasoningEffort(entry.kind)).toBe(
-        entry.reasoningEffortOptions.length > 0,
+        entry.kind === 'claude' || entry.reasoningEffortOptions.length > 0,
       );
     }
   });
@@ -76,7 +76,7 @@ describe('runtime catalog (shared source of truth)', () => {
       'xhigh',
       'max',
     ]);
-    // claude has no reasoning control.
+    // Claude options come from native metadata.
     expect(runtimeCatalogEntry('claude').reasoningEffortOptions).toEqual([]);
   });
 
@@ -176,73 +176,24 @@ describe('runtime catalog (shared source of truth)', () => {
     expect(reasoningEffortLabel('ultra')).toBe('Ultra');
   });
 
-  it('reasoningEffortValidForRuntime gates values to the runtime (null always ok)', () => {
-    // null/undefined (unset) is always valid.
-    expect(reasoningEffortValidForRuntime('codex', null)).toBe(true);
-    expect(reasoningEffortValidForRuntime('codex', undefined)).toBe(true);
-    // codex accepts its baseline four for any model; Max/Ultra are per-model
-    // extensions (model-gated), rejected when no model or an unverified model.
-    expect(reasoningEffortValidForRuntime('codex', 'high')).toBe(true);
-    expect(reasoningEffortValidForRuntime('codex', 'max')).toBe(false);
-    expect(reasoningEffortValidForRuntime('codex', 'none')).toBe(false);
-    // Max is valid for every verified 5.6 model, not for others.
-    expect(reasoningEffortValidForRuntime('codex', 'max', 'gpt-5.6-sol')).toBe(true);
-    expect(reasoningEffortValidForRuntime('codex', 'max', 'gpt-5.6-terra')).toBe(true);
-    expect(reasoningEffortValidForRuntime('codex', 'max', 'gpt-5.6-luna')).toBe(true);
-    expect(reasoningEffortValidForRuntime('codex', 'max', 'my-proxy-model')).toBe(false);
-    expect(reasoningEffortValidForRuntime('codex', 'max', null)).toBe(false);
-    // Within 5.6, Ultra remains sol-only.
-    expect(reasoningEffortValidForRuntime('codex', 'ultra', 'gpt-5.6-sol')).toBe(true);
-    expect(reasoningEffortValidForRuntime('codex', 'ultra', 'gpt-5.6-terra')).toBe(false);
-    expect(reasoningEffortValidForRuntime('codex', 'ultra', 'gpt-5.6-luna')).toBe(false);
-    expect(reasoningEffortValidForRuntime('codex', 'ultra', null)).toBe(false);
-    // qoder accepts its full allowed set.
-    for (const v of ['none', 'low', 'medium', 'high', 'xhigh', 'max'] as const) {
-      expect(reasoningEffortValidForRuntime('qoder', v)).toBe(true);
+  it('validates Claude/Codex token shape independently of model capabilities', () => {
+    for (const runtime of ['claude', 'codex'] as const) {
+      for (const model of [null, 'custom-model', 'gpt-5.6-terra']) {
+        for (const effort of [null, undefined, 'ultra', 'future-tier'])
+          expect(reasoningEffortValidForRuntime(runtime, effort, model)).toBe(true);
+        for (const effort of ['', 'High', 'high;exec', 'x'.repeat(33)])
+          expect(reasoningEffortValidForRuntime(runtime, effort, model)).toBe(false);
+      }
     }
-    // claude has no reasoning control → only null is valid.
-    expect(reasoningEffortValidForRuntime('claude', 'low')).toBe(false);
-    expect(reasoningEffortValidForRuntime('claude', null)).toBe(true);
+    expect(reasoningEffortValidForRuntime('qoder', 'max')).toBe(true);
+    expect(reasoningEffortValidForRuntime('qoder', 'ultra')).toBe(false);
+    expect(reasoningEffortValidForRuntime('opencode', 'high')).toBe(false);
   });
 
-  // ── #task:1486 / #task:1492 static reasoning-effort product table ─────
-  //
-  // Reasoning validity is decided by the STATIC product table alone (no host
-  // probe). The table encodes model-specific rules: Codex Max is offered for
-  // every verified gpt-5.6 model (sol/terra/luna); Ultra is a further extension
-  // offered for sol and the approved GPT-6 family; unrelated or default models
-  // stay on the historical baseline. Both are per-runtime, per-model — never derived from
-  // another runtime's catalog/set (e.g. qoder's `max`).
-  describe('#1486 static reasoning-effort product table', () => {
-    it('isBaselineReasoningEffort: historical baseline vs extension', () => {
-      expect(isBaselineReasoningEffort('codex', 'high')).toBe(true);
-      expect(isBaselineReasoningEffort('codex', 'xhigh')).toBe(true);
-      // Max and Ultra are extensions even though they parse as codex values —
-      // both are gated behind `runtime.codex.reasoning.v1` at send time.
-      expect(isBaselineReasoningEffort('codex', 'max')).toBe(false);
-      expect(isBaselineReasoningEffort('codex', 'ultra')).toBe(false);
-    });
-
-    it('Ultra refused on other 5.6 / unlisted / default models (they keep Max but not Ultra)', () => {
-      // terra/luna get Max but NOT Ultra — Ultra stays sol-only.
-      expect(reasoningEffortOptionsForRuntime('codex', 'gpt-5.6-terra')).toEqual([
-        'low',
-        'medium',
-        'high',
-        'xhigh',
-        'max',
-      ]);
-      expect(reasoningEffortValidForRuntime('codex', 'ultra', 'gpt-5.6-terra')).toBe(false);
-      expect(reasoningEffortValidForRuntime('codex', 'ultra', 'my-proxy-model')).toBe(false);
-      expect(reasoningEffortValidForRuntime('codex', 'ultra', null)).toBe(false);
-      // Baseline High stays valid for any model.
-      expect(reasoningEffortValidForRuntime('codex', 'high', 'gpt-5.6-terra')).toBe(true);
-      expect(reasoningEffortValidForRuntime('codex', 'high', null)).toBe(true);
-    });
-
-    it('null effort is always valid (unset = driver default)', () => {
-      expect(reasoningEffortValidForRuntime('codex', null, 'gpt-5.6-sol')).toBe(true);
-    });
+  it('keeps static fallback membership separate from admission', () => {
+    expect(isBaselineReasoningEffort('codex', 'high')).toBe(true);
+    expect(isBaselineReasoningEffort('codex', 'ultra')).toBe(false);
+    expect(reasoningEffortValidForRuntime('codex', 'ultra')).toBe(true);
   });
 });
 
@@ -315,7 +266,7 @@ describe('Codex GPT-6 family reasoning', () => {
     }
   });
 
-  it('keeps unrelated, missing and similarly named models on baseline', () => {
+  it('does not use static family names to restrict Codex admission', () => {
     for (const model of [
       null,
       '',
@@ -326,7 +277,7 @@ describe('Codex GPT-6 family reasoning', () => {
       'gpt-5.6-future',
       'gpt-5.6-terra',
     ]) {
-      expect(reasoningEffortValidForRuntime('codex', 'ultra', model)).toBe(false);
+      expect(reasoningEffortValidForRuntime('codex', 'ultra', model)).toBe(true);
     }
     expect(reasoningEffortValidForRuntime('grok', 'ultra', 'gpt-6-astra')).toBe(false);
   });

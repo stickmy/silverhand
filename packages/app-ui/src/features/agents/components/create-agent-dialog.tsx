@@ -1,3 +1,5 @@
+import { useRuntimeModels } from "../hooks/use-runtime-models";
+import { ModelDiscoveryHint } from "./model-discovery-hint";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { RefreshIcon } from "@/icons";
 import type {
@@ -6,7 +8,7 @@ import type {
   RuntimeAvailabilityState,
   RuntimeKind,
 } from "@silverhand/shared";
-import { RUNTIME_CATALOG, runtimeCatalogEntry, runtimeDefaultModel } from "@silverhand/shared";
+import { RUNTIME_CATALOG, runtimeDefaultModel } from "@silverhand/shared";
 import {
   Dialog,
   DialogContent,
@@ -130,8 +132,6 @@ export function CreateAgentDialog({
   // (agents ∪ users, server probe). See features/identity/use-name-availability.
   const nameCheck = useNameAvailability("agent", name);
 
-  const modelSuggestions = runtimeCatalogEntry(runtime).modelSuggestions;
-
   // Switching runtime resets the model to the new runtime's default. A model-id
   // is runtime-specific (qoder tiers vs a codex/claude id), so carrying a stale
   // value across a runtime switch would be meaningless — mirror the backend's
@@ -209,6 +209,7 @@ export function CreateAgentDialog({
   const selectedHostAvailable = selectedHostId
     ? isComputerAvailable(availabilityById.get(selectedHostId))
     : false;
+  const modelDiscovery = useRuntimeModels(selectedHostId, runtime, open && selectedHostAvailable);
   const [runtimeGate, setRuntimeGate] = useState<RuntimeGate>(EMPTY_RUNTIME_GATE);
 
   const handleSubmit = async (e: FormEvent) => {
@@ -383,10 +384,11 @@ export function CreateAgentDialog({
                 setError(null);
               }}
               onCommit={setModel}
-              suggestions={modelSuggestions}
+              suggestions={modelDiscovery.suggestions}
               placeholder={t("agentPage.driverDefault")}
               className="h-8"
             />
+            <ModelDiscoveryHint discovery={modelDiscovery} />
           </div>
 
           {/* Submit-only failure line: rendered conditionally so it reserves no

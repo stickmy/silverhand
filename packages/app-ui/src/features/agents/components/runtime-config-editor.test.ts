@@ -64,14 +64,14 @@ describe("draftFromAgent", () => {
     });
   });
 
-  it("leaves unsupported tuning slots as `''` (claude has no reasoning/fast_mode)", () => {
+  it("keeps Claude effort at the driver default and hides unsupported fast mode", () => {
     const d = draftFromAgent({
       ...baseAgent,
       runtime: "claude",
       reasoning_effort: null,
       fast_mode: null,
     });
-    expect(d.reasoning).toBe("");
+    expect(d.reasoning).toBe("__default__");
     expect(d.fastMode).toBe("");
   });
 });
@@ -136,7 +136,7 @@ describe("canSaveRuntimeConfig", () => {
       runtime: "claude",
       modelChoice: "default",
       modelValue: "",
-      reasoning: "",
+      reasoning: "__default__",
       fastMode: "",
     };
     expect(canSaveRuntimeConfig(baseAgent, d)).toBe(true);
@@ -150,7 +150,7 @@ describe("canSaveRuntimeConfig", () => {
     expect(canSaveRuntimeConfig(baseAgent, d)).toBe(true);
   });
 
-  it("accepts Ultra only for a compatible explicit Codex model", () => {
+  it("accepts a saved Codex effort independently of the static model catalog", () => {
     const compatible: RuntimeConfigDraft = {
       ...draftFromAgent(baseAgent),
       modelValue: "gpt-5.6-sol",
@@ -162,7 +162,7 @@ describe("canSaveRuntimeConfig", () => {
         ...compatible,
         modelValue: "gpt-5.6-luna",
       }),
-    ).toBe(false);
+    ).toBe(true);
   });
 });
 
@@ -403,7 +403,7 @@ describe("modelDraftAfterCommit — unified Combobox commit mapping", () => {
     });
   });
 
-  it("clears Ultra for a newly incompatible model instead of downgrading it", () => {
+  it("preserves explicit effort when changing a native-runtime model", () => {
     const ultra: RuntimeConfigDraft = {
       runtime: "codex",
       modelChoice: "specify",
@@ -414,21 +414,18 @@ describe("modelDraftAfterCommit — unified Combobox commit mapping", () => {
     expect(modelDraftAfterCommit(ultra, "gpt-5.6-luna")).toEqual({
       ...ultra,
       modelValue: "gpt-5.6-luna",
-      reasoning: "",
+      reasoning: "ultra",
     });
     expect(modelDraftAfterCommit(ultra, "gpt-5.6-terra")).toEqual({
       ...ultra,
       modelValue: "gpt-5.6-terra",
-      reasoning: "",
+      reasoning: "ultra",
     });
   });
 });
 
-// #task:1486 — reasoning validity is decided by the STATIC product table
-// (Ultra only for gpt-5.6-sol). No host catalog is fetched; the pure helpers
-// gate Save and clear a now-invalid value on model commit from that table.
-describe("canSaveRuntimeConfig / modelDraftAfterCommit — static reasoning table (#task:1486)", () => {
-  it("Ultra opens Save on gpt-5.6-sol, blocks it on a non-sol model", () => {
+describe("canSaveRuntimeConfig / modelDraftAfterCommit — native effort ownership", () => {
+  it("an explicit effort can be saved for any Codex model", () => {
     const solUltra: RuntimeConfigDraft = {
       runtime: "codex",
       modelChoice: "specify",
@@ -442,10 +439,10 @@ describe("canSaveRuntimeConfig / modelDraftAfterCommit — static reasoning tabl
         ...solUltra,
         modelValue: "gpt-5.6-terra",
       }),
-    ).toBe(false);
+    ).toBe(true);
   });
 
-  it("model commit off a sol model clears a now-invalid Ultra", () => {
+  it("model changes do not silently clear a saved effort", () => {
     const ultra: RuntimeConfigDraft = {
       runtime: "codex",
       modelChoice: "specify",
@@ -455,7 +452,7 @@ describe("canSaveRuntimeConfig / modelDraftAfterCommit — static reasoning tabl
     };
     const committed = modelDraftAfterCommit(ultra, "gpt-5.6-terra");
     expect(committed.modelValue).toBe("gpt-5.6-terra");
-    expect(committed.reasoning).toBe("");
+    expect(committed.reasoning).toBe("ultra");
   });
 
   it("baseline High stays valid across a model commit", () => {
@@ -607,5 +604,24 @@ describe("Pi runtime configuration", () => {
     const next = { ...draftFromAgent(agent), reasoning: "minimal" };
     expect(canSaveRuntimeConfig(agent, next)).toBe(true);
     expect(buildTuningPatch(agent, next)).toEqual({ reasoning_effort: "minimal" });
+  });
+});
+
+it("preserves Claude effort in saved drafts and PATCH payloads", () => {
+  const agent = {
+    ...baseAgent,
+    runtime: "claude" as const,
+    model: "custom",
+    reasoning_effort: "future-tier",
+    fast_mode: null,
+  };
+  const draft = draftFromAgent(agent);
+  expect(draft.reasoning).toBe("future-tier");
+  const changed = modelDraftAfterCommit(draft, "another-custom");
+  expect(changed.reasoning).toBe("future-tier");
+  expect(canSaveRuntimeConfig(agent, changed)).toBe(true);
+  expect(buildTuningPatch(agent, { ...changed, reasoning: "max" })).toMatchObject({
+    model: "another-custom",
+    reasoning_effort: "max",
   });
 });

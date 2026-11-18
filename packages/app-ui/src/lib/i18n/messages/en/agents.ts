@@ -1,4 +1,12 @@
 export const agents = {
+  modelsDetecting: "Finding models… You can enter a model ID.",
+  modelsFailed: "Could not find models. You can enter a model ID.",
+  modelsUnsupported: "Model discovery unavailable. You can enter a model ID.",
+  modelsEmpty: "No models returned. You can enter a model ID.",
+  modelsCached: "Cached suggestions. You can also enter a model ID.",
+  modelsDetected: "Models from this computer. You can also enter a model ID.",
+  modelsRefresh: "Refresh",
+
   notInAnyChannel: "Not in any channel.",
   active: "Active",
   recent: "Recent",

@@ -1,7 +1,7 @@
 // AUTO-SPLIT from the former monolithic api/dto.ts (#task:963).
 // Bounded context: runtime. Re-exported via api/index.ts → @silverhand/shared.
 import { z } from 'zod';
-import { RuntimeKindSchema } from '../db/schema.js';
+import { ReasoningEffortTokenSchema, RuntimeKindSchema } from '../db/schema.js';
 
 // Ephemeral per-agent run state used by `agent_activity` realtime events and
 // reconnect snapshots. These rows are not persisted to the messages DB.
@@ -92,8 +92,46 @@ export const RuntimeInfoSchema = z.object({
 });
 export type RuntimeInfo = z.infer<typeof RuntimeInfoSchema>;
 
+const ModelReasoningSchema = z
+  .object({
+    supported_efforts: z.array(ReasoningEffortTokenSchema).max(64),
+    default_effort: ReasoningEffortTokenSchema.optional(),
+  })
+  .refine(
+    (value) =>
+      value.default_effort === undefined || value.supported_efforts.includes(value.default_effort),
+  );
+
+/** Suggestions from the selected host's CLI, never an allowlist for model IDs. */
+export const RuntimeModelDiscoverySchema = z
+  .object({
+    runtime: RuntimeKindSchema,
+    status: z.enum(['ok', 'unsupported', 'error']),
+    models: z
+      .array(
+        z
+          .string()
+          .min(1)
+          .max(512)
+          .refine((id) => !/[\u0000-\u001f\u007f-\u009f]/u.test(id)),
+      )
+      .max(5000),
+    reasoning_by_model: z.record(z.string(), ModelReasoningSchema).optional(),
+    default_model: z.string().optional(),
+    detected_at: z.number(),
+    cached: z.boolean(),
+  })
+  .refine(
+    (value) =>
+      (value.status === 'ok' || value.models.length === 0) &&
+      Object.keys(value.reasoning_by_model ?? {}).every((id) => value.models.includes(id)) &&
+      (value.default_model === undefined || value.models.includes(value.default_model)),
+  );
+export type RuntimeModelDiscovery = z.infer<typeof RuntimeModelDiscoverySchema>;
+
 export const RuntimeCatalogResponseSchema = z.object({
   runtimes: z.array(RuntimeInfoSchema),
   detected_at: z.number(),
+  model_discovery: RuntimeModelDiscoverySchema.optional(),
 });
 export type RuntimeCatalogResponse = z.infer<typeof RuntimeCatalogResponseSchema>;

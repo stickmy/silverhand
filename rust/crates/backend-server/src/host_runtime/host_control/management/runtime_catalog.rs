@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use silverhand_backend_core::{
     foundation::identity::{HostId, UserId},
     host_runtime::read::{ComputerReadModel, find_owned_computer},
+    identity_access::agents::runtime::RuntimeKind,
 };
 
 use crate::{
@@ -78,6 +79,13 @@ where
     if owned.record().finalized_at.is_none() {
         return coded("host is not active", "host_not_active", 409);
     }
+    let models_for = match query.models_for.as_deref() {
+        None => None,
+        Some(raw) => match RuntimeKind::parse(raw) {
+            Some(runtime) => Some(runtime),
+            None => return coded("unknown runtime", "validation_error", 400),
+        },
+    };
     let custody = match state.data_plane.resolve(&host) {
         Ok(Some(custody)) => custody,
         Ok(None) => return coded("computer is offline", "computer_offline", 503),
@@ -92,7 +100,8 @@ where
     let coordinate = custody.clone();
     match runtime_catalog::probe(
         &state.data_plane,
-        RuntimeCatalogRequest::new(custody, truthy(query.force.as_deref())),
+        RuntimeCatalogRequest::new(custody, truthy(query.force.as_deref()))
+            .with_models_for(models_for),
     )
     .await
     {
@@ -103,6 +112,7 @@ where
             Json(CatalogResponse {
                 runtimes: view.runtimes.iter().map(RuntimeDto::from).collect(),
                 detected_at: view.detected_at,
+                model_discovery: view.model_discovery.cloned(),
             })
             .into_response()
         }
@@ -120,6 +130,7 @@ where
 #[derive(Deserialize)]
 struct ForceQuery {
     force: Option<String>,
+    models_for: Option<String>,
 }
 
 fn truthy(value: Option<&str>) -> bool {
@@ -130,6 +141,8 @@ fn truthy(value: Option<&str>) -> bool {
 struct CatalogResponse {
     runtimes: Vec<RuntimeDto>,
     detected_at: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    model_discovery: Option<runtime_catalog::ModelDiscovery>,
 }
 
 #[derive(Serialize)]

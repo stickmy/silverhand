@@ -73,6 +73,7 @@ export class ClaudeDriver implements Driver {
       '--append-system-prompt-file',
       ctx.systemPromptPath,
     ];
+    if (ctx.reasoningEffort) args.push('--effort', ctx.reasoningEffort);
     if (ctx.cliSessionId) {
       args.push('--resume', ctx.cliSessionId);
     }

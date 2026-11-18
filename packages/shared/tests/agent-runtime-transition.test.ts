@@ -36,7 +36,7 @@ describe('SwitchAgentRuntimeInputSchema', () => {
         reasoning_effort: 'high',
         fast_mode: null,
       }).success,
-    ).toBe(false);
+    ).toBe(true);
     expect(
       SwitchAgentRuntimeInputSchema.safeParse({
         runtime: 'opencode',
@@ -47,42 +47,46 @@ describe('SwitchAgentRuntimeInputSchema', () => {
     ).toBe(false);
   });
 
-  it('validates model-specific Codex Ultra capability', () => {
-    const input = {
-      runtime: 'codex' as const,
-      reasoning_effort: 'ultra' as const,
-      fast_mode: null,
-    };
-    expect(
-      SwitchAgentRuntimeInputSchema.safeParse({
-        ...input,
-        model: 'gpt-5.6-sol',
-      }).success,
-    ).toBe(true);
-    expect(
-      SwitchAgentRuntimeInputSchema.safeParse({
-        ...input,
-        model: 'gpt-5.6-luna',
-      }).success,
-    ).toBe(false);
-    expect(SwitchAgentRuntimeInputSchema.safeParse({ ...input, model: null }).success).toBe(false);
-  });
-
-  it('rejects a structurally-valid but product-unknown token (#task:1492)', () => {
-    // Third write boundary (Switch schema superRefine): `giga` parses as a
-    // bounded token but is in NO runtime's catalog, so the transition command
-    // must reject it for codex regardless of model — mirroring Create and the
-    // update-path `normalizeRuntimeTuning`. Read DTOs round-trip such a token;
-    // every write boundary refuses it.
-    for (const model of ['gpt-5.6-sol', 'gpt-5.5', null]) {
-      expect(
-        SwitchAgentRuntimeInputSchema.safeParse({
-          runtime: 'codex',
-          model,
-          reasoning_effort: 'giga',
-          fast_mode: null,
-        }).success,
-      ).toBe(false);
+  it('delegates Claude/Codex capability checks to the native CLI, but validates token shape', () => {
+    for (const runtime of ['claude', 'codex']) {
+      for (const model of ['custom-model', 'gpt-5.6-luna', null]) {
+        for (const effort of ['high', 'ultra', 'future-tier']) {
+          expect(
+            SwitchAgentRuntimeInputSchema.safeParse({
+              runtime,
+              model,
+              reasoning_effort: effort,
+              fast_mode: null,
+            }).success,
+          ).toBe(true);
+          expect(
+            CreateAgentInputSchema.safeParse({
+              name: 'tester',
+              runtime,
+              ...(model === null ? {} : { model }),
+              reasoning_effort: effort,
+            }).success,
+          ).toBe(true);
+        }
+        for (const effort of ['', 'High', 'future tier', 'x'.repeat(33)]) {
+          expect(
+            SwitchAgentRuntimeInputSchema.safeParse({
+              runtime,
+              model,
+              reasoning_effort: effort,
+              fast_mode: null,
+            }).success,
+          ).toBe(false);
+          expect(
+            CreateAgentInputSchema.safeParse({
+              name: 'tester',
+              runtime,
+              ...(model === null ? {} : { model }),
+              reasoning_effort: effort,
+            }).success,
+          ).toBe(false);
+        }
+      }
     }
   });
 

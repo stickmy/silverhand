@@ -329,6 +329,7 @@ export type HostStatusResult = z.infer<typeof HostStatusResultSchema>;
 export const HostRuntimeCatalogParamsSchema = z
   .object({
     force: z.boolean().optional(),
+    models_for: RuntimeKindSchema.optional(),
   })
   .strict();
 export type HostRuntimeCatalogParams = z.infer<typeof HostRuntimeCatalogParamsSchema>;
