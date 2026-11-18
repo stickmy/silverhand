@@ -293,6 +293,25 @@ export interface AuthScreenCapability {
   subscribe(handler: (event: AuthScreenEvent) => void): Promise<() => void>;
 }
 
+/** Why the desktop could not start. Codes are stable; wording belongs to the UI. */
+export type BootFailureCode = "profile_invalid" | "remote_profile_required" | "startup_failed";
+
+/** Desktop startup outcome. A failed boot still opens the main window on this state. */
+export type BootState =
+  | { kind: "ready" }
+  | {
+      kind: "failed";
+      notice: { code: BootFailureCode; detail: string | null; profileUrl: string | null };
+      /** `server_address` for address failures; never a switch to the embedded backend. */
+      repair: "server_address" | "none";
+      diagnostics: {
+        version: string | null;
+        commit: string;
+        dirty: boolean;
+        logsDir: string | null;
+      };
+    };
+
 /** Installed once by an application entry point, before mounting the UI. */
 export interface ClientPlatform {
   client: ClientAdapter;

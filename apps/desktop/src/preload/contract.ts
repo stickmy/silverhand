@@ -26,6 +26,7 @@ import type {
   AppUpdateInstallMode,
   AppUpdateState,
   MenuBarConversation,
+  BootState,
 } from "@silverhand/client";
 import type { DesktopBuildConfig } from "../build-flags.js";
 
@@ -65,6 +66,13 @@ export interface DesktopBridge {
   retryPartialApply(): Promise<LocalHostPartialApplyRetryResult>;
   pickDirectory(options?: { defaultPath?: string }): Promise<string | null>;
   getAppVersion(): Promise<string>;
+  /** Startup outcome; `failed` renders the failure scene and nothing backend-bound. */
+  getBootState(): Promise<BootState>;
+  relaunch(): Promise<void>;
+  quit(): Promise<void>;
+  revealLogs(): Promise<void>;
+  copyDiagnostics(): Promise<void>;
+  reportIssue(): Promise<void>;
   openExternal(url: string): Promise<void>;
   openAttachmentExternal(input: {
     attachmentId: string;

@@ -24,6 +24,7 @@ import type {
   AppUpdateState,
   EventWsDiagnostic,
   MenuBarConversation,
+  BootState,
 } from "@silverhand/client";
 import { desktopBuildConfig, type DesktopBuildConfig } from "../build-flags.js";
 import type { DesktopBackendInfo, DesktopBridge } from "./contract.js";
@@ -116,6 +117,12 @@ const api: DesktopBridge = {
   pickDirectory: (options?: { defaultPath?: string }): Promise<string | null> =>
     ipcRenderer.invoke("dialog:pickDirectory", options),
   getAppVersion: (): Promise<string> => ipcRenderer.invoke("app:getVersion"),
+  getBootState: (): Promise<BootState> => ipcRenderer.invoke("boot:getState"),
+  relaunch: (): Promise<void> => ipcRenderer.invoke("boot:relaunch"),
+  quit: (): Promise<void> => ipcRenderer.invoke("boot:quit"),
+  revealLogs: (): Promise<void> => ipcRenderer.invoke("boot:revealLogs"),
+  copyDiagnostics: (): Promise<void> => ipcRenderer.invoke("boot:copyDiagnostics"),
+  reportIssue: (): Promise<void> => ipcRenderer.invoke("boot:reportIssue"),
   openExternal: (url: string): Promise<void> => ipcRenderer.invoke("shell:openExternal", url),
   setPinchZoom: setPreviewPinchZoom,
   /** Materialize attachment bytes to ONE stable per-id scratch file and

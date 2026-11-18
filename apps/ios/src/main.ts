@@ -59,5 +59,10 @@ async function start(): Promise<void> {
 
 void start().catch((error) => {
   const root = document.getElementById("root");
-  if (root) root.textContent = `Unable to start Silverhand: ${String(error)}`;
+  // app-ui never mounted, so its i18n is unavailable here.
+  const zh = navigator.language.toLowerCase().startsWith("zh");
+  const headline = zh
+    ? "Silverhand 无法启动，请重新打开应用。"
+    : "Silverhand could not start. Please reopen the app.";
+  if (root) root.textContent = `${headline} (${String(error)})`;
 });

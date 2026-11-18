@@ -73,6 +73,7 @@ function harness() {
     userSessionToken: "first-secret",
     userSessionUser: { id: "first-user" },
     switchingServer: false,
+    bootState: { kind: "ready" },
     hydrateInFlight: null,
     activeAttachWatchdog: null,
     localHostClaim: { status: "claimed", hostId: "first-host" },
@@ -141,6 +142,17 @@ describe("remote server session isolation", () => {
     expect(context.backend.url).toBe("https://second.example");
     expect(context.runServerProfileApply).not.toHaveBeenCalled();
     expect(context.switchingServer).toBe(false);
+  });
+
+  it("after a failed boot only writes the profile, touching no session or host", async () => {
+    const { context, events } = harness();
+    context.bootState = { kind: "failed" };
+    const result = await context.handleProfileSaveWithTest({ serverUrl: "https://second.example" });
+    expect(result).toMatchObject({ ok: true, phase2: { kind: "no_op_no_host_claim" } });
+    expect(events).toEqual(["commit-profile"]);
+    expect(context.runServerProfileApply).not.toHaveBeenCalled();
+    expect(context.userSessionToken).toBe("first-secret");
+    expect(context.backend.url).toBe("https://first.example");
   });
 
   it("keeps the same-origin Desktop host configuration apply behavior", async () => {

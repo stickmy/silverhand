@@ -23,6 +23,8 @@ import { createMenuBar, setMenuBarConversations, setMenuBarUnread } from "./shel
 import {
   app,
   BrowserWindow,
+  clipboard,
+  dialog,
   Menu,
   session as electronSession,
   shell,
@@ -92,8 +94,15 @@ import {
   spawnDaemonChild,
   type DaemonHandle,
 } from "@silverhand/host";
-import { describeStartupFailure } from "./shell/startup-failure.js";
-import { showStartupFailureWindow } from "./shell/startup-failure-window.js";
+import {
+  describeStartupFailure,
+  failedBootState,
+  formatDiagnostics,
+  issueUrl,
+  STARTUP_FAILURE_TITLE,
+} from "./shell/startup-failure.js";
+import { BUILD_COMMIT, BUILD_DIRTY } from "./shell/build-metadata.js";
+import type { BootState } from "@silverhand/client";
 import {
   electronUserDataPath,
   shouldRedirectElectronUserData,
@@ -211,6 +220,7 @@ if (shouldRedirectElectronUserData()) {
 }
 let logger: FileLogger | null = null;
 let mainWindow: BrowserWindow | null = null;
+let bootState: BootState = { kind: "ready" };
 const clientSessionGeneration = new SessionGeneration();
 let switchingServer = false;
 let userSessionToken: string | null = null;
@@ -2308,7 +2318,7 @@ guardedIpc.on("shortcut:contextual-close-result", (event, reqId: unknown, outcom
 registerEventWsDiagnosticIpcHandler({ getLogger: () => logger, ipc: guardedIpc });
 
 guardedIpc.handle("backend:info", async () => {
-  if (!backend) return null;
+  if (!backend || bootState.kind === "failed") return null;
 
   if (backend.kind === "embedded") {
     // Embedded ships both sides from one tree: zero skew by construction,
@@ -2454,6 +2464,33 @@ async function handleProfileSaveWithTest(
   if (!test.ok) {
     logger?.warn({ kind: test.kind, serverUrl }, "profile:saveWithTest test phase failed");
     return { ok: false, phase: "test", test };
+  }
+
+  if (bootState.kind === "failed") {
+    // Nothing is running to apply to; the renderer relaunches onto the new profile.
+    const writeResult = writeServerConnectionProfile({
+      profilePath: desktopAppPaths().desktop.serverProfile,
+      serverUrl: test.originUrl,
+      logger: logger ?? undefined,
+    });
+    if (!writeResult.ok) {
+      return {
+        ok: false,
+        phase: "write",
+        reason: writeResult.reason,
+        detail: "detail" in writeResult ? writeResult.detail : undefined,
+      };
+    }
+    logger?.info(
+      { serverUrl, classification: test.kind },
+      "profile:saveWithTest committed (boot failed)",
+    );
+    return {
+      ok: true,
+      test,
+      profile: redactServerConnectionProfile(writeResult.profile),
+      phase2: { kind: "no_op_no_host_claim", profileVersion: writeResult.profile.version },
+    };
   }
 
   const changesServer =
@@ -2614,6 +2651,24 @@ guardedIpc.handle("partialApply:retry", (): Promise<PartialApplyRetryResult> =>
   handlePartialApplyRetry(),
 );
 
+guardedIpc.handle("boot:getState", (): BootState => bootState);
+guardedIpc.handle("boot:relaunch", () => {
+  app.relaunch();
+  app.quit();
+});
+guardedIpc.handle("boot:quit", () => app.quit());
+guardedIpc.handle("boot:revealLogs", async () => {
+  if (bootState.kind === "failed" && bootState.diagnostics.logsDir) {
+    await shell.openPath(bootState.diagnostics.logsDir);
+  }
+});
+guardedIpc.handle("boot:copyDiagnostics", () => {
+  if (bootState.kind === "failed") clipboard.writeText(formatDiagnostics(bootState));
+});
+guardedIpc.handle("boot:reportIssue", async () => {
+  if (bootState.kind === "failed") await shell.openExternal(issueUrl(bootState));
+});
+
 registerSurfaceIpcHandlers(guardedIpc);
 registerAppUpdateIpcHandlers(guardedIpc, () => appUpdate);
 registerSelectionExportIpcHandlers(guardedIpc);
@@ -2628,7 +2683,12 @@ app
   .whenReady()
   .then(async () => {
     if (!app.hasSingleInstanceLock()) return;
-    await bootstrap();
+    try {
+      await bootstrap();
+    } catch (err) {
+      reportStartupFailure(err);
+      return;
+    }
     if (HEADLESS) {
       // One-line machine-readable handshake on stdout. Test scripts pipe
       // and JSON.parse this. Human-readable extras go to stderr below.
@@ -2679,34 +2739,58 @@ app
   .catch(reportStartupFailure);
 
 /**
- * The single startup failure exit. `bootstrap()` and the window bring-up
- * above are fail-closed on purpose (refused server profile or
- * unreachable-but-required work); this is the only place
- * that turns such a refusal into something the user can see and act on.
- * Without it the rethrow died in an un-`.catch`ed promise and a
- * double-click produced no window and no message at all.
+ * The single startup failure exit: the main window opens on the failed boot state
+ * instead of the app. Failing to even show that window falls back to a native box.
  */
 function reportStartupFailure(err: unknown): void {
   const notice = describeStartupFailure(err);
   console.error("[main] startup failed:", err);
   logger?.error({ err, code: notice.code }, "startup failed");
   if (HEADLESS) {
-    // Headless is a test/CI harness: stderr above plus a non-zero exit
-    // IS its failure surface. A window here would hang the harness.
+    // Headless is a test/CI harness: stderr plus a non-zero exit is its failure surface.
     app.exit(1);
     return;
   }
-  // Evaluated at failure time, and defensively: the logs directory is
-  // layout-version independent (it is shared across v1/v2), but a
-  // failure this early must not depend on any path resolution
-  // succeeding to be able to say what happened.
+  if (bootState.kind === "failed") return;
+  // Defensive: a failure this early must not depend on path or version resolution.
   let logsDir: string | null = null;
   try {
     logsDir = desktopAppPaths().logs;
   } catch {
     logsDir = null;
   }
-  showStartupFailureWindow({ notice, logsDir });
+  let version: string | null = null;
+  try {
+    version = app.getVersion();
+  } catch {
+    version = null;
+  }
+  bootState = failedBootState({
+    notice,
+    diagnostics: { version, commit: BUILD_COMMIT, dirty: BUILD_DIRTY, logsDir },
+  });
+  try {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.reload();
+    else createWindow();
+    mainWindow?.webContents.once("did-fail-load", () => exitWithErrorBox(bootState));
+    // No app behind this window: closing it quits instead of leaving a windowless dock icon.
+    mainWindow?.once("closed", () => app.quit());
+  } catch {
+    exitWithErrorBox(bootState);
+  }
+}
+
+function exitWithErrorBox(state: BootState): void {
+  try {
+    dialog.showErrorBox(
+      STARTUP_FAILURE_TITLE,
+      state.kind === "failed" ? formatDiagnostics(state) : STARTUP_FAILURE_TITLE,
+    );
+  } catch {
+    // Nothing left to escalate to; the non-zero exit is the remaining signal.
+  } finally {
+    app.exit(1);
+  }
 }
 
 async function handlePostPublishEmbeddedFatal(
