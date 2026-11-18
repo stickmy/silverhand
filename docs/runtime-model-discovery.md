@@ -96,8 +96,8 @@ reports `ultrafast` (currently `gpt-6.2-sol`).
 
 The old `fast_mode` flag never selected a tier, so nothing maps onto it. Only
 strict old decoders are kept working: a daemon without `runtime.service_tier.v1` is
-sent `fast_mode: null`, and the agent DTO carries `fast_mode: null`. Writes no longer
-accept `fast_mode`.
+sent `fast_mode: null`, and the agent DTO carries `fast_mode: null`. Writes ignore
+`fast_mode`; a runtime switch without `service_tier` sets it to null.
 
 ## Compatibility and verification
 

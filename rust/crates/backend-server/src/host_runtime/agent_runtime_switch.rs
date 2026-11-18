@@ -425,8 +425,10 @@ where
 /// is the `.strict()` policy; every field is a REQUIRED key (no `#[serde(default)]`), so a
 /// missing key is the native serde data fault, never a silent default. `runtime` is a
 /// required non-null enum (decoded as a string, mapped by the closed-set `TryFrom`);
-/// the three tuning keys are required-AND-nullable via
+/// `model`/`reasoning_effort` are required-AND-nullable via
 /// [`RequiredNullable::deserialize_present`], so a missing key is a native data fault.
+/// Clients predating `service_tier` omit it and send `fast_mode`: the tier then
+/// defaults to null and `fast_mode` is ignored.
 ///
 /// Every remaining rule is normalization or cross-field (the runtime enum, `model`
 /// trim/non-empty, the reasoning-token shape, and the two target-runtime tuning-legality
@@ -443,9 +445,12 @@ struct SwitchBodyRaw {
     #[serde(deserialize_with = "RequiredNullable::deserialize_present")]
     #[garde(skip)]
     reasoning_effort: RequiredNullable<String>,
-    #[serde(deserialize_with = "RequiredNullable::deserialize_present")]
+    #[serde(default)]
     #[garde(skip)]
-    service_tier: RequiredNullable<String>,
+    service_tier: Option<String>,
+    #[serde(default, rename = "fast_mode")]
+    #[garde(skip)]
+    _fast_mode: Option<serde::de::IgnoredAny>,
 }
 
 impl TryFrom<SwitchBodyRaw> for SwitchAgentRuntimeConfig {
@@ -480,10 +485,7 @@ impl TryFrom<SwitchBodyRaw> for SwitchAgentRuntimeConfig {
             RequiredNullable::Value(_) => return Err(()),
         };
 
-        let service_tier = match raw.service_tier {
-            RequiredNullable::Null => None,
-            RequiredNullable::Value(tier) => Some(tier),
-        };
+        let service_tier = raw.service_tier;
 
         // `.superRefine`: reasoning-effort must be valid for the TARGET runtime + model, and
         // service-tier may be set only on a runtime that supports it (an explicit null — now
@@ -1223,8 +1225,6 @@ mod tests {
             r#"{"runtime":"codex","model":5,"reasoning_effort":null,"service_tier":null}"#, // model wrong type
             r#"{"runtime":"codex","model":null,"reasoning_effort":5,"service_tier":null}"#, // token wrong type
             r#"{"runtime":"codex","model":null,"reasoning_effort":null,"service_tier":true}"#, // service_tier wrong type
-            r#"{"runtime":"codex","model":null,"reasoning_effort":null}"#, // service_tier key missing
-            r#"{"runtime":"codex","model":null,"reasoning_effort":null,"fast_mode":null}"#, // legacy key
         ] {
             let (status, text, reads) = run(
                 FakeReads::new(present(creator_facts())),
@@ -1375,6 +1375,14 @@ mod tests {
         assert_eq!(config.model, None);
         assert_eq!(config.service_tier, None);
         assert_eq!(config.reasoning_effort, None);
+    }
+
+    #[test]
+    fn a_pre_service_tier_body_ignores_fast_mode() {
+        let config =
+            admit(r#"{"runtime":"codex","model":null,"reasoning_effort":null,"fast_mode":true}"#)
+                .expect("valid");
+        assert_eq!(config.service_tier, None);
     }
 
     // ===================================================================
