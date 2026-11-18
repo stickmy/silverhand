@@ -114,21 +114,19 @@ export type HostPublicDto = z.infer<typeof HostPublicDtoSchema>;
  *  is mutable; `name` is the stable identifier and never changes after
  *  claim. Pass `null` to clear the custom label (renderer falls back to
  *  `name`). Empty/whitespace-only strings are coerced to `null` server-side. */
-export const UpdateHostInputSchema = z
-  .object({
-    /** v36 rename input, bounded by `HOST_DISPLAY_LABEL_MAX_LENGTH`.
-     *
-     *  The cap used to be deliberately looser than the repo's normalizer
-     *  (schema 256 vs a `slice(0, 64)` on write) so that typing past the
-     *  visible limit auto-truncated in one round-trip instead of 400-ing.
-     *  shiki reversed that in #task:1849: silently returning 200 with a
-     *  value the user did not type is worse than a rejection, so every
-     *  layer now shares this bound and over-long input is refused.
-     *  `.trim()` stays — trimming plus empty-string → `null` is the
-     *  documented clear-on-blank path, not a rewrite of a valid value. */
-    display_label: z.string().trim().max(HOST_DISPLAY_LABEL_MAX_LENGTH).nullable(),
-  })
-  .strict();
+export const UpdateHostInputSchema = z.object({
+  /** v36 rename input, bounded by `HOST_DISPLAY_LABEL_MAX_LENGTH`.
+   *
+   *  The cap used to be deliberately looser than the repo's normalizer
+   *  (schema 256 vs a `slice(0, 64)` on write) so that typing past the
+   *  visible limit auto-truncated in one round-trip instead of 400-ing.
+   *  shiki reversed that in #task:1849: silently returning 200 with a
+   *  value the user did not type is worse than a rejection, so every
+   *  layer now shares this bound and over-long input is refused.
+   *  `.trim()` stays — trimming plus empty-string → `null` is the
+   *  documented clear-on-blank path, not a rewrite of a valid value. */
+  display_label: z.string().trim().max(HOST_DISPLAY_LABEL_MAX_LENGTH).nullable(),
+});
 export type UpdateHostInput = z.infer<typeof UpdateHostInputSchema>;
 
 /** `PATCH /api/hosts/:id` response. Returns the updated DTO so the
@@ -462,18 +460,16 @@ export const HostProxyConfigOfflineResponseSchema = z.object({
 });
 export type HostProxyConfigOfflineResponse = z.infer<typeof HostProxyConfigOfflineResponseSchema>;
 
-export const HostClaimOrCreateInputSchema = z
-  .object({
-    installation_id: z.string().uuid(),
-    /** Claim-time display label — the same column as
-     *  `UpdateHostInputSchema.display_label`, so it shares the same bound.
-     *  Callers that derive this from a system value (the desktop main
-     *  process defaults it to the OS hostname) must fit it themselves;
-     *  claiming a computer must not fail because the machine name is long. */
-    label: z.string().trim().min(1).max(HOST_DISPLAY_LABEL_MAX_LENGTH).optional(),
-    current_host_id: z.string().min(1).optional(),
-  })
-  .strict();
+export const HostClaimOrCreateInputSchema = z.object({
+  installation_id: z.string().uuid(),
+  /** Claim-time display label — the same column as
+   *  `UpdateHostInputSchema.display_label`, so it shares the same bound.
+   *  Callers that derive this from a system value (the desktop main
+   *  process defaults it to the OS hostname) must fit it themselves;
+   *  claiming a computer must not fail because the machine name is long. */
+  label: z.string().trim().min(1).max(HOST_DISPLAY_LABEL_MAX_LENGTH).optional(),
+  current_host_id: z.string().min(1).optional(),
+});
 export type HostClaimOrCreateInput = z.infer<typeof HostClaimOrCreateInputSchema>;
 
 export const HostClaimOrCreateResponseSchema = z.object({
@@ -497,7 +493,7 @@ export type HostListResponse = z.infer<typeof HostListResponseSchema>;
  *  `assembleConnectCommand` — the server never mints a command string, so it
  *  cannot leak its own bind address as the daemon's reach URL. See
  *  `docs/orchestration-boundary-v1.md §4.3`. */
-export const HostCreateInputSchema = z.object({}).strict();
+export const HostCreateInputSchema = z.object({});
 export type HostCreateInput = z.infer<typeof HostCreateInputSchema>;
 
 export const HostCreateResponseSchema = z.object({

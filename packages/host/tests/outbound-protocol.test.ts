@@ -202,21 +202,6 @@ describe('outbound protocol — command catalogue', () => {
     expect(AgentMaterializeErrorCodeSchema.safeParse('materialize_timeout').success).toBe(false);
   });
 
-  it('rejects agent_materialize params with extra fields (strict)', () => {
-    const valid = {
-      agent_id: 'AbCdEfGhIjKlMnOp',
-      agent_home_workspace_id: 'wsah_AbCdEfGhIjKlMnOp',
-      name: 'alice',
-      runtime: 'claude',
-    };
-    expect(AgentMaterializeParamsSchema.safeParse(valid).success).toBe(true);
-    const bad = AgentMaterializeParamsSchema.safeParse({
-      ...valid,
-      unexpected: 'nope',
-    });
-    expect(bad.success).toBe(false);
-  });
-
   it.each([
     { agent_dir: '', agent_home_workspace_path: '' },
     { agent_home_workspace_path: '/different/home' },

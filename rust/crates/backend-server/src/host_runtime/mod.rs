@@ -142,11 +142,10 @@ where
 /// runs through the frozen [`ValidatedJson`] extractor, whose shared object-only floor
 /// commits the decode to a JSON object BEFORE the empty struct's positional seq decode —
 /// so a bare `[]` can never decode to this all-default struct and mint an invite. A
-/// malformed body, a wrong top-level shape, and any stray key keep axum's native `Json`
+/// malformed body and a wrong top-level shape keep axum's native `Json`
 /// classification (`400`/`422`/`415`) — this route publishes no validation-issue schema of
-/// its own. `deny_unknown_fields` turns a stray key into a native data fault (`422`).
+/// its own; unknown keys are ignored.
 #[derive(Debug, Deserialize, Validate)]
-#[serde(deny_unknown_fields)]
 struct CreateHostBody {}
 
 /// The anti-enumeration refusal shared by every host route that names a computer: an
@@ -382,23 +381,6 @@ mod tests {
         let (status, body) = response(test_router(store.clone()), None, "{}").await;
         assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
         assert_eq!(body, "Internal Server Error");
-        assert_eq!(store.calls.load(Ordering::SeqCst), 0);
-    }
-
-    #[tokio::test]
-    async fn an_unknown_key_is_a_native_data_fault_and_never_reaches_the_uow() {
-        // `deny_unknown_fields` turns any stray key into a native serde DATA fault: the
-        // frozen extractor forwards axum's classification (422 today) verbatim — no issue
-        // array, no semantic envelope — and the UoW is never entered.
-        let store = CountingStore::default();
-        let (status, body) = response(
-            test_router(store.clone()),
-            Some(user()),
-            "{\"zeta\":true,\"alpha\":true}",
-        )
-        .await;
-        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
-        assert_ne!(body, "{\"error\":\"invalid input\"}");
         assert_eq!(store.calls.load(Ordering::SeqCst), 0);
     }
 

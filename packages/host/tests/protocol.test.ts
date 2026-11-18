@@ -247,22 +247,7 @@ describe('protocol — runtime_* registry', () => {
     expect(intentSchemas as Record<string, unknown>).not.toHaveProperty('runtime_inject_env');
   });
 
-  it('runtime_start is pure lifecycle — no startup_delivery batch (Stage 2c)', () => {
-    // #task:1417 Stage 2c: `runtime_start` carries no delivery batch;
-    // delivery is `runtime_deliver`-only. The strict schema rejects a
-    // stray `startup_delivery`.
-    const rejected = RuntimeStartParamsSchema.safeParse({
-      runtime_generation: 1,
-      conversation_id: 'c1',
-      agent_id: 'a1',
-      options: testStartOptions(),
-      startup_delivery: {
-        delivery_ids: [101, 102, 103],
-        text: 'hello',
-      },
-    });
-    expect(rejected.success).toBe(false);
-
+  it('runtime_start needs no startup_delivery batch (Stage 2c)', () => {
     const okNoDelivery = RuntimeStartParamsSchema.safeParse({
       runtime_generation: 1,
       conversation_id: 'c1',
@@ -270,19 +255,6 @@ describe('protocol — runtime_* registry', () => {
       options: testStartOptions(),
     });
     expect(okNoDelivery.success).toBe(true);
-  });
-
-  it('runtime_start.options is strict typed metadata and rejects unknown keys', () => {
-    const parsed = RuntimeStartParamsSchema.safeParse({
-      runtime_generation: 1,
-      conversation_id: 'c1',
-      agent_id: 'a1',
-      options: {
-        ...testStartOptions(),
-        unexpected: true,
-      },
-    });
-    expect(parsed.success).toBe(false);
   });
 
   it('runtime_start.options rejects forbidden server-derived fs/env keys', () => {
@@ -343,44 +315,9 @@ describe('protocol — runtime_* registry', () => {
     });
     expect(parsed.success).toBe(true);
   });
-
-  it('runtime_start.options rejects server_url in env_policy; daemon injects it locally', () => {
-    const parsed = RuntimeStartParamsSchema.safeParse({
-      runtime_generation: 1,
-      conversation_id: 'c1',
-      agent_id: 'a1',
-      options: {
-        ...testStartOptions(),
-        env_policy: {
-          ...testStartOptions().env_policy,
-          silverhand: {
-            ...testStartOptions().env_policy.silverhand,
-            server_url: 'https://server.example.test',
-          },
-        },
-      },
-    });
-    expect(parsed.success).toBe(false);
-  });
 });
 
 describe('protocol — runtime_start D4.e-6 semantic refs + typed errors', () => {
-  it('workspace ref rejects a host-local `path` field (carve-out revoked)', () => {
-    const parsed = RuntimeStartParamsSchema.safeParse({
-      runtime_generation: 1,
-      conversation_id: 'c1',
-      agent_id: 'a1',
-      options: {
-        ...testStartOptions(),
-        workspace: {
-          ...testStartOptions().workspace,
-          path: '/host/ws/ws1',
-        },
-      },
-    });
-    expect(parsed.success).toBe(false);
-  });
-
   it('agent ref rejects a host-local `home_dir` field (carve-out revoked)', () => {
     const parsed = RuntimeStartParamsSchema.safeParse({
       runtime_generation: 1,
@@ -392,19 +329,6 @@ describe('protocol — runtime_start D4.e-6 semantic refs + typed errors', () =>
           ...testStartOptions().agent,
           home_dir: '/host/agents/a1',
         },
-      },
-    });
-    expect(parsed.success).toBe(false);
-  });
-
-  it('workspace_memory_index entries reject a host-local `path` field', () => {
-    const parsed = RuntimeStartParamsSchema.safeParse({
-      runtime_generation: 1,
-      conversation_id: 'c1',
-      agent_id: 'a1',
-      options: {
-        ...testStartOptions(),
-        workspace_memory_index: [{ id: 'ws1', name: 'primary', path: '/host/ws/ws1' }],
       },
     });
     expect(parsed.success).toBe(false);
@@ -663,16 +587,14 @@ describe('protocol — runtime_stop shape (hard-only since #task:1558)', () => {
     }
   });
 
-  it("rejects the retired mode:'soft' arm and soft_directive field", () => {
+  it("rejects the retired mode:'soft' arm", () => {
     const valid = {
       runtime_scope: CONVERSATION_RUNTIME_SCOPE,
       runtime_generation: 1,
       mode: 'hard',
     };
     expect(RuntimeStopParamsSchema.safeParse(valid).success).toBe(true);
-    for (const retired of [{ mode: 'soft' }, { soft_directive: 'please stop' }]) {
-      expect(RuntimeStopParamsSchema.safeParse({ ...valid, ...retired }).success).toBe(false);
-    }
+    expect(RuntimeStopParamsSchema.safeParse({ ...valid, mode: 'soft' }).success).toBe(false);
   });
 
   it('hard result shape: { mode:"hard", stopped, exit_code }', () => {
@@ -893,27 +815,6 @@ describe('protocol — runtime_init lifecycle events (Cindy `vqDWkLFF6pAeIE5t`)'
     });
     expect(r.success).toBe(true);
   });
-
-  it('runtime_delivery_failed stays narrow — no cooldown_until field', () => {
-    // Cindy's blocker: init cooldown semantics must NOT be conflated
-    // with "this batch of delivery_ids was not consumed". Confirm the
-    // delivery-failed event schema does not silently accept cooldown
-    // fields it doesn't model.
-    const valid = {
-      event: 'runtime_delivery_failed',
-      runtime_scope: CONVERSATION_RUNTIME_SCOPE,
-      runtime_generation: 1,
-      conversation_id: 'c1',
-      agent_id: 'a1',
-      delivery_ids: [1],
-      reason: 'init_watchdog',
-      ts: 1,
-    };
-    expect(EventFrameSchema.safeParse(valid).success).toBe(true);
-    const r = EventFrameSchema.safeParse({ ...valid, cooldown_until: 1_700_000_000_000 });
-    // strict() object on the event arm should reject the unknown key.
-    expect(r.success).toBe(false);
-  });
 });
 
 describe('protocol — runtime_parsed_event (Cindy `OQCA05pivtB8nSTC` + `C2BZGDbQWfnq-bKJ`)', () => {
@@ -950,23 +851,6 @@ describe('protocol — runtime_parsed_event (Cindy `OQCA05pivtB8nSTC` + `C2BZGDb
       });
       expect(r.success).toBe(true);
     }
-  });
-
-  it('rejects extra top-level fields (no raw_line allowed — raw bytes live on runtime_output)', () => {
-    // Cindy: parsed_event must NOT duplicate the raw byte stream.
-    // `runtime_output` already carries every chunk; adding raw_line
-    // here would double the wire cost without any new information.
-    const r = EventFrameSchema.safeParse({
-      runtime_generation: 1,
-      event: 'runtime_parsed_event',
-      runtime_scope: CONVERSATION_RUNTIME_SCOPE,
-      conversation_id: 'c1',
-      agent_id: 'a1',
-      parsed: { kind: 'text', text: 'hi' },
-      raw_line: '{"type":"text","text":"hi"}',
-      ts: 1,
-    });
-    expect(r.success).toBe(false);
   });
 
   it('rejects unknown ParsedEvent kind discriminator', () => {
@@ -1038,49 +922,7 @@ describe('protocol — runtime_parsed_event (Cindy `OQCA05pivtB8nSTC` + `C2BZGDb
     expect(emptyObj.success).toBe(true);
   });
 
-  it('ParsedEvent arms are strict — rejects extra payload fields on a recognized kind', () => {
-    // Defends backend against drivers sneaking in undocumented fields.
-    // If a new field is ever needed, the schema must be widened
-    // explicitly so both daemon and backend agree on its meaning.
-    const r = EventFrameSchema.safeParse({
-      runtime_generation: 1,
-      event: 'runtime_parsed_event',
-      runtime_scope: CONVERSATION_RUNTIME_SCOPE,
-      conversation_id: 'c1',
-      agent_id: 'a1',
-      parsed: {
-        kind: 'tool_call',
-        name: 'Bash',
-        input: {},
-        toolCallId: 'tc-1',
-        // unsanctioned field — strict() should bite.
-        secretAuthToken: 'shhh',
-      },
-      ts: 1,
-    });
-    expect(r.success).toBe(false);
-  });
-
-  it('api_response arm is strict and closed: no raw payload passthrough, no unknown status', () => {
-    // #task:1582 contract: the arm carries ONLY the normalized
-    // status+message pair — a driver must never smuggle the raw provider
-    // payload / request ids onto the wire through this kind.
-    const rawSmuggle = EventFrameSchema.safeParse({
-      runtime_generation: 1,
-      event: 'runtime_parsed_event',
-      runtime_scope: CONVERSATION_RUNTIME_SCOPE,
-      conversation_id: 'c1',
-      agent_id: 'a1',
-      parsed: {
-        kind: 'api_response',
-        status: 'waiting',
-        message: 'queued',
-        raw: { request_id: 'must-not-surface' },
-      },
-      ts: 1,
-    });
-    expect(rawSmuggle.success).toBe(false);
-
+  it('api_response arm has a closed status set and a non-empty message', () => {
     const unknownStatus = EventFrameSchema.safeParse({
       runtime_generation: 1,
       event: 'runtime_parsed_event',
@@ -1118,36 +960,6 @@ describe('protocol — runtime_parsed_event_dropped (metadata-only, Cindy `C2BZG
       ts: 1,
     });
     expect(r.success).toBe(true);
-  });
-
-  it('rejects any payload-bearing field (no raw, no input, no text, no parsed)', () => {
-    // Cindy's hard rule: dropped event must NEVER carry a partial
-    // payload. The whole point of dropping is that we cannot honestly
-    // ship the parsed event — leaking even one field would let
-    // backend mistake the frame for a complete event.
-    const forbidden = [
-      { raw: 'the original line' },
-      { parsed: { kind: 'unknown', raw: 'the original line' } },
-      { input: { command: 'ls' } },
-      { text: 'hi' },
-      { name: 'Bash' },
-      { toolCallId: 'tc-1' },
-      { partial_payload: 'anything' },
-    ];
-    for (const extra of forbidden) {
-      const r = EventFrameSchema.safeParse({
-        event: 'runtime_parsed_event_dropped',
-        runtime_scope: CONVERSATION_RUNTIME_SCOPE,
-        conversation_id: 'c1',
-        agent_id: 'a1',
-        parsed_kind: 'unknown',
-        encoded_bytes: 2_000_000,
-        reason: 'frame_too_large',
-        ts: 1,
-        ...extra,
-      });
-      expect(r.success).toBe(false);
-    }
   });
 
   it('rejects unknown parsed_kind', () => {
@@ -1204,33 +1016,6 @@ describe('protocol — runtime_message_stale (identity + ts only, #task:2099)', 
       ts: 1,
     });
     expect(r.success).toBe(true);
-  });
-
-  it('rejects every triage field the WARN log owns instead', () => {
-    // The row is marker-only by decision (Norman + Cindy): the id, the count,
-    // and the refused SEND TARGET stay off the wire. `strict()` is what keeps
-    // that decision from eroding one convenient field at a time — a field added
-    // later is additive, but a persisted one cannot be retracted from history.
-    const forbidden = [
-      { stale_event_id: 'stale-1' },
-      { target_conversation_id: 'c2' },
-      { stale_count: 2 },
-      { seq: 7 },
-      { content: 'the refused message' },
-      { freshness_bypass: true },
-    ];
-    for (const extra of forbidden) {
-      const r = EventFrameSchema.safeParse({
-        event: 'runtime_message_stale',
-        runtime_scope: CONVERSATION_RUNTIME_SCOPE,
-        conversation_id: 'c1',
-        agent_id: 'a1',
-        runtime_generation: 1,
-        ts: 1,
-        ...extra,
-      });
-      expect(r.success).toBe(false);
-    }
   });
 
   it('requires the identity fields it does carry', () => {
@@ -1290,27 +1075,6 @@ describe('protocol — runtime_start result discriminated union (Cindy `-pdNvRYO
     expect(r1.success).toBe(true);
   });
 
-  it('success arm REJECTS the retired phase / startup_delivery_accepted fields (Stage 2c strict)', () => {
-    // #task:1417 Stage 2c: `runtime_start` is pure lifecycle. The strict
-    // success arm rejects the retired `phase` and `startup_delivery_accepted`
-    // keys outright — they moved to `runtime_deliver`'s disposition.
-    const withPhase = RuntimeStartResultSchema.safeParse({
-      started: true,
-      pid: 12345,
-      started_at: 1_700_000_000_000,
-      phase: 'ready',
-    });
-    expect(withPhase.success).toBe(false);
-
-    const withAccepted = RuntimeStartResultSchema.safeParse({
-      started: true,
-      pid: 12345,
-      started_at: 1_700_000_000_000,
-      startup_delivery_accepted: true,
-    });
-    expect(withAccepted.success).toBe(false);
-  });
-
   it('cooldown arm parses with started:false + reason:init_cooldown + positive cooldown_until', () => {
     const r = RuntimeStartResultSchema.safeParse({
       started: false,
@@ -1329,27 +1093,6 @@ describe('protocol — runtime_start result discriminated union (Cindy `-pdNvRYO
       started_at: 1_700_000_000_000,
     });
     expect(flat.success).toBe(false);
-  });
-
-  it('rejects cross-arm field leakage (started:true + cooldown_until, started:false + pid)', () => {
-    // `.strict()` on each arm prevents backend from ever seeing a
-    // half-success/half-failure shape where ambiguous fields could
-    // be interpreted either way.
-    const successWithCooldown = RuntimeStartResultSchema.safeParse({
-      started: true,
-      pid: 1,
-      started_at: 1,
-      cooldown_until: 1_700_000_300_000,
-    });
-    expect(successWithCooldown.success).toBe(false);
-
-    const failureWithPid = RuntimeStartResultSchema.safeParse({
-      started: false,
-      reason: 'init_cooldown',
-      cooldown_until: 1_700_000_300_000,
-      pid: 1,
-    });
-    expect(failureWithPid.success).toBe(false);
   });
 
   it('cooldown arm rejects non-positive cooldown_until', () => {
@@ -1399,9 +1142,8 @@ describe('protocol — runtime_deliver contract (#task:1417 Stage 2 slice 1)', (
   });
 
   it('#task:2106 fences the deliveries container on both arms', () => {
-    // #task:2106 made `deliveries` REQUIRED and dropped the `delivered_up_to_seq`
-    // scalar (its value is now derived daemon-side from `max(deliveries[].seq)`).
-    // Two arms pin that irreversibly, and — since `RuntimeDeliverParamsSchema` is
+    // #task:2106 made `deliveries` REQUIRED (`delivered_up_to_seq` is derived
+    // daemon-side from `max(deliveries[].seq)`), and — since `RuntimeDeliverParamsSchema` is
     // the SINGLE entry point shared by the local control socket and the outbound
     // WS (`outbound-protocol.ts` reuses it) — this fences BOTH transports at once.
     const base = {
@@ -1422,30 +1164,10 @@ describe('protocol — runtime_deliver contract (#task:1417 Stage 2 slice 1)', (
       },
     ];
 
-    // Arm 1 — a deliver with NO `deliveries` container is now unparseable: the
+    // A deliver with NO `deliveries` container is unparseable: the
     // no-metadata sender is gone, so a missing array is a hard error, not a
     // legacy fallback.
     expect(RuntimeDeliverParamsSchema.safeParse(base).success).toBe(false);
-
-    // Arm 2 — re-adding the deleted `delivered_up_to_seq` scalar is rejected as
-    // an unknown key by `.strict()`. Reviving the field (or quietly relaxing
-    // strictness) fails here instead of silently reintroducing a wire scalar
-    // that no consumer reads.
-    const revived = RuntimeDeliverParamsSchema.safeParse({
-      ...base,
-      deliveries,
-      delivered_up_to_seq: 1,
-    });
-    expect(revived.success).toBe(false);
-    if (!revived.success) {
-      expect(
-        revived.error.issues.some(
-          (issue) =>
-            issue.code === 'unrecognized_keys' &&
-            (issue as { keys?: string[] }).keys?.includes('delivered_up_to_seq'),
-        ),
-      ).toBe(true);
-    }
 
     // Sanity: the same base WITH `deliveries` and WITHOUT the scalar parses.
     expect(RuntimeDeliverParamsSchema.safeParse({ ...base, deliveries }).success).toBe(true);
@@ -1526,74 +1248,6 @@ describe('protocol — runtime_deliver contract (#task:1417 Stage 2 slice 1)', (
         ],
       }).success,
     ).toBe(false);
-  });
-
-  it('rejects the three tails #task:2097 deleted — one key at a time', () => {
-    // The ticket's conclusion is a NET DROP with no optional compat: on this
-    // strict wire an accepted extra key would mean "a consumer may still
-    // appear". The positive test above pins the shape; this one pins that each
-    // deleted key is now a PARSE ERROR, individually, so re-adding any one of
-    // them (or quietly relaxing `.strict()`) fails here instead of silently
-    // reviving a field with no reader. Same schema on both transports —
-    // `RuntimeDeliverySchema` has exactly one params entry point — so this is
-    // also the outbound fence.
-    const base = {
-      runtime_generation: 1,
-      conversation_id: 'c1',
-      target: { conversation_id: 'c1', workspace: null },
-      agent_id: 'a1',
-      delivery_ids: [1],
-      kind: 'message',
-      text: 'combined',
-      spawn_options: spawnOptions,
-    } as const;
-    const entry = {
-      delivery_id: 1,
-      seq: 1,
-      presentation: {
-        body: '[msg_id=m1 sender=system type=system target=#conv:protocolConvId01 time=2026-01-01T00:00:00+00:00]\nmessage one',
-        instruction: 'system' as const,
-      },
-    };
-    // Baseline: the surviving alphabet is exactly these three keys.
-    const accepted = RuntimeDeliverParamsSchema.safeParse({
-      ...base,
-      deliveries: [entry],
-    });
-    expect(accepted.success).toBe(true);
-    expect(Object.keys(accepted.success ? accepted.data.deliveries![0]! : {}).sort()).toEqual([
-      'delivery_id',
-      'presentation',
-      'seq',
-    ]);
-
-    const retired: Array<[string, unknown]> = [
-      ['message_id', 'm1'],
-      ['thread_root_id', 'root-1'],
-      ['delivery_kind', 'turn'],
-    ];
-    for (const [key, value] of retired) {
-      const parsed = RuntimeDeliverParamsSchema.safeParse({
-        ...base,
-        deliveries: [{ ...entry, [key]: value }],
-      });
-      expect(parsed.success, `retired key ${key} must be rejected`).toBe(false);
-      // The refusal NAMES the offending key (strict's `unrecognized_keys`), so
-      // it reads as "this field is gone" rather than "deliveries is invalid".
-      expect(
-        parsed.success
-          ? []
-          : parsed.error.issues.flatMap((issue) =>
-              issue.code === 'unrecognized_keys' ? issue.keys : [],
-            ),
-        `retired key ${key} must be named in the issue`,
-      ).toContain(key);
-    }
-    // `thread_root_id` is retired on the DELIVERY entry only — the send-ack /
-    // resolved-target lane that reports where a message landed keeps it.
-    expect(RuntimeDeliverParamsSchema.safeParse({ ...base, deliveries: [entry] }).success).toBe(
-      true,
-    );
   });
 
   it('params REJECT missing text and empty text (Option A v2 — daemon owns encode)', () => {
@@ -1678,7 +1332,7 @@ describe('protocol — runtime_deliver contract (#task:1417 Stage 2 slice 1)', (
     }
   });
 
-  it('result: refused+startup_pending / draining REJECT a leaked cooldown_until (Cindy P1)', () => {
+  it('result: refused+startup_pending / draining carry no deadline', () => {
     // Legal non-cooldown refusals — no deadline field.
     expect(
       RuntimeDeliverResultSchema.safeParse({
@@ -1692,19 +1346,6 @@ describe('protocol — runtime_deliver contract (#task:1417 Stage 2 slice 1)', (
         reason: 'draining',
       }).success,
     ).toBe(true);
-
-    // Illegal #2: cooldown_until leaking onto a non-cooldown reason. The
-    // flat schema accepted this cross-reason leak; the strict per-reason
-    // arms reject it.
-    for (const reason of ['startup_pending', 'draining']) {
-      expect(
-        RuntimeDeliverResultSchema.safeParse({
-          disposition: 'refused',
-          reason,
-          cooldown_until: 1_700_000_300_000,
-        }).success,
-      ).toBe(false);
-    }
   });
 
   it('result: deferred carries the live process coordinate, not an empty acknowledgement', () => {
@@ -1734,23 +1375,6 @@ describe('protocol — runtime_compaction_stale event (Cindy `-pdNvRYOWip5e9yA` 
       ts: 1_700_000_300_000,
     });
     expect(r.success).toBe(true);
-  });
-
-  it('rejects extra fields (strict — no payload bleed for "kill_reason" / "phase_change")', () => {
-    // This event is intentionally observational. If a future variant
-    // ever needs to kill or transition state, it must be a NEW event
-    // arm so the bilateral parser sees it. The strict() guards drift
-    // from a one-line PR sneaking in a side-effect field.
-    const r = EventFrameSchema.safeParse({
-      event: 'runtime_compaction_stale',
-      runtime_scope: CONVERSATION_RUNTIME_SCOPE,
-      conversation_id: 'c1',
-      agent_id: 'a1',
-      elapsed_ms: 300_000,
-      ts: 1_700_000_300_000,
-      kill_reason: 'compaction_stale',
-    });
-    expect(r.success).toBe(false);
   });
 
   it('rejects negative elapsed_ms (must be ≥0)', () => {

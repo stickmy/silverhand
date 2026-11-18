@@ -257,23 +257,19 @@ export type EmbeddedProfileSetupResponse = z.infer<typeof EmbeddedProfileSetupRe
  * A completed setup rejects further writes (409), including retries. Re-read
  * status after an ambiguous response before deciding whether to retry.
  */
-export const CompleteEmbeddedProfileSetupInputSchema = z
-  .object({
-    name: ParticipantNameSchema,
-    display_name: DisplayNameSchema,
-  })
-  .strict();
+export const CompleteEmbeddedProfileSetupInputSchema = z.object({
+  name: ParticipantNameSchema,
+  display_name: DisplayNameSchema,
+});
 export type CompleteEmbeddedProfileSetupInput = z.infer<
   typeof CompleteEmbeddedProfileSetupInputSchema
 >;
 
 /** Self-service password change revokes all human sessions, including the caller. */
-export const ChangePasswordInputSchema = z
-  .object({
-    current_password: CurrentPasswordSchema,
-    new_password: NewPasswordSchema,
-  })
-  .strict();
+export const ChangePasswordInputSchema = z.object({
+  current_password: CurrentPasswordSchema,
+  new_password: NewPasswordSchema,
+});
 export type ChangePasswordInput = z.infer<typeof ChangePasswordInputSchema>;
 export const ChangePasswordResponseSchema = z.object({ ok: z.literal(true) });
 export const PasswordStatusResponseSchema = z.object({ has_password: z.boolean() });
@@ -282,15 +278,11 @@ export type PasswordStatusResponse = z.infer<typeof PasswordStatusResponseSchema
 /** The caller's own `GET /api/me` adds its email; no other projection carries it. */
 export const SelfEmailSchema = z.object({ email: z.string().nullable().optional() });
 
-export const PasswordRecoveryRequestInputSchema = z
-  .object({ email: z.string().trim().min(1) })
-  .strict();
+export const PasswordRecoveryRequestInputSchema = z.object({ email: z.string().trim().min(1) });
 export type PasswordRecoveryRequestInput = z.infer<typeof PasswordRecoveryRequestInputSchema>;
-export const PasswordRecoveryResetInputSchema = z
-  .object({
-    email: z.string().trim().min(1),
-    code: z.string().regex(/^\d{6}$/),
-    new_password: NewPasswordSchema,
-  })
-  .strict();
+export const PasswordRecoveryResetInputSchema = z.object({
+  email: z.string().trim().min(1),
+  code: z.string().regex(/^\d{6}$/),
+  new_password: NewPasswordSchema,
+});
 export type PasswordRecoveryResetInput = z.infer<typeof PasswordRecoveryResetInputSchema>;

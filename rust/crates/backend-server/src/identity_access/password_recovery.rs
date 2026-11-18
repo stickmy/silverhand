@@ -193,14 +193,12 @@ async fn run_sender<S, E, C, M>(
 }
 
 #[derive(Deserialize, Validate)]
-#[serde(deny_unknown_fields)]
 struct RequestInput {
     #[garde(length(max = 1024))]
     email: String,
 }
 
 #[derive(Deserialize, Validate)]
-#[serde(deny_unknown_fields)]
 struct ResetInput {
     #[garde(length(max = 1024))]
     email: String,

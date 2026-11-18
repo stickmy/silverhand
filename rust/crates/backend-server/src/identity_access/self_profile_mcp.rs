@@ -689,9 +689,8 @@ mod tests {
         // and none carries the semantic `{ "error": "invalid input" }` envelope.
         let semantic = json!({ "error": "invalid input" });
         let native_422 = [
-            json!({}).to_string(),                                   // missing server_name
-            json!({ "server_name": "srv", "extra": 1 }).to_string(), // unknown key
-            json!({ "server_name": 7 }).to_string(),                 // wrong-typed name
+            json!({}).to_string(),                   // missing server_name
+            json!({ "server_name": 7 }).to_string(), // wrong-typed name
             json!({ "server_name": "srv", "include_tools": null }).to_string(), // present null
             json!({ "server_name": "srv", "include_tools": "yes" }).to_string(), // wrong-typed flag
         ];

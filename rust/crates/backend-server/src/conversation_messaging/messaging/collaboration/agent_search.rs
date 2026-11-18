@@ -3,8 +3,8 @@
 //!
 //! Behind the runtime-credential perimeter (agent bound to `{aid}` first). The
 //! scope is selector-only: exactly one of `current_workspace` / `workspace_id` /
-//! `conversation_id`, or none (the calling conversation). The body is `.strict()`
-//! (retired keys fail loudly) with an at-most-one-selector semantic check. Cross-
+//! `conversation_id`, or none (the calling conversation). The body has an
+//! at-most-one-selector semantic check; unknown keys are ignored. Cross-
 //! workspace and `read_messages` are gated the same way `list-channels` gates them;
 //! the participation guard lives in the read (an unreachable message is never a
 //! hit).
@@ -60,11 +60,9 @@ where
         .with_state(Shared(Arc::new(state)))
 }
 
-/// `AgentSearchMessagesInputSchema`, `.strict()`. `deny_unknown_fields` fails the
-/// retired `scope`/`channel_id` keys loudly. `q` and `limit` are validated in the
+/// `AgentSearchMessagesInputSchema`. `q` and `limit` are validated in the
 /// domain conversion; the selectors are the at-most-one semantic check.
 #[derive(Deserialize, garde::Validate)]
-#[serde(deny_unknown_fields)]
 struct SearchBody {
     #[garde(skip)]
     q: String,

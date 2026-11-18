@@ -158,44 +158,40 @@ export const KNOWN_CAPABILITIES_V1 = [
 ] as const;
 export type KnownCapabilityV1 = (typeof KNOWN_CAPABILITIES_V1)[number];
 
-export const HelloParamsSchema = z.object({}).strict();
+export const HelloParamsSchema = z.object({});
 export type HelloParams = z.infer<typeof HelloParamsSchema>;
 
-export const HelloResultSchema = z
-  .object({
-    protocol_version: z.number().int().positive(),
-    daemon_version: z.string(),
-    /**
-     * Stable daemon-installation identity. For the bootstrap local
-     * daemon this is `local`; future multi-daemon installs will each
-     * report their own durable daemon_id.
-     */
-    daemon_id: z.string().min(1),
-    /**
-     * Ephemeral process-generation identity. Changes on every daemon
-     * boot and lets backend drop stale per-daemon runtime snapshots
-     * without confusing that with daemon placement.
-     */
-    instance_id: z.string().min(1),
-    /**
-     * Human-readable host claim. This is display / registry input,
-     * not a placement policy by itself; placement must also consider
-     * capabilities and backend-side assignment.
-     */
-    host_descriptor: z
-      .object({
-        name: z.string().min(1),
-        kind: HostKindSchema,
-      })
-      .strict(),
-    /**
-     * Deliberately `string[]`, not an enum. Unknown capabilities must
-     * remain wire-valid so older clients can ignore future daemon
-     * feature flags instead of rejecting the whole handshake.
-     */
-    capabilities: z.array(z.string()),
-  })
-  .strict();
+export const HelloResultSchema = z.object({
+  protocol_version: z.number().int().positive(),
+  daemon_version: z.string(),
+  /**
+   * Stable daemon-installation identity. For the bootstrap local
+   * daemon this is `local`; future multi-daemon installs will each
+   * report their own durable daemon_id.
+   */
+  daemon_id: z.string().min(1),
+  /**
+   * Ephemeral process-generation identity. Changes on every daemon
+   * boot and lets backend drop stale per-daemon runtime snapshots
+   * without confusing that with daemon placement.
+   */
+  instance_id: z.string().min(1),
+  /**
+   * Human-readable host claim. This is display / registry input,
+   * not a placement policy by itself; placement must also consider
+   * capabilities and backend-side assignment.
+   */
+  host_descriptor: z.object({
+    name: z.string().min(1),
+    kind: HostKindSchema,
+  }),
+  /**
+   * Deliberately `string[]`, not an enum. Unknown capabilities must
+   * remain wire-valid so older clients can ignore future daemon
+   * feature flags instead of rejecting the whole handshake.
+   */
+  capabilities: z.array(z.string()),
+});
 export type HelloResult = z.infer<typeof HelloResultSchema>;
 
 // ── Intent registry ─────────────────────────────────────────────────
@@ -220,7 +216,7 @@ export type HelloResult = z.infer<typeof HelloResultSchema>;
 // runtime_* talk to a (conversation, agent) supervised process;
 // PR-1 lifecycle intents talk to the daemon as a whole.
 
-export const PingParamsSchema = z.object({}).strict();
+export const PingParamsSchema = z.object({});
 export type PingParams = z.infer<typeof PingParamsSchema>;
 
 export const PingResultSchema = z.object({
@@ -232,7 +228,7 @@ export const PingResultSchema = z.object({
 });
 export type PingResult = z.infer<typeof PingResultSchema>;
 
-export const StatusParamsSchema = z.object({}).strict();
+export const StatusParamsSchema = z.object({});
 export type StatusParams = z.infer<typeof StatusParamsSchema>;
 
 export const StatusResultSchema = z.object({
@@ -249,18 +245,14 @@ export const StatusResultSchema = z.object({
 });
 export type StatusResult = z.infer<typeof StatusResultSchema>;
 
-export const EchoParamsSchema = z
-  .object({
-    message: z.string(),
-  })
-  .strict();
+export const EchoParamsSchema = z.object({
+  message: z.string(),
+});
 export type EchoParams = z.infer<typeof EchoParamsSchema>;
 
-export const EchoResultSchema = z
-  .object({
-    echoed: z.string(),
-  })
-  .strict();
+export const EchoResultSchema = z.object({
+  echoed: z.string(),
+});
 export type EchoResult = z.infer<typeof EchoResultSchema>;
 
 // ── host_status (outbound command, #task:808) ────────────────────────
@@ -279,45 +271,41 @@ export type EchoResult = z.infer<typeof EchoResultSchema>;
 // per-row `online` flag in `AgentOnHostDto`. The daemon NEVER
 // references agent names, conversation ids, or any other backend-
 // owned semantic — those live above the host boundary.
-export const HostStatusParamsSchema = z
-  .object({
-    /** Ask for the machine facts below; see `host_status.machine.v1`. */
-    include_machine: z.boolean().optional(),
-  })
-  .strict();
+export const HostStatusParamsSchema = z.object({
+  /** Ask for the machine facts below; see `host_status.machine.v1`. */
+  include_machine: z.boolean().optional(),
+});
 export type HostStatusParams = z.infer<typeof HostStatusParamsSchema>;
 
-export const HostStatusResultSchema = z
-  .object({
-    /** Human-readable OS string composed daemon-side
-     *  (e.g. "macOS 14.5", "Linux Ubuntu 22.04"). Renderer shows verbatim.
-     *  `.min(1)` pins the never-empty contract — the daemon helper always
-     *  composes SOMETHING (falls back to `${platform} ${release}`), and an
-     *  empty value reaching this schema is a daemon bug we want to fail
-     *  loud at the IPC boundary instead of letting a blank cell render
-     *  in ComputerPane. */
-    os: z.string().min(1),
-    /** `os.arch()` token; optional so older daemons stay forward-compatible. */
-    os_arch: z.string().optional(),
-    daemon_pid: z.number().int(),
-    daemon_version: z.string(),
-    started_at: z.number().int(),
-    uptime_ms: z.number().int(),
-    /** Subset of registered agents currently alive on this host. Backend
-     *  intersects this with `agents.host_id == hostId` to compute
-     *  per-agent `online` in `AgentOnHostDto`. Empty array = host has
-     *  no live runtimes (renderer shows everything as offline). */
-    active_agent_ids: z.array(z.string()),
-    /** Machine facts, present only when requested and readable. */
-    hostname: z.string().min(1).optional(),
-    ip: z.string().min(1).optional(),
-    memory_total_bytes: z.number().int().nonnegative().optional(),
-    memory_used_bytes: z.number().int().nonnegative().optional(),
-    disk_total_bytes: z.number().int().nonnegative().optional(),
-    disk_used_bytes: z.number().int().nonnegative().optional(),
-    system_uptime_ms: z.number().int().nonnegative().optional(),
-  })
-  .strict();
+export const HostStatusResultSchema = z.object({
+  /** Human-readable OS string composed daemon-side
+   *  (e.g. "macOS 14.5", "Linux Ubuntu 22.04"). Renderer shows verbatim.
+   *  `.min(1)` pins the never-empty contract — the daemon helper always
+   *  composes SOMETHING (falls back to `${platform} ${release}`), and an
+   *  empty value reaching this schema is a daemon bug we want to fail
+   *  loud at the IPC boundary instead of letting a blank cell render
+   *  in ComputerPane. */
+  os: z.string().min(1),
+  /** `os.arch()` token; optional so older daemons stay forward-compatible. */
+  os_arch: z.string().optional(),
+  daemon_pid: z.number().int(),
+  daemon_version: z.string(),
+  started_at: z.number().int(),
+  uptime_ms: z.number().int(),
+  /** Subset of registered agents currently alive on this host. Backend
+   *  intersects this with `agents.host_id == hostId` to compute
+   *  per-agent `online` in `AgentOnHostDto`. Empty array = host has
+   *  no live runtimes (renderer shows everything as offline). */
+  active_agent_ids: z.array(z.string()),
+  /** Machine facts, present only when requested and readable. */
+  hostname: z.string().min(1).optional(),
+  ip: z.string().min(1).optional(),
+  memory_total_bytes: z.number().int().nonnegative().optional(),
+  memory_used_bytes: z.number().int().nonnegative().optional(),
+  disk_total_bytes: z.number().int().nonnegative().optional(),
+  disk_used_bytes: z.number().int().nonnegative().optional(),
+  system_uptime_ms: z.number().int().nonnegative().optional(),
+});
 export type HostStatusResult = z.infer<typeof HostStatusResultSchema>;
 
 // ── host_runtime_catalog (outbound command, #task:1375) ─────────────
@@ -327,12 +315,10 @@ export type HostStatusResult = z.infer<typeof HostStatusResultSchema>;
 // as spawn, so "present" means the daemon can resolve the exact executable
 // path it will later spawn. `force` bypasses the short resolver cache for
 // manual refresh, create-time hard-block checks, and spawn-miss recovery.
-export const HostRuntimeCatalogParamsSchema = z
-  .object({
-    force: z.boolean().optional(),
-    models_for: RuntimeKindSchema.optional(),
-  })
-  .strict();
+export const HostRuntimeCatalogParamsSchema = z.object({
+  force: z.boolean().optional(),
+  models_for: RuntimeKindSchema.optional(),
+});
 export type HostRuntimeCatalogParams = z.infer<typeof HostRuntimeCatalogParamsSchema>;
 
 export const HostRuntimeCatalogResultSchema = RuntimeCatalogResponseSchema;
@@ -341,29 +327,23 @@ export type HostRuntimeCatalogResult = z.infer<typeof HostRuntimeCatalogResultSc
 // ── conversation_log_debug ─────────────────────────────────────────
 
 export const ConversationLogDebugParamsSchema = z.discriminatedUnion('enabled', [
-  z
-    .object({
-      conversation_id: z.string().min(1),
-      enabled: z.literal(true),
-      expires_at: z.number().int().positive(),
-    })
-    .strict(),
-  z
-    .object({
-      conversation_id: z.string().min(1),
-      enabled: z.literal(false),
-    })
-    .strict(),
+  z.object({
+    conversation_id: z.string().min(1),
+    enabled: z.literal(true),
+    expires_at: z.number().int().positive(),
+  }),
+  z.object({
+    conversation_id: z.string().min(1),
+    enabled: z.literal(false),
+  }),
 ]);
 export type ConversationLogDebugParams = z.infer<typeof ConversationLogDebugParamsSchema>;
 
-export const ConversationLogDebugResultSchema = z
-  .object({
-    ok: z.literal(true),
-    enabled: z.boolean(),
-    expires_at: z.number().int().positive().nullable(),
-  })
-  .strict();
+export const ConversationLogDebugResultSchema = z.object({
+  ok: z.literal(true),
+  enabled: z.boolean(),
+  expires_at: z.number().int().positive().nullable(),
+});
 export type ConversationLogDebugResult = z.infer<typeof ConversationLogDebugResultSchema>;
 
 // ── agent_message_send / agent_stale_resolve ───────────────────────
@@ -376,25 +356,21 @@ export type ConversationLogDebugResult = z.infer<typeof ConversationLogDebugResu
 // arms, not host-transport errors, so the CLI can preserve the same
 // user-facing error mapping it had on direct HTTP.
 
-export const AgentBackendHttpErrorSchema = z
-  .object({
-    ok: z.literal(false),
-    status: z.number().int().positive(),
-    body_text: z.string(),
-  })
-  .strict();
+export const AgentBackendHttpErrorSchema = z.object({
+  ok: z.literal(false),
+  status: z.number().int().positive(),
+  body_text: z.string(),
+});
 export type AgentBackendHttpError = z.infer<typeof AgentBackendHttpErrorSchema>;
 
 /** Runtime handle identity for CLI→daemon intents. It names custody scope,
  *  never an HTTP route or message destination. */
 export const AgentRuntimeIntentScopeSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('agent') }).strict(),
-  z
-    .object({
-      kind: z.literal('conversation'),
-      conversation_id: z.string().min(1),
-    })
-    .strict(),
+  z.object({ kind: z.literal('agent') }),
+  z.object({
+    kind: z.literal('conversation'),
+    conversation_id: z.string().min(1),
+  }),
 ]);
 export type AgentRuntimeIntentScope = z.infer<typeof AgentRuntimeIntentScopeSchema>;
 
@@ -403,111 +379,99 @@ const AgentRuntimeIntentIdentityFields = {
   agent_id: z.string().min(1),
 } as const;
 
-export const AgentMessageSendParamsSchema = z
-  .object({
-    ...AgentRuntimeIntentIdentityFields,
-    content: z.string(),
-    /**
-     * WHERE the message goes — one absolute address, required, forwarded to the
-     * backend verbatim (#task:2021 P4-4).
-     *
-     * A STRING, not a shape: the grammar has exactly one authority
-     * (`delivery-target.ts`), and the daemon parses it only to decide which
-     * per-stream freshness boundary this send is anchored to. An address this
-     * daemon cannot parse is NOT refused here — it travels on and the backend's
-     * resolver gives the one verdict (`target_malformed`), so the two never
-     * disagree about what a legal address is.
-     *
-     * `runtime_scope` above identifies the daemon handle; it is never a
-     * destination or a transport route coordinate.
-     */
-    target: z.string().min(1),
-    attachment_ids: z.array(z.string().min(1)).optional(),
-    stale_resolution_reason: AgentSendStaleResolutionReasonSchema.optional(),
-    freshness_bypass: z.boolean().optional(),
-  })
-  .strict();
+export const AgentMessageSendParamsSchema = z.object({
+  ...AgentRuntimeIntentIdentityFields,
+  content: z.string(),
+  /**
+   * WHERE the message goes — one absolute address, required, forwarded to the
+   * backend verbatim (#task:2021 P4-4).
+   *
+   * A STRING, not a shape: the grammar has exactly one authority
+   * (`delivery-target.ts`), and the daemon parses it only to decide which
+   * per-stream freshness boundary this send is anchored to. An address this
+   * daemon cannot parse is NOT refused here — it travels on and the backend's
+   * resolver gives the one verdict (`target_malformed`), so the two never
+   * disagree about what a legal address is.
+   *
+   * `runtime_scope` above identifies the daemon handle; it is never a
+   * destination or a transport route coordinate.
+   */
+  target: z.string().min(1),
+  attachment_ids: z.array(z.string().min(1)).optional(),
+  stale_resolution_reason: AgentSendStaleResolutionReasonSchema.optional(),
+  freshness_bypass: z.boolean().optional(),
+});
 export type AgentMessageSendParams = z.infer<typeof AgentMessageSendParamsSchema>;
 
 export const AgentMessageSendResultSchema = z.union([
-  z
-    .object({
-      ok: z.literal(true),
-      message_id: z.string().min(1),
-      message_seq: z.number().int().nonnegative().optional(),
-      /**
-       * The conversation the address RESOLVED to, forwarded from the backend
-       * send response (#task:2021 P4-4).
-       *
-       * Total, not conditional on the address having been readable: "which
-       * stream did my words land in" has one answer for every send, and it is
-       * the answer a caller can cache — a `dm:@handle` or a title is spelled
-       * once and every follow-up in that stream carries the id form. The daemon
-       * needs it for the same reason: its freshness cursors are keyed by
-       * conversation, and only the backend knows which conversation a NAME
-       * denoted at insert time.
-       */
-      conversation_id: z.string().min(1),
-      /** Reply-cluster root the sent message belongs to (§6.4): null on
-       *  the main line, else the cluster's root message id. Surfaced from
-       *  the backend send response so a caller (CLI) can report which
-       *  stream the message landed in. */
-      thread_root_id: z.string().min(1).nullable().optional(),
-      /** References in the sent body that addressed NOBODY (#task:2021
-       *  P4-5-b), forwarded verbatim from the backend send response so the CLI
-       *  can tell its agent which of its own tokens landed nowhere. Absent when
-       *  every reference was addressed.
-       *
-       *  Forwarded, never derived: the daemon has no participation authority and
-       *  must not acquire one — a second opinion here would be a second
-       *  definition of "addressed", reported to the one reader who cannot check
-       *  it. Reason-free for the same purpose it is reason-free at the backend
-       *  boundary: `unknown handle` and `not a participant` are one outcome. */
-      unresolved_references: z.array(MessageReferenceSchema).nonempty().optional(),
-    })
-    .strict(),
+  z.object({
+    ok: z.literal(true),
+    message_id: z.string().min(1),
+    message_seq: z.number().int().nonnegative().optional(),
+    /**
+     * The conversation the address RESOLVED to, forwarded from the backend
+     * send response (#task:2021 P4-4).
+     *
+     * Total, not conditional on the address having been readable: "which
+     * stream did my words land in" has one answer for every send, and it is
+     * the answer a caller can cache — a `dm:@handle` or a title is spelled
+     * once and every follow-up in that stream carries the id form. The daemon
+     * needs it for the same reason: its freshness cursors are keyed by
+     * conversation, and only the backend knows which conversation a NAME
+     * denoted at insert time.
+     */
+    conversation_id: z.string().min(1),
+    /** Reply-cluster root the sent message belongs to (§6.4): null on
+     *  the main line, else the cluster's root message id. Surfaced from
+     *  the backend send response so a caller (CLI) can report which
+     *  stream the message landed in. */
+    thread_root_id: z.string().min(1).nullable().optional(),
+    /** References in the sent body that addressed NOBODY (#task:2021
+     *  P4-5-b), forwarded verbatim from the backend send response so the CLI
+     *  can tell its agent which of its own tokens landed nowhere. Absent when
+     *  every reference was addressed.
+     *
+     *  Forwarded, never derived: the daemon has no participation authority and
+     *  must not acquire one — a second opinion here would be a second
+     *  definition of "addressed", reported to the one reader who cannot check
+     *  it. Reason-free for the same purpose it is reason-free at the backend
+     *  boundary: `unknown handle` and `not a participant` are one outcome. */
+    unresolved_references: z.array(MessageReferenceSchema).nonempty().optional(),
+  }),
   AgentBackendHttpErrorSchema,
 ]);
 export type AgentMessageSendResult = z.infer<typeof AgentMessageSendResultSchema>;
 
-export const AgentStaleResolveParamsSchema = z
-  .object({
-    ...AgentRuntimeIntentIdentityFields,
-    /** Object identity returned by the `message_stale` conflict. Required
-     *  because one AgentSlot can hold independent stale drafts in N streams. */
-    stale_event_id: z.string().min(1),
-    resolution_reason: z.literal('obsolete'),
-  })
-  .strict();
+export const AgentStaleResolveParamsSchema = z.object({
+  ...AgentRuntimeIntentIdentityFields,
+  /** Object identity returned by the `message_stale` conflict. Required
+   *  because one AgentSlot can hold independent stale drafts in N streams. */
+  stale_event_id: z.string().min(1),
+  resolution_reason: z.literal('obsolete'),
+});
 export type AgentStaleResolveParams = z.infer<typeof AgentStaleResolveParamsSchema>;
 
 export const AgentStaleResolveResultSchema = z.union([
-  z
-    .object({
-      ok: z.literal(true),
-      resolved: z.literal(true),
-    })
-    .strict(),
-  z
-    .object({
-      ok: z.literal(true),
-      resolved: z.literal(false),
-      reason: z.literal('no_pending_stale_event'),
-    })
-    .strict(),
-  z
-    .object({
-      ok: z.literal(true),
-      resolved: z.literal(false),
-      // #task:2095 F18: a later 409 REPLACED the event the caller is
-      // resolving before this call ran. Only ONE stale event is held per
-      // runtime, so the id the caller named is gone; `current_stale_event_id`
-      // is the LIVE one to re-issue against (actionable on the CLI). Distinct
-      // from `no_pending_stale_event` (nothing pending at all).
-      reason: z.literal('stale_event_superseded'),
-      current_stale_event_id: z.string().min(1),
-    })
-    .strict(),
+  z.object({
+    ok: z.literal(true),
+    resolved: z.literal(true),
+  }),
+  z.object({
+    ok: z.literal(true),
+    resolved: z.literal(false),
+    reason: z.literal('no_pending_stale_event'),
+  }),
+  z.object({
+    ok: z.literal(true),
+    resolved: z.literal(false),
+    // #task:2095 F18: a later 409 REPLACED the event the caller is
+    // resolving before this call ran. Only ONE stale event is held per
+    // runtime, so the id the caller named is gone; `current_stale_event_id`
+    // is the LIVE one to re-issue against (actionable on the CLI). Distinct
+    // from `no_pending_stale_event` (nothing pending at all).
+    reason: z.literal('stale_event_superseded'),
+    current_stale_event_id: z.string().min(1),
+  }),
   AgentBackendHttpErrorSchema,
 ]);
 export type AgentStaleResolveResult = z.infer<typeof AgentStaleResolveResultSchema>;
@@ -548,18 +512,16 @@ export type AgentStaleResolveResult = z.infer<typeof AgentStaleResolveResultSche
 //                              this wait window. States nothing else:
 //                              custody and the stale event are both
 //                              unchanged, and no cause is inferred.
-export const AgentStaleReceiveParamsSchema = z
-  .object({
-    ...AgentRuntimeIntentIdentityFields,
-    /** Object identity returned by the `message_stale` conflict. It selects
-     *  one held draft without a route anchor or "most recent" fallback. */
-    stale_event_id: z.string().min(1),
-    /** Bounded wait for a deferred batch to arrive. Waiting never holds
-     *  the lifecycle lock and never takes custody. Clamped to
-     *  [0, 120_000]; default 20_000. */
-    wait_ms: z.number().int().min(0).max(120_000).optional(),
-  })
-  .strict();
+export const AgentStaleReceiveParamsSchema = z.object({
+  ...AgentRuntimeIntentIdentityFields,
+  /** Object identity returned by the `message_stale` conflict. It selects
+   *  one held draft without a route anchor or "most recent" fallback. */
+  stale_event_id: z.string().min(1),
+  /** Bounded wait for a deferred batch to arrive. Waiting never holds
+   *  the lifecycle lock and never takes custody. Clamped to
+   *  [0, 120_000]; default 20_000. */
+  wait_ms: z.number().int().min(0).max(120_000).optional(),
+});
 export type AgentStaleReceiveParams = z.infer<typeof AgentStaleReceiveParamsSchema>;
 
 const staleReceiveBatchFields = {
@@ -573,31 +535,25 @@ const staleReceiveBatchFields = {
 } as const;
 
 export const AgentStaleReceiveResultSchema = z.discriminatedUnion('outcome', [
-  z.object({ outcome: z.literal('batch_queue_drained'), ...staleReceiveBatchFields }).strict(),
-  z.object({ outcome: z.literal('batch_more_pending'), ...staleReceiveBatchFields }).strict(),
-  z.object({ ok: z.literal(true), outcome: z.literal('no_pending_stale') }).strict(),
-  z
-    .object({
-      ok: z.literal(true),
-      outcome: z.literal('stale_event_superseded'),
-      current_stale_event_id: z.string().min(1),
-    })
-    .strict(),
-  z
-    .object({
-      ok: z.literal(true),
-      outcome: z.literal('normal_delivery_in_progress'),
-      stale_event_id: z.string().min(1),
-    })
-    .strict(),
-  z
-    .object({
-      ok: z.literal(true),
-      outcome: z.literal('timeout'),
-      stale_event_id: z.string().min(1),
-      waited_ms: z.number().int().nonnegative(),
-    })
-    .strict(),
+  z.object({ outcome: z.literal('batch_queue_drained'), ...staleReceiveBatchFields }),
+  z.object({ outcome: z.literal('batch_more_pending'), ...staleReceiveBatchFields }),
+  z.object({ ok: z.literal(true), outcome: z.literal('no_pending_stale') }),
+  z.object({
+    ok: z.literal(true),
+    outcome: z.literal('stale_event_superseded'),
+    current_stale_event_id: z.string().min(1),
+  }),
+  z.object({
+    ok: z.literal(true),
+    outcome: z.literal('normal_delivery_in_progress'),
+    stale_event_id: z.string().min(1),
+  }),
+  z.object({
+    ok: z.literal(true),
+    outcome: z.literal('timeout'),
+    stale_event_id: z.string().min(1),
+    waited_ms: z.number().int().nonnegative(),
+  }),
 ]);
 export type AgentStaleReceiveResult = z.infer<typeof AgentStaleReceiveResultSchema>;
 
@@ -670,127 +626,106 @@ export type RuntimeMessageText = z.infer<typeof RuntimeMessageTextSchema>;
  * that selects the supervisor key, cwd, pidfile namespace and prompt shape.
  */
 export const RuntimeScopeSchema = z.discriminatedUnion('kind', [
-  z
-    .object({
-      kind: z.literal('agent'),
-      agent_id: z.string().min(1),
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal('conversation'),
-      conversation_id: z.string().min(1),
-      agent_id: z.string().min(1),
-    })
-    .strict(),
+  z.object({
+    kind: z.literal('agent'),
+    agent_id: z.string().min(1),
+  }),
+  z.object({
+    kind: z.literal('conversation'),
+    conversation_id: z.string().min(1),
+    agent_id: z.string().min(1),
+  }),
 ]);
 export type RuntimeScope = z.infer<typeof RuntimeScopeSchema>;
 
-const SilverhandCliLauncherSchema = z
-  .object({
-    command: z.string().min(1),
-    args: z.array(z.string()),
-    /**
-     * Explicit launcher metadata for the per-spawn `silverhand` shim.
-     * Named `env_vars` so the protocol can keep `env` itself reserved
-     * for the forbidden pre-composed child environment map.
-     */
-    env_vars: z.record(z.string()).optional(),
-  })
-  .strict();
+const SilverhandCliLauncherSchema = z.object({
+  command: z.string().min(1),
+  args: z.array(z.string()),
+  /**
+   * Explicit launcher metadata for the per-spawn `silverhand` shim.
+   * Named `env_vars` so the protocol can keep `env` itself reserved
+   * for the forbidden pre-composed child environment map.
+   */
+  env_vars: z.record(z.string()).optional(),
+});
 
-export const RuntimeStartWorkspaceRefSchema = z
-  .object({
-    id: z.string().min(1),
-    name: z.string().min(1),
-    // #task:2081: NO stored container `kind` on this wire. The daemon used to
-    // select a filesystem-resolution strategy from a stored word; it now
-    // recognizes an agent-home ref from the id convention itself
-    // (`AGENT_HOME_WORKSPACE_ID_PREFIX` for the alphabet, exact match against
-    // `agentHomeWorkspaceId(agentId)` for ownership — `runtime-start-resolve.ts`),
-    // so the decision is keyed on the id, never on a copy of a container word
-    // that a product rename could contradict.
-    // D4.e-6: SEMANTIC ref only — no `path`. The carve-out that let
-    // `workspace.path` cross the boundary as "server DB metadata" is
-    // REVOKED (design §3.5). The daemon is the sole authority for
-    // host-local workspace paths: relocation-v1 §7 task 4 resolves
-    // `regular` workspaces to their deterministic agent-centric bundle
-    // coordinate (`resolveAgentWorkspaceBundleDir(agentId, id)`) — no
-    // registry establishment gate — and `agent_home` via
-    // `resolveAgentDir(agentId)`. No path field travels on this wire.
-  })
-  .strict();
+export const RuntimeStartWorkspaceRefSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  // #task:2081: NO stored container `kind` on this wire. The daemon used to
+  // select a filesystem-resolution strategy from a stored word; it now
+  // recognizes an agent-home ref from the id convention itself
+  // (`AGENT_HOME_WORKSPACE_ID_PREFIX` for the alphabet, exact match against
+  // `agentHomeWorkspaceId(agentId)` for ownership — `runtime-start-resolve.ts`),
+  // so the decision is keyed on the id, never on a copy of a container word
+  // that a product rename could contradict.
+  // D4.e-6: SEMANTIC ref only — no `path`. The carve-out that let
+  // `workspace.path` cross the boundary as "server DB metadata" is
+  // REVOKED (design §3.5). The daemon is the sole authority for
+  // host-local workspace paths: relocation-v1 §7 task 4 resolves
+  // `regular` workspaces to their deterministic agent-centric bundle
+  // coordinate (`resolveAgentWorkspaceBundleDir(agentId, id)`) — no
+  // registry establishment gate — and `agent_home` via
+  // `resolveAgentDir(agentId)`. No path field travels on this wire.
+});
 export type RuntimeStartWorkspaceRef = z.infer<typeof RuntimeStartWorkspaceRefSchema>;
 
 /** Semantic origin coordinate for one delivery action. It deliberately carries
  * no host path: the daemon resolves the absolute workdir for the target using
  * the same path authority as runtime start. */
-export const RuntimeActionTargetSchema = z
-  .object({
-    conversation_id: z.string().min(1),
-    workspace: RuntimeStartWorkspaceRefSchema.nullable(),
-  })
-  .strict();
+export const RuntimeActionTargetSchema = z.object({
+  conversation_id: z.string().min(1),
+  workspace: RuntimeStartWorkspaceRefSchema.nullable(),
+});
 export type RuntimeActionTarget = z.infer<typeof RuntimeActionTargetSchema>;
 
-const RuntimeStartAgentRefSchema = z
-  .object({
-    id: z.string().min(1),
-    name: z.string().min(1),
-    // D4.e-6: SEMANTIC ref only — no `home_dir`. Revokes the prior
-    // carve-out (design §3.5). The daemon resolves the agent's L1
-    // profile base locally as `resolveAgentDir(agentId)` — identical
-    // to how `agent_materialize`/`agent_workspace_tree` already resolve
-    // it — and reads `system_prompt.md` under it.
-  })
-  .strict();
+const RuntimeStartAgentRefSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  // D4.e-6: SEMANTIC ref only — no `home_dir`. Revokes the prior
+  // carve-out (design §3.5). The daemon resolves the agent's L1
+  // profile base locally as `resolveAgentDir(agentId)` — identical
+  // to how `agent_materialize`/`agent_workspace_tree` already resolve
+  // it — and reads `system_prompt.md` under it.
+});
 
 /**
  * Reasoning-effort as it travels on the `runtime_start` wire: the shared open,
  * bounded token (`ReasoningEffortTokenSchema`). The driver forwards it verbatim.
  */
-const RuntimeStartDriverOptionsSchema = z
-  .object({
-    kind: RuntimeKindSchema,
-    cli_session_id: z.string().min(1).nullable(),
-    model: z.string().nullable(),
-    reasoning_effort: ReasoningEffortTokenSchema.nullable(),
-    service_tier: ServiceTierSchema.nullable(),
-  })
-  .strict();
+const RuntimeStartDriverOptionsSchema = z.object({
+  kind: RuntimeKindSchema,
+  cli_session_id: z.string().min(1).nullable(),
+  model: z.string().nullable(),
+  reasoning_effort: ReasoningEffortTokenSchema.nullable(),
+  service_tier: ServiceTierSchema.nullable(),
+});
 
-const RuntimeStartSessionSchema = z
-  .object({
-    conversation_id: z.string().min(1),
-    placement_kind: ConversationPlacementKindSchema,
-    roster_policy: ConversationRosterPolicySchema,
-    title: z.string(),
-    spawned_by_agent_id: z.string().min(1).nullable(),
-    members: z.array(MemberDtoSchema),
-  })
-  .strict();
+const RuntimeStartSessionSchema = z.object({
+  conversation_id: z.string().min(1),
+  placement_kind: ConversationPlacementKindSchema,
+  roster_policy: ConversationRosterPolicySchema,
+  title: z.string(),
+  spawned_by_agent_id: z.string().min(1).nullable(),
+  members: z.array(MemberDtoSchema),
+});
 
-const RuntimeStartEnvPolicySchema = z
-  .object({
-    silverhand: z
-      .object({
-        auth_token: z.string().min(1),
-      })
-      .strict(),
-    // Host-local truth in standalone mode: the control plane provides
-    // server URL/token, while the daemon resolves how to launch its own
-    // bundled CLI. Embedded backends may still send an explicit launcher.
-    silverhand_cli: SilverhandCliLauncherSchema.optional(),
-  })
-  .strict();
+const RuntimeStartEnvPolicySchema = z.object({
+  silverhand: z.object({
+    auth_token: z.string().min(1),
+  }),
+  // Host-local truth in standalone mode: the control plane provides
+  // server URL/token, while the daemon resolves how to launch its own
+  // bundled CLI. Embedded backends may still send an explicit launcher.
+  silverhand_cli: SilverhandCliLauncherSchema.optional(),
+});
 
 const FORBIDDEN_RUNTIME_START_OPTION_KEYS = new Set([
   'cwd',
   'workspace_path',
   // D4.e-6: `home_dir` joins the forbidden set — the agent L1 base is
-  // daemon-resolved (`resolveAgentDir`), never server-supplied. The
-  // strict() ref schemas already reject it at the top level; listing it
-  // here also bans it from appearing nested anywhere in options.
+  // daemon-resolved (`resolveAgentDir`), never server-supplied; banned
+  // anywhere in options.
   'home_dir',
   'system_prompt_path',
   'spawn_dir',
@@ -829,7 +764,7 @@ function rejectForbiddenRuntimeStartOptionKeys(
 }
 
 /**
- * Runtime start metadata. This schema is deliberately strict and, as of
+ * Runtime start metadata. As of
  * D4.e-6, carries NO host-local paths: `agent`/`workspace`/
  * `workspace_memory_index` are semantic refs (`id`/`name`) and the
  * daemon resolves every absolute path locally (the deterministic bundle
@@ -843,41 +778,35 @@ const RuntimeStartCommonShape = {
   env_policy: RuntimeStartEnvPolicySchema,
 } as const;
 
-const ConversationStartOptionsSchema = z
-  .object({
-    ...RuntimeStartCommonShape,
-    runtime_scope: z
-      .object({
-        kind: z.literal('conversation'),
-        conversation_id: z.string().min(1),
-        agent_id: z.string().min(1),
-      })
-      .strict(),
-    // Workspace-less placements keep their own conversation-scoped runtime
-    // coordinate under the agent home. `null` is a first-class placement arm,
-    // never a sentinel for AgentSlot (the discriminated runtime_scope above is
-    // the sole identity authority).
-    workspace: RuntimeStartWorkspaceRefSchema.nullable(),
-    workspace_memory_index: z.array(RuntimeStartWorkspaceRefSchema),
-    session: RuntimeStartSessionSchema,
-  })
-  .strict();
+const ConversationStartOptionsSchema = z.object({
+  ...RuntimeStartCommonShape,
+  runtime_scope: z.object({
+    kind: z.literal('conversation'),
+    conversation_id: z.string().min(1),
+    agent_id: z.string().min(1),
+  }),
+  // Workspace-less placements keep their own conversation-scoped runtime
+  // coordinate under the agent home. `null` is a first-class placement arm,
+  // never a sentinel for AgentSlot (the discriminated runtime_scope above is
+  // the sole identity authority).
+  workspace: RuntimeStartWorkspaceRefSchema.nullable(),
+  workspace_memory_index: z.array(RuntimeStartWorkspaceRefSchema),
+  session: RuntimeStartSessionSchema,
+});
 
-const AgentStartOptionsSchema = z
-  .object({
-    ...RuntimeStartCommonShape,
-    runtime_scope: z
-      .object({
-        kind: z.literal('agent'),
-        agent_id: z.string().min(1),
-      })
-      .strict(),
-  })
-  .strict();
+const AgentStartOptionsSchema = z.object({
+  ...RuntimeStartCommonShape,
+  runtime_scope: z.object({
+    kind: z.literal('agent'),
+    agent_id: z.string().min(1),
+  }),
+});
 
+// Forbidden keys are checked on the raw input: the object schemas strip unknown keys.
 export const StartOptionsSchema = z
-  .union([ConversationStartOptionsSchema, AgentStartOptionsSchema])
-  .superRefine((val, ctx) => rejectForbiddenRuntimeStartOptionKeys(val, ctx));
+  .unknown()
+  .superRefine((val, ctx) => rejectForbiddenRuntimeStartOptionKeys(val, ctx))
+  .pipe(z.union([ConversationStartOptionsSchema, AgentStartOptionsSchema]));
 export type StartOptions = z.infer<typeof StartOptionsSchema>;
 export type ConversationStartOptions = Extract<
   StartOptions,
@@ -973,19 +902,15 @@ export type RuntimeStateDto = z.infer<typeof RuntimeStateDtoSchema>;
  * Kept-as-optional was rejected: an optional field on a strict internal wire
  * reads as "a consumer may appear", which is the claim being retired.
  */
-export const RuntimeDeliverySchema = z
-  .object({
-    delivery_id: z.number().int(),
-    seq: z.number().int().nonnegative(),
-    /** Presentation fragment for canonical novel-remainder reconstruction. */
-    presentation: z
-      .object({
-        body: RuntimeMessageTextSchema,
-        instruction: z.enum(RUNTIME_DELIVERY_INSTRUCTION_SIGNALS),
-      })
-      .strict(),
-  })
-  .strict();
+export const RuntimeDeliverySchema = z.object({
+  delivery_id: z.number().int(),
+  seq: z.number().int().nonnegative(),
+  /** Presentation fragment for canonical novel-remainder reconstruction. */
+  presentation: z.object({
+    body: RuntimeMessageTextSchema,
+    instruction: z.enum(RUNTIME_DELIVERY_INSTRUCTION_SIGNALS),
+  }),
+});
 export type RuntimeDelivery = z.infer<typeof RuntimeDeliverySchema>;
 
 export const RuntimeStartParamsSchema = z
@@ -995,7 +920,6 @@ export const RuntimeStartParamsSchema = z
     runtime_generation: z.number().int().positive(),
     options: StartOptionsSchema,
   })
-  .strict()
   .superRefine((value, ctx) => {
     const scope = value.options.runtime_scope;
     if (scope.agent_id !== value.agent_id) {
@@ -1016,13 +940,11 @@ export const RuntimeStartParamsSchema = z
 export type RuntimeStartParams = z.infer<typeof RuntimeStartParamsSchema>;
 
 export const RuntimeStartResultSchema = z.discriminatedUnion('started', [
-  z
-    .object({
-      started: z.literal(true),
-      pid: z.number().int(),
-      started_at: z.number().int(),
-    })
-    .strict(),
+  z.object({
+    started: z.literal(true),
+    pid: z.number().int(),
+    started_at: z.number().int(),
+  }),
   /**
    * Cooldown-blocked arm (Cindy `-pdNvRYOWip5e9yA` + plan v2
    * `EOmOrJxeJUnbcmVR`): daemon is in init-failure cooldown for this
@@ -1045,16 +967,14 @@ export const RuntimeStartResultSchema = z.discriminatedUnion('started', [
    * missing binary, unknown runtime kind) STILL throw and surface
    * as `internal_error` — they are not modeled as business state.
    */
-  z
-    .object({
-      started: z.literal(false),
-      reason: z.literal('init_cooldown'),
-      /** Wall-clock epoch ms at which cooldown expires. Backend
-       *  projects to `agent_status.cooldown_until`. Must be strictly
-       *  in the future at emit time. */
-      cooldown_until: z.number().int().positive(),
-    })
-    .strict(),
+  z.object({
+    started: z.literal(false),
+    reason: z.literal('init_cooldown'),
+    /** Wall-clock epoch ms at which cooldown expires. Backend
+     *  projects to `agent_status.cooldown_until`. Must be strictly
+     *  in the future at emit time. */
+    cooldown_until: z.number().int().positive(),
+  }),
 ]);
 export type RuntimeStartResult = z.infer<typeof RuntimeStartResultSchema>;
 
@@ -1070,27 +990,23 @@ export type RuntimeStartResult = z.infer<typeof RuntimeStartResultSchema>;
  * `mUnNmEyo10T-vnaU`): it had no product entry point and no external
  * contract.
  */
-export const RuntimeStopParamsSchema = z
-  .object({
-    runtime_scope: RuntimeScopeSchema,
-    runtime_generation: z.number().int().positive(),
-    mode: z.literal('hard'),
-  })
-  .strict();
+export const RuntimeStopParamsSchema = z.object({
+  runtime_scope: RuntimeScopeSchema,
+  runtime_generation: z.number().int().positive(),
+  mode: z.literal('hard'),
+});
 export type RuntimeStopParams = z.infer<typeof RuntimeStopParamsSchema>;
 
-export const RuntimeStopResultSchema = z
-  .object({
-    mode: z.literal('hard'),
-    /** Whether the runtime was actually live and got the signal.
-     *  False = nothing to stop (already exited / never started). */
-    stopped: z.boolean(),
-    /** Final exit code if known at response time. SIGTERM cascade
-     *  may not have completed; daemon may report `null` and let the
-     *  `runtime_exit` event carry the real value. */
-    exit_code: z.number().int().nullable(),
-  })
-  .strict();
+export const RuntimeStopResultSchema = z.object({
+  mode: z.literal('hard'),
+  /** Whether the runtime was actually live and got the signal.
+   *  False = nothing to stop (already exited / never started). */
+  stopped: z.boolean(),
+  /** Final exit code if known at response time. SIGTERM cascade
+   *  may not have completed; daemon may report `null` and let the
+   *  `runtime_exit` event carry the real value. */
+  exit_code: z.number().int().nullable(),
+});
 export type RuntimeStopResult = z.infer<typeof RuntimeStopResultSchema>;
 
 // ── runtime_deliver (Stage 2, #task:1417) ───────────────────────────
@@ -1134,7 +1050,6 @@ export const RuntimeDeliverParamsSchema = z
      *  StartOptions the retired `runtime_start` carried. */
     spawn_options: StartOptionsSchema,
   })
-  .strict()
   .superRefine((value, ctx) => {
     if (value.target.conversation_id !== value.conversation_id) {
       ctx.addIssue({
@@ -1184,27 +1099,21 @@ export type RuntimeDeliverParams = z.infer<typeof RuntimeDeliverParamsSchema>;
  * never takes volatile custody there. Canonical §11.
  */
 export const RuntimeDeliverRefusedResultSchema = z.discriminatedUnion('reason', [
-  z
-    .object({
-      disposition: z.literal('refused'),
-      reason: z.literal('startup_pending'),
-    })
-    .strict(),
-  z
-    .object({
-      disposition: z.literal('refused'),
-      reason: z.literal('draining'),
-    })
-    .strict(),
-  z
-    .object({
-      disposition: z.literal('refused'),
-      reason: z.literal('cooldown'),
-      /** Wall-clock epoch ms at which the init cooldown expires. Must be
-       *  strictly in the future at emit time. Required on this arm ONLY. */
-      cooldown_until: z.number().int().positive(),
-    })
-    .strict(),
+  z.object({
+    disposition: z.literal('refused'),
+    reason: z.literal('startup_pending'),
+  }),
+  z.object({
+    disposition: z.literal('refused'),
+    reason: z.literal('draining'),
+  }),
+  z.object({
+    disposition: z.literal('refused'),
+    reason: z.literal('cooldown'),
+    /** Wall-clock epoch ms at which the init cooldown expires. Must be
+     *  strictly in the future at emit time. Required on this arm ONLY. */
+    cooldown_until: z.number().int().positive(),
+  }),
 ]);
 export type RuntimeDeliverRefusedResult = z.infer<typeof RuntimeDeliverRefusedResultSchema>;
 /** Why the daemon refused custody. Derived from the refused arms
@@ -1213,7 +1122,7 @@ export type RuntimeDeliverRefusedResult = z.infer<typeof RuntimeDeliverRefusedRe
 export type RuntimeDeliverRefusedReason = RuntimeDeliverRefusedResult['reason'];
 
 /**
- * Synchronous custody disposition. `spawning`/`admitted` are single strict
+ * Synchronous custody disposition. `spawning`/`admitted` are single
  * arms; `refused` fans out over `reason` (RuntimeDeliverRefusedResultSchema).
  *
  * Outer combinator is `z.union`, NOT `discriminatedUnion('disposition')`:
@@ -1240,27 +1149,21 @@ export type RuntimeDeliverRefusedReason = RuntimeDeliverRefusedResult['reason'];
  *     pending immediately (retriable).
  */
 export const RuntimeDeliverResultSchema = z.union([
-  z
-    .object({
-      disposition: z.literal('spawning'),
-      pid: z.number().int(),
-      started_at: z.number().int(),
-    })
-    .strict(),
-  z
-    .object({
-      disposition: z.literal('admitted'),
-      pid: z.number().int(),
-      started_at: z.number().int(),
-    })
-    .strict(),
-  z
-    .object({
-      disposition: z.literal('deferred'),
-      pid: z.number().int(),
-      started_at: z.number().int(),
-    })
-    .strict(),
+  z.object({
+    disposition: z.literal('spawning'),
+    pid: z.number().int(),
+    started_at: z.number().int(),
+  }),
+  z.object({
+    disposition: z.literal('admitted'),
+    pid: z.number().int(),
+    started_at: z.number().int(),
+  }),
+  z.object({
+    disposition: z.literal('deferred'),
+    pid: z.number().int(),
+    started_at: z.number().int(),
+  }),
   RuntimeDeliverRefusedResultSchema,
 ]);
 export type RuntimeDeliverResult = z.infer<typeof RuntimeDeliverResultSchema>;
@@ -1288,17 +1191,15 @@ export type RuntimeDeliverResult = z.infer<typeof RuntimeDeliverResultSchema>;
 // `runtime_startup_delivery_*` pair — this unified family is now the ONLY
 // delivery-ack surface.
 
-export const RuntimeDeliveryConsumedEventSchema = z
-  .object({
-    event: z.literal('runtime_delivery_consumed'),
-    runtime_scope: RuntimeScopeSchema,
-    conversation_id: z.string().min(1),
-    agent_id: z.string().min(1),
-    runtime_generation: z.number().int().positive(),
-    delivery_ids: z.array(z.number().int()).min(1),
-    ts: z.number().int(),
-  })
-  .strict();
+export const RuntimeDeliveryConsumedEventSchema = z.object({
+  event: z.literal('runtime_delivery_consumed'),
+  runtime_scope: RuntimeScopeSchema,
+  conversation_id: z.string().min(1),
+  agent_id: z.string().min(1),
+  runtime_generation: z.number().int().positive(),
+  delivery_ids: z.array(z.number().int()).min(1),
+  ts: z.number().int(),
+});
 export type RuntimeDeliveryConsumedEvent = z.infer<typeof RuntimeDeliveryConsumedEventSchema>;
 
 export const RuntimeDeliveryFailedReasonSchema = z.enum([
@@ -1309,82 +1210,72 @@ export const RuntimeDeliveryFailedReasonSchema = z.enum([
 ]);
 export type RuntimeDeliveryFailedReason = z.infer<typeof RuntimeDeliveryFailedReasonSchema>;
 
-export const RuntimeDeliveryFailedEventSchema = z
-  .object({
-    event: z.literal('runtime_delivery_failed'),
-    runtime_scope: RuntimeScopeSchema,
-    conversation_id: z.string().min(1),
-    agent_id: z.string().min(1),
-    runtime_generation: z.number().int().positive(),
-    delivery_ids: z.array(z.number().int()).min(1),
-    reason: RuntimeDeliveryFailedReasonSchema,
-    ts: z.number().int(),
-  })
-  .strict();
+export const RuntimeDeliveryFailedEventSchema = z.object({
+  event: z.literal('runtime_delivery_failed'),
+  runtime_scope: RuntimeScopeSchema,
+  conversation_id: z.string().min(1),
+  agent_id: z.string().min(1),
+  runtime_generation: z.number().int().positive(),
+  delivery_ids: z.array(z.number().int()).min(1),
+  reason: RuntimeDeliveryFailedReasonSchema,
+  ts: z.number().int(),
+});
 export type RuntimeDeliveryFailedEvent = z.infer<typeof RuntimeDeliveryFailedEventSchema>;
 
 // ── runtime_status ──────────────────────────────────────────────────
 
-export const RuntimeStatusParamsSchema = z
-  .object({
-    conversation_id: z.string().min(1).optional(),
-    agent_id: z.string().min(1).optional(),
-  })
-  .strict();
+export const RuntimeStatusParamsSchema = z.object({
+  conversation_id: z.string().min(1).optional(),
+  agent_id: z.string().min(1).optional(),
+});
 export type RuntimeStatusParams = z.infer<typeof RuntimeStatusParamsSchema>;
 
-export const RuntimeStatusResultSchema = z
-  .object({
-    runtimes: z.array(RuntimeStateDtoSchema),
-  })
-  .strict();
+export const RuntimeStatusResultSchema = z.object({
+  runtimes: z.array(RuntimeStateDtoSchema),
+});
 export type RuntimeStatusResult = z.infer<typeof RuntimeStatusResultSchema>;
 
 // ── runtime_clear_session ───────────────────────────────────────────
 
-export const RuntimeClearSessionParamsSchema = z
-  .object({
-    runtime_scope: RuntimeScopeSchema,
-    runtime_generation: z.number().int().positive(),
-  })
-  .strict();
+export const RuntimeClearSessionParamsSchema = z.object({
+  runtime_scope: RuntimeScopeSchema,
+  runtime_generation: z.number().int().positive(),
+});
 export type RuntimeClearSessionParams = z.infer<typeof RuntimeClearSessionParamsSchema>;
 
-export const RuntimeClearSessionResultSchema = z.object({ cleared: z.boolean() }).strict();
+export const RuntimeClearSessionResultSchema = z.object({ cleared: z.boolean() });
 export type RuntimeClearSessionResult = z.infer<typeof RuntimeClearSessionResultSchema>;
 
 // ── runtime_stop_all / runtime_close_activity_log ───────────────────
 
-export const RuntimeStopAllParamsSchema = z.object({}).strict();
+export const RuntimeStopAllParamsSchema = z.object({});
 export type RuntimeStopAllParams = z.infer<typeof RuntimeStopAllParamsSchema>;
 
-export const RuntimeStopAllResultSchema = z
-  .object({ stopped_count: z.number().int().nonnegative() })
-  .strict();
+export const RuntimeStopAllResultSchema = z.object({
+  stopped_count: z.number().int().nonnegative(),
+});
 export type RuntimeStopAllResult = z.infer<typeof RuntimeStopAllResultSchema>;
 
-export const RuntimeCloseActivityLogParamsSchema = z.object({}).strict();
+export const RuntimeCloseActivityLogParamsSchema = z.object({});
 export type RuntimeCloseActivityLogParams = z.infer<typeof RuntimeCloseActivityLogParamsSchema>;
 
-export const RuntimeCloseActivityLogResultSchema = z.object({ flushed: z.boolean() }).strict();
+export const RuntimeCloseActivityLogResultSchema = z.object({ flushed: z.boolean() });
 export type RuntimeCloseActivityLogResult = z.infer<typeof RuntimeCloseActivityLogResultSchema>;
 
 // ── output flow control (intents bodies present, v0 unused) ─────────
 
-export const RuntimeOutputPauseParamsSchema = z
-  .object({
-    runtime_scope: RuntimeScopeSchema,
-  })
-  .strict();
+export const RuntimeOutputPauseParamsSchema = z.object({
+  runtime_scope: RuntimeScopeSchema,
+});
 export type RuntimeOutputPauseParams = z.infer<typeof RuntimeOutputPauseParamsSchema>;
 
-export const RuntimeOutputPauseResultSchema = z.object({ paused: z.boolean() }).strict();
+export const RuntimeOutputPauseResultSchema = z.object({ paused: z.boolean() });
 export type RuntimeOutputPauseResult = z.infer<typeof RuntimeOutputPauseResultSchema>;
 
 export const RuntimeOutputResumeParamsSchema = RuntimeOutputPauseParamsSchema;
 export type RuntimeOutputResumeParams = RuntimeOutputPauseParams;
 
-export const RuntimeOutputResumeResultSchema = z.object({ resumed: z.boolean() }).strict();
+export const RuntimeOutputResumeResultSchema = z.object({ resumed: z.boolean() });
 export type RuntimeOutputResumeResult = z.infer<typeof RuntimeOutputResumeResultSchema>;
 
 // ── host_outbound_attach (Stage D3.a Commit 3) ─────────────────────
@@ -1416,11 +1307,9 @@ export type RuntimeOutputResumeResult = z.infer<typeof RuntimeOutputResumeResult
 //     match. None of the error reasons cause side effects on the
 //     existing client.
 
-export const HostOutboundAttachParamsSchema = z
-  .object({
-    config_path: z.string().min(1),
-  })
-  .strict();
+export const HostOutboundAttachParamsSchema = z.object({
+  config_path: z.string().min(1),
+});
 export type HostOutboundAttachParams = z.infer<typeof HostOutboundAttachParamsSchema>;
 
 export const HostOutboundAttachFailureReasonSchema = z.enum([
@@ -1433,25 +1322,21 @@ export const HostOutboundAttachFailureReasonSchema = z.enum([
 export type HostOutboundAttachFailureReason = z.infer<typeof HostOutboundAttachFailureReasonSchema>;
 
 export const HostOutboundAttachResultSchema = z.discriminatedUnion('attached', [
-  z
-    .object({
-      attached: z.literal(true),
-      config_path: z.string().min(1),
-      /**
-       * What the daemon did with the request. Mirrors the idempotency
-       * matrix above so callers can log it and tests can assert
-       * branch coverage.
-       */
-      action: z.enum(['started', 'switched', 'noop']),
-    })
-    .strict(),
-  z
-    .object({
-      attached: z.literal(false),
-      reason: HostOutboundAttachFailureReasonSchema,
-      message: z.string().optional(),
-    })
-    .strict(),
+  z.object({
+    attached: z.literal(true),
+    config_path: z.string().min(1),
+    /**
+     * What the daemon did with the request. Mirrors the idempotency
+     * matrix above so callers can log it and tests can assert
+     * branch coverage.
+     */
+    action: z.enum(['started', 'switched', 'noop']),
+  }),
+  z.object({
+    attached: z.literal(false),
+    reason: HostOutboundAttachFailureReasonSchema,
+    message: z.string().optional(),
+  }),
 ]);
 export type HostOutboundAttachResult = z.infer<typeof HostOutboundAttachResultSchema>;
 
@@ -1487,21 +1372,19 @@ export type HostOutboundAttachResult = z.infer<typeof HostOutboundAttachResultSc
 //     separate path — `OutboundSupervisor.stop()` (called from
 //     `runDaemon` shutdown) is the one-way close.
 
-export const HostOutboundDetachParamsSchema = z.object({}).strict();
+export const HostOutboundDetachParamsSchema = z.object({});
 export type HostOutboundDetachParams = z.infer<typeof HostOutboundDetachParamsSchema>;
 
-export const HostOutboundDetachResultSchema = z
-  .object({
-    detached: z.literal(true),
-    /**
-     * `detached` = there was an active outbound client and it was
-     *              stopped as part of this call.
-     * `noop`     = no active client (pre-attach state, or already
-     *              detached). The hint is harmless either way.
-     */
-    action: z.enum(['detached', 'noop']),
-  })
-  .strict();
+export const HostOutboundDetachResultSchema = z.object({
+  detached: z.literal(true),
+  /**
+   * `detached` = there was an active outbound client and it was
+   *              stopped as part of this call.
+   * `noop`     = no active client (pre-attach state, or already
+   *              detached). The hint is harmless either way.
+   */
+  action: z.enum(['detached', 'noop']),
+});
 export type HostOutboundDetachResult = z.infer<typeof HostOutboundDetachResultSchema>;
 
 // ── host_outbound_reload (Stage D3.c Commit 2) ─────────────────────
@@ -1563,7 +1446,7 @@ export type HostOutboundDetachResult = z.infer<typeof HostOutboundDetachResultSc
 // caller (desktop main, Commit 3) can hand it straight to the
 // backend attachment-freshness check without re-reading the config.
 
-export const HostOutboundReloadParamsSchema = z.object({}).strict();
+export const HostOutboundReloadParamsSchema = z.object({});
 export type HostOutboundReloadParams = z.infer<typeof HostOutboundReloadParamsSchema>;
 
 export const HostOutboundReloadFailureReasonSchema = z.enum([
@@ -1575,43 +1458,39 @@ export const HostOutboundReloadFailureReasonSchema = z.enum([
 export type HostOutboundReloadFailureReason = z.infer<typeof HostOutboundReloadFailureReasonSchema>;
 
 export const HostOutboundReloadResultSchema = z.discriminatedUnion('reloaded', [
-  z
-    .object({
-      reloaded: z.literal(true),
-      /**
-       * `reloaded`  — config bytes differed; old client stopped, new
-       *               client started. WS handshake not yet complete.
-       * `unchanged` — config bytes identical to in-memory fingerprint;
-       *               old client kept untouched. Caller can skip the
-       *               attachment-freshness poll Commit 3 runs for the
-       *               `reloaded` case (nothing reconnected).
-       */
-      action: z.enum(['reloaded', 'unchanged']),
-      /**
-       * The config_path the reload was performed against — echoed back
-       * for log correlation. Always the daemon's currently-attached
-       * path; reload cannot change paths.
-       */
-      config_path: z.string().min(1),
-      /**
-       * `host_id` from the (re)loaded config. The caller uses it as
-       * the key for backend `HostWsServerController.getAttachment`
-       * polling after a `reloaded` response. For `unchanged` it's the
-       * same host_id that was already attached — caller can use it to
-       * sanity-check no concurrent attach swapped under it.
-       */
-      host_id: z.string().min(1),
-    })
-    .strict(),
-  z
-    .object({
-      reloaded: z.literal(false),
-      reason: HostOutboundReloadFailureReasonSchema,
-      /** Free-text diagnostic. Renderer should branch on `reason`
-       *  for UI copy; `message` is for logs / dev console only. */
-      message: z.string().optional(),
-    })
-    .strict(),
+  z.object({
+    reloaded: z.literal(true),
+    /**
+     * `reloaded`  — config bytes differed; old client stopped, new
+     *               client started. WS handshake not yet complete.
+     * `unchanged` — config bytes identical to in-memory fingerprint;
+     *               old client kept untouched. Caller can skip the
+     *               attachment-freshness poll Commit 3 runs for the
+     *               `reloaded` case (nothing reconnected).
+     */
+    action: z.enum(['reloaded', 'unchanged']),
+    /**
+     * The config_path the reload was performed against — echoed back
+     * for log correlation. Always the daemon's currently-attached
+     * path; reload cannot change paths.
+     */
+    config_path: z.string().min(1),
+    /**
+     * `host_id` from the (re)loaded config. The caller uses it as
+     * the key for backend `HostWsServerController.getAttachment`
+     * polling after a `reloaded` response. For `unchanged` it's the
+     * same host_id that was already attached — caller can use it to
+     * sanity-check no concurrent attach swapped under it.
+     */
+    host_id: z.string().min(1),
+  }),
+  z.object({
+    reloaded: z.literal(false),
+    reason: HostOutboundReloadFailureReasonSchema,
+    /** Free-text diagnostic. Renderer should branch on `reason`
+     *  for UI copy; `message` is for logs / dev console only. */
+    message: z.string().optional(),
+  }),
 ]);
 export type HostOutboundReloadResult = z.infer<typeof HostOutboundReloadResultSchema>;
 
@@ -1625,10 +1504,10 @@ export type HostOutboundReloadResult = z.infer<typeof HostOutboundReloadResultSc
 export const HostProxyConfigSchema = SharedHostProxyConfigSchema;
 export type HostProxyConfig = z.infer<typeof HostProxyConfigSchema>;
 
-export const HostProxyConfigGetParamsSchema = z.object({}).strict();
+export const HostProxyConfigGetParamsSchema = z.object({});
 export type HostProxyConfigGetParams = z.infer<typeof HostProxyConfigGetParamsSchema>;
 
-export const HostProxyConfigGetResultSchema = z.object({ config: HostProxyConfigSchema }).strict();
+export const HostProxyConfigGetResultSchema = z.object({ config: HostProxyConfigSchema });
 export type HostProxyConfigGetResult = z.infer<typeof HostProxyConfigGetResultSchema>;
 
 export const HostProxyConfigSetParamsSchema = HostProxyConfigSchema;
@@ -1654,35 +1533,33 @@ export type HostProxyConfigSetResult = HostProxyConfigGetResult;
 //
 // See `docs/daemon-outbound-protocol.md` (§ "agent_materialize command").
 
-export const AgentMaterializeParamsSchema = z
-  .object({
-    /**
-     * Server-allocated; base64url 16-char string from
-     * randomBytes(12).toString('base64url')
-     * (packages/backend/src/repos/agent-repo.ts).
-     * Schema-level validation is intentionally loose (`min(1)`);
-     * the route layer is responsible for tighter format checks
-     * (Cindy round-2 P1 #5).
-     */
-    agent_id: z.string().min(1),
-    /**
-     * Server-allocated; follows the existing helper
-     * `agentHomeWorkspaceId(agentId)` → `wsah_<agentId>`.
-     */
-    agent_home_workspace_id: z.string().min(1),
-    name: z.string().min(1).max(64),
-    runtime: RuntimeKindSchema,
-    model: z.string().nullable().optional(),
-    description: z.string().nullable().optional(),
-    /**
-     * Template choice for the agent-home bootstrap (system_prompt,
-     * MEMORY.md, notes/ skeleton). D2 implements 'default' only;
-     * 'onboarding' and 'minimal' return `unsupported_template`
-     * until they get a template.
-     */
-    template_choice: z.enum(['default', 'onboarding', 'minimal']).default('default'),
-  })
-  .strict();
+export const AgentMaterializeParamsSchema = z.object({
+  /**
+   * Server-allocated; base64url 16-char string from
+   * randomBytes(12).toString('base64url')
+   * (packages/backend/src/repos/agent-repo.ts).
+   * Schema-level validation is intentionally loose (`min(1)`);
+   * the route layer is responsible for tighter format checks
+   * (Cindy round-2 P1 #5).
+   */
+  agent_id: z.string().min(1),
+  /**
+   * Server-allocated; follows the existing helper
+   * `agentHomeWorkspaceId(agentId)` → `wsah_<agentId>`.
+   */
+  agent_home_workspace_id: z.string().min(1),
+  name: z.string().min(1).max(64),
+  runtime: RuntimeKindSchema,
+  model: z.string().nullable().optional(),
+  description: z.string().nullable().optional(),
+  /**
+   * Template choice for the agent-home bootstrap (system_prompt,
+   * MEMORY.md, notes/ skeleton). D2 implements 'default' only;
+   * 'onboarding' and 'minimal' return `unsupported_template`
+   * until they get a template.
+   */
+  template_choice: z.enum(['default', 'onboarding', 'minimal']).default('default'),
+});
 export type AgentMaterializeParams = z.infer<typeof AgentMaterializeParamsSchema>;
 
 export const AgentMaterializeResultSchema = z
@@ -1724,7 +1601,6 @@ export const AgentMaterializeResultSchema = z
      */
     materialized_at: z.number().int().positive(),
   })
-  .strict()
   .superRefine((value, ctx) => {
     if (value.agent_home_workspace_path !== value.agent_dir) {
       ctx.addIssue({
@@ -1824,12 +1700,10 @@ export type ResponseErrorCode = z.infer<typeof ResponseErrorCodeSchema>;
  *     silently dropped at the transport layer. Validation happens
  *     at the client layer above, where the intent name is known.
  */
-const AgentMaterializeIpcErrorSchema = z
-  .object({
-    code: z.union([ResponseErrorCodeSchema, AgentMaterializeErrorCodeSchema]),
-    message: z.string(),
-  })
-  .strict();
+const AgentMaterializeIpcErrorSchema = z.object({
+  code: z.union([ResponseErrorCodeSchema, AgentMaterializeErrorCodeSchema]),
+  message: z.string(),
+});
 
 // ── D4.e-6: runtime spawn typed-error taxonomy ───────────────────────
 //
@@ -1877,21 +1751,17 @@ export const RuntimeStartErrorCodeSchema = z.enum([
 ]);
 export type RuntimeStartErrorCode = z.infer<typeof RuntimeStartErrorCodeSchema>;
 
-const RuntimeSpawnIpcErrorSchema = z
-  .object({
-    code: z.union([ResponseErrorCodeSchema, RuntimeStartErrorCodeSchema]),
-    message: z.string(),
-  })
-  .strict();
+const RuntimeSpawnIpcErrorSchema = z.object({
+  code: z.union([ResponseErrorCodeSchema, RuntimeStartErrorCodeSchema]),
+  message: z.string(),
+});
 
 /** Per-intent widened wire error for `agent_stale_receive` (#task:1614);
  *  taxonomy documented at `AgentStaleReceiveErrorCodeSchema`. */
-const AgentStaleReceiveIpcErrorSchema = z
-  .object({
-    code: z.union([ResponseErrorCodeSchema, AgentStaleReceiveErrorCodeSchema]),
-    message: z.string(),
-  })
-  .strict();
+const AgentStaleReceiveIpcErrorSchema = z.object({
+  code: z.union([ResponseErrorCodeSchema, AgentStaleReceiveErrorCodeSchema]),
+  message: z.string(),
+});
 
 // ── agent_workspace_index ─────────────────────────────────────────────
 //
@@ -1906,46 +1776,40 @@ const AgentStaleReceiveIpcErrorSchema = z
 // workspaces by their deterministic agent-centric bundle coordinate; there is
 // no registry establishment or reconciliation step.
 
-export const AgentWorkspaceIndexParamsSchema = z
-  .object({
-    agent_id: z.string().min(1),
-    /** Workspace ids the backend's ACL/DB list already authorized. */
-    workspace_ids: z.array(z.string().min(1)),
-  })
-  .strict();
+export const AgentWorkspaceIndexParamsSchema = z.object({
+  agent_id: z.string().min(1),
+  /** Workspace ids the backend's ACL/DB list already authorized. */
+  workspace_ids: z.array(z.string().min(1)),
+});
 export type AgentWorkspaceIndexParams = z.infer<typeof AgentWorkspaceIndexParamsSchema>;
 
-export const AgentWorkspaceIndexEntrySchema = z
-  .object({
-    workspace_id: z.string().min(1),
-    /**
-     * Daemon-resolved absolute `agent_dir` for this (agent, workspace):
-     * agent-home → the agent's L1 dir; regular → the deterministic
-     * agent-centric bundle coordinate `<agent home>/workspaces/
-     * <workspace_id>` (relocation-v1 §3.2/§7). Stamped daemon-side; the
-     * backend has no path to assemble one from and must not invent one (I1).
-     */
-    agent_dir: z.string().min(1),
-  })
-  .strict();
+export const AgentWorkspaceIndexEntrySchema = z.object({
+  workspace_id: z.string().min(1),
+  /**
+   * Daemon-resolved absolute `agent_dir` for this (agent, workspace):
+   * agent-home → the agent's L1 dir; regular → the deterministic
+   * agent-centric bundle coordinate `<agent home>/workspaces/
+   * <workspace_id>` (relocation-v1 §3.2/§7). Stamped daemon-side; the
+   * backend has no path to assemble one from and must not invent one (I1).
+   */
+  agent_dir: z.string().min(1),
+});
 export type AgentWorkspaceIndexEntry = z.infer<typeof AgentWorkspaceIndexEntrySchema>;
 
-export const AgentWorkspaceIndexResultSchema = z
-  .object({
-    ok: z.literal(true),
-    entries: z.array(AgentWorkspaceIndexEntrySchema),
-    /**
-     * Workspaces whose `agent_dir` this daemon does not report. Since
-     * relocation-v1 §7-4 this is NOT a provisioning/adoption verdict — the
-     * coordinate is always computable — it is a CWD AVAILABILITY fact: the
-     * bundle is not a usable working directory on this computer right now
-     * (the normal lazy window before the first spawn there), or its id
-     * segment could never form a safe coordinate. The backend surfaces these
-     * as `agent_dir: null`; it MUST NOT synthesize a path of its own (I1).
-     */
-    unresolved: z.array(z.string().min(1)),
-  })
-  .strict();
+export const AgentWorkspaceIndexResultSchema = z.object({
+  ok: z.literal(true),
+  entries: z.array(AgentWorkspaceIndexEntrySchema),
+  /**
+   * Workspaces whose `agent_dir` this daemon does not report. Since
+   * relocation-v1 §7-4 this is NOT a provisioning/adoption verdict — the
+   * coordinate is always computable — it is a CWD AVAILABILITY fact: the
+   * bundle is not a usable working directory on this computer right now
+   * (the normal lazy window before the first spawn there), or its id
+   * segment could never form a safe coordinate. The backend surfaces these
+   * as `agent_dir: null`; it MUST NOT synthesize a path of its own (I1).
+   */
+  unresolved: z.array(z.string().min(1)),
+});
 export type AgentWorkspaceIndexResult = z.infer<typeof AgentWorkspaceIndexResultSchema>;
 
 export const AgentWorkspaceIndexErrorCodeSchema = z.enum([
@@ -1961,12 +1825,10 @@ export const AgentWorkspaceIndexErrorCodeSchema = z.enum([
 ]);
 export type AgentWorkspaceIndexErrorCode = z.infer<typeof AgentWorkspaceIndexErrorCodeSchema>;
 
-const AgentWorkspaceIndexIpcErrorSchema = z
-  .object({
-    code: z.union([ResponseErrorCodeSchema, AgentWorkspaceIndexErrorCodeSchema]),
-    message: z.string(),
-  })
-  .strict();
+const AgentWorkspaceIndexIpcErrorSchema = z.object({
+  code: z.union([ResponseErrorCodeSchema, AgentWorkspaceIndexErrorCodeSchema]),
+  message: z.string(),
+});
 
 // ── #task:811 — agent_workspace_tree + agent_workspace_file_read ─────
 // Two-protocol read pair backing the two-column AgentWorkspacePane: one
@@ -1990,58 +1852,50 @@ const AgentWorkspaceIndexIpcErrorSchema = z
 // home base. Fail-closed: any escape is `forbidden_path`, never a
 // silent fallthrough.
 
-export const AgentWorkspaceTreeParamsSchema = z
-  .object({
-    /** The agent whose home dir is walked. The daemon owns path
-     *  resolution (`resolveAgentDir`) — no server-derived path
-     *  crosses the wire. */
-    agent_id: z.string().min(1),
-    /** Optional L2 scope. Omitted = the agent home/L1 dir. Present =
-     *  resolve this workspace id daemon-side to the agent's per-workspace
-     *  memory dir. Agent-home/DM workspace ids naturally resolve back to the
-     *  same home dir; regular workspace ids resolve to their DETERMINISTIC
-     *  agent-centric bundle coordinate (`resolveAgentWorkspaceBundleDir`) — no
-     *  registry establishment gate. No filesystem path crosses the wire. */
-    workspace_id: z.string().min(1).optional(),
-  })
-  .strict();
+export const AgentWorkspaceTreeParamsSchema = z.object({
+  /** The agent whose home dir is walked. The daemon owns path
+   *  resolution (`resolveAgentDir`) — no server-derived path
+   *  crosses the wire. */
+  agent_id: z.string().min(1),
+  /** Optional L2 scope. Omitted = the agent home/L1 dir. Present =
+   *  resolve this workspace id daemon-side to the agent's per-workspace
+   *  memory dir. Agent-home/DM workspace ids naturally resolve back to the
+   *  same home dir; regular workspace ids resolve to their DETERMINISTIC
+   *  agent-centric bundle coordinate (`resolveAgentWorkspaceBundleDir`) — no
+   *  registry establishment gate. No filesystem path crosses the wire. */
+  workspace_id: z.string().min(1).optional(),
+});
 export type AgentWorkspaceTreeParams = z.infer<typeof AgentWorkspaceTreeParamsSchema>;
 
-export const AgentWorkspaceTreeResultSchema = z
-  .object({
-    ok: z.literal(true),
-    /** Flat list of every visible entry under the agent home dir,
-     *  ordered (parent-dir, kind=directory-first, name). Hidden
-     *  entries (anything starting with '.') and symlinks (intermediate
-     *  or leaf) are filtered server-side. */
-    tree: AgentWorkspaceTreeSchema,
-  })
-  .strict();
+export const AgentWorkspaceTreeResultSchema = z.object({
+  ok: z.literal(true),
+  /** Flat list of every visible entry under the agent home dir,
+   *  ordered (parent-dir, kind=directory-first, name). Hidden
+   *  entries (anything starting with '.') and symlinks (intermediate
+   *  or leaf) are filtered server-side. */
+  tree: AgentWorkspaceTreeSchema,
+});
 export type AgentWorkspaceTreeResult = z.infer<typeof AgentWorkspaceTreeResultSchema>;
 
-export const AgentWorkspaceFileReadParamsSchema = z
-  .object({
-    /** The agent whose home dir is the read base. */
-    agent_id: z.string().min(1),
-    /** Optional L2 scope. Omitted = read from the agent home/L1 dir. Present =
-     *  read from the daemon-resolved per-workspace memory dir. */
-    workspace_id: z.string().min(1).optional(),
-    /** Virtual path under the agent home (e.g. `system_prompt.md`,
-     *  `notes/work-log.md`). The daemon parses + resolves with the
-     *  per-segment rules described above. */
-    path: z.string().min(1),
-  })
-  .strict();
+export const AgentWorkspaceFileReadParamsSchema = z.object({
+  /** The agent whose home dir is the read base. */
+  agent_id: z.string().min(1),
+  /** Optional L2 scope. Omitted = read from the agent home/L1 dir. Present =
+   *  read from the daemon-resolved per-workspace memory dir. */
+  workspace_id: z.string().min(1).optional(),
+  /** Virtual path under the agent home (e.g. `system_prompt.md`,
+   *  `notes/work-log.md`). The daemon parses + resolves with the
+   *  per-segment rules described above. */
+  path: z.string().min(1),
+});
 export type AgentWorkspaceFileReadParams = z.infer<typeof AgentWorkspaceFileReadParamsSchema>;
 
-export const AgentWorkspaceFileReadResultSchema = z
-  .object({
-    ok: z.literal(true),
-    /** Single-file read: bounded preview (daemon-side cap) with a `truncated` flag the
-     *  renderer surfaces as a banner. */
-    file: AgentWorkspaceFileReadSchema,
-  })
-  .strict();
+export const AgentWorkspaceFileReadResultSchema = z.object({
+  ok: z.literal(true),
+  /** Single-file read: bounded preview (daemon-side cap) with a `truncated` flag the
+   *  renderer surfaces as a banner. */
+  file: AgentWorkspaceFileReadSchema,
+});
 export type AgentWorkspaceFileReadResult = z.infer<typeof AgentWorkspaceFileReadResultSchema>;
 
 /**
@@ -2072,12 +1926,10 @@ export const AgentWorkspaceFsErrorCodeSchema = z.enum([
 ]);
 export type AgentWorkspaceFsErrorCode = z.infer<typeof AgentWorkspaceFsErrorCodeSchema>;
 
-const AgentWorkspaceFsIpcErrorSchema = z
-  .object({
-    code: z.union([ResponseErrorCodeSchema, AgentWorkspaceFsErrorCodeSchema]),
-    message: z.string(),
-  })
-  .strict();
+const AgentWorkspaceFsIpcErrorSchema = z.object({
+  code: z.union([ResponseErrorCodeSchema, AgentWorkspaceFsErrorCodeSchema]),
+  message: z.string(),
+});
 
 // ── D4.e-3: agent_l2_seed ────────────────────────────────────────────
 // Seeds a member agent's L2 (per-workspace) memory bundle
@@ -2088,36 +1940,32 @@ const AgentWorkspaceFsIpcErrorSchema = z
 // materialized by `agent_materialize`, so it is never seeded here) and writes
 // the L2 template, which is the L1 template MINUS `system_prompt.md` (L1-only
 // invariant). Idempotent: existing files are preserved, never overwritten.
-export const AgentL2SeedParamsSchema = z
-  .object({
-    /** The member agent whose L2 dir is seeded under the workspace. */
-    agent_id: z.string().min(1),
-    /**
-     * The REGULAR workspace to seed into. The daemon resolves its host-local
-     * path to the DETERMINISTIC agent-centric bundle coordinate
-     * (`<agent home>/workspaces/<wid>`) — seeding IS what materializes it, so
-     * there is no establishment gate and no provisioning refusal (an
-     * un-materialized bundle is created, not rejected). No path crosses the
-     * wire (I1). This intent is regular-only; the backend never sends `kind`.
-     */
-    workspace_id: z.string().min(1),
-    /** Template identifier (matches `agent_materialize`'s wire enum). */
-    template_choice: z.enum(['default', 'onboarding', 'minimal']).default('default'),
-  })
-  .strict();
+export const AgentL2SeedParamsSchema = z.object({
+  /** The member agent whose L2 dir is seeded under the workspace. */
+  agent_id: z.string().min(1),
+  /**
+   * The REGULAR workspace to seed into. The daemon resolves its host-local
+   * path to the DETERMINISTIC agent-centric bundle coordinate
+   * (`<agent home>/workspaces/<wid>`) — seeding IS what materializes it, so
+   * there is no establishment gate and no provisioning refusal (an
+   * un-materialized bundle is created, not rejected). No path crosses the
+   * wire (I1). This intent is regular-only; the backend never sends `kind`.
+   */
+  workspace_id: z.string().min(1),
+  /** Template identifier (matches `agent_materialize`'s wire enum). */
+  template_choice: z.enum(['default', 'onboarding', 'minimal']).default('default'),
+});
 export type AgentL2SeedParams = z.infer<typeof AgentL2SeedParamsSchema>;
 
-export const AgentL2SeedResultSchema = z
-  .object({
-    ok: z.literal(true),
-    /** True when this call wrote at least one new file (false on an
-     *  idempotent re-seed where everything already existed). */
-    seeded: z.boolean(),
-    /** True when the L2 `MEMORY.md` is present after the call (always true
-     *  on success — a sanity flag the route/tests assert). */
-    l2_present: z.boolean(),
-  })
-  .strict();
+export const AgentL2SeedResultSchema = z.object({
+  ok: z.literal(true),
+  /** True when this call wrote at least one new file (false on an
+   *  idempotent re-seed where everything already existed). */
+  seeded: z.boolean(),
+  /** True when the L2 `MEMORY.md` is present after the call (always true
+   *  on success — a sanity flag the route/tests assert). */
+  l2_present: z.boolean(),
+});
 export type AgentL2SeedResult = z.infer<typeof AgentL2SeedResultSchema>;
 
 export const AgentL2SeedErrorCodeSchema = z.enum([
@@ -2136,12 +1984,10 @@ export const AgentL2SeedErrorCodeSchema = z.enum([
 ]);
 export type AgentL2SeedErrorCode = z.infer<typeof AgentL2SeedErrorCodeSchema>;
 
-const AgentL2SeedIpcErrorSchema = z
-  .object({
-    code: z.union([ResponseErrorCodeSchema, AgentL2SeedErrorCodeSchema]),
-    message: z.string(),
-  })
-  .strict();
+const AgentL2SeedIpcErrorSchema = z.object({
+  code: z.union([ResponseErrorCodeSchema, AgentL2SeedErrorCodeSchema]),
+  message: z.string(),
+});
 
 // ── D4.e-4: agent_files_purge ────────────────────────────────────────
 // Removes an agent's host-local files on the OWNING daemon. Replaces the
@@ -2154,24 +2000,23 @@ const AgentL2SeedIpcErrorSchema = z
 // Idempotent: a target already gone (ENOENT) counts as success, not failure.
 // Fail-closed (§3.3): a HARD fs error → typed `partial_purge` so the route
 // keeps the DB row for retry.
-export const AgentFilesPurgeParamsSchema = z
-  .object({
-    /** The agent whose host-local files (the whole agent home tree) are removed. */
-    agent_id: z.string().min(1),
-  })
-  .strict();
+export const AgentFilesPurgeParamsSchema = z.object({
+  /** The agent whose host-local files (the whole agent home tree) are removed. */
+  agent_id: z.string().min(1),
+  // Retired narrowing keys stay refused: ignoring them would widen a partial purge.
+  scope: z.never().optional(),
+  workspace_ids: z.never().optional(),
+});
 export type AgentFilesPurgeParams = z.infer<typeof AgentFilesPurgeParamsSchema>;
 
-export const AgentFilesPurgeResultSchema = z
-  .object({
-    ok: z.literal(true),
-    /** Number of target dirs that existed and were removed (ENOENT targets
-     *  are NOT counted — there was nothing to purge). */
-    purged_count: z.number().int().nonnegative(),
-    /** Runtime handles that reached a real child exit before rm began. */
-    quiesced_count: z.number().int().nonnegative(),
-  })
-  .strict();
+export const AgentFilesPurgeResultSchema = z.object({
+  ok: z.literal(true),
+  /** Number of target dirs that existed and were removed (ENOENT targets
+   *  are NOT counted — there was nothing to purge). */
+  purged_count: z.number().int().nonnegative(),
+  /** Runtime handles that reached a real child exit before rm began. */
+  quiesced_count: z.number().int().nonnegative(),
+});
 export type AgentFilesPurgeResult = z.infer<typeof AgentFilesPurgeResultSchema>;
 
 export const AgentFilesPurgeErrorCodeSchema = z.enum([
@@ -2187,12 +2032,10 @@ export const AgentFilesPurgeErrorCodeSchema = z.enum([
 ]);
 export type AgentFilesPurgeErrorCode = z.infer<typeof AgentFilesPurgeErrorCodeSchema>;
 
-const AgentFilesPurgeIpcErrorSchema = z
-  .object({
-    code: z.union([ResponseErrorCodeSchema, AgentFilesPurgeErrorCodeSchema]),
-    message: z.string(),
-  })
-  .strict();
+const AgentFilesPurgeIpcErrorSchema = z.object({
+  code: z.union([ResponseErrorCodeSchema, AgentFilesPurgeErrorCodeSchema]),
+  message: z.string(),
+});
 
 // ── #task:1135: profile MCP read / write ─────────────────────────────
 // Backs `silverhand profile mcp get|set`. The subject's raw MCP config is
@@ -2201,34 +2044,28 @@ const AgentFilesPurgeIpcErrorSchema = z
 // normal "no MCP" case, NOT an error). Write validates the canonical schema
 // (fail-loud `invalid_config`) and atomically replaces the file. The daemon
 // resolves the L1 dir itself (`resolveAgentDir`) — no fs path crosses the wire.
-export const AgentProfileMcpReadParamsSchema = z.object({ agent_id: z.string().min(1) }).strict();
+export const AgentProfileMcpReadParamsSchema = z.object({ agent_id: z.string().min(1) });
 export type AgentProfileMcpReadParams = z.infer<typeof AgentProfileMcpReadParamsSchema>;
 
-export const AgentProfileMcpReadResultSchema = z
-  .object({
-    ok: z.literal(true),
-    /** Raw file text, or null when no `mcp.json` exists yet. */
-    raw: z.string().nullable(),
-  })
-  .strict();
+export const AgentProfileMcpReadResultSchema = z.object({
+  ok: z.literal(true),
+  /** Raw file text, or null when no `mcp.json` exists yet. */
+  raw: z.string().nullable(),
+});
 export type AgentProfileMcpReadResult = z.infer<typeof AgentProfileMcpReadResultSchema>;
 
-export const AgentProfileMcpWriteParamsSchema = z
-  .object({
-    agent_id: z.string().min(1),
-    /** Raw JSON text to persist. The daemon re-validates (belt) and writes
-     *  atomically; the backend route is the primary validation authority. */
-    raw: z.string(),
-  })
-  .strict();
+export const AgentProfileMcpWriteParamsSchema = z.object({
+  agent_id: z.string().min(1),
+  /** Raw JSON text to persist. The daemon re-validates (belt) and writes
+   *  atomically; the backend route is the primary validation authority. */
+  raw: z.string(),
+});
 export type AgentProfileMcpWriteParams = z.infer<typeof AgentProfileMcpWriteParamsSchema>;
 
-export const AgentProfileMcpWriteResultSchema = z
-  .object({
-    ok: z.literal(true),
-    bytes_written: z.number().int().nonnegative(),
-  })
-  .strict();
+export const AgentProfileMcpWriteResultSchema = z.object({
+  ok: z.literal(true),
+  bytes_written: z.number().int().nonnegative(),
+});
 export type AgentProfileMcpWriteResult = z.infer<typeof AgentProfileMcpWriteResultSchema>;
 
 export const AgentProfileMcpErrorCodeSchema = z.enum([
@@ -2249,19 +2086,15 @@ export const AgentProfileMcpWriteErrorCodeSchema = z.enum([
 ]);
 export type AgentProfileMcpWriteErrorCode = z.infer<typeof AgentProfileMcpWriteErrorCodeSchema>;
 
-const AgentProfileMcpIpcErrorSchema = z
-  .object({
-    code: z.union([ResponseErrorCodeSchema, AgentProfileMcpErrorCodeSchema]),
-    message: z.string(),
-  })
-  .strict();
+const AgentProfileMcpIpcErrorSchema = z.object({
+  code: z.union([ResponseErrorCodeSchema, AgentProfileMcpErrorCodeSchema]),
+  message: z.string(),
+});
 
-const AgentProfileMcpWriteIpcErrorSchema = z
-  .object({
-    code: z.union([ResponseErrorCodeSchema, AgentProfileMcpWriteErrorCodeSchema]),
-    message: z.string(),
-  })
-  .strict();
+const AgentProfileMcpWriteIpcErrorSchema = z.object({
+  code: z.union([ResponseErrorCodeSchema, AgentProfileMcpWriteErrorCodeSchema]),
+  message: z.string(),
+});
 
 // ── #task:1137: live MCP probe ───────────────────────────────────────
 // Backs `silverhand profile mcp probe` and the agent-pane "Test connection" /
@@ -2273,20 +2106,18 @@ const AgentProfileMcpWriteIpcErrorSchema = z
 // command. The server is named by its RAW name — a probe connects to the real
 // endpoint, never the `silverhand_<scope>__` runtime name.
 export const McpProbeSourceSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('profile'), agent_id: z.string().min(1) }).strict(),
+  z.object({ kind: z.literal('profile'), agent_id: z.string().min(1) }),
   // future: z.object({ kind: z.literal('workspace'), workspace_id: ... })
 ]);
 export type McpProbeSource = z.infer<typeof McpProbeSourceSchema>;
 
-export const McpProbeParamsSchema = z
-  .object({
-    source: McpProbeSourceSchema,
-    /** Raw (user-visible) server name to probe. */
-    server_name: z.string().min(1),
-    /** When true, also run `tools/list` after `initialize`. */
-    include_tools: z.boolean().optional(),
-  })
-  .strict();
+export const McpProbeParamsSchema = z.object({
+  source: McpProbeSourceSchema,
+  /** Raw (user-visible) server name to probe. */
+  server_name: z.string().min(1),
+  /** When true, also run `tools/list` after `initialize`. */
+  include_tools: z.boolean().optional(),
+});
 export type McpProbeParams = z.infer<typeof McpProbeParamsSchema>;
 
 // The probe RESULT shape is canonical in `@silverhand/shared` (shared with the
@@ -2307,12 +2138,10 @@ export const McpProbeErrorCodeSchema = z.enum([
 ]);
 export type McpProbeErrorCode = z.infer<typeof McpProbeErrorCodeSchema>;
 
-const McpProbeIpcErrorSchema = z
-  .object({
-    code: z.union([ResponseErrorCodeSchema, McpProbeErrorCodeSchema]),
-    message: z.string(),
-  })
-  .strict();
+const McpProbeIpcErrorSchema = z.object({
+  code: z.union([ResponseErrorCodeSchema, McpProbeErrorCodeSchema]),
+  message: z.string(),
+});
 
 /**
  * Single source of truth for the intent ↔ params / result / error
@@ -2582,13 +2411,12 @@ export const ResponseFrameSchema = z.union([
       id: z.string().min(1),
       result: z.unknown(),
     })
-    .strict(),
-  z
-    .object({
-      id: z.string().min(1),
-      error: ResponseErrorSchema,
-    })
-    .strict(),
+    // `z.unknown()` also accepts an absent key; an error frame must not land here.
+    .refine((frame) => 'result' in frame),
+  z.object({
+    id: z.string().min(1),
+    error: ResponseErrorSchema,
+  }),
 ]);
 export type ResponseFrame = z.infer<typeof ResponseFrameSchema>;
 
@@ -2614,12 +2442,10 @@ export type ResponseFrame = z.infer<typeof ResponseFrameSchema>;
  * that intent) is itself surfaced as a typed `internal_error` so
  * the caller still gets a clean reject path.
  */
-const LooseResponseErrorSchema = z
-  .object({
-    code: z.string().min(1),
-    message: z.string(),
-  })
-  .strict();
+const LooseResponseErrorSchema = z.object({
+  code: z.string().min(1),
+  message: z.string(),
+});
 
 export const LooseResponseFrameSchema = z.union([
   z
@@ -2627,13 +2453,12 @@ export const LooseResponseFrameSchema = z.union([
       id: z.string().min(1),
       result: z.unknown(),
     })
-    .strict(),
-  z
-    .object({
-      id: z.string().min(1),
-      error: LooseResponseErrorSchema,
-    })
-    .strict(),
+    // `z.unknown()` also accepts an absent key; an error frame must not land here.
+    .refine((frame) => 'result' in frame),
+  z.object({
+    id: z.string().min(1),
+    error: LooseResponseErrorSchema,
+  }),
 ]);
 export type LooseResponseFrame = z.infer<typeof LooseResponseFrameSchema>;
 
@@ -2784,78 +2609,72 @@ export const EventFrameSchema = z
     // The cooldown path may also fire with retry_attempt=0 if max_retries=0.
     // The terminal `runtime_exit` follows separately when the daemon
     // gives up and the child process is gone.
-    z
-      .object({
-        event: z.literal('runtime_init_timeout'),
-        runtime_scope: RuntimeScopeSchema,
-        conversation_id: z.string().min(1),
-        agent_id: z.string().min(1),
-        runtime_generation: z.number().int().positive(),
-        /** Which watchdog tier tripped (mirrors CM's three-tier
-         *  PR-A watchdog: silence between bytes / pre-protocol cap /
-         *  post-protocol stall). Names match CM's `InitTimeoutReason` so
-         *  backend can pass the value straight through to `agent_init_timeout`
-         *  SSE without translation (Cindy `4CJATqU0DdbsGVXW`). */
-        timeout_reason: z.enum(['silence', 'pre_protocol_cap', 'post_protocol']),
-        /** Wall-clock ms between spawn and watchdog firing — only the
-         *  daemon has the precise spawn timestamp, so we ship it on the
-         *  same event rather than asking backend to reconstruct it. */
-        elapsed_ms: z.number().int().nonnegative(),
-        /** The configured timeout value (ms) for the tier that fired —
-         *  varies per driver and may be overridden by daemon config. */
-        timeout_ms: z.number().int().nonnegative(),
-        /** True iff the daemon has already decided to re-spawn after this
-         *  timeout. False means cooldown / give-up — a `runtime_exit`
-         *  follows and no `runtime_init_retrying` will. Lets backend mark
-         *  the projection terminal in a single hop without buffering. */
-        retrying: z.boolean(),
-        /** 0-indexed attempt number that just timed out (first attempt
-         *  is 0). Matches CM's `handle.initAttempt` semantics. */
-        retry_attempt: z.number().int().nonnegative(),
-        /** Total retry budget the daemon will honor before cooldown. */
-        max_retries: z.number().int().nonnegative(),
-        /** Optional: present iff this timeout transition also engaged
-         *  cooldown — wall-clock epoch ms when backend / user may
-         *  attempt a fresh start. Carrying it on the same event keeps the
-         *  cooldown-on-timeout path self-contained; backend never has to
-         *  wait for a follow-up `runtime_init_cooldown` to know whether
-         *  to publish `agent_status:crashed reason=init_cooldown` vs
-         *  `init_timeout`. */
-        cooldown_until: z.number().int().positive().optional(),
-        ts: z.number().int(),
-      })
-      .strict(),
-    z
-      .object({
-        event: z.literal('runtime_init_retrying'),
-        runtime_scope: RuntimeScopeSchema,
-        conversation_id: z.string().min(1),
-        agent_id: z.string().min(1),
-        runtime_generation: z.number().int().positive(),
-        /** The attempt number about to start (= the previous timeout's
-         *  retry_attempt + 1). */
-        retry_attempt: z.number().int().positive(),
-        max_retries: z.number().int().nonnegative(),
-        /** How long the daemon will wait before re-spawning, ms. */
-        delay_ms: z.number().int().nonnegative(),
-        ts: z.number().int(),
-      })
-      .strict(),
-    z
-      .object({
-        event: z.literal('runtime_init_cooldown'),
-        runtime_scope: RuntimeScopeSchema,
-        conversation_id: z.string().min(1),
-        agent_id: z.string().min(1),
-        runtime_generation: z.number().int().positive(),
-        /** Wall-clock epoch ms after which backend / user may attempt a
-         *  fresh start. Daemon will NOT auto-retry past this point. */
-        cooldown_until: z.number().int().positive(),
-        /** Total attempts that failed before cooldown engaged (== max_retries). */
-        attempts_exhausted: z.number().int().nonnegative(),
-        ts: z.number().int(),
-      })
-      .strict(),
+    z.object({
+      event: z.literal('runtime_init_timeout'),
+      runtime_scope: RuntimeScopeSchema,
+      conversation_id: z.string().min(1),
+      agent_id: z.string().min(1),
+      runtime_generation: z.number().int().positive(),
+      /** Which watchdog tier tripped (mirrors CM's three-tier
+       *  PR-A watchdog: silence between bytes / pre-protocol cap /
+       *  post-protocol stall). Names match CM's `InitTimeoutReason` so
+       *  backend can pass the value straight through to `agent_init_timeout`
+       *  SSE without translation (Cindy `4CJATqU0DdbsGVXW`). */
+      timeout_reason: z.enum(['silence', 'pre_protocol_cap', 'post_protocol']),
+      /** Wall-clock ms between spawn and watchdog firing — only the
+       *  daemon has the precise spawn timestamp, so we ship it on the
+       *  same event rather than asking backend to reconstruct it. */
+      elapsed_ms: z.number().int().nonnegative(),
+      /** The configured timeout value (ms) for the tier that fired —
+       *  varies per driver and may be overridden by daemon config. */
+      timeout_ms: z.number().int().nonnegative(),
+      /** True iff the daemon has already decided to re-spawn after this
+       *  timeout. False means cooldown / give-up — a `runtime_exit`
+       *  follows and no `runtime_init_retrying` will. Lets backend mark
+       *  the projection terminal in a single hop without buffering. */
+      retrying: z.boolean(),
+      /** 0-indexed attempt number that just timed out (first attempt
+       *  is 0). Matches CM's `handle.initAttempt` semantics. */
+      retry_attempt: z.number().int().nonnegative(),
+      /** Total retry budget the daemon will honor before cooldown. */
+      max_retries: z.number().int().nonnegative(),
+      /** Optional: present iff this timeout transition also engaged
+       *  cooldown — wall-clock epoch ms when backend / user may
+       *  attempt a fresh start. Carrying it on the same event keeps the
+       *  cooldown-on-timeout path self-contained; backend never has to
+       *  wait for a follow-up `runtime_init_cooldown` to know whether
+       *  to publish `agent_status:crashed reason=init_cooldown` vs
+       *  `init_timeout`. */
+      cooldown_until: z.number().int().positive().optional(),
+      ts: z.number().int(),
+    }),
+    z.object({
+      event: z.literal('runtime_init_retrying'),
+      runtime_scope: RuntimeScopeSchema,
+      conversation_id: z.string().min(1),
+      agent_id: z.string().min(1),
+      runtime_generation: z.number().int().positive(),
+      /** The attempt number about to start (= the previous timeout's
+       *  retry_attempt + 1). */
+      retry_attempt: z.number().int().positive(),
+      max_retries: z.number().int().nonnegative(),
+      /** How long the daemon will wait before re-spawning, ms. */
+      delay_ms: z.number().int().nonnegative(),
+      ts: z.number().int(),
+    }),
+    z.object({
+      event: z.literal('runtime_init_cooldown'),
+      runtime_scope: RuntimeScopeSchema,
+      conversation_id: z.string().min(1),
+      agent_id: z.string().min(1),
+      runtime_generation: z.number().int().positive(),
+      /** Wall-clock epoch ms after which backend / user may attempt a
+       *  fresh start. Daemon will NOT auto-retry past this point. */
+      cooldown_until: z.number().int().positive(),
+      /** Total attempts that failed before cooldown engaged (== max_retries). */
+      attempts_exhausted: z.number().int().nonnegative(),
+      ts: z.number().int(),
+    }),
     // ── runtime_compaction_stale (Cindy `-pdNvRYOWip5e9yA` 3c plan
     //     refinement) ───────────────────────────────────────────────
     //
@@ -2872,19 +2691,17 @@ export const EventFrameSchema = z
     // in its RunStateCache; dropping would leave the UI showing fresh
     // compacting state indefinitely. Single implicit reason
     // (watchdog timeout) — additional reasons would each get their own
-    // strict() variant.
-    z
-      .object({
-        event: z.literal('runtime_compaction_stale'),
-        runtime_scope: RuntimeScopeSchema,
-        conversation_id: z.string().min(1),
-        agent_id: z.string().min(1),
-        /** Ms elapsed since `compaction_started` was observed, at the
-         *  moment the watchdog fired. */
-        elapsed_ms: z.number().int().nonnegative(),
-        ts: z.number().int(),
-      })
-      .strict(),
+    // variant.
+    z.object({
+      event: z.literal('runtime_compaction_stale'),
+      runtime_scope: RuntimeScopeSchema,
+      conversation_id: z.string().min(1),
+      agent_id: z.string().min(1),
+      /** Ms elapsed since `compaction_started` was observed, at the
+       *  moment the watchdog fired. */
+      elapsed_ms: z.number().int().nonnegative(),
+      ts: z.number().int(),
+    }),
     z.object({
       event: z.literal('runtime_output_dropped'),
       runtime_scope: RuntimeScopeSchema,
@@ -2927,17 +2744,15 @@ export const EventFrameSchema = z
     // No `raw_line` field: carrying raw bytes here would reintroduce
     // the same unbounded tool-output channel this split is meant to
     // avoid. The `parsed` payload is the bounded structured contract.
-    z
-      .object({
-        event: z.literal('runtime_parsed_event'),
-        runtime_scope: RuntimeScopeSchema,
-        conversation_id: z.string().min(1),
-        agent_id: z.string().min(1),
-        runtime_generation: z.number().int().positive(),
-        parsed: ParsedEventSchema,
-        ts: z.number().int(),
-      })
-      .strict(),
+    z.object({
+      event: z.literal('runtime_parsed_event'),
+      runtime_scope: RuntimeScopeSchema,
+      conversation_id: z.string().min(1),
+      agent_id: z.string().min(1),
+      runtime_generation: z.number().int().positive(),
+      parsed: ParsedEventSchema,
+      ts: z.number().int(),
+    }),
     // `runtime_parsed_event_dropped` is the safety valve when a parsed
     // event's encoded payload exceeds MAX_FRAME_BYTES. We CANNOT silently
     // truncate the `parsed` payload (Cindy: "frame 保护不要静默改写任意
@@ -2955,18 +2770,16 @@ export const EventFrameSchema = z
     // still updates its in-memory AgentRunState from the original
     // ParsedEvent before encoding — frame-too-large is a broadcast
     // concern, not a run-state concern (Cindy `C2BZGDbQWfnq-bKJ`).
-    z
-      .object({
-        event: z.literal('runtime_parsed_event_dropped'),
-        runtime_scope: RuntimeScopeSchema,
-        conversation_id: z.string().min(1),
-        agent_id: z.string().min(1),
-        parsed_kind: ParsedEventKindSchema,
-        encoded_bytes: z.number().int().nonnegative(),
-        reason: z.literal('frame_too_large'),
-        ts: z.number().int(),
-      })
-      .strict(),
+    z.object({
+      event: z.literal('runtime_parsed_event_dropped'),
+      runtime_scope: RuntimeScopeSchema,
+      conversation_id: z.string().min(1),
+      agent_id: z.string().min(1),
+      parsed_kind: ParsedEventKindSchema,
+      encoded_bytes: z.number().int().nonnegative(),
+      reason: z.literal('frame_too_large'),
+      ts: z.number().int(),
+    }),
     // `runtime_message_stale` (#task:2099) is the authoritative fact axis for a
     // refused send. Before it, the desktop inferred staleness from the shape of
     // the agent's command line (`--stale-resolution` / `--anyway` present), which
@@ -2990,16 +2803,14 @@ export const EventFrameSchema = z
     // `docs/freshness-boundary-authority-v1.md` §3.2 (whose §6 records this row's
     // own contract). Adding a field later is
     // purely additive; retracting one that reached a persisted payload is not.
-    z
-      .object({
-        event: z.literal('runtime_message_stale'),
-        runtime_scope: RuntimeScopeSchema,
-        conversation_id: z.string().min(1),
-        agent_id: z.string().min(1),
-        runtime_generation: z.number().int().positive(),
-        ts: z.number().int(),
-      })
-      .strict(),
+    z.object({
+      event: z.literal('runtime_message_stale'),
+      runtime_scope: RuntimeScopeSchema,
+      conversation_id: z.string().min(1),
+      agent_id: z.string().min(1),
+      runtime_generation: z.number().int().positive(),
+      ts: z.number().int(),
+    }),
   ])
   .superRefine((frame, ctx) => {
     if (frame.event === 'runtime_state' && frame.state.conversationId !== frame.conversation_id) {

@@ -195,7 +195,7 @@ where
 
 /// The update body. `display_label` is optional-but-present-nullable in the wire vocab:
 /// the frozen [`PatchField`] tells an ABSENT key from an explicit `null`. Serde owns
-/// structure (`deny_unknown_fields`; a wrong-typed value fails the decode); the arm→input
+/// structure (a wrong-typed value fails the decode); the arm→input
 /// mapping and the label normalization stay in [`into_input`](Self::into_input).
 ///
 /// The body is decoded through the shared [`from_object_slice`] so a top-level JSON
@@ -207,7 +207,6 @@ where
 /// arm is mapped EXPLICITLY to `Invalid` rather than relying on a missing-field decode
 /// error. This route keeps its post-auth admission (the anti-enum `404` runs first).
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 struct UpdateBody {
     #[serde(default)]
     display_label: PatchField<String>,

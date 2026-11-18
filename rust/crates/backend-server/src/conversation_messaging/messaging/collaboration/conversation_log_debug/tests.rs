@@ -465,19 +465,12 @@ async fn production_control_expires_at_the_same_boundary_the_get_route_reads() {
 async fn strict_boolean_shape_and_content_type_precede_local_control() {
     // The closed body crosses the shared `ValidatedJson` extractor AFTER admit. Structural
     // faults keep their NATIVE axum status — 400 for a JSON syntax error, 422 for a
-    // data-shape fault (missing/wrong-typed key, unknown key under `.strict()`, and a
+    // data-shape fault (missing/wrong-typed key and a
     // value-shaped ARRAY the object-only floor refuses before it can bind positionally) —
     // and there is no stateless rule, so nothing collapses to a re-rendered issue schema.
     // NONE reaches the local control (authority/effect zero-reach). Native body text is
     // deliberately NOT pinned.
-    let structural_422 = [
-        "{}",
-        r#"{"enabled":"yes"}"#,
-        r#"{"enabled":true,"future":1}"#,
-        "[true]",
-        "true",
-        "null",
-    ];
+    let structural_422 = ["{}", r#"{"enabled":"yes"}"#, "[true]", "true", "null"];
     for raw in structural_422 {
         let fixture = fixture(AdmissionMode::Granted);
         let (status, _) = call(fixture.app, "POST", Body::from(raw), true, None).await;

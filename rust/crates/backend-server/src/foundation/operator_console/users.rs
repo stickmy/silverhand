@@ -11,7 +11,6 @@ use silverhand_backend_core::application_orchestration::console_analytics::{
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 pub(super) struct ListQuery {
     #[serde(default = "default_days")]
     days: i64,
@@ -22,7 +21,6 @@ pub(super) struct ListQuery {
 }
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 pub(super) struct DetailQuery {
     #[serde(default = "default_days")]
     days: i64,

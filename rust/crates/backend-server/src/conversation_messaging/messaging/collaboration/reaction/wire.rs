@@ -14,8 +14,8 @@ use silverhand_backend_core::conversation_messaging::messaging::collaboration::r
 pub const MESSAGE_REACTION_CHANGED_EVENT: &str = "message_reaction_changed";
 
 /// Human mutation body (`POST`/`DELETE /api/messages/{id}/reactions`). The message id
-/// is a path coordinate, so the body carries only the emoji. A closed object: an unknown
-/// key is a native decode fault, an array-shaped body is rejected by the shared
+/// is a path coordinate, so the body carries only the emoji. Unknown keys are ignored; an
+/// array-shaped body is rejected by the shared
 /// [`ObjectOnly`](crate::foundation::wire_admission::ObjectOnly) floor inside [`ValidatedJson`], and a
 /// non-string `emoji` keeps axum's native typed rejection. There is NO garde rule — emoji
 /// grammar is a domain verdict resolved by [`ReactionEmoji`](silverhand_backend_core::conversation_messaging::messaging::collaboration::reaction::ReactionEmoji)
@@ -23,7 +23,6 @@ pub const MESSAGE_REACTION_CHANGED_EVENT: &str = "message_reaction_changed";
 ///
 /// [`ValidatedJson`]: crate::foundation::wire_admission::ValidatedJson
 #[derive(Debug, Deserialize, Validate)]
-#[serde(deny_unknown_fields)]
 pub(super) struct HumanReactRaw {
     #[garde(skip)]
     pub(super) emoji: String,
@@ -38,7 +37,6 @@ pub(super) struct HumanReactRaw {
 /// `agent_invalid_emoji_*` cases). Closed object, no garde rule, same structural guarantees
 /// as [`HumanReactRaw`].
 #[derive(Debug, Deserialize, Validate)]
-#[serde(deny_unknown_fields)]
 pub(super) struct AgentReactRaw {
     #[garde(skip)]
     pub(super) message_id: String,

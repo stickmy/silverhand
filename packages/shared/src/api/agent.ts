@@ -186,7 +186,6 @@ export const SwitchAgentRuntimeInputSchema = z
     reasoning_effort: ReasoningEffortTokenSchema.nullable(),
     service_tier: ServiceTierSchema.nullable(),
   })
-  .strict()
   .superRefine((val, ctx) => {
     if (!reasoningEffortValidForRuntime(val.runtime, val.reasoning_effort)) {
       ctx.addIssue({

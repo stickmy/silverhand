@@ -10,7 +10,7 @@
 //! credential is the composition-fault safe `500`, never a `401` (that verdict is the
 //! layer's).
 //!
-//! The body is a STRICT closed object admitted through the frozen
+//! The body is an object admitted through the frozen
 //! [`ValidatedJson`]/[`ObjectOnly`](crate::foundation::wire_admission) contract. Every field is optional
 //! (absent is fine — a half-formed CLI invocation still reports) but NON-NULL when present
 //! ([`RequiredPatchField`]: a present `null` is refused for every field). Named string
@@ -97,12 +97,10 @@ where
         .with_state(sink)
 }
 
-/// The strict closed-object body. Every field is optional (`#[serde(default)]` →
-/// [`RequiredPatchField::Missing`]) but non-null when present; unknown keys are rejected
-/// (`deny_unknown_fields`), and the [`ObjectOnly`](crate::foundation::wire_admission) wrapper inside
+/// Every field is optional (`#[serde(default)]` → [`RequiredPatchField::Missing`]) but
+/// non-null when present; unknown keys are ignored, and the [`ObjectOnly`](crate::foundation::wire_admission) wrapper inside
 /// [`ValidatedJson`] rejects a non-object top-level shape before any field binds.
 #[derive(Debug, Deserialize, Validate)]
-#[serde(deny_unknown_fields)]
 struct CliTraceInput {
     #[serde(default)]
     #[garde(custom(required_within_utf16_max(FIELD_MAX_UTF16)))]
@@ -522,17 +520,6 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
-    }
-
-    #[tokio::test]
-    async fn an_unknown_key_is_rejected() {
-        // Strict closed object: `deny_unknown_fields` refuses a surprise key.
-        let (status, _body) = run_with(
-            RecordingSink::default(),
-            trace_request(agent_principal("a1"), r#"{"surprise":1}"#),
-        )
-        .await;
-        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
     }
 
     #[tokio::test]

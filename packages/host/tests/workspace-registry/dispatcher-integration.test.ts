@@ -338,11 +338,11 @@ describe('IntentDispatcher.agent_l2_seed extras', () => {
 
 describe('IntentDispatcher.agent_files_purge extras', () => {
   it.each([{ scope: 'all' }, { workspace_ids: ['ws_1'] }])(
-    'rejects retired fields %j via the strict schema before the handler',
+    'rejects retired fields %j before the handler',
     async (retired) => {
       // relocation-v1 §7 task 4 — the intent collapsed to `{ agent_id }`; the
-      // retired `scope`/`workspace_ids` must be refused at the wire boundary
-      // (`.strict()`), never silently ignored into a full-home purge.
+      // retired `scope`/`workspace_ids` must be refused at the wire boundary,
+      // never silently ignored into a full-home purge.
       let called = false;
       const d = dispatcherWithHandler('agentFilesPurgeHandler', () => {
         called = true;

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  ChangePasswordInputSchema,
   HostStatusReadResponseSchema,
   HostStatusResponseSchema,
   PasswordStatusResponseSchema,
@@ -60,19 +59,5 @@ describe('response schemas tolerate keys added by a newer server', () => {
     expect(PasswordStatusResponseSchema.parse({ has_password: true, added_later: 1 })).toEqual({
       has_password: true,
     });
-  });
-});
-
-describe('input schemas still reject unknown keys', () => {
-  it('rejects an unknown key on a request body', () => {
-    const body = { current_password: 'old-password-1', new_password: 'new-password-123' };
-    expect(ChangePasswordInputSchema.safeParse(body).success).toBe(true);
-    expect(
-      ChangePasswordInputSchema.safeParse({
-        current_password: 'old-password-1',
-        new_password: 'new-password-123',
-        unexpected: true,
-      }).success,
-    ).toBe(false);
   });
 });

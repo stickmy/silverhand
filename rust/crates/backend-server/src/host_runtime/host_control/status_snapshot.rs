@@ -289,7 +289,6 @@ fn outcome_for(failure: HostDataPlaneFailure) -> StatusSnapshotOutcome {
 }
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 struct StatusWire {
     os: String,
     /// Absent on a daemon old enough not to report it. Nested so an absent key and
@@ -534,11 +533,7 @@ mod tests {
     }
 
     #[test]
-    fn a_widened_incomplete_or_fractional_status_is_refused_rather_than_defaulted() {
-        let mut widened = status(json!({}));
-        widened["unexpected"] = json!(true);
-        assert!(decode(widened).is_none());
-
+    fn an_incomplete_or_fractional_status_is_refused_rather_than_defaulted() {
         for required in [
             "os",
             "daemon_pid",

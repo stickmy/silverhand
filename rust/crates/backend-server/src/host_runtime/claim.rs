@@ -7,8 +7,8 @@
 //!  1. VALIDATE — the request body is admitted through the frozen [`ValidatedJson`]
 //!     extractor against [`RawClaim`]: `installation_id` a required string bounded by the
 //!     route-local `is_uuid` predicate, `label` and `current_host_id` optional but
-//!     NON-nullable strings, and no unknown keys (`deny_unknown_fields`). A malformed
-//!     body, a wrong-typed or `null` field, a missing `installation_id`, a stray key, and
+//!     NON-nullable strings; unknown keys are ignored. A malformed
+//!     body, a wrong-typed or `null` field, a missing `installation_id`, and
 //!     a non-object shape all keep axum's native `Json` classification (`400`/`422`/`415`)
 //!     — this route publishes no validation-issue schema. `TryFrom<RawClaim>` then
 //!     normalizes the two optional strings through their sole value authorities
@@ -155,13 +155,11 @@ struct ClaimOrCreateResponse {
 /// The claim body: the shape the frozen [`ValidatedJson`] extractor decodes and validates.
 ///
 /// Serde owns structure — a missing `installation_id`, a wrong-typed field, a present
-/// `null` for either optional key (via [`RequiredPatchField`]), or a stray key
-/// (`deny_unknown_fields`) is a native decode fault. The one stateless value rule,
+/// `null` for either optional key (via [`RequiredPatchField`]) is a native decode fault. The one stateless value rule,
 /// `installation_id`'s shape, delegates to the route-local [`is_uuid`] predicate; the two
 /// optional strings carry no garde rule because their sole value authority is the
 /// normalization in [`TryFrom`], which turns any refusal into the minimal semantic `422`.
 #[derive(Debug, Deserialize, Validate)]
-#[serde(deny_unknown_fields)]
 struct RawClaim {
     #[garde(custom(is_uuid_rule))]
     installation_id: String,
@@ -471,7 +469,7 @@ mod tests {
     }
 
     /// A structural decode fault — a missing required field, a wrong-typed field, a
-    /// present `null` for a non-nullable optional, a stray key, or a non-object shape —
+    /// present `null` for a non-nullable optional, or a non-object shape —
     /// keeps axum's native `Json` classification (`422` today), never our semantic
     /// envelope, and never reaches the claim.
     #[tokio::test]
@@ -483,7 +481,6 @@ mod tests {
             format!(r#"{{"installation_id":"{uuid}","label":5}}"#),    // wrong type
             format!(r#"{{"installation_id":"{uuid}","label":null}}"#), // present null
             format!(r#"{{"installation_id":"{uuid}","current_host_id":null}}"#), // present null
-            format!(r#"{{"installation_id":"{uuid}","zeta":true}}"#),  // unknown key
             "[]".to_owned(),                                           // non-object shapes
             "\"text\"".to_owned(),
             "42".to_owned(),

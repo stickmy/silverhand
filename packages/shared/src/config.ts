@@ -45,48 +45,46 @@ export const EMBEDDED_BOOTSTRAP_FILENAME = 'embedded-bootstrap';
 export const EVENT_WS_SESSION_COOKIE = BACKEND_ADMISSION.eventWebSocketSessionCookie;
 export const AUTH_TOKEN_HEADER = 'authorization';
 
-export const DaemonHostConfigSchema = z
-  .object({
-    server_url: z.string().url(),
-    host_id: z.string().min(1),
-    host_token: z.string().min(1),
-    /**
-     * Local daemon policy bit allowing non-loopback http:// remote
-     * outbound connections for this client. This is derived from the
-     * desktop package/env opt-in and written only into daemon-config;
-     * it is intentionally not part of the server connection profile and
-     * never crosses the daemon↔server protocol.
-     */
-    allow_insecure_remote: z.boolean().optional(),
-    /**
-     * Local config consistency anchor. When the desktop main
-     * process derives daemon-config from the server connection profile
-     * it stamps the profile's monotonic `version` here; the daemon
-     * reads it solely to:
-     *
-     *   1. Include in `daemonHostConfigFingerprint` so a profile commit
-     *      that bumps the version (even with the same `server_url` /
-     *      `host_id` / `host_token`) is NOT treated as a no-op reload —
-     *      otherwise desktop's generation tracking diverges from
-     *      daemon's after a metadata-only commit.
-     *   2. Be visible in daemon-side debug / status output for support.
-     *
-     * **Strict R4 boundary**: `profile_version` is local config only —
-     * NEVER serialized into any outbound WSS frame, auth header, or
-     * backend HTTP request. Future R4 unification (D5+) keeps this
-     * field local; the daemon-server protocol stays unaware of it.
-     *
-     * Optional in the schema for backward compat — daemon-configs
-     * written by D3.x desktops parse without the field — but new
-     * desktop writes (5c phase-2 derive + retro-fit on rotate / claim)
-     * MUST populate it once they have a profile to derive from.
-     * Embedded-mode bootstrap (no profile present) intentionally leaves
-     * the field undefined; that is also a stable state the daemon
-     * fingerprint accommodates.
-     */
-    profile_version: z.number().int().nonnegative().optional(),
-  })
-  .strict();
+export const DaemonHostConfigSchema = z.object({
+  server_url: z.string().url(),
+  host_id: z.string().min(1),
+  host_token: z.string().min(1),
+  /**
+   * Local daemon policy bit allowing non-loopback http:// remote
+   * outbound connections for this client. This is derived from the
+   * desktop package/env opt-in and written only into daemon-config;
+   * it is intentionally not part of the server connection profile and
+   * never crosses the daemon↔server protocol.
+   */
+  allow_insecure_remote: z.boolean().optional(),
+  /**
+   * Local config consistency anchor. When the desktop main
+   * process derives daemon-config from the server connection profile
+   * it stamps the profile's monotonic `version` here; the daemon
+   * reads it solely to:
+   *
+   *   1. Include in `daemonHostConfigFingerprint` so a profile commit
+   *      that bumps the version (even with the same `server_url` /
+   *      `host_id` / `host_token`) is NOT treated as a no-op reload —
+   *      otherwise desktop's generation tracking diverges from
+   *      daemon's after a metadata-only commit.
+   *   2. Be visible in daemon-side debug / status output for support.
+   *
+   * **Strict R4 boundary**: `profile_version` is local config only —
+   * NEVER serialized into any outbound WSS frame, auth header, or
+   * backend HTTP request. Future R4 unification (D5+) keeps this
+   * field local; the daemon-server protocol stays unaware of it.
+   *
+   * Optional in the schema for backward compat — daemon-configs
+   * written by D3.x desktops parse without the field — but new
+   * desktop writes (5c phase-2 derive + retro-fit on rotate / claim)
+   * MUST populate it once they have a profile to derive from.
+   * Embedded-mode bootstrap (no profile present) intentionally leaves
+   * the field undefined; that is also a stable state the daemon
+   * fingerprint accommodates.
+   */
+  profile_version: z.number().int().nonnegative().optional(),
+});
 export type DaemonHostConfig = z.infer<typeof DaemonHostConfigSchema>;
 
 /**

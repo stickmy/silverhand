@@ -1598,7 +1598,7 @@ impl From<serde_json::Error> for DaemonRuntimeEventError {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(tag = "kind", rename_all = "snake_case")]
 pub(crate) enum RuntimeScopeWire {
     Agent {
         agent_id: String,
@@ -1610,7 +1610,6 @@ pub(crate) enum RuntimeScopeWire {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
 pub(crate) struct RuntimeCoordinate {
     pub runtime_scope: RuntimeScopeWire,
     pub conversation_id: String,
@@ -1778,7 +1777,6 @@ impl InitTimeoutReason {
 macro_rules! coordinate_event {
     ($name:ident { $($field:ident : $ty:ty),* $(,)? }) => {
         #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
-        #[serde(deny_unknown_fields)]
         pub(crate) struct $name {
             #[serde(flatten)] pub coordinate: RuntimeCoordinate,
             $(pub $field: $ty,)*
@@ -1841,7 +1839,7 @@ coordinate_event!(RuntimeMessageStaleEvent {
 });
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(tag = "kind", rename_all = "snake_case")]
 pub(crate) enum ParsedEventWire {
     SessionInit {
         #[serde(rename = "sessionId")]
@@ -2768,13 +2766,19 @@ impl RuntimeProductEvent {
 mod tool_output_marker_contract {
     use super::*;
     #[test]
-    fn new_output_bodies_are_rejected_before_settlement() {
+    fn output_bodies_are_never_carried_into_settlement() {
         let marker =
             serde_json::json!({"kind":"tool_output","toolCallId":"call-one","outcome":"success"});
         let parsed: ParsedEventWire = serde_json::from_value(marker.clone()).unwrap();
         assert_eq!(serde_json::to_value(parsed).unwrap()["outcome"], "success");
         let mut body = marker;
         body["output"] = serde_json::json!("unrequested body");
-        assert!(serde_json::from_value::<ParsedEventWire>(body).is_err());
+        let parsed: ParsedEventWire = serde_json::from_value(body).unwrap();
+        assert!(
+            serde_json::to_value(parsed)
+                .unwrap()
+                .get("output")
+                .is_none()
+        );
     }
 }

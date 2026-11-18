@@ -258,14 +258,6 @@ async fn session_and_deployment_authority_reject_invalid_setup_requests() {
             StatusCode::FORBIDDEN
         );
     }
-    let mut injected = profile("Alice");
-    injected["user_id"] = json!("someone-else");
-    assert_eq!(
-        request(&app, "PUT", Some(injected), Some("local-token"))
-            .await
-            .0,
-        StatusCode::BAD_REQUEST
-    );
     assert_eq!(
         request(&app, "PUT", Some(profile("123")), Some("local-token"))
             .await

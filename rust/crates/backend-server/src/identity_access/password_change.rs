@@ -25,7 +25,6 @@ use super::human_auth::{LOGIN_PASSWORD_MIN_UTF16, SIGNUP_PASSWORD_MIN_UTF16, pas
 pub const PATH: &str = "/api/me/password";
 
 #[derive(Deserialize, Validate)]
-#[serde(deny_unknown_fields)]
 struct Input {
     #[garde(custom(password_within(LOGIN_PASSWORD_MIN_UTF16)))]
     current_password: String,

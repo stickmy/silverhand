@@ -176,7 +176,6 @@ export const RotateTokenParamsSchema = z
     /** Epoch ms until which the previous token remains valid. */
     grace_until: z.number().int().positive(),
   })
-  .strict()
   .superRefine((value, ctx) => {
     if (value.grace_until <= value.issued_at) {
       ctx.addIssue({
@@ -189,21 +188,17 @@ export const RotateTokenParamsSchema = z
 export type RotateTokenParams = z.infer<typeof RotateTokenParamsSchema>;
 
 export const RotateTokenResultSchema = z.discriminatedUnion('rotated', [
-  z
-    .object({
-      rotated: z.literal(true),
-      host_id: z.string().min(1),
-      /** Epoch ms after daemon atomically refreshed daemon-config.json. */
-      config_refreshed_at: z.number().int().nonnegative(),
-    })
-    .strict(),
-  z
-    .object({
-      rotated: z.literal(false),
-      reason: z.enum(['host_mismatch', 'invalid_config', 'write_failed']),
-      message: z.string().optional(),
-    })
-    .strict(),
+  z.object({
+    rotated: z.literal(true),
+    host_id: z.string().min(1),
+    /** Epoch ms after daemon atomically refreshed daemon-config.json. */
+    config_refreshed_at: z.number().int().nonnegative(),
+  }),
+  z.object({
+    rotated: z.literal(false),
+    reason: z.enum(['host_mismatch', 'invalid_config', 'write_failed']),
+    message: z.string().optional(),
+  }),
 ]);
 export type RotateTokenResult = z.infer<typeof RotateTokenResultSchema>;
 
@@ -222,12 +217,10 @@ export type RotateTokenResult = z.infer<typeof RotateTokenResultSchema>;
  * in their error arm — that was the Cindy D1 round-1 P1 failure
  * mode: a global union widened every command's error surface.
  */
-export const AgentMaterializeWireErrorSchema = z
-  .object({
-    code: z.union([ResponseErrorSchema.shape.code, AgentMaterializeErrorCodeSchema]),
-    message: z.string(),
-  })
-  .strict();
+export const AgentMaterializeWireErrorSchema = z.object({
+  code: z.union([ResponseErrorSchema.shape.code, AgentMaterializeErrorCodeSchema]),
+  message: z.string(),
+});
 export type AgentMaterializeWireError = z.infer<typeof AgentMaterializeWireErrorSchema>;
 
 /**
@@ -236,12 +229,10 @@ export type AgentMaterializeWireError = z.infer<typeof AgentMaterializeWireError
  * (per-command scoping — Cindy D1 round-1 P1): a typed code from one
  * command cannot leak onto another's error arm.
  */
-export const AgentWorkspaceIndexWireErrorSchema = z
-  .object({
-    code: z.union([ResponseErrorSchema.shape.code, AgentWorkspaceIndexErrorCodeSchema]),
-    message: z.string(),
-  })
-  .strict();
+export const AgentWorkspaceIndexWireErrorSchema = z.object({
+  code: z.union([ResponseErrorSchema.shape.code, AgentWorkspaceIndexErrorCodeSchema]),
+  message: z.string(),
+});
 export type AgentWorkspaceIndexWireError = z.infer<typeof AgentWorkspaceIndexWireErrorSchema>;
 
 /**
@@ -252,58 +243,46 @@ export type AgentWorkspaceIndexWireError = z.infer<typeof AgentWorkspaceIndexWir
  * `internal_error`), so the renderer can write one translation table
  * for both endpoints.
  */
-export const AgentWorkspaceFsWireErrorSchema = z
-  .object({
-    code: z.union([ResponseErrorSchema.shape.code, AgentWorkspaceFsErrorCodeSchema]),
-    message: z.string(),
-  })
-  .strict();
+export const AgentWorkspaceFsWireErrorSchema = z.object({
+  code: z.union([ResponseErrorSchema.shape.code, AgentWorkspaceFsErrorCodeSchema]),
+  message: z.string(),
+});
 export type AgentWorkspaceFsWireError = z.infer<typeof AgentWorkspaceFsWireErrorSchema>;
 
-export const AgentL2SeedWireErrorSchema = z
-  .object({
-    code: z.union([ResponseErrorSchema.shape.code, AgentL2SeedErrorCodeSchema]),
-    message: z.string(),
-  })
-  .strict();
+export const AgentL2SeedWireErrorSchema = z.object({
+  code: z.union([ResponseErrorSchema.shape.code, AgentL2SeedErrorCodeSchema]),
+  message: z.string(),
+});
 export type AgentL2SeedWireError = z.infer<typeof AgentL2SeedWireErrorSchema>;
 
-export const AgentFilesPurgeWireErrorSchema = z
-  .object({
-    code: z.union([ResponseErrorSchema.shape.code, AgentFilesPurgeErrorCodeSchema]),
-    message: z.string(),
-  })
-  .strict();
+export const AgentFilesPurgeWireErrorSchema = z.object({
+  code: z.union([ResponseErrorSchema.shape.code, AgentFilesPurgeErrorCodeSchema]),
+  message: z.string(),
+});
 export type AgentFilesPurgeWireError = z.infer<typeof AgentFilesPurgeWireErrorSchema>;
 
 // #task:1135: profile-mcp write widens its wire error with the same
 // per-command scoping — `invalid_config` (fail-loud re-validation),
 // `fs_unavailable` (E* host-fs error), `internal_error`.
-export const AgentProfileMcpWireErrorSchema = z
-  .object({
-    code: z.union([ResponseErrorSchema.shape.code, AgentProfileMcpErrorCodeSchema]),
-    message: z.string(),
-  })
-  .strict();
+export const AgentProfileMcpWireErrorSchema = z.object({
+  code: z.union([ResponseErrorSchema.shape.code, AgentProfileMcpErrorCodeSchema]),
+  message: z.string(),
+});
 export type AgentProfileMcpWireError = z.infer<typeof AgentProfileMcpWireErrorSchema>;
 
-export const AgentProfileMcpWriteWireErrorSchema = z
-  .object({
-    code: z.union([ResponseErrorSchema.shape.code, AgentProfileMcpWriteErrorCodeSchema]),
-    message: z.string(),
-  })
-  .strict();
+export const AgentProfileMcpWriteWireErrorSchema = z.object({
+  code: z.union([ResponseErrorSchema.shape.code, AgentProfileMcpWriteErrorCodeSchema]),
+  message: z.string(),
+});
 
 // #task:1137: mcp_probe widens its wire error with the same per-command
 // scoping — `fs_unavailable` (E* host-fs error reading the source config),
 // `internal_error`. Connection/handshake/tools failures are NOT errors; they
 // ride in the result (`ok:false` + phase).
-export const McpProbeWireErrorSchema = z
-  .object({
-    code: z.union([ResponseErrorSchema.shape.code, McpProbeErrorCodeSchema]),
-    message: z.string(),
-  })
-  .strict();
+export const McpProbeWireErrorSchema = z.object({
+  code: z.union([ResponseErrorSchema.shape.code, McpProbeErrorCodeSchema]),
+  message: z.string(),
+});
 export type McpProbeWireError = z.infer<typeof McpProbeWireErrorSchema>;
 
 // D4.e-6: commands whose execution may spawn a runtime widen their wire error
@@ -314,12 +293,10 @@ export type McpProbeWireError = z.infer<typeof McpProbeWireErrorSchema>;
 // `registry_unavailable` (no attached computer, or an unsafe workspace id
 // segment) off this arm. `runtime_deliver` shares it because its SPAWN arm
 // executes the same resolver as `runtime_start`.
-export const RuntimeStartWireErrorSchema = z
-  .object({
-    code: z.union([ResponseErrorSchema.shape.code, RuntimeStartErrorCodeSchema]),
-    message: z.string(),
-  })
-  .strict();
+export const RuntimeStartWireErrorSchema = z.object({
+  code: z.union([ResponseErrorSchema.shape.code, RuntimeStartErrorCodeSchema]),
+  message: z.string(),
+});
 export type RuntimeStartWireError = z.infer<typeof RuntimeStartWireErrorSchema>;
 
 /**
@@ -494,15 +471,13 @@ export const OUTBOUND_SERVER_COMMAND_KINDS = Object.keys(
 ) as OutboundServerCommandKind[];
 
 const serverCommandFrameOptions = OUTBOUND_SERVER_COMMAND_KINDS.map((kind) =>
-  z
-    .object({
-      direction: z.literal('server_to_daemon'),
-      type: z.literal('command'),
-      id: FrameIdSchema,
-      kind: z.literal(kind),
-      params: outboundServerCommandSchemas[kind].params,
-    })
-    .strict(),
+  z.object({
+    direction: z.literal('server_to_daemon'),
+    type: z.literal('command'),
+    id: FrameIdSchema,
+    kind: z.literal(kind),
+    params: outboundServerCommandSchemas[kind].params,
+  }),
 ) as unknown as [z.ZodDiscriminatedUnionOption<'kind'>, ...z.ZodDiscriminatedUnionOption<'kind'>[]];
 
 export const OutboundServerToDaemonCommandFrameSchema = z.discriminatedUnion(
@@ -530,25 +505,22 @@ export type OutboundCommandError = {
   [K in OutboundServerCommandKind]: OutboundServerCommandError<K>;
 }[OutboundServerCommandKind];
 
+// Error arm first: a result schema of optional keys also matches an error frame.
 const commandResponseFrameOptions = OUTBOUND_SERVER_COMMAND_KINDS.flatMap((kind) => [
-  z
-    .object({
-      direction: z.literal('daemon_to_server'),
-      type: z.literal('command_response'),
-      id: FrameIdSchema,
-      kind: z.literal(kind),
-      result: outboundServerCommandSchemas[kind].result,
-    })
-    .strict(),
-  z
-    .object({
-      direction: z.literal('daemon_to_server'),
-      type: z.literal('command_response'),
-      id: FrameIdSchema,
-      kind: z.literal(kind),
-      error: outboundServerCommandSchemas[kind].error,
-    })
-    .strict(),
+  z.object({
+    direction: z.literal('daemon_to_server'),
+    type: z.literal('command_response'),
+    id: FrameIdSchema,
+    kind: z.literal(kind),
+    error: outboundServerCommandSchemas[kind].error,
+  }),
+  z.object({
+    direction: z.literal('daemon_to_server'),
+    type: z.literal('command_response'),
+    id: FrameIdSchema,
+    kind: z.literal(kind),
+    result: outboundServerCommandSchemas[kind].result,
+  }),
 ]) as unknown as [z.ZodTypeAny, z.ZodTypeAny, ...z.ZodTypeAny[]];
 
 export const OutboundDaemonToServerCommandResponseFrameSchema = z.union(
@@ -562,25 +534,21 @@ export type OutboundDaemonToServerCommandResponseFrame = z.infer<
 
 const HeartbeatTimestampSchema = z.number().int().nonnegative();
 
-export const OutboundHeartbeatPingFrameSchema = z
-  .object({
-    direction: z.enum(['server_to_daemon', 'daemon_to_server']),
-    type: z.literal('heartbeat'),
-    kind: z.literal('ping'),
-    ts: HeartbeatTimestampSchema,
-  })
-  .strict();
+export const OutboundHeartbeatPingFrameSchema = z.object({
+  direction: z.enum(['server_to_daemon', 'daemon_to_server']),
+  type: z.literal('heartbeat'),
+  kind: z.literal('ping'),
+  ts: HeartbeatTimestampSchema,
+});
 export type OutboundHeartbeatPingFrame = z.infer<typeof OutboundHeartbeatPingFrameSchema>;
 
-export const OutboundHeartbeatPongFrameSchema = z
-  .object({
-    direction: z.enum(['server_to_daemon', 'daemon_to_server']),
-    type: z.literal('heartbeat'),
-    kind: z.literal('pong'),
-    ts: HeartbeatTimestampSchema,
-    echo_ts: HeartbeatTimestampSchema,
-  })
-  .strict();
+export const OutboundHeartbeatPongFrameSchema = z.object({
+  direction: z.enum(['server_to_daemon', 'daemon_to_server']),
+  type: z.literal('heartbeat'),
+  kind: z.literal('pong'),
+  ts: HeartbeatTimestampSchema,
+  echo_ts: HeartbeatTimestampSchema,
+});
 export type OutboundHeartbeatPongFrame = z.infer<typeof OutboundHeartbeatPongFrameSchema>;
 
 export const OutboundHeartbeatFrameSchema = z.discriminatedUnion('kind', [
@@ -598,230 +566,198 @@ export const OutboundReadyEventFrameSchema = HelloResultSchema.extend({
   protocol_version: z.literal(OUTBOUND_PROTOCOL_VERSION),
   daemon_pid: z.number().int(),
   started_at: z.number().int(),
-}).strict();
+});
 
-export const OutboundShuttingDownEventFrameSchema = z
-  .object({
-    direction: z.literal('daemon_to_server'),
-    type: z.literal('event'),
-    kind: z.literal(DAEMON_ADMISSION.daemonEventKinds.shuttingDown),
-    reason: z.string(),
-  })
-  .strict();
+export const OutboundShuttingDownEventFrameSchema = z.object({
+  direction: z.literal('daemon_to_server'),
+  type: z.literal('event'),
+  kind: z.literal(DAEMON_ADMISSION.daemonEventKinds.shuttingDown),
+  reason: z.string(),
+});
 
-export const OutboundRuntimeStateEventFrameSchema = z
-  .object({
-    direction: z.literal('daemon_to_server'),
-    type: z.literal('event'),
-    kind: z.literal(DAEMON_ADMISSION.daemonEventKinds.runtimeState),
-    runtime_scope: RuntimeScopeSchema,
-    conversation_id: z.string().min(1),
-    agent_id: z.string().min(1),
-    runtime_generation: z.number().int().positive(),
-    state: AgentRunStateSchema,
-    ts: z.number().int(),
-  })
-  .strict();
+export const OutboundRuntimeStateEventFrameSchema = z.object({
+  direction: z.literal('daemon_to_server'),
+  type: z.literal('event'),
+  kind: z.literal(DAEMON_ADMISSION.daemonEventKinds.runtimeState),
+  runtime_scope: RuntimeScopeSchema,
+  conversation_id: z.string().min(1),
+  agent_id: z.string().min(1),
+  runtime_generation: z.number().int().positive(),
+  state: AgentRunStateSchema,
+  ts: z.number().int(),
+});
 
-export const OutboundRuntimeOutputEventFrameSchema = z
-  .object({
-    direction: z.literal('daemon_to_server'),
-    type: z.literal('event'),
-    kind: z.literal(DAEMON_ADMISSION.daemonEventKinds.runtimeOutput),
-    runtime_scope: RuntimeScopeSchema,
-    conversation_id: z.string().min(1),
-    agent_id: z.string().min(1),
-    stream: z.enum(['stdout', 'stderr']),
-    chunk: z.string(),
-    ts: z.number().int(),
-  })
-  .strict();
+export const OutboundRuntimeOutputEventFrameSchema = z.object({
+  direction: z.literal('daemon_to_server'),
+  type: z.literal('event'),
+  kind: z.literal(DAEMON_ADMISSION.daemonEventKinds.runtimeOutput),
+  runtime_scope: RuntimeScopeSchema,
+  conversation_id: z.string().min(1),
+  agent_id: z.string().min(1),
+  stream: z.enum(['stdout', 'stderr']),
+  chunk: z.string(),
+  ts: z.number().int(),
+});
 
-export const OutboundRuntimeExitEventFrameSchema = z
-  .object({
-    direction: z.literal('daemon_to_server'),
-    type: z.literal('event'),
-    kind: z.literal(DAEMON_ADMISSION.daemonEventKinds.runtimeExit),
-    runtime_scope: RuntimeScopeSchema,
-    conversation_id: z.string().min(1),
-    agent_id: z.string().min(1),
-    runtime_generation: z.number().int().positive(),
-    code: z.number().int().nullable(),
-    intentional: z.boolean(),
-    ts: z.number().int(),
-  })
-  .strict();
+export const OutboundRuntimeExitEventFrameSchema = z.object({
+  direction: z.literal('daemon_to_server'),
+  type: z.literal('event'),
+  kind: z.literal(DAEMON_ADMISSION.daemonEventKinds.runtimeExit),
+  runtime_scope: RuntimeScopeSchema,
+  conversation_id: z.string().min(1),
+  agent_id: z.string().min(1),
+  runtime_generation: z.number().int().positive(),
+  code: z.number().int().nullable(),
+  intentional: z.boolean(),
+  ts: z.number().int(),
+});
 
-export const OutboundRuntimeReadyForDrainEventFrameSchema = z
-  .object({
-    direction: z.literal('daemon_to_server'),
-    type: z.literal('event'),
-    kind: z.literal(DAEMON_ADMISSION.daemonEventKinds.runtimeReadyForDrain),
-    runtime_scope: RuntimeScopeSchema,
-    conversation_id: z.string().min(1),
-    agent_id: z.string().min(1),
-    runtime_generation: z.number().int().positive(),
-    ts: z.number().int(),
-  })
-  .strict();
+export const OutboundRuntimeReadyForDrainEventFrameSchema = z.object({
+  direction: z.literal('daemon_to_server'),
+  type: z.literal('event'),
+  kind: z.literal(DAEMON_ADMISSION.daemonEventKinds.runtimeReadyForDrain),
+  runtime_scope: RuntimeScopeSchema,
+  conversation_id: z.string().min(1),
+  agent_id: z.string().min(1),
+  runtime_generation: z.number().int().positive(),
+  ts: z.number().int(),
+});
 
-export const OutboundRuntimeDeliveryConsumedEventFrameSchema = z
-  .object({
-    direction: z.literal('daemon_to_server'),
-    type: z.literal('event'),
-    kind: z.literal(DAEMON_ADMISSION.daemonEventKinds.runtimeDeliveryConsumed),
-    runtime_scope: RuntimeScopeSchema,
-    conversation_id: z.string().min(1),
-    agent_id: z.string().min(1),
-    runtime_generation: z.number().int().positive(),
-    delivery_ids: z.array(z.number().int()).min(1),
-    ts: z.number().int(),
-  })
-  .strict();
+export const OutboundRuntimeDeliveryConsumedEventFrameSchema = z.object({
+  direction: z.literal('daemon_to_server'),
+  type: z.literal('event'),
+  kind: z.literal(DAEMON_ADMISSION.daemonEventKinds.runtimeDeliveryConsumed),
+  runtime_scope: RuntimeScopeSchema,
+  conversation_id: z.string().min(1),
+  agent_id: z.string().min(1),
+  runtime_generation: z.number().int().positive(),
+  delivery_ids: z.array(z.number().int()).min(1),
+  ts: z.number().int(),
+});
 
-export const OutboundRuntimeDeliveryFailedEventFrameSchema = z
-  .object({
-    direction: z.literal('daemon_to_server'),
-    type: z.literal('event'),
-    kind: z.literal(DAEMON_ADMISSION.daemonEventKinds.runtimeDeliveryFailed),
-    runtime_scope: RuntimeScopeSchema,
-    conversation_id: z.string().min(1),
-    agent_id: z.string().min(1),
-    runtime_generation: z.number().int().positive(),
-    delivery_ids: z.array(z.number().int()).min(1),
-    reason: z.enum(['child_exit', 'init_watchdog', 'write_failed', 'driver_refused']),
-    ts: z.number().int(),
-  })
-  .strict();
+export const OutboundRuntimeDeliveryFailedEventFrameSchema = z.object({
+  direction: z.literal('daemon_to_server'),
+  type: z.literal('event'),
+  kind: z.literal(DAEMON_ADMISSION.daemonEventKinds.runtimeDeliveryFailed),
+  runtime_scope: RuntimeScopeSchema,
+  conversation_id: z.string().min(1),
+  agent_id: z.string().min(1),
+  runtime_generation: z.number().int().positive(),
+  delivery_ids: z.array(z.number().int()).min(1),
+  reason: z.enum(['child_exit', 'init_watchdog', 'write_failed', 'driver_refused']),
+  ts: z.number().int(),
+});
 
-export const OutboundRuntimeInitTimeoutEventFrameSchema = z
-  .object({
-    direction: z.literal('daemon_to_server'),
-    type: z.literal('event'),
-    kind: z.literal(DAEMON_ADMISSION.daemonEventKinds.runtimeInitTimeout),
-    runtime_scope: RuntimeScopeSchema,
-    conversation_id: z.string().min(1),
-    agent_id: z.string().min(1),
-    runtime_generation: z.number().int().positive(),
-    timeout_reason: z.enum(['silence', 'pre_protocol_cap', 'post_protocol']),
-    elapsed_ms: z.number().int().nonnegative(),
-    timeout_ms: z.number().int().nonnegative(),
-    retrying: z.boolean(),
-    retry_attempt: z.number().int().nonnegative(),
-    max_retries: z.number().int().nonnegative(),
-    cooldown_until: z.number().int().positive().optional(),
-    ts: z.number().int(),
-  })
-  .strict();
+export const OutboundRuntimeInitTimeoutEventFrameSchema = z.object({
+  direction: z.literal('daemon_to_server'),
+  type: z.literal('event'),
+  kind: z.literal(DAEMON_ADMISSION.daemonEventKinds.runtimeInitTimeout),
+  runtime_scope: RuntimeScopeSchema,
+  conversation_id: z.string().min(1),
+  agent_id: z.string().min(1),
+  runtime_generation: z.number().int().positive(),
+  timeout_reason: z.enum(['silence', 'pre_protocol_cap', 'post_protocol']),
+  elapsed_ms: z.number().int().nonnegative(),
+  timeout_ms: z.number().int().nonnegative(),
+  retrying: z.boolean(),
+  retry_attempt: z.number().int().nonnegative(),
+  max_retries: z.number().int().nonnegative(),
+  cooldown_until: z.number().int().positive().optional(),
+  ts: z.number().int(),
+});
 
-export const OutboundRuntimeInitRetryingEventFrameSchema = z
-  .object({
-    direction: z.literal('daemon_to_server'),
-    type: z.literal('event'),
-    kind: z.literal(DAEMON_ADMISSION.daemonEventKinds.runtimeInitRetrying),
-    runtime_scope: RuntimeScopeSchema,
-    conversation_id: z.string().min(1),
-    agent_id: z.string().min(1),
-    runtime_generation: z.number().int().positive(),
-    retry_attempt: z.number().int().positive(),
-    max_retries: z.number().int().nonnegative(),
-    delay_ms: z.number().int().nonnegative(),
-    ts: z.number().int(),
-  })
-  .strict();
+export const OutboundRuntimeInitRetryingEventFrameSchema = z.object({
+  direction: z.literal('daemon_to_server'),
+  type: z.literal('event'),
+  kind: z.literal(DAEMON_ADMISSION.daemonEventKinds.runtimeInitRetrying),
+  runtime_scope: RuntimeScopeSchema,
+  conversation_id: z.string().min(1),
+  agent_id: z.string().min(1),
+  runtime_generation: z.number().int().positive(),
+  retry_attempt: z.number().int().positive(),
+  max_retries: z.number().int().nonnegative(),
+  delay_ms: z.number().int().nonnegative(),
+  ts: z.number().int(),
+});
 
-export const OutboundRuntimeInitCooldownEventFrameSchema = z
-  .object({
-    direction: z.literal('daemon_to_server'),
-    type: z.literal('event'),
-    kind: z.literal(DAEMON_ADMISSION.daemonEventKinds.runtimeInitCooldown),
-    runtime_scope: RuntimeScopeSchema,
-    conversation_id: z.string().min(1),
-    agent_id: z.string().min(1),
-    runtime_generation: z.number().int().positive(),
-    cooldown_until: z.number().int().positive(),
-    attempts_exhausted: z.number().int().nonnegative(),
-    ts: z.number().int(),
-  })
-  .strict();
+export const OutboundRuntimeInitCooldownEventFrameSchema = z.object({
+  direction: z.literal('daemon_to_server'),
+  type: z.literal('event'),
+  kind: z.literal(DAEMON_ADMISSION.daemonEventKinds.runtimeInitCooldown),
+  runtime_scope: RuntimeScopeSchema,
+  conversation_id: z.string().min(1),
+  agent_id: z.string().min(1),
+  runtime_generation: z.number().int().positive(),
+  cooldown_until: z.number().int().positive(),
+  attempts_exhausted: z.number().int().nonnegative(),
+  ts: z.number().int(),
+});
 
-export const OutboundRuntimeCompactionStaleEventFrameSchema = z
-  .object({
-    direction: z.literal('daemon_to_server'),
-    type: z.literal('event'),
-    kind: z.literal(DAEMON_ADMISSION.daemonEventKinds.runtimeCompactionStale),
-    runtime_scope: RuntimeScopeSchema,
-    conversation_id: z.string().min(1),
-    agent_id: z.string().min(1),
-    elapsed_ms: z.number().int().nonnegative(),
-    ts: z.number().int(),
-  })
-  .strict();
+export const OutboundRuntimeCompactionStaleEventFrameSchema = z.object({
+  direction: z.literal('daemon_to_server'),
+  type: z.literal('event'),
+  kind: z.literal(DAEMON_ADMISSION.daemonEventKinds.runtimeCompactionStale),
+  runtime_scope: RuntimeScopeSchema,
+  conversation_id: z.string().min(1),
+  agent_id: z.string().min(1),
+  elapsed_ms: z.number().int().nonnegative(),
+  ts: z.number().int(),
+});
 
-export const OutboundRuntimeOutputDroppedEventFrameSchema = z
-  .object({
-    direction: z.literal('daemon_to_server'),
-    type: z.literal('event'),
-    kind: z.literal(DAEMON_ADMISSION.daemonEventKinds.runtimeOutputDropped),
-    runtime_scope: RuntimeScopeSchema,
-    conversation_id: z.string().min(1),
-    agent_id: z.string().min(1),
-    dropped_count: z.number().int().nonnegative(),
-    bytes_dropped: z.number().int().nonnegative(),
-    since_ts: z.number().int(),
-  })
-  .strict();
+export const OutboundRuntimeOutputDroppedEventFrameSchema = z.object({
+  direction: z.literal('daemon_to_server'),
+  type: z.literal('event'),
+  kind: z.literal(DAEMON_ADMISSION.daemonEventKinds.runtimeOutputDropped),
+  runtime_scope: RuntimeScopeSchema,
+  conversation_id: z.string().min(1),
+  agent_id: z.string().min(1),
+  dropped_count: z.number().int().nonnegative(),
+  bytes_dropped: z.number().int().nonnegative(),
+  since_ts: z.number().int(),
+});
 
-export const OutboundRuntimeOutputPausedEventFrameSchema = z
-  .object({
-    direction: z.literal('daemon_to_server'),
-    type: z.literal('event'),
-    kind: z.literal(DAEMON_ADMISSION.daemonEventKinds.runtimeOutputPaused),
-    runtime_scope: RuntimeScopeSchema,
-    conversation_id: z.string().min(1),
-    agent_id: z.string().min(1),
-  })
-  .strict();
+export const OutboundRuntimeOutputPausedEventFrameSchema = z.object({
+  direction: z.literal('daemon_to_server'),
+  type: z.literal('event'),
+  kind: z.literal(DAEMON_ADMISSION.daemonEventKinds.runtimeOutputPaused),
+  runtime_scope: RuntimeScopeSchema,
+  conversation_id: z.string().min(1),
+  agent_id: z.string().min(1),
+});
 
-export const OutboundRuntimeOutputResumedEventFrameSchema = z
-  .object({
-    direction: z.literal('daemon_to_server'),
-    type: z.literal('event'),
-    kind: z.literal(DAEMON_ADMISSION.daemonEventKinds.runtimeOutputResumed),
-    runtime_scope: RuntimeScopeSchema,
-    conversation_id: z.string().min(1),
-    agent_id: z.string().min(1),
-  })
-  .strict();
+export const OutboundRuntimeOutputResumedEventFrameSchema = z.object({
+  direction: z.literal('daemon_to_server'),
+  type: z.literal('event'),
+  kind: z.literal(DAEMON_ADMISSION.daemonEventKinds.runtimeOutputResumed),
+  runtime_scope: RuntimeScopeSchema,
+  conversation_id: z.string().min(1),
+  agent_id: z.string().min(1),
+});
 
-export const OutboundRuntimeParsedEventFrameSchema = z
-  .object({
-    direction: z.literal('daemon_to_server'),
-    type: z.literal('event'),
-    kind: z.literal(DAEMON_ADMISSION.daemonEventKinds.runtimeParsedEvent),
-    runtime_scope: RuntimeScopeSchema,
-    conversation_id: z.string().min(1),
-    agent_id: z.string().min(1),
-    runtime_generation: z.number().int().positive(),
-    parsed: ParsedEventSchema,
-    ts: z.number().int(),
-  })
-  .strict();
+export const OutboundRuntimeParsedEventFrameSchema = z.object({
+  direction: z.literal('daemon_to_server'),
+  type: z.literal('event'),
+  kind: z.literal(DAEMON_ADMISSION.daemonEventKinds.runtimeParsedEvent),
+  runtime_scope: RuntimeScopeSchema,
+  conversation_id: z.string().min(1),
+  agent_id: z.string().min(1),
+  runtime_generation: z.number().int().positive(),
+  parsed: ParsedEventSchema,
+  ts: z.number().int(),
+});
 
-export const OutboundRuntimeParsedEventDroppedFrameSchema = z
-  .object({
-    direction: z.literal('daemon_to_server'),
-    type: z.literal('event'),
-    kind: z.literal(DAEMON_ADMISSION.daemonEventKinds.runtimeParsedEventDropped),
-    runtime_scope: RuntimeScopeSchema,
-    conversation_id: z.string().min(1),
-    agent_id: z.string().min(1),
-    parsed_kind: ParsedEventKindSchema,
-    encoded_bytes: z.number().int().nonnegative(),
-    reason: z.literal('frame_too_large'),
-    ts: z.number().int(),
-  })
-  .strict();
+export const OutboundRuntimeParsedEventDroppedFrameSchema = z.object({
+  direction: z.literal('daemon_to_server'),
+  type: z.literal('event'),
+  kind: z.literal(DAEMON_ADMISSION.daemonEventKinds.runtimeParsedEventDropped),
+  runtime_scope: RuntimeScopeSchema,
+  conversation_id: z.string().min(1),
+  agent_id: z.string().min(1),
+  parsed_kind: ParsedEventKindSchema,
+  encoded_bytes: z.number().int().nonnegative(),
+  reason: z.literal('frame_too_large'),
+  ts: z.number().int(),
+});
 
 /**
  * `runtime_message_stale` (#task:2099) — the backend's own freshness verdict,
@@ -830,18 +766,16 @@ export const OutboundRuntimeParsedEventDroppedFrameSchema = z
  * arm in `protocol.ts` for why this is not a `runtime_parsed_event` and why it
  * carries no per-conflict ids.
  */
-export const OutboundRuntimeMessageStaleEventFrameSchema = z
-  .object({
-    direction: z.literal('daemon_to_server'),
-    type: z.literal('event'),
-    kind: z.literal(DAEMON_ADMISSION.daemonEventKinds.runtimeMessageStale),
-    runtime_scope: RuntimeScopeSchema,
-    conversation_id: z.string().min(1),
-    agent_id: z.string().min(1),
-    runtime_generation: z.number().int().positive(),
-    ts: z.number().int(),
-  })
-  .strict();
+export const OutboundRuntimeMessageStaleEventFrameSchema = z.object({
+  direction: z.literal('daemon_to_server'),
+  type: z.literal('event'),
+  kind: z.literal(DAEMON_ADMISSION.daemonEventKinds.runtimeMessageStale),
+  runtime_scope: RuntimeScopeSchema,
+  conversation_id: z.string().min(1),
+  agent_id: z.string().min(1),
+  runtime_generation: z.number().int().positive(),
+  ts: z.number().int(),
+});
 
 const OutboundDaemonToServerEventFrameUnion = z.discriminatedUnion('kind', [
   OutboundReadyEventFrameSchema,

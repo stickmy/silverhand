@@ -104,7 +104,6 @@ fn outcome_for(failure: HostDataPlaneFailure) -> ProxyConfigOutcome {
 }
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 struct ProxyConfigResultWire {
     config: ProxyConfigWire,
 }

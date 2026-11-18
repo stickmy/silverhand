@@ -16,8 +16,8 @@
 //!     found"}`, so the surface is never an existence oracle.
 //!  2. AUTHORITY ([`can_edit_agent`]) — only the creator (or system) may change it;
 //!     anyone who could merely see it gets `403 {"error":"forbidden"}`.
-//!  3. WIRE ADMISSION — `SwitchAgentRuntimeInputSchema`: `.strict()` (serde
-//!     `deny_unknown_fields`), all four tuning keys REQUIRED (each nullable via the
+//!  3. WIRE ADMISSION — `SwitchAgentRuntimeInputSchema`: unknown keys ignored,
+//!     `model`/`reasoning_effort` REQUIRED (each nullable via the
 //!     frozen [`RequiredNullable`] wire arm, so a missing key is a native decode fault
 //!     that cannot silently select a default, while an explicit `null` is the caller's
 //!     "target driver's default"), `model` trimmed and non-empty-or-null, plus the two
@@ -330,7 +330,7 @@ where
     }
 
     // WIRE ADMISSION (semantic): the body was already decoded + structurally validated by
-    // the framework-owned `ValidatedJson` extractor (strict unknown keys, required keys,
+    // the framework-owned `ValidatedJson` extractor (required keys,
     // present-null vs value, types → native 400/422/415). The cross-field `TryFrom` settles
     // the runtime enum, `model` trim/non-empty normalization, the reasoning-token shape, and
     // the two target-runtime tuning-legality refinements; any fault is the one terminal 422.
@@ -421,21 +421,17 @@ where
 // Wire admission — `SwitchAgentRuntimeInputSchema`
 // ===========================================================================
 
-/// The raw JSON shape of `SwitchAgentRuntimeInputSchema.strict()`. `deny_unknown_fields`
-/// is the `.strict()` policy; every field is a REQUIRED key (no `#[serde(default)]`), so a
-/// missing key is the native serde data fault, never a silent default. `runtime` is a
+/// The raw JSON shape of `SwitchAgentRuntimeInputSchema`; unknown keys are ignored. `runtime` is a
 /// required non-null enum (decoded as a string, mapped by the closed-set `TryFrom`);
 /// `model`/`reasoning_effort` are required-AND-nullable via
 /// [`RequiredNullable::deserialize_present`], so a missing key is a native data fault.
-/// Clients predating `service_tier` omit it and send `fast_mode`: the tier then
-/// defaults to null and `fast_mode` is ignored.
+/// Clients predating `service_tier` omit it: the tier then defaults to null.
 ///
 /// Every remaining rule is normalization or cross-field (the runtime enum, `model`
 /// trim/non-empty, the reasoning-token shape, and the two target-runtime tuning-legality
 /// refinements), so all of it lives in `TryFrom`; there is no stateless single-field garde
 /// rule, hence every field is `#[garde(skip)]`.
 #[derive(Debug, Deserialize, Validate)]
-#[serde(deny_unknown_fields)]
 struct SwitchBodyRaw {
     #[garde(skip)]
     runtime: String,
@@ -448,9 +444,6 @@ struct SwitchBodyRaw {
     #[serde(default)]
     #[garde(skip)]
     service_tier: Option<String>,
-    #[serde(default, rename = "fast_mode")]
-    #[garde(skip)]
-    _fast_mode: Option<serde::de::IgnoredAny>,
 }
 
 impl TryFrom<SwitchBodyRaw> for SwitchAgentRuntimeConfig {
@@ -1221,7 +1214,6 @@ mod tests {
             r#"{"model":null,"reasoning_effort":null,"service_tier":null}"#,
             r#"{"runtime":"codex","reasoning_effort":null,"service_tier":null}"#,
             r#"{"runtime":"codex","model":null,"service_tier":null}"#,
-            r#"{"runtime":"codex","model":null,"reasoning_effort":null,"service_tier":null,"x":1}"#, // deny_unknown_fields
             r#"{"runtime":"codex","model":5,"reasoning_effort":null,"service_tier":null}"#, // model wrong type
             r#"{"runtime":"codex","model":null,"reasoning_effort":5,"service_tier":null}"#, // token wrong type
             r#"{"runtime":"codex","model":null,"reasoning_effort":null,"service_tier":true}"#, // service_tier wrong type

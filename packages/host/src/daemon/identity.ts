@@ -16,7 +16,7 @@ export type DaemonIdentity = Pick<HelloResult, 'daemon_id' | 'host_descriptor'>;
 const DaemonIdentitySchema = HelloResultSchema.pick({
   daemon_id: true,
   host_descriptor: true,
-}).strict();
+});
 
 /**
  * Current single-daemon bootstrap identity. Multi-daemon installs will

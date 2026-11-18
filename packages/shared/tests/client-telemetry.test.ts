@@ -93,10 +93,8 @@ describe('parseClientInfoHeader', () => {
     expect(parseClientInfoHeader(`{ ${atLimit.slice(1)}`)).toEqual({ status: 'invalid' });
   });
 
-  it('rejects unknown keys (strict)', () => {
-    expect(parseClientInfoHeader(JSON.stringify({ ...VALID, injected: 'x' })).status).toBe(
-      'invalid',
-    );
+  it('ignores unknown keys', () => {
+    expect(parseClientInfoHeader(JSON.stringify({ ...VALID, injected: 'x' })).status).toBe('valid');
   });
 
   // #task:1761 — the API-epoch fields travel as a pair; a half payload is a

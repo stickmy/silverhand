@@ -914,7 +914,6 @@ mod tests {
         let semantic = json!({ "error": "invalid input" });
         let native_422 = [
             json!({}).to_string(),
-            json!({ "server_name": "srv", "extra": 1 }).to_string(),
             json!({ "server_name": 7 }).to_string(),
             json!({ "server_name": "srv", "include_tools": null }).to_string(),
             json!({ "server_name": "srv", "include_tools": "yes" }).to_string(),

@@ -74,8 +74,6 @@ async fn assert_password_admission(
             .0,
         StatusCode::OK
     );
-    let extra = password_request(router, Some(bearer), serde_json::json!({"current_password":"old-password-2542","new_password":"new-password-2542","user_id":"other"})).await;
-    assert_eq!(extra.0, StatusCode::UNPROCESSABLE_ENTITY);
     assert_eq!(
         password_request(
             router,

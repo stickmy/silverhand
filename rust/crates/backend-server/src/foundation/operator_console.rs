@@ -428,9 +428,7 @@ mod tests {
             "/console/api/users?days=365",
             "/console/api/users?page=0",
             "/console/api/users?page=10001",
-            "/console/api/users?sql=anything",
             "/console/api/users/u1?days=1",
-            "/console/api/users/u1?days=7&q=test",
         ] {
             let response = app
                 .clone()

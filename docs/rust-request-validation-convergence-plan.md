@@ -81,8 +81,8 @@ Use derived request structs and enums for:
 - primitive field types;
 - closed string vocabularies (`#[serde(rename_all = "snake_case")] enum ...`);
 - tagged or untagged unions;
-- strict objects with `#[serde(deny_unknown_fields)]`;
-- strip-style objects with Serde's default unknown-field behavior.
+- objects with Serde's default unknown-field behavior (unknown keys are ignored;
+  reject a specific key only when its presence must never be accepted).
 
 Do not reproduce Zod issue arrays, declaration-order error accumulation, or
 simultaneous-invalid-field precedence without an evidenced public consumer.

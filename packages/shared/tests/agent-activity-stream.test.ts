@@ -32,10 +32,8 @@ describe('agent activity stream read contract', () => {
   });
 });
 
-it('rejects output bodies on new tool-output wire events', () => {
+it('drops output bodies from tool-output wire events', () => {
   const marker = { kind: 'tool_output', toolCallId: 'call-one', outcome: 'success' };
   expect(ParsedEventSchema.parse(marker)).toEqual(marker);
-  expect(ParsedEventSchema.safeParse({ ...marker, output: 'unrequested body' }).success).toBe(
-    false,
-  );
+  expect(ParsedEventSchema.parse({ ...marker, output: 'unrequested body' })).toEqual(marker);
 });

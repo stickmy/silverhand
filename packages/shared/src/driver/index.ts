@@ -54,141 +54,115 @@ export const ToolOutcomeSchema = z.enum(TOOL_OUTCOMES);
 export type ToolOutcome = (typeof TOOL_OUTCOMES)[number];
 
 export const ParsedEventSchema = z.discriminatedUnion('kind', [
-  z
-    .object({
-      kind: z.literal('session_init'),
-      sessionId: z.string().min(1),
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal('thinking'),
-      text: z.string(),
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal('text'),
-      text: z.string(),
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal('tool_call'),
-      name: z.string().min(1),
-      /** Tool input is driver-specific; we keep it `unknown` here so
-       *  the cross-process schema doesn't constrain individual driver
-       *  payload shapes. Sanitization for renderer / DB is backend's
-       *  responsibility (see `sanitizeParsedEventForBroadcast`).
-       *
-       *  REQUIRED but opaque (Cindy `YW2BGWryWjfymPkU` B1): a bare
-       *  `z.unknown()` at an object property is treated by zod as
-       *  optional — `{kind:'tool_call', name:'Bash'}` without an
-       *  `input` field would parse fine, silently downgrading the
-       *  contract. `RequiredUnknownSchema` re-asserts presence. */
-      input: RequiredUnknownSchema,
-      toolCallId: z.string().min(1).optional(),
-    })
-    .strict(),
-  z
-    .object({
-      /** Late-arriving parameters for a tool call the driver ALREADY
-       *  reported (#task:2101). ACP-family runtimes create a tool call
-       *  and revise it: OpenCode's first `tool_call` frame carries no
-       *  `rawInput` (we persist `{cwd}` alone), and the real command
-       *  arrives in a `tool_call_update` for the same `toolCallId`.
-       *
-       *  This is a REFINEMENT of one existing activity row, never a new
-       *  call: `tool_call` is what increments `outstandingToolUses` and
-       *  `toolCallCounts` (supervisor), so re-emitting `tool_call` for a
-       *  known id would double-count both and desync the outstanding
-       *  gauge. Like `input_lifecycle`, this kind touches NO run state.
-       *
-       *  `toolCallId` is REQUIRED (unlike on `tool_call`): without an id
-       *  there is no row to refine, and a driver that cannot correlate
-       *  must simply not emit this. */
-      kind: z.literal('tool_call_input'),
-      toolCallId: z.string().min(1),
-      input: RequiredUnknownSchema,
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal('tool_output'),
-      name: z.string().min(1).optional(),
-      toolCallId: z.string().min(1).optional(),
-      /** Terminal outcome — REQUIRED on the emit type (`z.infer` output makes
-       *  it non-optional, so every driver that builds a `tool_output` must
-       *  classify it; a new producer cannot silently omit it). Wire-optional
-       *  via `.default('completed')`: pre-outcome daemon frames and historical
-       *  rows parse to the neutral `completed`, never rejected and never
-       *  upgraded to `success`. */
-      outcome: ToolOutcomeSchema.default('completed'),
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal('turn_end'),
-      sessionId: z.string().min(1).optional(),
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal('compaction_started'),
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal('compaction_finished'),
-    })
-    .strict(),
-  z
-    .object({
-      /** Per-payload input lifecycle reported by the runtime itself
-       *  (Claude `command_lifecycle` frames, #task:1557 Phase 1
-       *  instrument). `commandUuid` echoes the `uuid` the daemon put on
-       *  the stdin user frame, so the supervisor can correlate which
-       *  delivery/batch the runtime queued/admitted. Observation only:
-       *  it never drives run-state or freshness in Phase 1. */
-      kind: z.literal('input_lifecycle'),
-      commandUuid: z.string().min(1),
-      state: z.enum(['queued', 'started', 'completed']),
-    })
-    .strict(),
-  z
-    .object({
-      /** Normalized provider/API response notice (#task:1582). Emitted
-       *  ONLY for responses the driver recognizes and normalizes (e.g.
-       *  Qoder `model_queue_status` queued/ready) — never raw payloads,
-       *  request ids, or unknown shapes (those stay in diagnostics).
-       *  `status: 'waiting'` puts the run state into the dedicated
-       *  `waiting` status; `'ready'` restores `thinking` (only from a
-       *  waiting-owned hold); `'notice'` is display-only — it records an
-       *  Activity row and never touches the run state. Not
-       *  generation-boundary evidence: it never starts a turn and never
-       *  settles pending admission coverage. */
-      kind: z.literal('api_response'),
-      status: z.enum(['waiting', 'ready', 'notice']),
-      message: z.string().min(1),
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal('error'),
-      message: z.string(),
-      code: z.string().optional(),
-      fatal: z.boolean().optional(),
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal('unknown'),
-      /** The original line bytes. Host MUST NOT leak this onto any
-       *  `runtime_parsed_event_dropped` frame (Cindy
-       *  `C2BZGDbQWfnq-bKJ`): the dropped frame is metadata-only. */
-      raw: z.string(),
-    })
-    .strict(),
+  z.object({
+    kind: z.literal('session_init'),
+    sessionId: z.string().min(1),
+  }),
+  z.object({
+    kind: z.literal('thinking'),
+    text: z.string(),
+  }),
+  z.object({
+    kind: z.literal('text'),
+    text: z.string(),
+  }),
+  z.object({
+    kind: z.literal('tool_call'),
+    name: z.string().min(1),
+    /** Tool input is driver-specific; we keep it `unknown` here so
+     *  the cross-process schema doesn't constrain individual driver
+     *  payload shapes. Sanitization for renderer / DB is backend's
+     *  responsibility (see `sanitizeParsedEventForBroadcast`).
+     *
+     *  REQUIRED but opaque (Cindy `YW2BGWryWjfymPkU` B1): a bare
+     *  `z.unknown()` at an object property is treated by zod as
+     *  optional — `{kind:'tool_call', name:'Bash'}` without an
+     *  `input` field would parse fine, silently downgrading the
+     *  contract. `RequiredUnknownSchema` re-asserts presence. */
+    input: RequiredUnknownSchema,
+    toolCallId: z.string().min(1).optional(),
+  }),
+  z.object({
+    /** Late-arriving parameters for a tool call the driver ALREADY
+     *  reported (#task:2101). ACP-family runtimes create a tool call
+     *  and revise it: OpenCode's first `tool_call` frame carries no
+     *  `rawInput` (we persist `{cwd}` alone), and the real command
+     *  arrives in a `tool_call_update` for the same `toolCallId`.
+     *
+     *  This is a REFINEMENT of one existing activity row, never a new
+     *  call: `tool_call` is what increments `outstandingToolUses` and
+     *  `toolCallCounts` (supervisor), so re-emitting `tool_call` for a
+     *  known id would double-count both and desync the outstanding
+     *  gauge. Like `input_lifecycle`, this kind touches NO run state.
+     *
+     *  `toolCallId` is REQUIRED (unlike on `tool_call`): without an id
+     *  there is no row to refine, and a driver that cannot correlate
+     *  must simply not emit this. */
+    kind: z.literal('tool_call_input'),
+    toolCallId: z.string().min(1),
+    input: RequiredUnknownSchema,
+  }),
+  z.object({
+    kind: z.literal('tool_output'),
+    name: z.string().min(1).optional(),
+    toolCallId: z.string().min(1).optional(),
+    /** Terminal outcome — REQUIRED on the emit type (`z.infer` output makes
+     *  it non-optional, so every driver that builds a `tool_output` must
+     *  classify it; a new producer cannot silently omit it). Wire-optional
+     *  via `.default('completed')`: pre-outcome daemon frames and historical
+     *  rows parse to the neutral `completed`, never rejected and never
+     *  upgraded to `success`. */
+    outcome: ToolOutcomeSchema.default('completed'),
+  }),
+  z.object({
+    kind: z.literal('turn_end'),
+    sessionId: z.string().min(1).optional(),
+  }),
+  z.object({
+    kind: z.literal('compaction_started'),
+  }),
+  z.object({
+    kind: z.literal('compaction_finished'),
+  }),
+  z.object({
+    /** Per-payload input lifecycle reported by the runtime itself
+     *  (Claude `command_lifecycle` frames, #task:1557 Phase 1
+     *  instrument). `commandUuid` echoes the `uuid` the daemon put on
+     *  the stdin user frame, so the supervisor can correlate which
+     *  delivery/batch the runtime queued/admitted. Observation only:
+     *  it never drives run-state or freshness in Phase 1. */
+    kind: z.literal('input_lifecycle'),
+    commandUuid: z.string().min(1),
+    state: z.enum(['queued', 'started', 'completed']),
+  }),
+  z.object({
+    /** Normalized provider/API response notice (#task:1582). Emitted
+     *  ONLY for responses the driver recognizes and normalizes (e.g.
+     *  Qoder `model_queue_status` queued/ready) — never raw payloads,
+     *  request ids, or unknown shapes (those stay in diagnostics).
+     *  `status: 'waiting'` puts the run state into the dedicated
+     *  `waiting` status; `'ready'` restores `thinking` (only from a
+     *  waiting-owned hold); `'notice'` is display-only — it records an
+     *  Activity row and never touches the run state. Not
+     *  generation-boundary evidence: it never starts a turn and never
+     *  settles pending admission coverage. */
+    kind: z.literal('api_response'),
+    status: z.enum(['waiting', 'ready', 'notice']),
+    message: z.string().min(1),
+  }),
+  z.object({
+    kind: z.literal('error'),
+    message: z.string(),
+    code: z.string().optional(),
+    fatal: z.boolean().optional(),
+  }),
+  z.object({
+    kind: z.literal('unknown'),
+    /** The original line bytes. Host MUST NOT leak this onto any
+     *  `runtime_parsed_event_dropped` frame (Cindy
+     *  `C2BZGDbQWfnq-bKJ`): the dropped frame is metadata-only. */
+    raw: z.string(),
+  }),
 ]);
 
 export type ParsedEvent = z.infer<typeof ParsedEventSchema>;

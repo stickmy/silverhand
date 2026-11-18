@@ -93,7 +93,6 @@ async fn read<S: EmbeddedProfileSetupStore, N: UserChangedSink, C: SessionClock>
 }
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 struct Input {
     name: String,
     display_name: String,

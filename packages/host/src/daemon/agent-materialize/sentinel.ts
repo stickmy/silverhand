@@ -34,20 +34,18 @@ import { basename, dirname, join } from 'node:path';
 import { z } from 'zod';
 import { AGENT_HOME_SENTINEL_FILENAME, AGENT_HOME_TEMPLATE_VERSION } from './template.js';
 
-export const AgentHomeSentinelSchema = z
-  .object({
-    /** Layout-format version. See `AGENT_HOME_TEMPLATE_VERSION`. */
-    version: z.number().int().positive(),
-    /** Server-allocated agent id this dir was materialized for. */
-    agent_id: z.string().min(1),
-    /** `template_choice` from the originating materialize call. */
-    template_choice: z.string().min(1),
-    /** Driver runtime kind at materialize time. */
-    runtime: z.string().min(1),
-    /** Daemon-local epoch ms when the sentinel was written. */
-    materialized_at: z.number().int().positive(),
-  })
-  .strict();
+export const AgentHomeSentinelSchema = z.object({
+  /** Layout-format version. See `AGENT_HOME_TEMPLATE_VERSION`. */
+  version: z.number().int().positive(),
+  /** Server-allocated agent id this dir was materialized for. */
+  agent_id: z.string().min(1),
+  /** `template_choice` from the originating materialize call. */
+  template_choice: z.string().min(1),
+  /** Driver runtime kind at materialize time. */
+  runtime: z.string().min(1),
+  /** Daemon-local epoch ms when the sentinel was written. */
+  materialized_at: z.number().int().positive(),
+});
 export type AgentHomeSentinel = z.infer<typeof AgentHomeSentinelSchema>;
 
 export function sentinelPath(agentDir: string): string {

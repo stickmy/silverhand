@@ -536,7 +536,6 @@ export const AgentSearchMessagesInputSchema = z
   // loudly. Stripping them would silently narrow a caller's intended
   // workspace/channel search down to the calling conversation — the same
   // silent last-wins the selector-only model exists to remove.
-  .strict()
   .superRefine((v, ctx) => {
     const selectors = [
       v.current_workspace ? 'current_workspace' : null,
@@ -585,38 +584,34 @@ export type AgentSearchMessagesDto = z.infer<typeof AgentSearchMessagesDtoSchema
 // invocation can still be reported. The backend never echoes anything
 // back beyond `{ ok: true }`.
 
-export const CliTraceInputSchema = z
-  .object({
-    /** `silverhand <noun>...` if the noun parsed. */
-    noun: z.string().max(64).optional(),
-    /** `silverhand <noun> <verb>...` if both parsed. */
-    verb: z.string().max(64).optional(),
-    /** Names of the flags observed on the command line. NEVER values. */
-    flags_seen: z.array(z.string().max(64)).max(64).optional(),
-    /** Stable error code from the CLI, e.g. `validation_error`. */
-    error_code: z.string().max(64).optional(),
-    /** Optional descriptive sub-classification of `error_code`, e.g.
-     *  `flag_removed`, `unexpected_arguments`. Wide string here (not a
-     *  closed enum) so the CLI can introduce new subkinds without a
-     *  shared schema bump; the CLI-side `ErrorSubkind` union is the
-     *  source of truth. NEVER values. */
-    error_subkind: z.string().max(64).optional(),
-    /** First line of the user-facing error message (truncated). */
-    error_message: z.string().max(500).optional(),
-    /** Wall time from CLI start to error throw, in milliseconds. */
-    duration_ms: z.number().nonnegative().optional(),
-  })
-  .strict();
+export const CliTraceInputSchema = z.object({
+  /** `silverhand <noun>...` if the noun parsed. */
+  noun: z.string().max(64).optional(),
+  /** `silverhand <noun> <verb>...` if both parsed. */
+  verb: z.string().max(64).optional(),
+  /** Names of the flags observed on the command line. NEVER values. */
+  flags_seen: z.array(z.string().max(64)).max(64).optional(),
+  /** Stable error code from the CLI, e.g. `validation_error`. */
+  error_code: z.string().max(64).optional(),
+  /** Optional descriptive sub-classification of `error_code`, e.g.
+   *  `flag_removed`, `unexpected_arguments`. Wide string here (not a
+   *  closed enum) so the CLI can introduce new subkinds without a
+   *  shared schema bump; the CLI-side `ErrorSubkind` union is the
+   *  source of truth. NEVER values. */
+  error_subkind: z.string().max(64).optional(),
+  /** First line of the user-facing error message (truncated). */
+  error_message: z.string().max(500).optional(),
+  /** Wall time from CLI start to error throw, in milliseconds. */
+  duration_ms: z.number().nonnegative().optional(),
+});
 export type CliTraceInput = z.infer<typeof CliTraceInputSchema>;
 
 export const CliTraceOutputSchema = z.object({ ok: z.literal(true) });
 export type CliTraceOutput = z.infer<typeof CliTraceOutputSchema>;
 
-export const ConversationLogDebugInputSchema = z
-  .object({
-    enabled: z.boolean(),
-  })
-  .strict();
+export const ConversationLogDebugInputSchema = z.object({
+  enabled: z.boolean(),
+});
 export type ConversationLogDebugInput = z.infer<typeof ConversationLogDebugInputSchema>;
 
 export const ConversationLogDebugStatusSchema = z.object({

@@ -29,13 +29,11 @@ use silverhand_backend_core::foundation::identity::{ConversationId, UserId};
 use crate::foundation::http_error::json_error as error;
 use crate::foundation::wire_admission::ValidatedJson;
 
-/// `POST` body — the reference `z.object({ enabled: z.boolean() }).strict()`.
-/// Serde owns the shape: `deny_unknown_fields` is the `.strict()` half, a wrong-typed
-/// or missing `enabled` is a native decode fault, and the shared [`ValidatedJson`]
+/// `POST` body `{ enabled: boolean }`; unknown keys are ignored.
+/// Serde owns the shape: a wrong-typed or missing `enabled` is a native decode fault, and the shared [`ValidatedJson`]
 /// extractor's object-only floor rejects a value-shaped array before it can bind
 /// positionally. There is no stateless rule, so every garde field is skipped.
 #[derive(Debug, Deserialize, Validate)]
-#[serde(deny_unknown_fields)]
 struct LogDebugBody {
     #[garde(skip)]
     enabled: bool,

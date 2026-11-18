@@ -41,11 +41,11 @@ pub(crate) struct ReadConfigResponse {
 // POST probe — request admission.
 // ===========================================================================
 
-/// The probe request: `{ server_name, include_tools? }`, strict. `server_name` is the
+/// The probe request: `{ server_name, include_tools? }`. `server_name` is the
 /// RAW user-visible name (never the `silverhand_<scope>__` runtime spelling).
 ///
 /// Admission rides the frozen [`ValidatedJson`](crate::foundation::wire_admission::ValidatedJson)
-/// model: a malformed body is a native `400`; a missing/duplicate/unknown key, a
+/// model: a malformed body is a native `400`; a missing/duplicate key, a
 /// wrong-typed field, a present `include_tools: null`, or a top-level NON-object shape
 /// (an array such as `["srv", true]`, a scalar, `null`) is a native `422` — the shared
 /// `ObjectOnly` floor (#2246) baked into `ValidatedJson` rejects a top-level array
@@ -53,7 +53,6 @@ pub(crate) struct ReadConfigResponse {
 /// `server_name` decodes fine and then fails the [`server_name_present`] `garde` rule,
 /// so it is the semantic `422 { "error": "invalid input" }` (no `code`, no `issues`).
 #[derive(Deserialize, Validate)]
-#[serde(deny_unknown_fields)]
 pub(crate) struct ProbeRequest {
     #[garde(custom(server_name_present))]
     server_name: String,

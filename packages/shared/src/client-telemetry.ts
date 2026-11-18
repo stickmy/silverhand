@@ -51,8 +51,7 @@ export type ClientDeployment = z.infer<typeof ClientDeploymentSchema>;
 
 /**
  * Bounded schema for the client-info payload. Every field is length- and
- * charset-constrained; `.strict()` rejects unknown keys so a malformed/padded
- * payload lands in `invalid` rather than leaking arbitrary shape into the log.
+ * charset-constrained; unknown keys are stripped so they never reach the log.
  */
 export const ClientInfoSchema = z
   .object({
@@ -93,16 +92,10 @@ export const ClientInfoSchema = z
      * Optional: pre-epoch desktops omit them and are classified as epoch 0 by
      * the admission layer (observation bridge). Absence here is a legacy
      * generation, not `invalid`.
-     *
-     * Known residual: this schema is `.strict()`, so an OLD server parsing a
-     * NEW desktop's header (with these keys) classifies it `invalid` — that
-     * consumer is log-only, so the impact is a telemetry blip, accepted in
-     * docs/desktop-server-api-epoch.md rather than forking the schema.
      */
     desktop_api_epoch: z.number().int().nonnegative().optional(),
     minimum_server_api_epoch: z.number().int().nonnegative().optional(),
   })
-  .strict()
   .superRefine((value, ctx) => {
     // The epoch fields travel as a pair: one without the other is a malformed
     // sender, not a legacy one, and must land in `invalid` — otherwise the

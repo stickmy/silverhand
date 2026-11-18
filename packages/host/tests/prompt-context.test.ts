@@ -5,7 +5,6 @@ import { describe, expect, it } from 'vitest';
 import { agentHomeWorkspaceId } from '@silverhand/shared';
 import { buildPromptContextFromRuntimeStartOptions } from '../src/daemon/prompt-context.js';
 import { resolveRuntimeStartPaths } from '../src/daemon/runtime-start-resolve.js';
-import { RuntimeStartWorkspaceRefSchema } from '../src/protocol.js';
 import { testRuntimeStartResolveDeps, testStartOptions } from './_helpers/runtime-start-options.js';
 
 describe('buildPromptContextFromRuntimeStartOptions', () => {
@@ -182,36 +181,5 @@ describe('buildPromptContextFromRuntimeStartOptions', () => {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
-  });
-});
-
-/**
- * The negative half of the conversion, now inverted (#task:2069 → #task:2075 →
- * #task:2081).
- *
- * This wire kept the physical `kind` word longer than any other, for the one
- * real reason: the daemon RESOLVED PATHS from it. #task:2081 replaced that
- * selector with the id convention (`AGENT_HOME_WORKSPACE_ID_PREFIX` +
- * `agentHomeWorkspaceId`), so the decision is keyed on the id and NO container
- * word rides `runtime_start` any more. The gate that used to pin the survivor
- * ("this field must BE `WorkspaceKindSchema`") flips to its opposite: the shape
- * must not carry the word at all, and — because the schema is `.strict()` — a ref
- * that smuggles one back must be REJECTED. That rejection is what forbids a future
- * "add it back for convenience": the word cannot re-enter silently.
- */
-describe('RuntimeStartWorkspaceRefSchema carries NO container word (#task:2081)', () => {
-  it('rejects a ref that smuggles a container word back onto this wire', () => {
-    // `.strict()`: an unknown `kind` key fails closed rather than being dropped,
-    // so no producer can quietly reintroduce the retired word.
-    const valid = {
-      id: 'ws1',
-      name: 'test-workspace',
-    };
-    expect(RuntimeStartWorkspaceRefSchema.safeParse(valid).success).toBe(true);
-    const parsed = RuntimeStartWorkspaceRefSchema.safeParse({
-      ...valid,
-      kind: 'agent_home',
-    });
-    expect(parsed.success).toBe(false);
   });
 });

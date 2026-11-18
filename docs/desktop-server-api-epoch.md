@@ -309,10 +309,6 @@ side records the same rule at the outbound gate in
 
 ## 7. Known residuals
 
-- `ClientInfoSchema` is `.strict()`: an OLD (pre-epoch) server parsing a NEW
-  desktop's telemetry header classifies it `invalid`. That consumer is
-  log-only — a telemetry blip during mixed fleets, accepted; admission uses
-  the dedicated header and is unaffected.
 - The desktop-side gate is advisory UX; enforcement authority stays
   server-side (a modified client can skip its own gate but not the 426).
 - Race window: if the server bumps between the desktop's server-info

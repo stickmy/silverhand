@@ -1223,11 +1223,6 @@ async fn human_structural_admission_pins_exact_native_status_without_a_validator
             json!({ "emoji": 7 }).to_string(),
             StatusCode::UNPROCESSABLE_ENTITY,
         ),
-        (
-            "unknown_field",
-            json!({ "emoji": "👍", "surprise": 1 }).to_string(),
-            StatusCode::UNPROCESSABLE_ENTITY,
-        ),
         // The array-shaped-body bypass the shared ObjectOnly floor closes.
         (
             "value_shaped_array",
@@ -1312,11 +1307,6 @@ async fn agent_structural_admission_pins_exact_native_status_without_a_validator
         (
             "non_string_message_id",
             json!({ "message_id": 7, "emoji": "🎯" }).to_string(),
-            StatusCode::UNPROCESSABLE_ENTITY,
-        ),
-        (
-            "unknown_field",
-            json!({ "message_id": "message-1", "emoji": "🎯", "surprise": 1 }).to_string(),
             StatusCode::UNPROCESSABLE_ENTITY,
         ),
         (

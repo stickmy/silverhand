@@ -340,9 +340,10 @@ export type McpProbePhase = z.infer<typeof McpProbePhaseSchema>;
 
 /** One tool reported by a server's `tools/list` (name + optional description).
  *  Tool metadata is not secret; header/env values never appear here. */
-export const McpProbeToolSchema = z
-  .object({ name: z.string(), description: z.string().optional() })
-  .strict();
+export const McpProbeToolSchema = z.object({
+  name: z.string(),
+  description: z.string().optional(),
+});
 export type McpProbeTool = z.infer<typeof McpProbeToolSchema>;
 
 /**
@@ -352,18 +353,13 @@ export type McpProbeTool = z.infer<typeof McpProbeToolSchema>;
  * `initialize` result (not a secret); `tools` is present only when
  * `include_tools` was requested and the probe reached the `tools` phase.
  */
-export const McpProbeResultSchema = z
-  .object({
-    ok: z.boolean(),
-    phase: McpProbePhaseSchema,
-    message: z.string().optional(),
-    server_info: z
-      .object({ name: z.string().optional(), version: z.string().optional() })
-      .strict()
-      .optional(),
-    tools: z.array(McpProbeToolSchema).optional(),
-  })
-  .strict();
+export const McpProbeResultSchema = z.object({
+  ok: z.boolean(),
+  phase: McpProbePhaseSchema,
+  message: z.string().optional(),
+  server_info: z.object({ name: z.string().optional(), version: z.string().optional() }).optional(),
+  tools: z.array(McpProbeToolSchema).optional(),
+});
 export type McpProbeResult = z.infer<typeof McpProbeResultSchema>;
 
 /**
@@ -372,12 +368,10 @@ export type McpProbeResult = z.infer<typeof McpProbeResultSchema>;
  * name — a probe connects to the real endpoint). The subject/scope is resolved
  * server-side from the caller's identity, so it is NOT part of this body.
  */
-export const McpProbeRequestSchema = z
-  .object({
-    server_name: z.string().min(1),
-    include_tools: z.boolean().optional(),
-  })
-  .strict();
+export const McpProbeRequestSchema = z.object({
+  server_name: z.string().min(1),
+  include_tools: z.boolean().optional(),
+});
 export type McpProbeRequest = z.infer<typeof McpProbeRequestSchema>;
 
 /** TOML bare key if safe, else a quoted key. */

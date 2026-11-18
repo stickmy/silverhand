@@ -32,17 +32,10 @@ describe('self password change contract', () => {
       if (signup.success) expect(signup.data.password).toBe(password);
     }
   });
-  it('rejects caller identity and blank current passwords', () => {
+  it('rejects blank current passwords', () => {
     expect(
       ChangePasswordInputSchema.safeParse({ current_password: '', new_password: '12345678' })
         .success,
-    ).toBe(false);
-    expect(
-      ChangePasswordInputSchema.safeParse({
-        current_password: 'old',
-        new_password: '12345678',
-        user_id: 'other',
-      }).success,
     ).toBe(false);
     expect(PasswordStatusResponseSchema.parse({ has_password: false })).toEqual({
       has_password: false,
