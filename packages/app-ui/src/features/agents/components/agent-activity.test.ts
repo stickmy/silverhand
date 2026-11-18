@@ -355,6 +355,14 @@ describe("coalesceActivity", () => {
     expect(items[0]).toMatchObject({ type: "group", kind: "thinking", text: "finding", count: 2 });
   });
 
+  it("trims a thinking group's outer whitespace but keeps its paragraph breaks", () => {
+    const items = coalesceActivity([
+      tev(1, "thinking", "\nfirst\n\nsec"),
+      tev(2, "thinking", "ond\n\n"),
+    ]);
+    expect(items[0]).toMatchObject({ kind: "thinking", text: "first\n\nsecond" });
+  });
+
   it("breaks a run on a non-fragment event and on a thinking↔text switch", () => {
     const items = coalesceActivity([
       tev(1, "thinking", "a"),

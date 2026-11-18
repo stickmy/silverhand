@@ -452,7 +452,9 @@ export function coalesceActivity(events: ReadonlyArray<ActivityEvent>): Activity
       type: "group",
       key: `g${first.id}`,
       kind: runKind!,
-      text,
+      // Thinking renders whitespace-preserved, so a reasoning summary's trailing
+      // newlines would show as blank lines. Inner paragraph breaks stay.
+      text: runKind === "thinking" ? text.trim() : text,
       representative: first,
       count: run.length,
     });
