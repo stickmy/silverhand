@@ -3,15 +3,8 @@ import { classifyServerUrl, type ServerConnectionProfileView } from "@silverhand
 export type BackendBootMode =
   | {
       mode: "embedded";
-      reason: "no_profile" | "forced_by_env" | "profile_is_loopback";
-      /**
-       * Present on `'profile_is_loopback'`: the raw URL string from
-       * the profile (for log lines). Empty string on the other
-       * embedded reasons. Note: even when the classifier admitted
-       * the URL as loopback, the profile's URL is NOT (yet —
-       * Commit 5 may change this) what the embedded backend binds
-       * to; embedded boots its default loopback bind.
-       */
+      reason: "no_profile" | "forced_by_env";
+      /** The overridden profile URL under `forced_by_env` (for log lines); otherwise empty. */
       profileUrl: string;
     }
   | {
@@ -110,17 +103,12 @@ export function decideBackendBootMode(input: DecideBackendBootModeInput): Backen
       classifyMessage: classification.message,
     };
   }
-  if (classification.kind === "loopback") {
-    return {
-      mode: "embedded",
-      reason: "profile_is_loopback",
-      profileUrl: input.profileView.server_url,
-    };
-  }
+  // A saved profile always means remote, loopback included (e.g. an SSH tunnel):
+  // the embedded backend binds its own port and never reads the profile.
   return {
     mode: "remote",
     serverUrl: classification.url.origin,
-    insecure: classification.insecure,
+    insecure: classification.kind === "remote" && classification.insecure,
   };
 }
 
@@ -154,8 +142,8 @@ export class RemoteOnlyServerProfileRequiredError extends Error {
     super(
       `This Silverhand Desktop package was built as remote-only, but no ` +
         `usable remote server profile is available. ${reason} ` +
-        `Repackage with --server-url <https-origin>, or save a non-loopback ` +
-        `remote server profile before launching this build.`,
+        `Repackage with --server-url <https-origin>, or save a remote server ` +
+        `profile before launching this build.`,
     );
     this.name = "RemoteOnlyServerProfileRequiredError";
     this.reason = reason;
@@ -170,7 +158,7 @@ export type BackendStartupPlan =
        * bootstrap site's log line and any future "embedded but for
        * what reason" UI keeps the same discriminator.
        */
-      embeddedReason: "no_profile" | "forced_by_env" | "profile_is_loopback";
+      embeddedReason: "no_profile" | "forced_by_env";
     }
   | {
       mode: "remote";

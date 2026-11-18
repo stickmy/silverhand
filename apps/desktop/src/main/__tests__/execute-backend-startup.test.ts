@@ -37,10 +37,6 @@ describe("profile to running backend", () => {
     ["https://backend.example.test", true, false, "forced_by_env"],
     ["not a url", true, false, "forced_by_env"],
     ["http://10.0.0.5:8080", true, false, "forced_by_env"],
-    ["http://127.0.0.1:18080", false, false, "profile_is_loopback"],
-    ["http://localhost:7321", false, false, "profile_is_loopback"],
-    ["http://[::1]:9000", false, false, "profile_is_loopback"],
-    ["https://localhost", false, false, "profile_is_loopback"],
   ] as const)(
     "starts embedded for %s (force=%s, insecure=%s)",
     async (url, forceEmbedded, allowInsecureRemote, reason) => {
@@ -77,6 +73,10 @@ describe("profile to running backend", () => {
     ["HTTPS://Backend.Example.Test:443/", false, "https://backend.example.test", false],
     ["https://backend.example.test:8443", true, "https://backend.example.test:8443", false],
     ["http://10.0.0.5:8080", true, "http://10.0.0.5:8080", true],
+    ["http://127.0.0.1:18080", false, "http://127.0.0.1:18080", false],
+    ["http://localhost:7321", false, "http://localhost:7321", false],
+    ["http://[::1]:9000", false, "http://[::1]:9000", false],
+    ["https://localhost", false, "https://localhost", false],
   ] as const)(
     "starts remote for %s without accessing embedded configuration",
     async (url, allowInsecureRemote, origin, insecure) => {
