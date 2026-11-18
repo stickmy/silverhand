@@ -10,7 +10,7 @@ const LIMIT = 2 * 1024 * 1024;
 type Frame = Record<string, any>;
 type Listing = Pick<
   RuntimeModelDiscovery,
-  'status' | 'models' | 'reasoning_by_model' | 'default_model'
+  'status' | 'models' | 'reasoning_by_model' | 'service_tiers_by_model' | 'default_model'
 >;
 const FAILED: Listing = { status: 'error', models: [] };
 const UNSUPPORTED: Listing = { status: 'unsupported', models: [] };
@@ -40,7 +40,25 @@ function protocol(kind: RuntimeKind, version: string | null) {
   let page = 0;
   const collected: string[] = [];
   const reasoning = new Map<string, { supported_efforts: string[]; default_effort?: string }>();
+  const tiers = new Map<string, { id: string; name: string }[]>();
   let defaultModel: string | undefined;
+  const collectTiers = (ids: string[], rows: unknown) => {
+    if (!Array.isArray(rows)) return;
+    const offered = rows
+      .map(record)
+      .filter(
+        (r): r is { id: string; name: string } =>
+          typeof r.id === 'string' &&
+          r.id !== 'default' &&
+          /^[a-z][a-z0-9_-]{0,31}$/u.test(r.id) &&
+          typeof r.name === 'string' &&
+          r.name.length > 0 &&
+          r.name.length <= 64,
+      )
+      .slice(0, 16)
+      .map(({ id, name }) => ({ id, name }));
+    for (const id of ids) tiers.set(id, offered);
+  };
   const collectReasoning = (ids: string[], levels: unknown, defaultEffort?: unknown) => {
     // Missing or malformed capability data means unknown, not an empty supported set.
     if (
@@ -65,6 +83,13 @@ function protocol(kind: RuntimeKind, version: string | null) {
       ? {
           reasoning_by_model: Object.fromEntries(
             [...reasoning].filter(([id]) => models.includes(id)),
+          ),
+        }
+      : {}),
+    ...(tiers.size
+      ? {
+          service_tiers_by_model: Object.fromEntries(
+            [...tiers].filter(([id]) => models.includes(id)),
           ),
         }
       : {}),
@@ -184,6 +209,7 @@ function protocol(kind: RuntimeKind, version: string | null) {
           ? r.supportedReasoningEfforts.map((level: unknown) => record(level).reasoningEffort)
           : undefined;
         collectReasoning(ids, levels, r.defaultReasoningEffort);
+        collectTiers(ids, r.serviceTiers);
         if (r.isDefault === true && ids[0]) defaultModel = ids[0];
       }
       if (typeof result.nextCursor === 'string' && result.nextCursor.length > 0) {

@@ -19,7 +19,7 @@ function fixture(effort: string | null = null) {
     cliSessionId: null,
     model: null,
     reasoningEffort: effort,
-    fastMode: null,
+    serviceTier: null,
     systemPromptPath: join(dir, 'prompt.md'),
     initialPrompt: '',
   };

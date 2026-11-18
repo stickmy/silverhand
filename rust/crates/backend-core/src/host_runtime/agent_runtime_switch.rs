@@ -69,7 +69,7 @@ use crate::{
     },
 };
 
-/// The validated runtime-switch request. Tuning legality (model/effort/fast-mode against the
+/// The validated runtime-switch request. Tuning legality (model/effort/service-tier against the
 /// target runtime) is the upstream admission schema's job, mirrored from the TypeScript
 /// `SwitchAgentRuntimeInputSchema`; this value carries the already-validated tuning verbatim
 /// to the commit.
@@ -78,7 +78,7 @@ pub struct SwitchAgentRuntimeConfig {
     pub runtime: RuntimeKind,
     pub model: Option<String>,
     pub reasoning_effort: Option<String>,
-    pub fast_mode: Option<bool>,
+    pub service_tier: Option<String>,
 }
 
 impl SwitchAgentRuntimeConfig {
@@ -86,7 +86,7 @@ impl SwitchAgentRuntimeConfig {
         RuntimeTransitionCommit {
             model: self.model.clone(),
             reasoning_effort: self.reasoning_effort.clone(),
-            fast_mode: self.fast_mode,
+            service_tier: self.service_tier.clone(),
         }
     }
 }
@@ -882,7 +882,7 @@ mod tests {
                     runtime: to,
                     model: Some("gpt".into()),
                     reasoning_effort: None,
-                    fast_mode: None,
+                    service_tier: None,
                 },
             },
             from,
@@ -1207,7 +1207,7 @@ mod tests {
             runtime: "codex".into(),
             model: Some("gpt".into()),
             reasoning_effort: None,
-            fast_mode: None,
+            service_tier: None,
             updated_at: now_ms,
             transition_target: None,
             transition_started_at: None,

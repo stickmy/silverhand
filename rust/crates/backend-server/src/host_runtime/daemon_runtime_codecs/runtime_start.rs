@@ -8,6 +8,7 @@ use silverhand_backend_core::{
     foundation::wire_number::JsSafeInteger,
 };
 
+use crate::foundation::daemon_transport::DaemonFeatures;
 use crate::host_runtime::runtime_credential::RuntimeStartHandoff;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -30,6 +31,7 @@ pub(crate) enum RuntimeStartResult {
 pub(crate) fn encode(
     target: &RuntimeDispatchTarget,
     handoff: &RuntimeStartHandoff,
+    features: DaemonFeatures,
 ) -> Result<Value, RuntimeStartCodecError> {
     let principal = handoff.principal();
     let generation = JsSafeInteger::new(principal.custody().generation().as_i64())
@@ -49,7 +51,7 @@ pub(crate) fn encode(
         "conversation_id": target.conversation.as_str(),
         "agent_id": principal.agent().as_str(),
         "runtime_generation": generation.get(),
-        "options": super::spawn_options(&target.plan, handoff.daemon_auth_token()),
+        "options": super::spawn_options(&target.plan, handoff.daemon_auth_token(), features),
     }))
 }
 

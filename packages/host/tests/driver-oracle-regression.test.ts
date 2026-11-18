@@ -44,7 +44,7 @@ async function initializeCodex(driver: CodexDriver, oracle: DriverParseOracle) {
       cliSessionId: oracle.resumeSessionId ?? null,
       model: null,
       reasoningEffort: null,
-      fastMode: null,
+      serviceTier: null,
       systemPromptPath,
       initialPrompt: '',
     },

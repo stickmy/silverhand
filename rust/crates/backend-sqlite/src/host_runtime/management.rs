@@ -24,7 +24,7 @@ const SELECT_COMPUTER: &str = "SELECT id, name, kind, created_at, user_id, insta
      FROM hosts WHERE id = ?";
 
 const SELECT_STATUS_AGENTS: &str = "SELECT id, host_id, name, display_name, runtime, \
-     model, reasoning_effort, fast_mode, avatar_storage_key, updated_at, materialization_status, created_at \
+     model, reasoning_effort, service_tier, avatar_storage_key, updated_at, materialization_status, created_at \
      FROM agents WHERE host_id = ? ORDER BY created_at ASC";
 
 #[derive(Debug, Error)]
@@ -190,9 +190,7 @@ fn decode_status_agent(row: &sqlx::sqlite::SqliteRow) -> Result<HostStatusAgentF
         runtime,
         model: row.try_get("model")?,
         reasoning_effort: row.try_get("reasoning_effort")?,
-        fast_mode: row
-            .try_get::<Option<i64>, _>("fast_mode")?
-            .map(|value| value != 0),
+        service_tier: row.try_get::<Option<String>, _>("service_tier")?,
         avatar_storage_key: row.try_get("avatar_storage_key")?,
         updated_at: row.try_get("updated_at")?,
         materialization_status,

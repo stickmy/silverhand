@@ -59,7 +59,7 @@ it('Codex initializes once and collects all pages without sending a turn', async
     if(m.method==='initialize') send({id:m.id,result:{}});
     else if(m.method==='model/list') send({id:m.id,result: m.params.cursor
       ? {data:[{id:'second',supportedReasoningEfforts:[]},{id:'first'},{id:'hidden',hidden:true}],nextCursor:null}
-      : {data:[{id:'first',model:'first',isDefault:true,supportedReasoningEfforts:[{reasoningEffort:'high'},{reasoningEffort:'future-tier'}],defaultReasoningEffort:'high'}],nextCursor:'page-2'}});
+      : {data:[{id:'first',model:'first',isDefault:true,supportedReasoningEfforts:[{reasoningEffort:'high'},{reasoningEffort:'future-tier'}],defaultReasoningEffort:'high',serviceTiers:[{id:'default',name:'Standard'},{id:'priority',name:'Fast'},{id:'ultrafast',name:'Ultrafast'},{id:'Bad Tier',name:'x'}]}],nextCursor:'page-2'}});
     else if(m.method!=='initialized') process.exit(2);
   });`,
   );
@@ -70,6 +70,12 @@ it('Codex initializes once and collects all pages without sending a turn', async
     reasoning_by_model: {
       first: { supported_efforts: ['high', 'future-tier'], default_effort: 'high' },
       second: { supported_efforts: [] },
+    },
+    service_tiers_by_model: {
+      first: [
+        { id: 'priority', name: 'Fast' },
+        { id: 'ultrafast', name: 'Ultrafast' },
+      ],
     },
   });
 });

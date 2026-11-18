@@ -1,7 +1,7 @@
 // AUTO-SPLIT from the former monolithic api/dto.ts (#task:963).
 // Bounded context: runtime. Re-exported via api/index.ts → @silverhand/shared.
 import { z } from 'zod';
-import { ReasoningEffortTokenSchema, RuntimeKindSchema } from '../db/schema.js';
+import { ReasoningEffortTokenSchema, RuntimeKindSchema, ServiceTierSchema } from '../db/schema.js';
 
 // Ephemeral per-agent run state used by `agent_activity` realtime events and
 // reconnect snapshots. These rows are not persisted to the messages DB.
@@ -102,6 +102,12 @@ const ModelReasoningSchema = z
       value.default_effort === undefined || value.supported_efforts.includes(value.default_effort),
   );
 
+const ModelServiceTierSchema = z.object({
+  id: ServiceTierSchema,
+  name: z.string().min(1).max(64),
+});
+export type ModelServiceTier = z.infer<typeof ModelServiceTierSchema>;
+
 /** Suggestions from the selected host's CLI, never an allowlist for model IDs. */
 export const RuntimeModelDiscoverySchema = z
   .object({
@@ -117,6 +123,10 @@ export const RuntimeModelDiscoverySchema = z
       )
       .max(5000),
     reasoning_by_model: z.record(z.string(), ModelReasoningSchema).optional(),
+    /** Non-default tiers the CLI offers per model; `default` is implicit. */
+    service_tiers_by_model: z
+      .record(z.string(), z.array(ModelServiceTierSchema).max(16))
+      .optional(),
     default_model: z.string().optional(),
     detected_at: z.number(),
     cached: z.boolean(),
@@ -125,6 +135,7 @@ export const RuntimeModelDiscoverySchema = z
     (value) =>
       (value.status === 'ok' || value.models.length === 0) &&
       Object.keys(value.reasoning_by_model ?? {}).every((id) => value.models.includes(id)) &&
+      Object.keys(value.service_tiers_by_model ?? {}).every((id) => value.models.includes(id)) &&
       (value.default_model === undefined || value.models.includes(value.default_model)),
   );
 export type RuntimeModelDiscovery = z.infer<typeof RuntimeModelDiscoverySchema>;

@@ -72,6 +72,7 @@ import {
   ParsedEventSchema,
   PROTOCOL_VERSIONS,
   ReasoningEffortTokenSchema,
+  ServiceTierSchema,
   RUNTIME_DELIVERY_INSTRUCTION_SIGNALS,
   RuntimeCatalogResponseSchema,
   RuntimeKindSchema,
@@ -123,6 +124,7 @@ export const HOST_PROTOCOL_VERSION = PROTOCOL_VERSIONS.host;
 // rather than the historical closed enum.
 // `runtime.model_discovery.v1`: `host_runtime_catalog` accepts `models_for`; the
 // server answers `unsupported` itself for a daemon without it.
+// `runtime.service_tier.v1`: `runtime_start` carries `service_tier`, not `fast_mode`.
 
 /**
  * #task:1614 — this daemon serves the `agent_stale_receive` intent
@@ -139,6 +141,7 @@ export const KNOWN_CAPABILITIES_V1 = [
   'runtime.grok',
   'runtime.codex.reasoning.v1',
   'runtime.model_discovery.v1',
+  'runtime.service_tier.v1',
   'transport.unix_socket',
   'fs.local',
   'proxy.env_inherit',
@@ -752,7 +755,7 @@ const RuntimeStartDriverOptionsSchema = z
     cli_session_id: z.string().min(1).nullable(),
     model: z.string().nullable(),
     reasoning_effort: ReasoningEffortTokenSchema.nullable(),
-    fast_mode: z.boolean().nullable(),
+    service_tier: ServiceTierSchema.nullable(),
   })
   .strict();
 

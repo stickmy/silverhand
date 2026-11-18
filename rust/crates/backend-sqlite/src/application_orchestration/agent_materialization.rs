@@ -43,11 +43,11 @@ use crate::foundation::host_agent_store::{SqliteHostAgentStore, decode};
 /// its committed identity against. `display_name` seeds from the handle, matching the
 /// TypeScript `reserveForMaterialize`.
 const RESERVE_INSERT: &str = "INSERT INTO agents \
-        (id, name, display_name, runtime, model, reasoning_effort, fast_mode, \
+        (id, name, display_name, runtime, model, reasoning_effort, service_tier, \
          host_id, description, session_scope, created_by_user_id, \
          materialization_status, idempotency_key, created_at, updated_at) \
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_materialization', ?, ?, ?) \
-    RETURNING id, name, display_name, runtime, model, reasoning_effort, fast_mode, \
+    RETURNING id, name, display_name, runtime, model, reasoning_effort, service_tier, \
               host_id, description, session_scope, created_by_user_id, \
               materialization_status, idempotency_key, created_at, updated_at";
 
@@ -106,15 +106,9 @@ const FIND_BY_IDEMPOTENCY: &str = "SELECT id, created_by_user_id, idempotency_ke
       WHERE created_by_user_id = ? \
         AND idempotency_key = ?";
 
-/// The stored `fast_mode` boolean as its `0`/`1`/null column, matching the
-/// `fast_mode === undefined ? null : fast_mode ? 1 : 0` the TypeScript reserve applies.
-fn fast_mode_column(fast_mode: Option<bool>) -> Option<i64> {
-    fast_mode.map(|on| if on { 1 } else { 0 })
-}
-
 /// Project the reserve after-image from its `RETURNING` row covering every inserted
 /// column. The `AgentId` is decoded from the row's OWN `id`, never the query parameter;
-/// the typed columns (runtime, host, session scope, creator, fast_mode) ride back raw for
+/// the typed columns (runtime, host, session scope, creator, service_tier) ride back raw for
 /// the domain to parse and bind.
 fn reserved_agent_row(row: &SqliteRow) -> Result<ReservedAgentRow, sqlx::Error> {
     Ok(ReservedAgentRow {
@@ -124,7 +118,7 @@ fn reserved_agent_row(row: &SqliteRow) -> Result<ReservedAgentRow, sqlx::Error> 
         runtime: row.try_get::<String, _>("runtime")?,
         model: row.try_get::<Option<String>, _>("model")?,
         reasoning_effort: row.try_get::<Option<String>, _>("reasoning_effort")?,
-        fast_mode: row.try_get::<Option<i64>, _>("fast_mode")?,
+        service_tier: row.try_get::<Option<String>, _>("service_tier")?,
         host_id: row.try_get::<String, _>("host_id")?,
         description: row.try_get::<Option<String>, _>("description")?,
         session_scope: row.try_get::<String, _>("session_scope")?,
@@ -227,7 +221,7 @@ impl AgentMaterializationWrite for SqliteHostAgentStore {
             .bind(input.runtime.as_str())
             .bind(input.model.as_deref())
             .bind(input.reasoning_effort.as_deref())
-            .bind(fast_mode_column(input.fast_mode))
+            .bind(input.service_tier.as_deref())
             .bind(input.host_id.as_str())
             .bind(input.description.as_deref())
             .bind(input.session_scope.as_str())
@@ -986,7 +980,7 @@ mod tests {
             runtime: RuntimeKind::Codex,
             model: Some("gpt".to_string()),
             reasoning_effort: Some("high".to_string()),
-            fast_mode: Some(true),
+            service_tier: Some("priority".into()),
             host_id: HostId::parse("h1").unwrap(),
             description: Some("d".to_string()),
             session_scope: AgentSessionScope::Conversation,

@@ -79,7 +79,7 @@ use crate::{
 
 /// The already-admitted create request, in the core's own vocabulary.
 ///
-/// Format legality (the handle grammar, the reasoning-effort/fast-mode allowlist) is the
+/// Format legality (the handle grammar, the reasoning-effort/service-tier allowlist) is the
 /// route's admission concern, settled before this value is built; this carries only what
 /// the write persists. `model` is not yet defaulted — [`create_agent`] normalizes it once
 /// at the top so both the idempotency compare and the reserve see the same value.
@@ -89,7 +89,7 @@ pub struct CreateAgentInput {
     pub runtime: RuntimeKind,
     pub model: Option<String>,
     pub reasoning_effort: Option<String>,
-    pub fast_mode: Option<bool>,
+    pub service_tier: Option<String>,
     pub description: Option<String>,
     /// Absent means "auto-place on the caller's one ready host"; present names an explicit
     /// host the caller must own.
@@ -475,7 +475,7 @@ where
         runtime: input.runtime,
         model: input.model.clone(),
         reasoning_effort: input.reasoning_effort.clone(),
-        fast_mode: input.fast_mode,
+        service_tier: input.service_tier.clone(),
         host_id: host_id.clone(),
         description: input.description.clone(),
         session_scope: input
@@ -1080,7 +1080,7 @@ mod tests {
                 runtime: input.runtime.as_str().to_owned(),
                 model: input.model.clone(),
                 reasoning_effort: input.reasoning_effort.clone(),
-                fast_mode: input.fast_mode.map(i64::from),
+                service_tier: input.service_tier.clone(),
                 host_id: input.host_id.as_str().to_owned(),
                 description: input.description.clone(),
                 session_scope: input.session_scope.as_str().to_owned(),
@@ -1410,7 +1410,7 @@ mod tests {
             runtime: RuntimeKind::Codex,
             model: None,
             reasoning_effort: None,
-            fast_mode: None,
+            service_tier: None,
             description: None,
             host_id: None,
             session_scope: None,

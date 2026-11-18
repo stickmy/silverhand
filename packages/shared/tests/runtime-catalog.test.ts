@@ -12,7 +12,8 @@ import {
   runtimeCliLabel,
   runtimeLabel,
   runtimeSupportsReasoningEffort,
-  runtimeSupportsFastMode,
+  runtimeSupportsServiceTier,
+  serviceTierValidForRuntime,
 } from '../src/index.js';
 
 describe('runtime catalog (shared source of truth)', () => {
@@ -118,11 +119,14 @@ describe('runtime catalog (shared source of truth)', () => {
     ]);
   });
 
-  it('exposes fast mode only for codex', () => {
-    expect(RUNTIME_CATALOG.filter((e) => e.supportsFastMode).map((e) => e.kind)).toEqual(['codex']);
-    for (const entry of RUNTIME_CATALOG) {
-      expect(runtimeSupportsFastMode(entry.kind)).toBe(entry.supportsFastMode);
-    }
+  it('exposes service tiers only for codex and checks shape only', () => {
+    expect(
+      RUNTIME_CATALOG.filter((e) => runtimeSupportsServiceTier(e.kind)).map((e) => e.kind),
+    ).toEqual(['codex']);
+    expect(serviceTierValidForRuntime('codex', 'ultrafast')).toBe(true);
+    expect(serviceTierValidForRuntime('codex', 'Bad Tier')).toBe(false);
+    expect(serviceTierValidForRuntime('claude', 'priority')).toBe(false);
+    expect(serviceTierValidForRuntime('claude', null)).toBe(true);
   });
 
   it('title-cases reasoning labels for display while values stay lowercase', () => {
@@ -186,7 +190,7 @@ describe('Grok runtime capabilities', () => {
     expect(runtimeCatalogEntry('grok')).toMatchObject({
       selectable: true,
       supportsProfileMcp: true,
-      supportsFastMode: false,
+      serviceTierOptions: [],
     });
     expect(runtimeDefaultModel('grok')).toBeNull();
   });

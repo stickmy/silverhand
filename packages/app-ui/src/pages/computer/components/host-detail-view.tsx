@@ -80,6 +80,7 @@ import type {
 import { reasoningEffortLabel, RuntimeKindSchema, runtimeLabel } from "@silverhand/shared";
 import { AgentAvatar } from "@/components/agent-avatar";
 import { CreateAgentDialog } from "@/features/agents/components/create-agent-dialog";
+import { serviceTierLabel } from "@/features/agents/model/service-tier";
 import { AVATAR_PX } from "@/components/avatar-scale";
 import { useAgentAvatarObjectUrls } from "@/features/agents/hooks/avatar-hooks";
 import { useUsersById } from "@/features/users/hooks";
@@ -1068,7 +1069,9 @@ function AgentConfigLine({ agent }: { agent: AgentOnHostDto }): JSX.Element {
     knownRuntime.success ? runtimeLabel(knownRuntime.data) : agent.runtime,
     agent.model,
     agent.reasoning_effort ? reasoningEffortLabel(agent.reasoning_effort) : null,
-    agent.fast_mode ? t("computers.fast") : null,
+    agent.service_tier && agent.service_tier !== "default"
+      ? serviceTierLabel(agent.service_tier)
+      : null,
   ].filter((part): part is string => part !== null);
 
   return (

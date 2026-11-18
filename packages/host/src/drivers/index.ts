@@ -33,10 +33,9 @@ export interface DriverSpawnContext {
   cliSessionId: string | null; // when resuming
   model: string | null;
   reasoningEffort: string | null;
-  /** Codex-only feature toggle. NULL = let codex use its catalog
-   *  default; true = `--enable fast_mode`; false = `--disable
-   *  fast_mode`. Other drivers ignore. */
-  fastMode: boolean | null;
+  /** Codex service tier id. NULL = let codex use its own
+   *  default. Other drivers ignore. */
+  serviceTier: string | null;
   /** Path to the materialized `system-prompt.md`. Drivers that accept a
    *  CLI flag for it (claude) point at this; drivers that don't (codex,
    *  cursor) read the file's contents into their own protocol payload. */

@@ -83,7 +83,7 @@ describe("toStatusInput", () => {
           avatar_url: "https://cdn/secret-avatar.png",
           model: null,
           reasoning_effort: null,
-          fast_mode: null,
+          service_tier: null,
           online: "offline",
         },
       ],

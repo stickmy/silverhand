@@ -101,7 +101,7 @@ impl SqliteRuntimeDeliveryStore {
             return Ok(None);
         }
         let Some(agent_row) = sqlx::query(
-            "SELECT a.name, a.runtime, a.model, a.reasoning_effort, a.fast_mode,
+            "SELECT a.name, a.runtime, a.model, a.reasoning_effort, a.service_tier,
                     a.host_id, a.session_scope, s.cli_session_id
                FROM agents a
                LEFT JOIN agent_runtime_slots s
@@ -2498,10 +2498,9 @@ async fn project_dispatch(
         runtime,
         model: agent_row.try_get("model").map_err(persistence)?,
         reasoning_effort: agent_row.try_get("reasoning_effort").map_err(persistence)?,
-        fast_mode: agent_row
-            .try_get::<Option<i64>, _>("fast_mode")
-            .map_err(persistence)?
-            .map(|value| value != 0),
+        service_tier: agent_row
+            .try_get::<Option<String>, _>("service_tier")
+            .map_err(persistence)?,
         cli_session_id: agent_row.try_get("cli_session_id").map_err(persistence)?,
     };
     let host_id: String = agent_row.try_get("host_id").map_err(persistence)?;

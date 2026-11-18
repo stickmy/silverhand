@@ -30,7 +30,7 @@ async function setup(
     cliSessionId: null,
     model: null,
     reasoningEffort: null,
-    fastMode: null,
+    serviceTier: null,
     systemPromptPath,
     initialPrompt: '',
     ...overrides,

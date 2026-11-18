@@ -3059,7 +3059,7 @@ async fn the_unmounted_host_management_router_composes_sqlite_live_transport_and
     .unwrap();
 
     sqlx::query(
-        "UPDATE agents SET model = 'gpt-5.6-sol', reasoning_effort = 'high', fast_mode = 1",
+        "UPDATE agents SET model = 'gpt-5.6-sol', reasoning_effort = 'high', service_tier = 'priority'",
     )
     .execute(&mut db)
     .await
@@ -3152,6 +3152,7 @@ async fn the_unmounted_host_management_router_composes_sqlite_live_transport_and
     assert_eq!(body["agents"][0]["online"], "offline");
     assert_eq!(body["agents"][0]["model"], "gpt-5.6-sol");
     assert_eq!(body["agents"][0]["reasoning_effort"], "high");
+    assert_eq!(body["agents"][0]["service_tier"], "priority");
     assert_eq!(body["agents"][0]["fast_mode"], true);
     let (status, refreshed) =
         management_request(&app, "POST", "/api/hosts/host-1/status/refresh", "").await;
@@ -5618,6 +5619,10 @@ async fn stale_resume_fatal_clears_cli_session_before_successor_start() {
         "codex"
     );
     assert!(successor_command["params"]["options"]["driver"]["cli_session_id"].is_null());
+    // A daemon without `runtime.service_tier.v1` strict-decodes the legacy key only.
+    let driver = &successor_command["params"]["options"]["driver"];
+    assert!(driver.get("service_tier").is_none());
+    assert!(driver.get("fast_mode").is_some());
     respond(
         &mut daemon,
         &successor_command,

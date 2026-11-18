@@ -89,7 +89,6 @@ export const computers: Translation<typeof en> = {
   created: "创建",
   createdOnBy: "{creator} 于 {date}",
   copyValue: "复制 {value}",
-  fast: "快速",
   uptime: "开机时长",
   agentsOnThisMachine: "这台机器上的 agent",
   noAgentsAreRegistered: "这台电脑上还没有注册 agent。",

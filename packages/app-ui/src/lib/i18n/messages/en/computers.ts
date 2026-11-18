@@ -91,7 +91,6 @@ export const computers = {
   created: "Created",
   createdOnBy: "{creator} on {date}",
   copyValue: "Copy {value}",
-  fast: "Fast",
   uptime: "Uptime",
   agentsOnThisMachine: "Agents on this machine",
   noAgentsAreRegistered: "No agents are registered on this computer yet.",

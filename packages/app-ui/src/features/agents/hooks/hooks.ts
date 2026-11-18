@@ -679,7 +679,7 @@ export function applySwitchAgentRuntimeSideEffects(qc: QueryClient, agentId: str
  * the ordinary field-patch route.
  *
  * Contract (`SwitchAgentRuntimeInputSchema` in shared): all four keys
- * required; `null` on model / reasoning_effort / fast_mode is the explicit
+ * required; `null` on model / reasoning_effort / service_tier is the explicit
  * "Use driver default" sentinel. The schema also enforces `(runtime, value)`
  * legality — the UI's per-runtime catalog gating mirrors this, so a legal UI
  * state is always accepted.

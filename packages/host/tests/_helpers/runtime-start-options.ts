@@ -54,7 +54,7 @@ export function testStartOptions(overrides: TestStartOptionsOverrides = {}): Sta
       cli_session_id: overrides.cliSessionId ?? null,
       model: overrides.model ?? null,
       reasoning_effort: null,
-      fast_mode: null,
+      service_tier: null,
     },
     env_policy: {
       silverhand: {

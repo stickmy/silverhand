@@ -94,14 +94,6 @@ export class CodexDriver implements Driver {
     if (ctx.reasoningEffort) {
       args.push('-c', `model_reasoning_effort=${JSON.stringify(ctx.reasoningEffort)}`);
     }
-    // fast_mode is a codex feature flag (`codex features list` →
-    // `fast_mode  stable`). NULL leaves the catalog default in place;
-    // explicit true/false maps to the `--enable` / `--disable` pair.
-    if (ctx.fastMode === true) {
-      args.push('--enable', 'fast_mode');
-    } else if (ctx.fastMode === false) {
-      args.push('--disable', 'fast_mode');
-    }
     return args;
   }
 
@@ -609,6 +601,8 @@ export class CodexDriver implements Driver {
     // A hidden Silverhand fallback would pin new agents to an older model and
     // make model-specific capabilities such as Ultra fail unexpectedly.
     if (ctx.model) params.model = ctx.model;
+    // Codex falls back to Standard when the model lacks the tier.
+    if (ctx.serviceTier) params.serviceTier = ctx.serviceTier;
     if (ctx.cliSessionId) {
       return {
         method: 'thread/resume',

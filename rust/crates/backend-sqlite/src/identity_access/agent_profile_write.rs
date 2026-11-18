@@ -69,7 +69,7 @@ const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 // vary with which columns the `SET` clause touched, so the write always projects the
 // same shape the seal reads.
 const RETURNING_COMMITTED_ROW: &str = " RETURNING id, display_name, description, model, \
-     reasoning_effort, fast_mode, avatar_storage_key, avatar_content_type, updated_at";
+     reasoning_effort, service_tier, avatar_storage_key, avatar_content_type, updated_at";
 
 /// A pooled connection to an existing product database, offering the canonical
 /// agent-tuning write. Holds no clock; `now_ms` is passed in by the application.
@@ -145,7 +145,7 @@ impl SqliteAgentProfileWrite {
         // transaction will commit, with no window for a concurrent PATCH to slip a
         // stale legality verdict past it.
         let current = sqlx::query(
-            "SELECT id, runtime, model, reasoning_effort, display_name, description, fast_mode, \
+            "SELECT id, runtime, model, reasoning_effort, display_name, description, service_tier, \
                     avatar_storage_key, avatar_content_type \
                FROM agents WHERE id = ?",
         )
@@ -167,12 +167,11 @@ impl SqliteAgentProfileWrite {
         let runtime_raw: String = current.try_get("runtime")?;
         let runtime =
             RuntimeKind::parse(&runtime_raw).ok_or(CorruptStoredRuntime { value: runtime_raw })?;
-        let fast_mode: Option<i64> = current.try_get("fast_mode")?;
         let before = AgentRowBefore {
             agent_id: before_id,
             display_name: current.try_get("display_name")?,
             description: current.try_get("description")?,
-            fast_mode: fast_mode.map(|value| value != 0),
+            service_tier: current.try_get("service_tier")?,
             avatar: before_avatar,
             context: AgentTuningContext {
                 runtime,
@@ -228,16 +227,16 @@ impl SqliteAgentProfileWrite {
             "reasoning_effort",
             admitted.reasoning_effort(),
         );
-        match admitted.fast_mode() {
+        match admitted.service_tier() {
             FieldEdit::Leave => {}
             FieldEdit::Clear => {
                 separator(&mut builder, &mut needs_comma);
-                builder.push("fast_mode = NULL");
+                builder.push("service_tier = NULL");
             }
             FieldEdit::Set(value) => {
                 separator(&mut builder, &mut needs_comma);
-                builder.push("fast_mode = ");
-                builder.push_bind(*value);
+                builder.push("service_tier = ");
+                builder.push_bind(value.clone());
             }
         }
         // The avatar is a COUPLED pair: the storage key and the content type are always
@@ -346,19 +345,17 @@ fn decode_id_and_avatar(row: &SqliteRow) -> Result<(AgentId, AgentAvatarRow), Pr
 /// Decode the committed columns from the write's own `RETURNING` row. The id and the
 /// coupled avatar pair are decoded WHOLE through [`decode_id_and_avatar`], so a
 /// malformed committed id or a half-populated avatar pair is corruption, never a
-/// product answer; `fast_mode` is read as an integer and folded `!= 0`, mirroring the
-/// detail read's affinity-safe decode.
+/// product answer.
 fn decode_committed_row(row: &SqliteRow) -> Result<CommittedAgentRow, ProfileWriteFailure> {
     let (id, avatar) = decode_id_and_avatar(row)?;
-    let fast_mode: Option<i64> = row.try_get("fast_mode")?;
-    let fast_mode = fast_mode.map(|value| value != 0);
+    let service_tier: Option<String> = row.try_get("service_tier")?;
     Ok(CommittedAgentRow {
         id,
         display_name: row.try_get("display_name")?,
         description: row.try_get("description")?,
         model: row.try_get("model")?,
         reasoning_effort: row.try_get("reasoning_effort")?,
-        fast_mode,
+        service_tier,
         avatar,
         updated_at: row.try_get("updated_at")?,
     })
@@ -417,7 +414,7 @@ mod tests {
         include_str!("../../../../../rust/test-fixtures/migration-baseline/schema-current.sql");
 
     // A codex agent `agent-1` seeded with a full tuning state (model + reasoning +
-    // fast_mode) so a Clear has something to erase; a claude agent `agent-2` whose
+    // service_tier) so a Clear has something to erase; a claude agent `agent-2` whose
     // tuning columns start NULL; a grok agent `agent-3` at `grok-4.6` + `high` used
     // only by the under-lock re-admission falsifier; a claude agent `agent-4` seeded WITH
     // a valid coupled avatar pair so a Clear has one to erase and a Leave one to
@@ -434,7 +431,7 @@ mod tests {
             runtime = "codex",
             model = "gpt-5.6-sol",
             reasoning_effort = "ultra",
-            fast_mode = 1,
+            service_tier = "priority",
             description = "first",
             host_id = "host-1",
             created_by_user_id = "user-1",
@@ -516,7 +513,7 @@ mod tests {
             description: FieldEdit::Leave,
             model: FieldEdit::Leave,
             reasoning_effort: FieldEdit::Leave,
-            fast_mode: FieldEdit::Leave,
+            service_tier: FieldEdit::Leave,
         }
     }
 
@@ -527,7 +524,7 @@ mod tests {
         String,
         Option<String>,
         Option<String>,
-        Option<i64>,
+        Option<String>,
         Option<String>,
         i64,
     ) {
@@ -537,12 +534,12 @@ mod tests {
                 String,
                 Option<String>,
                 Option<String>,
-                Option<i64>,
+                Option<String>,
                 Option<String>,
                 i64,
             ),
         >(
-            "SELECT display_name, description, model, fast_mode, reasoning_effort, updated_at \
+            "SELECT display_name, description, model, service_tier, reasoning_effort, updated_at \
                FROM agents WHERE id = ?",
         )
         .bind(id)
@@ -577,7 +574,7 @@ mod tests {
         assert_eq!(row.updated_at, 777);
         // The left-alone columns kept their seeded values.
         assert_eq!(row.model.as_deref(), Some("gpt-5.6-sol"));
-        assert_eq!(row.fast_mode, Some(true));
+        assert_eq!(row.service_tier, Some("priority".into()));
         assert_eq!(row.description.as_deref(), Some("first"));
 
         // And the row on disk matches, with updated_at bumped off its seed.
@@ -586,7 +583,7 @@ mod tests {
         assert_eq!(display, "Alice II");
         assert_eq!(description.as_deref(), Some("first"));
         assert_eq!(model.as_deref(), Some("gpt-5.6-sol"));
-        assert_eq!(fast, Some(1));
+        assert_eq!(fast.as_deref(), Some("priority"));
         assert_eq!(reasoning.as_deref(), Some("high"));
         assert_eq!(updated, 777);
     }
@@ -610,9 +607,9 @@ mod tests {
         assert_eq!(row.model, None);
         assert_eq!(row.reasoning_effort, None);
         assert_eq!(row.description, None);
-        // display_name and fast_mode were left alone.
+        // display_name and service_tier were left alone.
         assert_eq!(row.display_name, "Alice");
-        assert_eq!(row.fast_mode, Some(true));
+        assert_eq!(row.service_tier, Some("priority".into()));
         assert_eq!(row.updated_at, 900);
     }
 
@@ -633,12 +630,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_fast_mode_set_writes_the_integer_zero() {
+    async fn a_service_tier_set_writes_the_tier_id() {
         let (_dir, adapter) = open_seeded().await;
-        // agent-1 (codex) starts with fast_mode 1; codex supports fast mode, so set
-        // it false → 0.
         let request = AgentTuningEdit {
-            fast_mode: FieldEdit::Set(false),
+            service_tier: FieldEdit::Set("default".into()),
             ..leave_all()
         };
         let outcome = admit_and_apply(&adapter, &agent("agent-1"), &request, 1500)
@@ -647,8 +642,11 @@ mod tests {
         let AgentProfileRowWrite::Committed { row, .. } = outcome else {
             panic!("expected Committed");
         };
-        assert_eq!(row.fast_mode, Some(false));
-        assert_eq!(stored(&adapter, "agent-1").await.3, Some(0));
+        assert_eq!(row.service_tier, Some("default".into()));
+        assert_eq!(
+            stored(&adapter, "agent-1").await.3.as_deref(),
+            Some("default")
+        );
     }
 
     #[tokio::test]

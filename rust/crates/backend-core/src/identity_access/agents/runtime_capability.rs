@@ -35,10 +35,27 @@ pub fn reasoning_effort_valid_for_runtime(kind: RuntimeKind, value: Option<&str>
     })
 }
 
-/// Whether the runtime accepts the persisted fast-mode tri-state. Only Codex does;
-/// mirrors `runtimeSupportsFastMode` (the sole `supportsFastMode: true` entry).
-pub fn runtime_supports_fast_mode(kind: RuntimeKind) -> bool {
+/// Whether the runtime takes a service tier. Only Codex does; mirrors
+/// `runtimeSupportsServiceTier`.
+pub fn runtime_supports_service_tier(kind: RuntimeKind) -> bool {
     matches!(kind, RuntimeKind::Codex)
+}
+
+/// Tier ids (`default`, `priority`, `ultrafast`, ...) belong to the CLI, so only the
+/// token shape is checked; null delegates to the CLI default.
+pub fn service_tier_valid_for_runtime(kind: RuntimeKind, value: Option<&str>) -> bool {
+    value
+        .is_none_or(|value| runtime_supports_service_tier(kind) && is_reasoning_effort_token(value))
+}
+
+/// The tier a client predating `service_tier` means by its `fast_mode` flag.
+pub fn service_tier_from_fast_mode(fast_mode: bool) -> &'static str {
+    if fast_mode { "priority" } else { "default" }
+}
+
+/// The `fast_mode` flag still read by clients and daemons predating `service_tier`.
+pub fn fast_mode_from_service_tier(service_tier: Option<&str>) -> Option<bool> {
+    service_tier.map(|tier| tier != "default")
 }
 
 /// The model a runtime FORCES at create time when the request omits one (or gives a
@@ -126,8 +143,8 @@ mod tests {
     }
 
     #[test]
-    fn only_codex_supports_fast_mode() {
-        assert!(runtime_supports_fast_mode(RuntimeKind::Codex));
+    fn only_codex_supports_service_tier() {
+        assert!(runtime_supports_service_tier(RuntimeKind::Codex));
         for kind in [
             RuntimeKind::Claude,
             RuntimeKind::Qoder,
@@ -137,7 +154,7 @@ mod tests {
             RuntimeKind::Pi,
             RuntimeKind::Grok,
         ] {
-            assert!(!runtime_supports_fast_mode(kind), "{kind:?}");
+            assert!(!runtime_supports_service_tier(kind), "{kind:?}");
         }
     }
 }

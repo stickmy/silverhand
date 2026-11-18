@@ -49,7 +49,7 @@ function makeSpawnCtx(overrides: Partial<DriverSpawnContext> = {}): {
     cliSessionId: null,
     model: null,
     reasoningEffort: null,
-    fastMode: null,
+    serviceTier: null,
     systemPromptPath,
     initialPrompt: '',
     ...overrides,
@@ -190,38 +190,12 @@ describe('CodexDriver.buildArgs', () => {
     }
   });
 
-  it('omits fast_mode flags when fastMode is null', () => {
-    const { ctx, cleanup } = makeSpawnCtx();
+  it('carries no fast_mode feature flags', () => {
+    const { ctx, cleanup } = makeSpawnCtx({ serviceTier: 'ultrafast' });
     try {
       const args = new CodexDriver().buildArgs(ctx);
       expect(args).not.toContain('--enable');
       expect(args).not.toContain('--disable');
-    } finally {
-      cleanup();
-    }
-  });
-
-  it('passes --enable fast_mode when fastMode is true', () => {
-    const { ctx, cleanup } = makeSpawnCtx({ fastMode: true });
-    try {
-      const args = new CodexDriver().buildArgs(ctx);
-      const enableIdx = args.indexOf('--enable');
-      expect(enableIdx).toBeGreaterThan(-1);
-      expect(args[enableIdx + 1]).toBe('fast_mode');
-      expect(args).not.toContain('--disable');
-    } finally {
-      cleanup();
-    }
-  });
-
-  it('passes --disable fast_mode when fastMode is false', () => {
-    const { ctx, cleanup } = makeSpawnCtx({ fastMode: false });
-    try {
-      const args = new CodexDriver().buildArgs(ctx);
-      const disableIdx = args.indexOf('--disable');
-      expect(disableIdx).toBeGreaterThan(-1);
-      expect(args[disableIdx + 1]).toBe('fast_mode');
-      expect(args).not.toContain('--enable');
     } finally {
       cleanup();
     }
@@ -647,6 +621,22 @@ describe('CodexDriver JSON-RPC handshake', () => {
         model,
       },
     });
+  });
+
+  it('passes the service tier on thread/start and omits it when unset', async () => {
+    for (const serviceTier of ['ultrafast', null]) {
+      const built = makeSpawnCtx({ serviceTier });
+      const io = makeIO(built.ctx);
+      const driver = new CodexDriver();
+      driver.bindIO(io);
+      await tick();
+      const init = JSON.parse(io.lines[0]!);
+      driver.parseLine(JSON.stringify({ jsonrpc: '2.0', id: init.id, result: {} }));
+      const threadCall = JSON.parse(io.lines[2]!);
+      if (serviceTier) expect(threadCall.params.serviceTier).toBe(serviceTier);
+      else expect(threadCall.params).not.toHaveProperty('serviceTier');
+      built.cleanup();
+    }
   });
 
   it('does not send turn/start to a resume target before thread/resume is ready', async () => {

@@ -24,7 +24,7 @@ pub struct WorkspaceAgentRosterEntry {
     pub runtime: String,
     pub model: Option<String>,
     pub reasoning_effort: Option<String>,
-    pub fast_mode: Option<bool>,
+    pub service_tier: Option<String>,
     pub host_id: String,
     pub host_display_label: Option<String>,
     pub host_name: Option<String>,

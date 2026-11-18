@@ -17,9 +17,10 @@ import {
   reasoningEffortLabel,
   reasoningEffortValidForRuntime,
   runtimeCliLabel,
-  runtimeSupportsFastMode,
   runtimeSupportsReasoningEffort,
+  runtimeSupportsServiceTier,
 } from "@silverhand/shared";
+import { serviceTierLabel } from "../model/service-tier";
 import { Combobox } from "@/components/ui/combobox";
 import { Label } from "@/components/ui/input";
 import { cn } from "@/lib/cn";
@@ -38,7 +39,7 @@ import { t } from "@/lib/i18n";
 
 /**
  * Runtime configuration section — one edit affordance covering all four
- * coupled fields (runtime, model, reasoning_effort, fast_mode).
+ * coupled fields (runtime, model, reasoning_effort, service_tier).
  *
  * Shiki 2026-07-12: "整个 runtime config 给一个 edit icon" — one pencil
  * enters an edit session over the whole group; leaving the section either
@@ -52,7 +53,7 @@ import { t } from "@/lib/i18n";
  *    lazily route everything through PATCH.
  *
  * Runtime change resets tuning: picking a new target inside edit mode drops
- * the model/reasoning/fast_mode drafts back to the "unset" pre-choice state
+ * the model/reasoning/service-tier drafts back to the "unset" pre-choice state
  * so the user must positively pick fresh values (matches shiki's "no silent
  * default selection" rule — same discipline as the previous transition
  * dialog).
@@ -65,7 +66,8 @@ export interface RuntimeConfigDraft {
   modelChoice: "unset" | "default" | "specify";
   modelValue: string;
   reasoning: "" | "__default__" | ReasoningEffort;
-  fastMode: "" | "__default__" | "true" | "false";
+  /** `""` = unset, `__default__` = follow the CLI, otherwise a tier id. */
+  serviceTier: string;
 }
 
 /** Seed a draft from the persisted agent — used on `enterEdit` and on
@@ -77,7 +79,9 @@ export function draftFromAgent(agent: AgentDto): RuntimeConfigDraft {
     modelChoice: agent.model === null ? "default" : "specify",
     modelValue: agent.model ?? "",
     reasoning: reasoningToDraft(agent.runtime, agent.reasoning_effort),
-    fastMode: fastModeToDraft(agent.runtime, agent.fast_mode),
+    serviceTier: runtimeSupportsServiceTier(agent.runtime)
+      ? (agent.service_tier ?? "__default__")
+      : "",
   };
 }
 
@@ -89,13 +93,12 @@ function reasoningToDraft(
   return value ?? "__default__";
 }
 
-function fastModeToDraft(
-  runtime: RuntimeKind,
-  value: boolean | null,
-): RuntimeConfigDraft["fastMode"] {
-  if (!runtimeSupportsFastMode(runtime)) return "";
-  if (value === null) return "__default__";
-  return value ? "true" : "false";
+function serviceTierFromDraft(draft: RuntimeConfigDraft): string | null {
+  return !runtimeSupportsServiceTier(draft.runtime) ||
+    draft.serviceTier === "" ||
+    draft.serviceTier === "__default__"
+    ? null
+    : draft.serviceTier;
 }
 
 /** Return the draft after a runtime pick. When the target differs from the
@@ -115,7 +118,7 @@ export function draftAfterRuntimeChange(agent: AgentDto, target: RuntimeKind): R
     modelChoice: "unset",
     modelValue: "",
     reasoning: "",
-    fastMode: "",
+    serviceTier: "",
   };
 }
 
@@ -128,7 +131,7 @@ export function draftIsDirty(agent: AgentDto, draft: RuntimeConfigDraft): boolea
     draft.modelChoice !== base.modelChoice ||
     draft.modelValue.trim() !== base.modelValue.trim() ||
     draft.reasoning !== base.reasoning ||
-    draft.fastMode !== base.fastMode
+    draft.serviceTier !== base.serviceTier
   );
 }
 
@@ -151,7 +154,7 @@ export function canSaveRuntimeConfig(agent: AgentDto, draft: RuntimeConfigDraft)
   if (!reasoningEffortValidForRuntime(draft.runtime, reasoning)) {
     return false;
   }
-  if (runtimeSupportsFastMode(draft.runtime) && draft.fastMode === "") {
+  if (runtimeSupportsServiceTier(draft.runtime) && draft.serviceTier === "") {
     return false;
   }
   return true;
@@ -167,16 +170,11 @@ export function buildSwitchPayload(draft: RuntimeConfigDraft): SwitchAgentRuntim
     : draft.reasoning === "__default__" || draft.reasoning === ""
       ? null
       : (draft.reasoning as ReasoningEffort);
-  const fast_mode: boolean | null = !runtimeSupportsFastMode(draft.runtime)
-    ? null
-    : draft.fastMode === "__default__" || draft.fastMode === ""
-      ? null
-      : draft.fastMode === "true";
   return {
     runtime: draft.runtime,
     model,
     reasoning_effort,
-    fast_mode,
+    service_tier: serviceTierFromDraft(draft),
   };
 }
 
@@ -197,10 +195,9 @@ export function buildTuningPatch(agent: AgentDto, draft: RuntimeConfigDraft): Up
       patch.reasoning_effort = nextReasoning;
     }
   }
-  if (runtimeSupportsFastMode(draft.runtime)) {
-    const nextFastMode: boolean | null =
-      draft.fastMode === "__default__" || draft.fastMode === "" ? null : draft.fastMode === "true";
-    if (nextFastMode !== agent.fast_mode) patch.fast_mode = nextFastMode;
+  if (runtimeSupportsServiceTier(draft.runtime)) {
+    const nextServiceTier = serviceTierFromDraft(draft);
+    if (nextServiceTier !== agent.service_tier) patch.service_tier = nextServiceTier;
   }
   return patch;
 }
@@ -431,10 +428,10 @@ const RUNTIME_GRID_CLASS = "grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] g
 export function ReadOnlyGrid({
   agent,
 }: {
-  agent: Pick<AgentDto, "runtime" | "model" | "reasoning_effort" | "fast_mode">;
+  agent: Pick<AgentDto, "runtime" | "model" | "reasoning_effort" | "service_tier">;
 }): JSX.Element {
   const supportsReasoning = runtimeSupportsReasoningEffort(agent.runtime);
-  const supportsFastMode = runtimeSupportsFastMode(agent.runtime);
+  const supportsServiceTier = runtimeSupportsServiceTier(agent.runtime);
   return (
     <div data-runtime-summary className={RUNTIME_GRID_CLASS}>
       <ReadOnlyRow label={t("agents.runtime")} value={runtimeCliLabel(agent.runtime)} />
@@ -450,16 +447,10 @@ export function ReadOnlyGrid({
           placeholder={t("agents.driverDefault")}
         />
       ) : null}
-      {supportsFastMode ? (
+      {supportsServiceTier ? (
         <ReadOnlyRow
-          label={t("agents.fastMode")}
-          value={
-            agent.fast_mode === null || agent.fast_mode === undefined
-              ? null
-              : agent.fast_mode
-                ? "Enabled"
-                : "Disabled"
-          }
+          label={t("agents.speed")}
+          value={agent.service_tier ? serviceTierLabel(agent.service_tier) : null}
           placeholder={t("agents.driverDefault")}
         />
       ) : null}
@@ -518,7 +509,7 @@ function EditForm({
 }): JSX.Element {
   const modelDiscovery = useRuntimeModels(agent.host_id, draft.runtime, hostAvailable);
   const supportsReasoning = runtimeSupportsReasoningEffort(draft.runtime);
-  const supportsFastMode = runtimeSupportsFastMode(draft.runtime);
+  const supportsServiceTier = runtimeSupportsServiceTier(draft.runtime);
 
   const runtimeStateByKind = useMemo(() => {
     const map = new Map<RuntimeKind, RuntimeAvailabilityState>();
@@ -538,6 +529,13 @@ function EditForm({
     !reasoningOptions.includes(draft.reasoning)
       ? [...reasoningOptions, draft.reasoning]
       : reasoningOptions;
+  const serviceTierOptions = modelDiscovery.serviceTiersForModel(reasoningModel);
+  const serviceTierDisplayOptions =
+    draft.serviceTier !== "" &&
+    draft.serviceTier !== "__default__" &&
+    !serviceTierOptions.some((tier) => tier.id === draft.serviceTier)
+      ? [...serviceTierOptions, { id: draft.serviceTier }]
+      : serviceTierOptions;
   const mode = deriveRuntimePickerMode({
     // Agent always has a host — probing only skips when the host itself
     // is offline / probe errored (mode → 'offline' / 'probe-failed').
@@ -555,7 +553,7 @@ function EditForm({
       <div className={RUNTIME_GRID_CLASS}>
         <div className="flex min-w-0 flex-col gap-1.5">
           {/* All four label rows in this grid are fixed h-5 (see Model /
-           * Reasoning / Fast mode wrappers below). Recheck lives INSIDE
+           * Reasoning / Speed wrappers below). Recheck lives INSIDE
            * that height: `size-5 p-0` = 20×20 button, icon `size-3.5` =
            * 14px, box never exceeds row height so its show/hide can't
            * move the Select trigger top (Cindy round-8 #1). shiki
@@ -641,28 +639,25 @@ function EditForm({
           </div>
         ) : null}
 
-        {supportsFastMode ? (
+        {supportsServiceTier ? (
           <div className="flex min-w-0 flex-col gap-1.5">
             <div className="flex h-5 items-center">
-              <Label htmlFor="rc-fastmode" required>
-                {t("agents.fastMode")}
+              <Label htmlFor="rc-speed" required>
+                {t("agents.speed")}
               </Label>
             </div>
             <ChoicePickerSelect
-              id="rc-fastmode"
-              value={draft.fastMode}
+              id="rc-speed"
+              value={draft.serviceTier}
               placeholder={t("agents.choose")}
               options={[
                 { value: "__default__", label: t("agents.useCodexDefault") },
-                { value: "true", label: t("agents.enabled") },
-                { value: "false", label: t("agents.disabled") },
+                ...serviceTierDisplayOptions.map((tier) => ({
+                  value: tier.id,
+                  label: serviceTierLabel(tier.id, tier.name),
+                })),
               ]}
-              onChange={(v) =>
-                onDraft({
-                  ...draft,
-                  fastMode: v as RuntimeConfigDraft["fastMode"],
-                })
-              }
+              onChange={(v) => onDraft({ ...draft, serviceTier: v })}
             />
           </div>
         ) : null}

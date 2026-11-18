@@ -24,7 +24,7 @@ const baseAgent: AgentDto = {
   session_scope: "conversation",
   model: "gpt-5-codex",
   reasoning_effort: "high",
-  fast_mode: true,
+  service_tier: "priority",
   avatar_url: null,
   description: null,
   created_by_user_id: "u-1",
@@ -43,36 +43,36 @@ describe("draftFromAgent", () => {
       modelChoice: "specify",
       modelValue: "gpt-5-codex",
       reasoning: "high",
-      fastMode: "true",
+      serviceTier: "priority",
     });
   });
 
-  it("maps null model to `default`, null reasoning/fast_mode to `__default__` (when supported)", () => {
+  it("maps null model to `default`, null reasoning/service_tier to `__default__` (when supported)", () => {
     expect(
       draftFromAgent({
         ...baseAgent,
         model: null,
         reasoning_effort: null,
-        fast_mode: null,
+        service_tier: null,
       }),
     ).toEqual({
       runtime: "codex",
       modelChoice: "default",
       modelValue: "",
       reasoning: "__default__",
-      fastMode: "__default__",
+      serviceTier: "__default__",
     });
   });
 
-  it("keeps Claude effort at the driver default and hides unsupported fast mode", () => {
+  it("keeps Claude effort at the driver default and hides unsupported service tier", () => {
     const d = draftFromAgent({
       ...baseAgent,
       runtime: "claude",
       reasoning_effort: null,
-      fast_mode: null,
+      service_tier: null,
     });
     expect(d.reasoning).toBe("__default__");
-    expect(d.fastMode).toBe("");
+    expect(d.serviceTier).toBe("");
   });
 });
 
@@ -84,7 +84,7 @@ describe("draftAfterRuntimeChange", () => {
       modelChoice: "unset",
       modelValue: "",
       reasoning: "",
-      fastMode: "",
+      serviceTier: "",
     });
   });
 
@@ -114,7 +114,7 @@ describe("canSaveRuntimeConfig", () => {
       modelChoice: "specify",
       modelValue: "   ",
       reasoning: "",
-      fastMode: "",
+      serviceTier: "",
     };
     expect(canSaveRuntimeConfig(baseAgent, d)).toBe(false);
   });
@@ -125,7 +125,7 @@ describe("canSaveRuntimeConfig", () => {
       modelChoice: "default",
       modelValue: "",
       reasoning: "",
-      fastMode: "__default__",
+      serviceTier: "__default__",
     };
     // Also has to be dirty; force by tweaking model relative to base.
     expect(canSaveRuntimeConfig(baseAgent, d)).toBe(false);
@@ -137,7 +137,7 @@ describe("canSaveRuntimeConfig", () => {
       modelChoice: "default",
       modelValue: "",
       reasoning: "__default__",
-      fastMode: "",
+      serviceTier: "",
     };
     expect(canSaveRuntimeConfig(baseAgent, d)).toBe(true);
   });
@@ -177,7 +177,7 @@ describe("draftIsDirty", () => {
     expect(
       draftIsDirty(baseAgent, {
         ...draftFromAgent(baseAgent),
-        fastMode: "false",
+        serviceTier: "default",
       }),
     ).toBe(true);
   });
@@ -190,7 +190,7 @@ describe("routeRuntimeConfigSave", () => {
       modelChoice: "default",
       modelValue: "",
       reasoning: "",
-      fastMode: "",
+      serviceTier: "",
     };
     const r = routeRuntimeConfigSave(baseAgent, d);
     expect(r.kind).toBe("switch");
@@ -199,19 +199,19 @@ describe("routeRuntimeConfigSave", () => {
       runtime: "claude",
       model: null,
       reasoning_effort: null,
-      fast_mode: null,
+      service_tier: null,
     });
   });
 
   it("routes a tuning-only diff to PATCH (only changed fields)", () => {
     const d: RuntimeConfigDraft = {
       ...draftFromAgent(baseAgent),
-      fastMode: "false",
+      serviceTier: "default",
     };
     const r = routeRuntimeConfigSave(baseAgent, d);
     expect(r.kind).toBe("patch");
     if (r.kind !== "patch") return;
-    expect(r.payload).toEqual({ fast_mode: false });
+    expect(r.payload).toEqual({ service_tier: "default" });
     // Runtime is `z.never()` in PATCH schema — must not be included.
     expect(r.payload).not.toHaveProperty("runtime");
   });
@@ -223,16 +223,16 @@ describe("routeRuntimeConfigSave", () => {
 });
 
 describe("buildSwitchPayload — supported/unsupported gating", () => {
-  it("forces fast_mode to null when target has no fast_mode support", () => {
+  it("forces service_tier to null when target has no service tier", () => {
     const d: RuntimeConfigDraft = {
       runtime: "claude",
       modelChoice: "default",
       modelValue: "",
       // stale from a previous codex pick — must be forced null.
       reasoning: "",
-      fastMode: "true",
+      serviceTier: "priority",
     };
-    expect(buildSwitchPayload(d).fast_mode).toBeNull();
+    expect(buildSwitchPayload(d).service_tier).toBeNull();
   });
 
   it("forces reasoning_effort to null when target has no reasoning support", () => {
@@ -241,7 +241,7 @@ describe("buildSwitchPayload — supported/unsupported gating", () => {
       modelChoice: "default",
       modelValue: "",
       reasoning: "high",
-      fastMode: "",
+      serviceTier: "",
     };
     expect(buildSwitchPayload(d).reasoning_effort).toBeNull();
   });
@@ -252,7 +252,7 @@ describe("buildSwitchPayload — supported/unsupported gating", () => {
       modelChoice: "specify",
       modelValue: "  gpt-5-codex  ",
       reasoning: "high",
-      fastMode: "true",
+      serviceTier: "priority",
     };
     expect(buildSwitchPayload(d).model).toBe("gpt-5-codex");
   });
@@ -282,20 +282,20 @@ describe("buildTuningPatch — only diffed fields", () => {
       ...baseAgent,
       runtime: "claude",
       reasoning_effort: null,
-      fast_mode: null,
+      service_tier: null,
     };
-    // A stale draft carries `fastMode='true'` from a previous UI state —
+    // A stale draft carries `serviceTier="priority"` from a previous UI state —
     // but claude doesn't support it, so it must never reach the patch.
     const d: RuntimeConfigDraft = {
       runtime: "claude",
       modelChoice: "specify",
       modelValue: "sonnet",
       reasoning: "",
-      fastMode: "true",
+      serviceTier: "priority",
     };
     const patch = buildTuningPatch(claudeAgent, d);
     expect(patch).toEqual({ model: "sonnet" });
-    expect(patch).not.toHaveProperty("fast_mode");
+    expect(patch).not.toHaveProperty("service_tier");
     expect(patch).not.toHaveProperty("reasoning_effort");
   });
 });
@@ -322,7 +322,7 @@ describe("modelDraftAfterCommit — unified Combobox commit mapping", () => {
     modelChoice: "unset",
     modelValue: "",
     reasoning: "__default__",
-    fastMode: "__default__",
+    serviceTier: "__default__",
   };
 
   it("picks driver default when the dropdown sentinel comes through", () => {
@@ -386,20 +386,20 @@ describe("modelDraftAfterCommit — unified Combobox commit mapping", () => {
       modelValue: "gpt-4o",
     });
   });
-  it("preserves unrelated draft fields (runtime, reasoning, fastMode) verbatim", () => {
+  it("preserves unrelated draft fields (runtime, reasoning, serviceTier) verbatim", () => {
     const before: RuntimeConfigDraft = {
       runtime: "claude",
       modelChoice: "default",
       modelValue: "",
       reasoning: "high",
-      fastMode: "",
+      serviceTier: "",
     };
     expect(modelDraftAfterCommit(before, "sonnet")).toEqual({
       runtime: "claude",
       modelChoice: "specify",
       modelValue: "sonnet",
       reasoning: "high",
-      fastMode: "",
+      serviceTier: "",
     });
   });
 
@@ -409,7 +409,7 @@ describe("modelDraftAfterCommit — unified Combobox commit mapping", () => {
       modelChoice: "specify",
       modelValue: "gpt-5.6-sol",
       reasoning: "ultra",
-      fastMode: "__default__",
+      serviceTier: "__default__",
     };
     expect(modelDraftAfterCommit(ultra, "gpt-5.6-luna")).toEqual({
       ...ultra,
@@ -431,7 +431,7 @@ describe("canSaveRuntimeConfig / modelDraftAfterCommit — native effort ownersh
       modelChoice: "specify",
       modelValue: "gpt-5.6-sol",
       reasoning: "ultra",
-      fastMode: "true",
+      serviceTier: "priority",
     };
     expect(canSaveRuntimeConfig(baseAgent, solUltra)).toBe(true);
     expect(
@@ -448,7 +448,7 @@ describe("canSaveRuntimeConfig / modelDraftAfterCommit — native effort ownersh
       modelChoice: "specify",
       modelValue: "gpt-5.6-sol",
       reasoning: "ultra",
-      fastMode: "true",
+      serviceTier: "priority",
     };
     const committed = modelDraftAfterCommit(ultra, "gpt-5.6-terra");
     expect(committed.modelValue).toBe("gpt-5.6-terra");
@@ -464,7 +464,7 @@ describe("canSaveRuntimeConfig / modelDraftAfterCommit — native effort ownersh
         modelChoice: "specify",
         modelValue: "gpt-5.6-terra",
         reasoning: "high",
-        fastMode: "true",
+        serviceTier: "priority",
       }),
     ).toBe(true);
   });
@@ -546,19 +546,19 @@ describe("Pi runtime configuration", () => {
     modelChoice: "default",
     modelValue: "",
     reasoning: "__default__",
-    fastMode: "",
+    serviceTier: "",
   };
 
-  it("serializes CLI defaults and discards unsupported fast mode", () => {
+  it("serializes CLI defaults and discards unsupported service tier", () => {
     expect(canSaveRuntimeConfig(baseAgent, draft)).toBe(true);
-    expect(buildSwitchPayload({ ...draft, fastMode: "true" })).toEqual({
+    expect(buildSwitchPayload({ ...draft, serviceTier: "priority" })).toEqual({
       runtime: "pi",
       model: null,
       reasoning_effort: null,
-      fast_mode: null,
+      service_tier: null,
     });
     expect(runtimeCatalogEntry("pi").supportsProfileMcp).toBe(false);
-    expect(runtimeCatalogEntry("pi").supportsFastMode).toBe(false);
+    expect(runtimeCatalogEntry("pi").serviceTierOptions).toEqual([]);
   });
 
   it.each(["off", "minimal", "low", "medium", "high"])(
@@ -575,7 +575,7 @@ describe("Pi runtime configuration", () => {
         runtime: "pi",
         model: "provider/model-id",
         reasoning_effort: reasoning,
-        fast_mode: null,
+        service_tier: null,
       });
     },
   );
@@ -587,7 +587,7 @@ describe("Pi runtime configuration", () => {
       modelChoice: "unset",
       modelValue: "",
       reasoning: "",
-      fastMode: "",
+      serviceTier: "",
     });
     expect(draftAfterRuntimeChange(baseAgent, "codex")).toEqual(draftFromAgent(baseAgent));
   });
@@ -598,7 +598,7 @@ describe("Pi runtime configuration", () => {
       runtime: "pi" as const,
       model: null,
       reasoning_effort: null,
-      fast_mode: null,
+      service_tier: null,
     };
     const next = { ...draftFromAgent(agent), reasoning: "minimal" };
     expect(canSaveRuntimeConfig(agent, next)).toBe(true);
@@ -612,7 +612,7 @@ it("preserves Claude effort in saved drafts and PATCH payloads", () => {
     runtime: "claude" as const,
     model: "custom",
     reasoning_effort: "future-tier",
-    fast_mode: null,
+    service_tier: null,
   };
   const draft = draftFromAgent(agent);
   expect(draft.reasoning).toBe("future-tier");

@@ -223,6 +223,8 @@ pub struct ModelDiscovery {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     reasoning_by_model: Option<BTreeMap<String, ModelReasoning>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    service_tiers_by_model: Option<BTreeMap<String, Vec<ModelServiceTier>>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     default_model: Option<String>,
     detected_at: i64,
     cached: bool,
@@ -233,6 +235,12 @@ struct ModelReasoning {
     supported_efforts: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     default_effort: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct ModelServiceTier {
+    id: String,
+    name: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -250,6 +258,7 @@ impl ModelDiscovery {
             status: ModelDiscoveryStatus::Unsupported,
             models: Vec::new(),
             reasoning_by_model: None,
+            service_tiers_by_model: None,
             default_model: None,
             detected_at,
             cached: false,
@@ -283,6 +292,20 @@ impl ModelDiscovery {
                             .is_some_and(|token| !reasoning.supported_efforts.contains(token))
                 })
             })
+            || result
+                .service_tiers_by_model
+                .as_ref()
+                .is_some_and(|entries| {
+                    entries.iter().any(|(id, tiers)| {
+                        !result.models.contains(id)
+                            || tiers.len() > 16
+                            || tiers.iter().any(|tier| {
+                                !is_reasoning_effort_token(&tier.id)
+                                    || tier.name.is_empty()
+                                    || tier.name.encode_utf16().count() > 64
+                            })
+                    })
+                })
             || (!matches!(result.status, ModelDiscoveryStatus::Ok) && !result.models.is_empty())
         {
             return None;
@@ -572,6 +595,7 @@ mod tests {
     fn model_effort_metadata_round_trips_without_using_the_static_product_table() {
         let valid = json!({"runtime":"codex","status":"ok","models":["custom"],"default_model":"custom",
             "reasoning_by_model":{"custom":{"supported_efforts":["future-tier"],"default_effort":"future-tier"}},
+            "service_tiers_by_model":{"custom":[{"id":"ultrafast","name":"Ultrafast"}]},
             "detected_at":1,"cached":false});
         let kind = Some(RuntimeKind::Codex);
         let decoded = ModelDiscovery::decode(valid.clone(), kind).unwrap();
@@ -581,6 +605,9 @@ mod tests {
             json!({"reasoning_by_model":{"foreign":{"supported_efforts":[]}}}),
             json!({"reasoning_by_model":{"custom":{"supported_efforts":["BAD"]}}}),
             json!({"reasoning_by_model":{"custom":{"supported_efforts":["high"],"default_effort":"max"}}}),
+            json!({"service_tiers_by_model":{"foreign":[]}}),
+            json!({"service_tiers_by_model":{"custom":[{"id":"Bad Tier","name":"x"}]}}),
+            json!({"service_tiers_by_model":{"custom":[{"id":"priority","name":""}]}}),
         ] {
             let mut value = valid.clone();
             value

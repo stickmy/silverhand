@@ -7,10 +7,10 @@ describe('SwitchAgentRuntimeInputSchema', () => {
       runtime: 'claude',
       model: null,
       reasoning_effort: null,
-      fast_mode: null,
+      service_tier: null,
     };
     expect(SwitchAgentRuntimeInputSchema.parse(explicitDefaults)).toEqual(explicitDefaults);
-    for (const key of ['model', 'reasoning_effort', 'fast_mode'] as const) {
+    for (const key of ['model', 'reasoning_effort', 'service_tier'] as const) {
       const { [key]: _omitted, ...input } = explicitDefaults;
       const result = SwitchAgentRuntimeInputSchema.safeParse(input);
       expect(result.success, key).toBe(false);
@@ -26,7 +26,7 @@ describe('SwitchAgentRuntimeInputSchema', () => {
         runtime: 'codex',
         model: 'gpt-5-codex',
         reasoning_effort: 'high',
-        fast_mode: true,
+        service_tier: 'ultrafast',
       }).success,
     ).toBe(true);
     expect(
@@ -34,7 +34,7 @@ describe('SwitchAgentRuntimeInputSchema', () => {
         runtime: 'claude',
         model: null,
         reasoning_effort: 'high',
-        fast_mode: null,
+        service_tier: null,
       }).success,
     ).toBe(true);
     expect(
@@ -42,7 +42,7 @@ describe('SwitchAgentRuntimeInputSchema', () => {
         runtime: 'opencode',
         model: null,
         reasoning_effort: null,
-        fast_mode: false,
+        service_tier: 'default',
       }).success,
     ).toBe(false);
   });
@@ -56,7 +56,7 @@ describe('SwitchAgentRuntimeInputSchema', () => {
               runtime,
               model,
               reasoning_effort: effort,
-              fast_mode: null,
+              service_tier: null,
             }).success,
           ).toBe(true);
           expect(
@@ -74,7 +74,7 @@ describe('SwitchAgentRuntimeInputSchema', () => {
               runtime,
               model,
               reasoning_effort: effort,
-              fast_mode: null,
+              service_tier: null,
             }).success,
           ).toBe(false);
           expect(
@@ -96,7 +96,7 @@ describe('SwitchAgentRuntimeInputSchema', () => {
         runtime: 'codex',
         model: '',
         reasoning_effort: null,
-        fast_mode: null,
+        service_tier: null,
       }).success,
     ).toBe(false);
   });
@@ -110,19 +110,19 @@ describe('CreateAgentInputSchema runtime tuning', () => {
     expect(CreateAgentInputSchema.safeParse({ name: '2b', runtime: 'claude' }).success).toBe(false);
   });
 
-  it('rejects fast mode outside runtimes that support it', () => {
+  it('rejects a service tier outside runtimes that support it', () => {
     expect(
       CreateAgentInputSchema.safeParse({
         name: 'claude-fast',
         runtime: 'claude',
-        fast_mode: true,
+        service_tier: 'ultrafast',
       }).success,
     ).toBe(false);
     expect(
       CreateAgentInputSchema.safeParse({
         name: 'codex-fast',
         runtime: 'codex',
-        fast_mode: true,
+        service_tier: 'ultrafast',
       }).success,
     ).toBe(true);
   });

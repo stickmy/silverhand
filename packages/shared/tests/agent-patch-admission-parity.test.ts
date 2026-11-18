@@ -65,7 +65,7 @@ function project(parsed: Record<string, unknown>): Record<string, Op> {
     description: nullable('description'),
     model: nullable('model'),
     reasoning_effort: nullable('reasoning_effort'),
-    fast_mode: nullable('fast_mode'),
+    service_tier: nullable('service_tier'),
   };
 }
 

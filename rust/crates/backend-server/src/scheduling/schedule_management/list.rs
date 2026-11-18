@@ -194,7 +194,7 @@ mod tests {
             runtime: RuntimeKind::Codex,
             model: None,
             reasoning_effort: None,
-            fast_mode: None,
+            service_tier: None,
             host_id: "h1".to_owned(),
             host_display_label: None,
             host_name: None,

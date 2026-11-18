@@ -3,11 +3,11 @@
 import { z } from 'zod';
 import { DAEMON_ADMISSION } from '../daemon-admission.generated.js';
 import {
-  FastModeSchema,
   HostKindSchema,
   HostProvisioningSourceSchema,
   ReasoningEffortTokenSchema,
   RuntimeKindSchema,
+  ServiceTierSchema,
 } from '../db/schema.js';
 
 export const HostLifecycleStatusSchema = z.enum(['pending', 'attached', 'active', 'revoked']);
@@ -283,7 +283,7 @@ export const AgentOnHostDtoSchema = z.object({
    *  cache (someone else's computer). Skew-tolerant like `avatar_url`. */
   model: z.string().nullable().optional().default(null),
   reasoning_effort: ReasoningEffortTokenSchema.nullable().optional().default(null),
-  fast_mode: FastModeSchema.nullable().optional().default(null),
+  service_tier: ServiceTierSchema.nullable().optional().default(null),
   /** Narrow UI state derived backend-side: 'online' iff this agent's id
    *  appears in the daemon's active-runtime set for this host. Raw
    *  daemon phase strings stay daemon-side; renderer never branches on

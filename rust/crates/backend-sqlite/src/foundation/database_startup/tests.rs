@@ -54,13 +54,15 @@ async fn snapshot(
             // migrations. Step92's correlation values are checked separately;
             // step99's pending default belongs to profile setup migration tests;
             // step100's avatar design is empty on upgrade; step103 drops the
-            // conversation close columns, checked by its own upgrade test.
+            // conversation close columns, checked by its own upgrade test; step105
+            // maps fast_mode onto service_tier, checked likewise.
             .filter(|c| {
                 (table != "messages"
                     || !matches!(c.as_str(), "client_message_id" | "client_request_json"))
                     && (table != "users" || c.as_str() != "embedded_profile_pending")
                     && (table != "conversations"
                         || !matches!(c.as_str(), "status" | "closed_at" | "close_summary"))
+                    && (table != "agents" || !matches!(c.as_str(), "fast_mode" | "service_tier"))
                     && c.as_str() != "avatar_design_id"
             })
             .map(|c| format!("quote({})", quoted(c)))
@@ -813,4 +815,50 @@ fn cold_read_seed_before_step103() -> String {
     .replace("', 20, 20);", "', 20, 20, 'idle');")
     .replace("', 10, 10);", "', 10, 10, 'idle');")
     .replace("', 5, 5);", "', 5, 5, 'idle');")
+}
+
+#[tokio::test]
+async fn service_tier_upgrade_maps_fast_mode_then_drops_it() {
+    let root = isolated();
+    let path = root.path().join("data/database.sqlite");
+    fs::create_dir(path.parent().unwrap()).unwrap();
+    let mut previous = plan();
+    previous.steps.retain(|s| s.version <= 104);
+    let mut db = connect(&path).await;
+    prepare_connected(&mut db, &path, true, &previous)
+        .await
+        .unwrap();
+    db.execute(sqlx::raw_sql(
+        "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES('u','u','U',1,1);
+         INSERT INTO hosts(id,name,kind,created_at) VALUES('h','H','local',1);
+         INSERT INTO agents(id,name,display_name,runtime,host_id,created_by_user_id,created_at,updated_at,fast_mode)
+         VALUES ('on','on','On','codex','h','u',1,1,1),
+                ('off','off','Off','codex','h','u',1,1,0),
+                ('unset','unset','Unset','codex','h','u',1,1,NULL);",
+    ))
+    .await
+    .unwrap();
+    db.close().await.unwrap();
+
+    prepare_database(&path, true).await.unwrap();
+    let mut db = connect(&path).await;
+    let rows: Vec<(String, Option<String>)> =
+        sqlx::query_as("SELECT id,service_tier FROM agents ORDER BY id")
+            .fetch_all(&mut db)
+            .await
+            .unwrap();
+    assert_eq!(
+        rows,
+        [
+            ("off".into(), Some("default".into())),
+            ("on".into(), Some("priority".into())),
+            ("unset".into(), None),
+        ]
+    );
+    let columns: Vec<String> = sqlx::query_scalar("SELECT name FROM pragma_table_xinfo('agents')")
+        .fetch_all(&mut db)
+        .await
+        .unwrap();
+    assert!(!columns.iter().any(|c| c == "fast_mode"));
+    db.close().await.unwrap();
 }

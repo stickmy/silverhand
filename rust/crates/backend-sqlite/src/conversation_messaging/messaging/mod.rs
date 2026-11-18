@@ -124,7 +124,7 @@ pub(crate) const SELECT_AGENT_PARTICIPATING_SET: &str = concat!(
 /// agent three times; the trailing `WHERE a.id = ?` re-binds the agent. A non-participant
 /// matches no row → `None` → zero wire.
 pub(crate) const SELECT_START_DISPATCH_SPEC: &str = concat!(
-    "SELECT a.name, a.runtime, a.model, a.reasoning_effort, a.fast_mode, \
+    "SELECT a.name, a.runtime, a.model, a.reasoning_effort, a.service_tier, \
      a.host_id, a.session_scope, s.cli_session_id, c.id AS origin \
        FROM agents a \
        JOIN conversations c ON c.id = ? AND ",

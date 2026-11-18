@@ -269,7 +269,7 @@ async fn the_projection_decodes_every_wire_column() {
             updated_at = 2000,
             display_name = "Agent One",
             reasoning_effort = "high",
-            fast_mode = 1,
+            service_tier = "priority",
             created_by_user_id = "u-creator",
             avatar_storage_key = "avatars/a1.png",
             avatar_content_type = "image/png",
@@ -299,7 +299,7 @@ async fn the_projection_decodes_every_wire_column() {
             runtime: RuntimeKind::Qoder,
             model: Some("sonnet".to_string()),
             reasoning_effort: Some("high".to_string()),
-            fast_mode: Some(true),
+            service_tier: Some("priority".into()),
             host_id: "h1".to_string(),
             host_display_label: Some("Host One Label".to_string()),
             host_name: Some("host-one".to_string()),
@@ -334,7 +334,7 @@ async fn the_optional_columns_decode_absent_when_null() {
             runtime: RuntimeKind::Qoder,
             model: None,
             reasoning_effort: None,
-            fast_mode: None,
+            service_tier: None,
             host_id: "h1".to_string(),
             host_display_label: None,
             host_name: Some("host-one".to_string()),
@@ -348,31 +348,6 @@ async fn the_optional_columns_decode_absent_when_null() {
             updated_at: 1000,
         }
     );
-}
-
-#[tokio::test]
-async fn fast_mode_maps_zero_to_false() {
-    // The DTO's `Boolean(fast)` over the stored 0/1 is exactly `!= 0`: a stored 0 is
-    // `Some(false)`, distinct from the NULL that the minimal row above proves is
-    // `None`.
-    let (_guard, cold_read) = seeded(&[
-        CREATOR,
-        HOST_H1,
-        seed_agent!(
-            id = "a1",
-            name = "agent-one",
-            runtime = "qoder",
-            host_id = "h1",
-            created_at = 1000,
-            updated_at = 1000,
-            created_by_user_id = "u-creator",
-            fast_mode = 0,
-        ),
-    ])
-    .await;
-
-    let facts = detail_of(&cold_read, "a1").await.expect("a1 present");
-    assert_eq!(facts.projection().fast_mode, Some(false));
 }
 
 // --- Strict-decode falsifiers for every REACHABLE decoded column (#task:2195 P1). --
@@ -423,29 +398,6 @@ const NUMERIC_FALSIFIERS: &[(&str, &str, &str)] = &[
             created_by_user_id = "u-creator",
         ),
         AGENT_A1,
-    ),
-    (
-        "fast_mode",
-        seed_agent!(
-            id = "a1",
-            name = "agent-one",
-            runtime = "qoder",
-            host_id = "h1",
-            created_at = 1000,
-            updated_at = 1000,
-            created_by_user_id = "u-creator",
-            fast_mode = "yes",
-        ),
-        seed_agent!(
-            id = "a1",
-            name = "agent-one",
-            runtime = "qoder",
-            host_id = "h1",
-            created_at = 1000,
-            updated_at = 1000,
-            created_by_user_id = "u-creator",
-            fast_mode = 1,
-        ),
     ),
     (
         "materialization_failed_at",

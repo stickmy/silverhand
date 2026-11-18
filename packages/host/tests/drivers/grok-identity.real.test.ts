@@ -88,7 +88,7 @@ async function runTurn(root: string, model: string | null, sessionId: string | n
     cliSessionId: sessionId,
     model,
     reasoningEffort: null,
-    fastMode: null,
+    serviceTier: null,
     systemPromptPath,
     initialPrompt: '',
   };

@@ -170,7 +170,6 @@ CREATE TABLE agents (
         updated_at          INTEGER NOT NULL,
         display_name        TEXT NOT NULL DEFAULT '',
         reasoning_effort    TEXT,
-        fast_mode           INTEGER,
         created_by_user_id  TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
         avatar_storage_key  TEXT,
         avatar_content_type TEXT, materialization_status TEXT NOT NULL
@@ -180,7 +179,7 @@ CREATE TABLE agents (
         )), materialization_failed_code TEXT, materialization_failed_at INTEGER, idempotency_key TEXT, runtime_transition_started_at INTEGER, deletion_started_at INTEGER, session_scope TEXT NOT NULL
         DEFAULT 'conversation'
         CHECK (session_scope IN ('conversation', 'agent')), last_activity_at INTEGER, runtime_transition_target TEXT, avatar_design_id TEXT REFERENCES avatar_designs(id)
-        CHECK (avatar_design_id IS NULL OR avatar_storage_key IS NOT NULL),
+        CHECK (avatar_design_id IS NULL OR avatar_storage_key IS NOT NULL), service_tier TEXT,
         CHECK (
           (avatar_storage_key IS NULL AND avatar_content_type IS NULL)
           OR

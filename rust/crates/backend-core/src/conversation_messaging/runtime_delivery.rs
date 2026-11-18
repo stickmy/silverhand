@@ -251,7 +251,7 @@ pub struct RuntimeAgentSpec {
     pub runtime: RuntimeKind,
     pub model: Option<String>,
     pub reasoning_effort: Option<String>,
-    pub fast_mode: Option<bool>,
+    pub service_tier: Option<String>,
     pub cli_session_id: Option<String>,
 }
 

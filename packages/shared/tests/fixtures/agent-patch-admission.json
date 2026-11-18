@@ -8,121 +8,121 @@
       "name": "display_name set",
       "body": { "display_name": "Renamed" },
       "verdict": "accept",
-      "canonical": { "display_name": { "op": "set", "value": "Renamed" }, "description": { "op": "leave" }, "model": { "op": "leave" }, "reasoning_effort": { "op": "leave" }, "fast_mode": { "op": "leave" } }
+      "canonical": { "display_name": { "op": "set", "value": "Renamed" }, "description": { "op": "leave" }, "model": { "op": "leave" }, "reasoning_effort": { "op": "leave" }, "service_tier": { "op": "leave" } }
     },
     {
       "name": "display_name ASCII-trimmed to canonical",
       "body": { "display_name": "  Renamed  " },
       "verdict": "accept",
-      "canonical": { "display_name": { "op": "set", "value": "Renamed" }, "description": { "op": "leave" }, "model": { "op": "leave" }, "reasoning_effort": { "op": "leave" }, "fast_mode": { "op": "leave" } }
+      "canonical": { "display_name": { "op": "set", "value": "Renamed" }, "description": { "op": "leave" }, "model": { "op": "leave" }, "reasoning_effort": { "op": "leave" }, "service_tier": { "op": "leave" } }
     },
     {
       "name": "display_name exotic ECMAScript whitespace trimmed (BOM/NBSP/ideographic)",
       "body": { "display_name": "﻿ 　Renamed\t\n" },
       "verdict": "accept",
-      "canonical": { "display_name": { "op": "set", "value": "Renamed" }, "description": { "op": "leave" }, "model": { "op": "leave" }, "reasoning_effort": { "op": "leave" }, "fast_mode": { "op": "leave" } }
+      "canonical": { "display_name": { "op": "set", "value": "Renamed" }, "description": { "op": "leave" }, "model": { "op": "leave" }, "reasoning_effort": { "op": "leave" }, "service_tier": { "op": "leave" } }
     },
     {
       "name": "display_name at 64-unit bound",
       "body": { "display_name": { "$repeat": { "unit": "x", "times": 64 } } },
       "verdict": "accept",
-      "canonical": { "display_name": { "op": "set", "value": { "$repeat": { "unit": "x", "times": 64 } } }, "description": { "op": "leave" }, "model": { "op": "leave" }, "reasoning_effort": { "op": "leave" }, "fast_mode": { "op": "leave" } }
+      "canonical": { "display_name": { "op": "set", "value": { "$repeat": { "unit": "x", "times": 64 } } }, "description": { "op": "leave" }, "model": { "op": "leave" }, "reasoning_effort": { "op": "leave" }, "service_tier": { "op": "leave" } }
     },
     {
       "name": "display_name astral scalars at 64-unit bound (32 surrogate pairs)",
       "body": { "display_name": { "$repeat": { "unit": "\uD83D\uDE00", "times": 32 } } },
       "verdict": "accept",
-      "canonical": { "display_name": { "op": "set", "value": { "$repeat": { "unit": "\uD83D\uDE00", "times": 32 } } }, "description": { "op": "leave" }, "model": { "op": "leave" }, "reasoning_effort": { "op": "leave" }, "fast_mode": { "op": "leave" } }
+      "canonical": { "display_name": { "op": "set", "value": { "$repeat": { "unit": "\uD83D\uDE00", "times": 32 } } }, "description": { "op": "leave" }, "model": { "op": "leave" }, "reasoning_effort": { "op": "leave" }, "service_tier": { "op": "leave" } }
     },
     {
       "name": "display_name padded raw>64 trims to the 64-unit canonical",
       "body": {"display_name": "          xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx          "},
       "verdict": "accept",
-      "canonical": { "display_name": { "op": "set", "value": { "$repeat": { "unit": "x", "times": 64 } } }, "description": { "op": "leave" }, "model": { "op": "leave" }, "reasoning_effort": { "op": "leave" }, "fast_mode": { "op": "leave" } }
+      "canonical": { "display_name": { "op": "set", "value": { "$repeat": { "unit": "x", "times": 64 } } }, "description": { "op": "leave" }, "model": { "op": "leave" }, "reasoning_effort": { "op": "leave" }, "service_tier": { "op": "leave" } }
     },
     {
       "name": "description set",
       "body": { "description": "hello" },
       "verdict": "accept",
-      "canonical": { "display_name": { "op": "leave" }, "description": { "op": "set", "value": "hello" }, "model": { "op": "leave" }, "reasoning_effort": { "op": "leave" }, "fast_mode": { "op": "leave" } }
+      "canonical": { "display_name": { "op": "leave" }, "description": { "op": "set", "value": "hello" }, "model": { "op": "leave" }, "reasoning_effort": { "op": "leave" }, "service_tier": { "op": "leave" } }
     },
     {
       "name": "description cleared with null",
       "body": { "description": null },
       "verdict": "accept",
-      "canonical": { "display_name": { "op": "leave" }, "description": { "op": "clear" }, "model": { "op": "leave" }, "reasoning_effort": { "op": "leave" }, "fast_mode": { "op": "leave" } }
+      "canonical": { "display_name": { "op": "leave" }, "description": { "op": "clear" }, "model": { "op": "leave" }, "reasoning_effort": { "op": "leave" }, "service_tier": { "op": "leave" } }
     },
     {
       "name": "description at 2000-unit bound (ASCII)",
       "body": { "description": { "$repeat": { "unit": "x", "times": 2000 } } },
       "verdict": "accept",
-      "canonical": { "display_name": { "op": "leave" }, "description": { "op": "set", "value": { "$repeat": { "unit": "x", "times": 2000 } } }, "model": { "op": "leave" }, "reasoning_effort": { "op": "leave" }, "fast_mode": { "op": "leave" } }
+      "canonical": { "display_name": { "op": "leave" }, "description": { "op": "set", "value": { "$repeat": { "unit": "x", "times": 2000 } } }, "model": { "op": "leave" }, "reasoning_effort": { "op": "leave" }, "service_tier": { "op": "leave" } }
     },
     {
       "name": "description astral chars at 2000-unit bound (1000 surrogate pairs)",
       "body": { "description": { "$repeat": { "unit": "😀", "times": 1000 } } },
       "verdict": "accept",
-      "canonical": { "display_name": { "op": "leave" }, "description": { "op": "set", "value": { "$repeat": { "unit": "😀", "times": 1000 } } }, "model": { "op": "leave" }, "reasoning_effort": { "op": "leave" }, "fast_mode": { "op": "leave" } }
+      "canonical": { "display_name": { "op": "leave" }, "description": { "op": "set", "value": { "$repeat": { "unit": "😀", "times": 1000 } } }, "model": { "op": "leave" }, "reasoning_effort": { "op": "leave" }, "service_tier": { "op": "leave" } }
     },
     {
       "name": "model set",
       "body": { "model": "opus" },
       "verdict": "accept",
-      "canonical": { "display_name": { "op": "leave" }, "description": { "op": "leave" }, "model": { "op": "set", "value": "opus" }, "reasoning_effort": { "op": "leave" }, "fast_mode": { "op": "leave" } }
+      "canonical": { "display_name": { "op": "leave" }, "description": { "op": "leave" }, "model": { "op": "set", "value": "opus" }, "reasoning_effort": { "op": "leave" }, "service_tier": { "op": "leave" } }
     },
     {
       "name": "model cleared with null",
       "body": { "model": null },
       "verdict": "accept",
-      "canonical": { "display_name": { "op": "leave" }, "description": { "op": "leave" }, "model": { "op": "clear" }, "reasoning_effort": { "op": "leave" }, "fast_mode": { "op": "leave" } }
+      "canonical": { "display_name": { "op": "leave" }, "description": { "op": "leave" }, "model": { "op": "clear" }, "reasoning_effort": { "op": "leave" }, "service_tier": { "op": "leave" } }
     },
     {
       "name": "reasoning_effort set",
       "body": { "reasoning_effort": "high" },
       "verdict": "accept",
-      "canonical": { "display_name": { "op": "leave" }, "description": { "op": "leave" }, "model": { "op": "leave" }, "reasoning_effort": { "op": "set", "value": "high" }, "fast_mode": { "op": "leave" } }
+      "canonical": { "display_name": { "op": "leave" }, "description": { "op": "leave" }, "model": { "op": "leave" }, "reasoning_effort": { "op": "set", "value": "high" }, "service_tier": { "op": "leave" } }
     },
     {
       "name": "reasoning_effort cleared with null",
       "body": { "reasoning_effort": null },
       "verdict": "accept",
-      "canonical": { "display_name": { "op": "leave" }, "description": { "op": "leave" }, "model": { "op": "leave" }, "reasoning_effort": { "op": "clear" }, "fast_mode": { "op": "leave" } }
+      "canonical": { "display_name": { "op": "leave" }, "description": { "op": "leave" }, "model": { "op": "leave" }, "reasoning_effort": { "op": "clear" }, "service_tier": { "op": "leave" } }
     },
     {
       "name": "reasoning_effort at 32-char bound",
       "body": { "reasoning_effort": { "$repeat": { "unit": "a", "times": 32 } } },
       "verdict": "accept",
-      "canonical": { "display_name": { "op": "leave" }, "description": { "op": "leave" }, "model": { "op": "leave" }, "reasoning_effort": { "op": "set", "value": { "$repeat": { "unit": "a", "times": 32 } } }, "fast_mode": { "op": "leave" } }
+      "canonical": { "display_name": { "op": "leave" }, "description": { "op": "leave" }, "model": { "op": "leave" }, "reasoning_effort": { "op": "set", "value": { "$repeat": { "unit": "a", "times": 32 } } }, "service_tier": { "op": "leave" } }
     },
     {
-      "name": "fast_mode true",
-      "body": { "fast_mode": true },
+      "name": "service_tier set (ultrafast)",
+      "body": { "service_tier": "ultrafast" },
       "verdict": "accept",
-      "canonical": { "display_name": { "op": "leave" }, "description": { "op": "leave" }, "model": { "op": "leave" }, "reasoning_effort": { "op": "leave" }, "fast_mode": { "op": "set", "value": true } }
+      "canonical": { "display_name": { "op": "leave" }, "description": { "op": "leave" }, "model": { "op": "leave" }, "reasoning_effort": { "op": "leave" }, "service_tier": { "op": "set", "value": "ultrafast" } }
     },
     {
-      "name": "fast_mode false",
-      "body": { "fast_mode": false },
+      "name": "service_tier set (default)",
+      "body": { "service_tier": "default" },
       "verdict": "accept",
-      "canonical": { "display_name": { "op": "leave" }, "description": { "op": "leave" }, "model": { "op": "leave" }, "reasoning_effort": { "op": "leave" }, "fast_mode": { "op": "set", "value": false } }
+      "canonical": { "display_name": { "op": "leave" }, "description": { "op": "leave" }, "model": { "op": "leave" }, "reasoning_effort": { "op": "leave" }, "service_tier": { "op": "set", "value": "default" } }
     },
     {
-      "name": "fast_mode cleared with null",
-      "body": { "fast_mode": null },
+      "name": "service_tier cleared with null",
+      "body": { "service_tier": null },
       "verdict": "accept",
-      "canonical": { "display_name": { "op": "leave" }, "description": { "op": "leave" }, "model": { "op": "leave" }, "reasoning_effort": { "op": "leave" }, "fast_mode": { "op": "clear" } }
+      "canonical": { "display_name": { "op": "leave" }, "description": { "op": "leave" }, "model": { "op": "leave" }, "reasoning_effort": { "op": "leave" }, "service_tier": { "op": "clear" } }
     },
     {
       "name": "unknown key stripped, known field survives",
-      "body": { "unknown": 1, "fast_mode": true },
+      "body": { "unknown": 1, "service_tier": "priority" },
       "verdict": "accept",
-      "canonical": { "display_name": { "op": "leave" }, "description": { "op": "leave" }, "model": { "op": "leave" }, "reasoning_effort": { "op": "leave" }, "fast_mode": { "op": "set", "value": true } }
+      "canonical": { "display_name": { "op": "leave" }, "description": { "op": "leave" }, "model": { "op": "leave" }, "reasoning_effort": { "op": "leave" }, "service_tier": { "op": "set", "value": "priority" } }
     },
     {
       "name": "multi-field set/clear/set",
       "body": { "display_name": "New", "description": null, "reasoning_effort": "low" },
       "verdict": "accept",
-      "canonical": { "display_name": { "op": "set", "value": "New" }, "description": { "op": "clear" }, "model": { "op": "leave" }, "reasoning_effort": { "op": "set", "value": "low" }, "fast_mode": { "op": "leave" } }
+      "canonical": { "display_name": { "op": "set", "value": "New" }, "description": { "op": "clear" }, "model": { "op": "leave" }, "reasoning_effort": { "op": "set", "value": "low" }, "service_tier": { "op": "leave" } }
     },
 
     {
@@ -211,8 +211,8 @@
       "verdict": "reject"
     },
     {
-      "name": "fast_mode wrong type (string)",
-      "body": { "fast_mode": "yes" },
+      "name": "service_tier wrong type (boolean)",
+      "body": { "service_tier": true },
       "verdict": "reject"
     },
     {

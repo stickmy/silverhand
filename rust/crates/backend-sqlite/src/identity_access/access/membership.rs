@@ -345,7 +345,7 @@ impl WorkspaceMembershipPort for SqliteAccessStore {
         }
         #[cfg(test)]
         pause_after_read_authority(workspace).await;
-        let rows = sqlx::query("SELECT a.id,a.name,a.display_name,a.runtime,a.model,a.reasoning_effort,a.fast_mode,a.host_id,h.display_label host_display_label,h.name host_name,a.description,a.session_scope,a.created_by_user_id,a.avatar_storage_key,a.materialization_status,a.materialization_failed_code,a.materialization_failed_at,a.deletion_started_at,a.created_at,a.updated_at FROM workspace_members wm JOIN agents a ON a.id=wm.agent_id LEFT JOIN hosts h ON h.id=a.host_id WHERE wm.workspace_id=? ORDER BY wm.joined_at")
+        let rows = sqlx::query("SELECT a.id,a.name,a.display_name,a.runtime,a.model,a.reasoning_effort,a.service_tier,a.host_id,h.display_label host_display_label,h.name host_name,a.description,a.session_scope,a.created_by_user_id,a.avatar_storage_key,a.materialization_status,a.materialization_failed_code,a.materialization_failed_at,a.deletion_started_at,a.created_at,a.updated_at FROM workspace_members wm JOIN agents a ON a.id=wm.agent_id LEFT JOIN hosts h ON h.id=a.host_id WHERE wm.workspace_id=? ORDER BY wm.joined_at")
             .bind(workspace.as_str()).fetch_all(&mut *tx).await.map_err(failure)?;
         let mut agents = Vec::with_capacity(rows.len());
         for row in rows {
@@ -368,10 +368,9 @@ impl WorkspaceMembershipPort for SqliteAccessStore {
                 runtime: row.try_get("runtime").map_err(failure)?,
                 model: row.try_get("model").map_err(failure)?,
                 reasoning_effort: row.try_get("reasoning_effort").map_err(failure)?,
-                fast_mode: row
-                    .try_get::<Option<i64>, _>("fast_mode")
-                    .map_err(failure)?
-                    .map(|value| value != 0),
+                service_tier: row
+                    .try_get::<Option<String>, _>("service_tier")
+                    .map_err(failure)?,
                 host_id: row.try_get("host_id").map_err(failure)?,
                 host_display_label: row.try_get("host_display_label").map_err(failure)?,
                 host_name: row.try_get("host_name").map_err(failure)?,

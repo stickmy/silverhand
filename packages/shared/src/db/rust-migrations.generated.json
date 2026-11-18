@@ -19,7 +19,7 @@
     {
       "epoch": 71,
       "firstStep": 100,
-      "lastStep": 104,
+      "lastStep": 105,
       "released": false
     }
   ],
@@ -29,8 +29,8 @@
     "packages/shared/src/conversation-title.ts": "5b8f0b3766618373619ea589e632d566e9a43e469d821de4298da76f1bb3b680",
     "packages/shared/src/db/baseline-schema.ts": "7e5b7e9a0aca9b79fa433dca341d68ef4f761c5a545069c6005a4519851130e6",
     "packages/shared/src/db/migration-contracts/task-title-v96.ts": "98b0881301cb959962489178aefca16aa4228c786f03b0b849a654d58504d583",
-    "packages/shared/src/db/migrations.ts": "86b2186d574fb1d90b2e77a4bceacbcd3baa7e4f760ab0a85b5354de8103f79d",
-    "packages/shared/src/db/schema-epochs.ts": "06bc30a39e6aab3be7df9a37ed4b468e923701127620e6bdd74f74a99f14c762",
+    "packages/shared/src/db/migrations.ts": "f191ddc93334548372e562a87da4687acb33cf2264c8da1ff9b34a7bb316b748",
+    "packages/shared/src/db/schema-epochs.ts": "8f5c2c33c693c1c555503f64a5f38a2c83117534f05a791953e4c089c40bf8c7",
     "packages/shared/src/display-name-charset.ts": "9d5b574480b3956f37d53bba816b7bff6d3e3edfc861e58c32b896a919f2f8ba",
     "packages/shared/src/unicode-case-fold.ts": "b5cb75d46582dc93b640434ad78fe8f0a741e5e1aa183adbb27368ce2aceb120",
     "packages/shared/src/unicode-name-charset.ts": "bbcda81d89d738fdfe6a9ff0dd4dad633a79a84cd8f82e203753910196967879",
@@ -462,6 +462,13 @@
       "version": 104,
       "name": "agent_runtime_credentials",
       "up": "\n      CREATE TABLE agent_runtime_credentials (\n        token_hash TEXT PRIMARY KEY,\n        slot_id    INTEGER NOT NULL REFERENCES agent_runtime_slots(id) ON DELETE CASCADE,\n        generation INTEGER NOT NULL\n      );\n      CREATE INDEX idx_agent_runtime_credentials_slot ON agent_runtime_credentials(slot_id);\n    ",
+      "foreignKeyEscape": false,
+      "precondition": false
+    },
+    {
+      "version": 105,
+      "name": "agent_service_tier",
+      "up": "\n      ALTER TABLE agents ADD COLUMN service_tier TEXT;\n      UPDATE agents SET service_tier = CASE fast_mode WHEN 1 THEN 'priority' ELSE 'default' END\n        WHERE fast_mode IS NOT NULL;\n      ALTER TABLE agents DROP COLUMN fast_mode;\n    ",
       "foreignKeyEscape": false,
       "precondition": false
     }

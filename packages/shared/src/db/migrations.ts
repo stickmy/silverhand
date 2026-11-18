@@ -4395,6 +4395,17 @@ export const migrations: Migration[] = [
       CREATE INDEX idx_agent_runtime_credentials_slot ON agent_runtime_credentials(slot_id);
     `,
   },
+  {
+    version: 105,
+    name: 'agent_service_tier',
+    // Codex speed is a service tier id; the old fast_mode flag maps onto it.
+    up: `
+      ALTER TABLE agents ADD COLUMN service_tier TEXT;
+      UPDATE agents SET service_tier = CASE fast_mode WHEN 1 THEN 'priority' ELSE 'default' END
+        WHERE fast_mode IS NOT NULL;
+      ALTER TABLE agents DROP COLUMN fast_mode;
+    `,
+  },
 ];
 
 /**

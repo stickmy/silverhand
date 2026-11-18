@@ -5,7 +5,7 @@
 //! ## What this authority owns, and what it does not
 //!
 //! This authority owns the `agents` columns the profile/tuning capability writes —
-//! `display_name`, `description`, `model`, `reasoning_effort`, `fast_mode` — plus the
+//! `display_name`, `description`, `model`, `reasoning_effort`, `service_tier` — plus the
 //! paired avatar pointer `avatar_storage_key` / `avatar_content_type`, whose SET/CLEAR
 //! admissions ([`admit_avatar_assignment`] / [`admit_avatar_removal`]) live here even
 //! though the avatar upload/clear ORCHESTRATION (blob put, orphan cleanup, announce)
@@ -43,7 +43,7 @@
 //! the raw request inside the lock, against the locked current values, closes that
 //! window — and because the port never accepts a pre-sealed edit, there is nothing a
 //! caller could admit against a stale snapshot in the first place. `reasoning_effort`
-//! is judged first, then `fast_mode`, mirroring `agent-service.ts`'s
+//! is judged first, then `service_tier`, mirroring `agent-service.ts`'s
 //! `normalizeRuntimeTuning`. A refusal is a product `400` carried in [`TuningRejection`]
 //! with zero UPDATE and zero announce, never a write attempt.
 //!
@@ -68,7 +68,7 @@ use crate::{
     identity_access::agent_avatar::{AgentAvatarAssignment, AgentAvatarRow},
     identity_access::agents::{
         runtime::RuntimeKind,
-        runtime_capability::{reasoning_effort_valid_for_runtime, runtime_supports_fast_mode},
+        runtime_capability::{reasoning_effort_valid_for_runtime, service_tier_valid_for_runtime},
     },
 };
 
@@ -79,7 +79,7 @@ use crate::{
 
 /// A three-valued edit for a NULLABLE column: absent leaves it untouched, an
 /// explicit null clears it, a value sets it — the product's `absent | null | value`
-/// PATCH algebra for `description`, `model`, `reasoning_effort`, `fast_mode`.
+/// PATCH algebra for `description`, `model`, `reasoning_effort`, `service_tier`.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum FieldEdit<T> {
     Leave,
@@ -119,7 +119,7 @@ pub struct AgentTuningEdit {
     pub description: FieldEdit<String>,
     pub model: FieldEdit<String>,
     pub reasoning_effort: FieldEdit<String>,
-    pub fast_mode: FieldEdit<bool>,
+    pub service_tier: FieldEdit<String>,
 }
 
 /// The stored state the tuning legality is judged against. `runtime` is fixed (PATCH
@@ -148,9 +148,9 @@ pub enum TuningRejection {
         reasoning_effort: String,
         model: Option<String>,
     },
-    /// `fast_mode` was set on a runtime that does not support it — the product's
-    /// `fast_mode_invalid_for_runtime`.
-    FastModeInvalidForRuntime { runtime: RuntimeKind },
+    /// `service_tier` was set on a runtime that does not support it — the product's
+    /// `service_tier_invalid_for_runtime`.
+    ServiceTierInvalidForRuntime { runtime: RuntimeKind },
 }
 
 impl TuningRejection {
@@ -158,7 +158,7 @@ impl TuningRejection {
     pub const fn code(&self) -> &'static str {
         match self {
             Self::ReasoningEffortInvalidForRuntime { .. } => "reasoning_effort_invalid_for_runtime",
-            Self::FastModeInvalidForRuntime { .. } => "fast_mode_invalid_for_runtime",
+            Self::ServiceTierInvalidForRuntime { .. } => "service_tier_invalid_for_runtime",
         }
     }
 
@@ -177,8 +177,11 @@ impl TuningRejection {
                 runtime.as_str(),
                 model.as_deref().unwrap_or("driver default"),
             ),
-            Self::FastModeInvalidForRuntime { runtime } => {
-                format!("fast_mode is not valid for runtime '{}'", runtime.as_str())
+            Self::ServiceTierInvalidForRuntime { runtime } => {
+                format!(
+                    "service_tier is not valid for runtime '{}'",
+                    runtime.as_str()
+                )
             }
         }
     }
@@ -205,7 +208,7 @@ pub struct AdmittedAgentProfileEdit {
     description: FieldEdit<String>,
     model: FieldEdit<String>,
     reasoning_effort: FieldEdit<String>,
-    fast_mode: FieldEdit<bool>,
+    service_tier: FieldEdit<String>,
     avatar: FieldEdit<AgentAvatarAssignment>,
 }
 
@@ -222,8 +225,8 @@ impl AdmittedAgentProfileEdit {
     pub fn reasoning_effort(&self) -> &FieldEdit<String> {
         &self.reasoning_effort
     }
-    pub fn fast_mode(&self) -> &FieldEdit<bool> {
-        &self.fast_mode
+    pub fn service_tier(&self) -> &FieldEdit<String> {
+        &self.service_tier
     }
     pub fn avatar(&self) -> &FieldEdit<AgentAvatarAssignment> {
         &self.avatar
@@ -239,7 +242,7 @@ fn leave_tuning_columns() -> AdmittedAgentProfileEdit {
         description: FieldEdit::Leave,
         model: FieldEdit::Leave,
         reasoning_effort: FieldEdit::Leave,
-        fast_mode: FieldEdit::Leave,
+        service_tier: FieldEdit::Leave,
         avatar: FieldEdit::Leave,
     }
 }
@@ -269,7 +272,7 @@ pub fn admit_avatar_removal() -> AdmittedAgentProfileEdit {
 /// Admit an INTERNAL self-service profile edit — the `POST /internal/agents/{aid}/profile`
 /// capability (which also backs the internal avatar POST/DELETE) — into a sealed edit
 /// naming ONLY `display_name`, `description`, and the paired avatar column. The
-/// runtime-tuning columns (`model` / `reasoning_effort` / `fast_mode`) are forced `Leave`
+/// runtime-tuning columns (`model` / `reasoning_effort` / `service_tier`) are forced `Leave`
 /// by the shared base, so this capability can never smuggle a runtime column the way the
 /// public tuning capability could. Because it names no runtime column it judges NO
 /// runtime legality and is infallible: the display-name shape and description length were
@@ -301,8 +304,8 @@ pub fn admit_internal_profile_edit(
 /// Legality is judged exactly as `normalizeRuntimeTuning`: compute the post-edit
 /// model and effort (a left-alone column keeps its stored value), and — only when
 /// the request names `reasoning_effort` OR `model` — require the pair legal for the
-/// stored runtime. Then, independently, refuse a `fast_mode` SET on a runtime that
-/// does not support it. `reasoning_effort` is judged before `fast_mode`, so a body
+/// stored runtime. Then, independently, refuse a `service_tier` SET on a runtime that
+/// does not support it. `reasoning_effort` is judged before `service_tier`, so a body
 /// that trips both surfaces the reasoning refusal, matching the product order.
 pub fn admit_public_tuning_edit(
     context: &AgentTuningContext,
@@ -334,12 +337,12 @@ pub fn admit_public_tuning_edit(
         });
     }
 
-    // A `fast_mode` SET (present, non-null) demands runtime support; a clear/leave
+    // A `service_tier` SET (present, non-null) demands runtime support; a clear/leave
     // never does — the product's `!== undefined && !== null` guard.
-    if matches!(request.fast_mode, FieldEdit::Set(_))
-        && !runtime_supports_fast_mode(context.runtime)
+    if let FieldEdit::Set(tier) = &request.service_tier
+        && !service_tier_valid_for_runtime(context.runtime, Some(tier))
     {
-        return Err(TuningRejection::FastModeInvalidForRuntime {
+        return Err(TuningRejection::ServiceTierInvalidForRuntime {
             runtime: context.runtime,
         });
     }
@@ -349,7 +352,7 @@ pub fn admit_public_tuning_edit(
         description: request.description,
         model: request.model,
         reasoning_effort: request.reasoning_effort,
-        fast_mode: request.fast_mode,
+        service_tier: request.service_tier,
         // The tuning capability never touches the avatar column.
         avatar: FieldEdit::Leave,
     })
@@ -374,7 +377,7 @@ pub struct CommittedAgentRow {
     pub description: Option<String>,
     pub model: Option<String>,
     pub reasoning_effort: Option<String>,
-    pub fast_mode: Option<bool>,
+    pub service_tier: Option<String>,
     pub avatar: AgentAvatarRow,
     pub updated_at: i64,
 }
@@ -395,7 +398,7 @@ pub struct AgentRowBefore {
     pub agent_id: AgentId,
     pub display_name: String,
     pub description: Option<String>,
-    pub fast_mode: Option<bool>,
+    pub service_tier: Option<String>,
     pub avatar: AgentAvatarRow,
     pub context: AgentTuningContext,
 }
@@ -676,7 +679,11 @@ pub(crate) fn seal_agent_row(
             &before.context.reasoning_effort,
             &committed.reasoning_effort,
         )
-        && nullable_matches_after(&edit.fast_mode, &before.fast_mode, &committed.fast_mode)
+        && nullable_matches_after(
+            &edit.service_tier,
+            &before.service_tier,
+            &committed.service_tier,
+        )
         && avatar_matches_after(&edit.avatar, &before.avatar, &committed.avatar);
     if ok {
         Ok(())
@@ -770,7 +777,7 @@ mod tests {
             description: FieldEdit::Leave,
             model: FieldEdit::Leave,
             reasoning_effort: FieldEdit::Leave,
-            fast_mode: FieldEdit::Leave,
+            service_tier: FieldEdit::Leave,
         }
     }
 
@@ -818,51 +825,51 @@ mod tests {
     fn leaving_both_reasoning_inputs_absent_never_re_judges_a_stored_illegal_pair() {
         // A stored pair that would be illegal today is NOT re-judged when neither
         // reasoning_effort nor model is named — matching the product's guard. Only a
-        // fast_mode edit is present, and codex supports it.
+        // service_tier edit is present, and codex supports it.
         let context = AgentTuningContext {
             runtime: RuntimeKind::Codex,
             model: None,
             reasoning_effort: Some("INVALID".to_owned()), // old malformed value, but untouched
         };
         let request = AgentTuningEdit {
-            fast_mode: FieldEdit::Set(true),
+            service_tier: FieldEdit::Set("priority".into()),
             ..leave_all()
         };
         assert!(admit_public_tuning_edit(&context, request).is_ok());
     }
 
     #[test]
-    fn fast_mode_set_on_an_unsupported_runtime_is_refused() {
+    fn service_tier_set_on_an_unsupported_runtime_is_refused() {
         let request = AgentTuningEdit {
-            fast_mode: FieldEdit::Set(false),
+            service_tier: FieldEdit::Set("default".into()),
             ..leave_all()
         };
-        // Qoder does not support fast mode; even a `false` set is refused (present,
+        // Qoder has no service tier; even `default` is refused (present,
         // non-null).
         assert_eq!(
             admit_public_tuning_edit(&ctx(RuntimeKind::Qoder), request),
-            Err(TuningRejection::FastModeInvalidForRuntime {
+            Err(TuningRejection::ServiceTierInvalidForRuntime {
                 runtime: RuntimeKind::Qoder,
             })
         );
     }
 
     #[test]
-    fn clearing_fast_mode_is_allowed_even_on_an_unsupported_runtime() {
+    fn clearing_service_tier_is_allowed_even_on_an_unsupported_runtime() {
         let request = AgentTuningEdit {
-            fast_mode: FieldEdit::Clear,
+            service_tier: FieldEdit::Clear,
             ..leave_all()
         };
         assert!(admit_public_tuning_edit(&ctx(RuntimeKind::Opencode), request).is_ok());
     }
 
     #[test]
-    fn reasoning_is_judged_before_fast_mode_when_a_body_trips_both() {
-        // OpenCode: reasoning `high` is illegal AND fast_mode is unsupported. The
+    fn reasoning_is_judged_before_service_tier_when_a_body_trips_both() {
+        // OpenCode: reasoning `high` is illegal AND service_tier is unsupported. The
         // reasoning refusal wins, matching the product's order.
         let request = AgentTuningEdit {
             reasoning_effort: FieldEdit::Set("high".to_owned()),
-            fast_mode: FieldEdit::Set(true),
+            service_tier: FieldEdit::Set("priority".into()),
             ..leave_all()
         };
         assert_eq!(
@@ -898,12 +905,15 @@ mod tests {
             reasoning_with_model.message(),
             "reasoning_effort 'max' is not valid for runtime 'codex' and model 'gpt-5.6-nova'"
         );
-        // fast_mode: just the runtime.
-        let fast = TuningRejection::FastModeInvalidForRuntime {
+        // service_tier: just the runtime.
+        let fast = TuningRejection::ServiceTierInvalidForRuntime {
             runtime: RuntimeKind::Qoder,
         };
-        assert_eq!(fast.code(), "fast_mode_invalid_for_runtime");
-        assert_eq!(fast.message(), "fast_mode is not valid for runtime 'qoder'");
+        assert_eq!(fast.code(), "service_tier_invalid_for_runtime");
+        assert_eq!(
+            fast.message(),
+            "service_tier is not valid for runtime 'qoder'"
+        );
     }
 
     #[test]
@@ -913,7 +923,7 @@ mod tests {
             description: FieldEdit::Clear,
             model: FieldEdit::Set("gpt-5.6-sol".to_owned()),
             reasoning_effort: FieldEdit::Set("ultra".to_owned()),
-            fast_mode: FieldEdit::Set(true),
+            service_tier: FieldEdit::Set("priority".into()),
         };
         let admitted = admit_public_tuning_edit(&ctx(RuntimeKind::Codex), request).unwrap();
         assert_eq!(
@@ -926,7 +936,10 @@ mod tests {
             admitted.reasoning_effort(),
             &FieldEdit::Set("ultra".to_owned())
         );
-        assert_eq!(admitted.fast_mode(), &FieldEdit::Set(true));
+        assert_eq!(
+            admitted.service_tier(),
+            &FieldEdit::Set("priority".to_owned())
+        );
     }
 
     // ---- write orchestration ----
@@ -987,7 +1000,7 @@ mod tests {
             description: None,
             model: Some("gpt-5.6-sol".to_owned()),
             reasoning_effort: Some("ultra".to_owned()),
-            fast_mode: Some(true),
+            service_tier: Some("priority".into()),
             avatar: AgentAvatarRow::Absent,
             updated_at: now,
         }
@@ -999,7 +1012,7 @@ mod tests {
             description: FieldEdit::Clear,
             model: FieldEdit::Set("gpt-5.6-sol".to_owned()),
             reasoning_effort: FieldEdit::Set("ultra".to_owned()),
-            fast_mode: FieldEdit::Set(true),
+            service_tier: FieldEdit::Set("priority".into()),
         }
     }
 
@@ -1012,7 +1025,7 @@ mod tests {
             agent_id: agent(),
             display_name: "Old Name".to_owned(),
             description: None,
-            fast_mode: None,
+            service_tier: None,
             avatar: AgentAvatarRow::Absent,
             context: ctx(runtime),
         }
@@ -1109,7 +1122,7 @@ mod tests {
                 description: None,
                 model: None,
                 reasoning_effort: Some("high".to_owned()),
-                fast_mode: None,
+                service_tier: None,
                 avatar: AgentAvatarRow::Absent,
                 updated_at: NOW,
             },
@@ -1135,7 +1148,7 @@ mod tests {
             agent_id: AgentId::parse("agent-other").unwrap(),
             display_name: "Old Name".to_owned(),
             description: None,
-            fast_mode: None,
+            service_tier: None,
             avatar: AgentAvatarRow::Absent,
             context: ctx(RuntimeKind::Opencode),
         };
@@ -1165,7 +1178,7 @@ mod tests {
             agent_id: AgentId::parse("agent-other").unwrap(),
             display_name: "Old Name".to_owned(),
             description: None,
-            fast_mode: None,
+            service_tier: None,
             avatar: AgentAvatarRow::Absent,
             context: ctx(RuntimeKind::Codex), // request() is legal here
         };

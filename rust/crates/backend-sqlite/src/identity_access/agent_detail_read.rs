@@ -63,7 +63,7 @@ const DEFERRED_READ_BEGIN: &str = "BEGIN DEFERRED";
 macro_rules! agent_detail_select_from {
     () => {
         "SELECT a.id, a.name, a.display_name, a.runtime, a.model, \
-           a.reasoning_effort, a.fast_mode, a.host_id, a.description, a.session_scope, \
+           a.reasoning_effort, a.service_tier, a.host_id, a.description, a.session_scope, \
            a.created_by_user_id, a.avatar_storage_key, a.materialization_status, \
            a.materialization_failed_code, a.materialization_failed_at, a.deletion_started_at, \
            a.created_at, a.updated_at, h.display_label AS host_display_label, h.name AS host_name \
@@ -186,12 +186,7 @@ pub(crate) fn decode_agent_row(
     let runtime = RuntimeKind::parse(&runtime_raw)
         .ok_or(AgentDetailColdReadError::MalformedRuntime { value: runtime_raw })?;
 
-    // SQLite stores the boolean as 0/1; a non-numeric text in the affinity-only
-    // column is a decode error above, never a silent `false`. `agentRowToDto` maps
-    // null → null and any value → Boolean(fast), which for the stored 0/1 is exactly
-    // this `!= 0`.
-    let fast_mode: Option<i64> = row.try_get("fast_mode")?;
-    let fast_mode = fast_mode.map(|value| value != 0);
+    let service_tier: Option<String> = row.try_get("service_tier")?;
 
     let projection = AgentDetailProjection {
         name: row.try_get("name")?,
@@ -199,7 +194,7 @@ pub(crate) fn decode_agent_row(
         runtime,
         model: row.try_get("model")?,
         reasoning_effort: row.try_get("reasoning_effort")?,
-        fast_mode,
+        service_tier,
         host_id: row.try_get("host_id")?,
         host_display_label: row.try_get("host_display_label")?,
         host_name: row.try_get("host_name")?,

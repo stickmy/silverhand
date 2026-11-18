@@ -648,7 +648,7 @@ mod tests {
             runtime: RuntimeKind::Codex,
             model: Some("gpt-5.6-sol".to_owned()),
             reasoning_effort: Some("high".to_owned()),
-            fast_mode: Some(false),
+            service_tier: Some("default".into()),
             host_id: "h1".to_owned(),
             host_display_label: Some("Host One".to_owned()),
             host_name: Some("host-one".to_owned()),

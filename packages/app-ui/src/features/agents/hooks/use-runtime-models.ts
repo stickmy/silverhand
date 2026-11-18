@@ -48,6 +48,25 @@ export function modelReasoningOptions(
   };
 }
 
+/** Selectable tiers: Standard, then the CLI's per-model tiers or the static set. */
+export function modelServiceTierOptions(
+  runtime: RuntimeKind,
+  model: string | null,
+  discovery: RuntimeModelDiscovery | null | undefined,
+): { id: string; name?: string }[] {
+  const id = model?.trim() || discovery?.default_model;
+  const discovered =
+    discovery?.status === "ok" && id ? discovery.service_tiers_by_model?.[id] : undefined;
+  const offered =
+    discovered ??
+    runtimeCatalogEntry(runtime)
+      .serviceTierOptions.filter((tier) => tier !== "default")
+      .map((tier) => ({ id: tier }));
+  return runtimeCatalogEntry(runtime).serviceTierOptions.length > 0
+    ? [{ id: "default" }, ...offered]
+    : [];
+}
+
 export function useRuntimeModels(
   hostId: string | null | undefined,
   runtime: RuntimeKind,
@@ -71,6 +90,7 @@ export function useRuntimeModels(
   return {
     status,
     reasoningForModel: (model: string | null) => modelReasoningOptions(runtime, model, data),
+    serviceTiersForModel: (model: string | null) => modelServiceTierOptions(runtime, model, data),
     suggestions:
       data?.status === "ok" ? data.models : runtimeCatalogEntry(runtime).modelSuggestions,
     async refresh() {

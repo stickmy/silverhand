@@ -300,6 +300,10 @@ impl AttachedHostDataPlane {
         &self.attachment.daemon_instance
     }
 
+    pub(crate) fn features(&self) -> DaemonFeatures {
+        self.attachment.features
+    }
+
     pub(crate) async fn dispatch(
         &self,
         command: EncodedDaemonCommand,
@@ -323,6 +327,8 @@ pub(crate) struct DaemonFeatures {
     pub(crate) machine_facts: bool,
     /// `runtime.model_discovery.v1`: `host_runtime_catalog` accepts `models_for`.
     pub(crate) model_discovery: bool,
+    /// `runtime.service_tier.v1`: `runtime_start` takes `service_tier` instead of `fast_mode`.
+    pub(crate) service_tier: bool,
 }
 
 impl DaemonFeatures {
@@ -331,6 +337,7 @@ impl DaemonFeatures {
         Self {
             machine_facts: has("host_status.machine.v1"),
             model_discovery: has("runtime.model_discovery.v1"),
+            service_tier: has("runtime.service_tier.v1"),
         }
     }
 }

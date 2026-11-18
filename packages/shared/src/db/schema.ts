@@ -35,11 +35,10 @@ export type ReasoningEffortToken = z.infer<typeof ReasoningEffortTokenSchema>;
 // runtime/model accepts it is a runtime-catalog decision, not a type-system one.
 export type ReasoningEffort = ReasoningEffortToken;
 
-/** Tri-state fast_mode for the codex driver: NULL = use codex's own
- *  default (currently enabled by the catalog), true = `--enable
- *  fast_mode`, false = `--disable fast_mode`. */
-export const FastModeSchema = z.boolean();
-export type FastMode = z.infer<typeof FastModeSchema>;
+/** Codex service tier id (`default`, `priority`, `ultrafast`, ...). The CLI owns
+ *  the set; null delegates to its default. */
+export const ServiceTierSchema = ReasoningEffortTokenSchema;
+export type ServiceTier = z.infer<typeof ServiceTierSchema>;
 
 export const HostKindSchema = z.enum(['local', 'remote']);
 export type HostKind = z.infer<typeof HostKindSchema>;
@@ -239,7 +238,7 @@ export interface AgentRow {
   session_scope: AgentSessionScope;
   model: string | null;
   reasoning_effort: ReasoningEffort | null;
-  fast_mode: FastMode | null;
+  service_tier: ServiceTier | null;
   host_id: string;
   description: string | null;
   /** v26: human who created the agent (a `users.id`). Source of truth

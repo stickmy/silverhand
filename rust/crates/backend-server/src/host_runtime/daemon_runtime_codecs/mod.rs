@@ -7,22 +7,37 @@ use silverhand_backend_core::{
     },
     foundation::identity::AgentId,
     host_runtime::runtime_credential::RuntimeScope,
+    identity_access::agents::runtime_capability::fast_mode_from_service_tier,
 };
+
+use crate::foundation::daemon_transport::DaemonFeatures;
 
 pub(crate) mod runtime_clear_session;
 pub(crate) mod runtime_start;
 pub(crate) mod runtime_stop;
 
-pub(crate) fn spawn_options(plan: &RuntimeSpawnPlan, token: &str) -> Value {
+pub(crate) fn spawn_options(
+    plan: &RuntimeSpawnPlan,
+    token: &str,
+    features: DaemonFeatures,
+) -> Value {
+    let mut driver = json!({
+        "kind": plan.agent.runtime.as_str(),
+        "cli_session_id": plan.agent.cli_session_id,
+        "model": plan.agent.model,
+        "reasoning_effort": plan.agent.reasoning_effort,
+    });
+    // An older daemon strict-decodes the driver options with `fast_mode` only.
+    if features.service_tier {
+        driver["service_tier"] = json!(plan.agent.service_tier);
+    } else {
+        driver["fast_mode"] = json!(fast_mode_from_service_tier(
+            plan.agent.service_tier.as_deref()
+        ));
+    }
     let common = json!({
         "agent": { "id": plan.agent.id.as_str(), "name": plan.agent.name },
-        "driver": {
-            "kind": plan.agent.runtime.as_str(),
-            "cli_session_id": plan.agent.cli_session_id,
-            "model": plan.agent.model,
-            "reasoning_effort": plan.agent.reasoning_effort,
-            "fast_mode": plan.agent.fast_mode,
-        },
+        "driver": driver,
         "env_policy": { "silverhand": { "auth_token": token } },
     });
     let mut object = common.as_object().cloned().expect("object literal");
@@ -95,4 +110,47 @@ fn session_wire(
         "spawned_by_agent_id": session.spawned_by_agent.as_ref().map(AgentId::as_str),
         "members": members,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use silverhand_backend_core::{
+        conversation_messaging::runtime_delivery::RuntimeAgentSpec,
+        identity_access::agents::runtime::RuntimeKind,
+    };
+
+    use super::*;
+
+    #[test]
+    fn the_service_tier_key_follows_the_daemon_capability() {
+        let agent = AgentId::parse("agent-a").unwrap();
+        let plan = RuntimeSpawnPlan {
+            scope: RuntimeScope::AgentSlot {
+                agent: agent.clone(),
+            },
+            agent: RuntimeAgentSpec {
+                id: agent,
+                name: "agent-a".to_owned(),
+                runtime: RuntimeKind::Codex,
+                model: None,
+                reasoning_effort: None,
+                service_tier: Some("ultrafast".to_owned()),
+                cli_session_id: None,
+            },
+            workspace: None,
+            workspace_memory_index: Vec::new(),
+            session: None,
+        };
+        let current = DaemonFeatures {
+            service_tier: true,
+            ..DaemonFeatures::default()
+        };
+        let driver = &spawn_options(&plan, "t", current)["driver"];
+        assert_eq!(driver["service_tier"], "ultrafast");
+        assert!(driver.get("fast_mode").is_none());
+
+        let driver = &spawn_options(&plan, "t", DaemonFeatures::default())["driver"];
+        assert_eq!(driver["fast_mode"], true);
+        assert!(driver.get("service_tier").is_none());
+    }
 }

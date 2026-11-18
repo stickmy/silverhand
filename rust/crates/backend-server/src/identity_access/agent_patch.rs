@@ -1,5 +1,5 @@
 //! Authenticated write face for `PATCH /api/agents/{id}`: the public agent-tuning
-//! edit — profile text plus model/reasoning/fast-mode — behind the visibility and
+//! edit — profile text plus model/reasoning/service-tier — behind the visibility and
 //! authority ladder.
 //!
 //! The route is a public MANAGEMENT-plane surface (creator-or-system on the human
@@ -85,7 +85,9 @@ use silverhand_backend_core::{
         AgentProfileWriteUnitOfWork, AgentTuningEdit, FieldEdit, RequiredEdit, TuningRejection,
         update_agent_profile_and_announce,
     },
-    identity_access::agents::runtime_capability::is_reasoning_effort_token,
+    identity_access::agents::runtime_capability::{
+        is_reasoning_effort_token, service_tier_from_fast_mode,
+    },
     identity_access::capability::{
         agent_authority::{AgentAuthority, can_edit_agent},
         agent_view::{VisibleStages, can_view_agent},
@@ -328,7 +330,12 @@ struct AgentPatchRaw {
     #[garde(custom(reasoning_token))]
     reasoning_effort: PatchField<String>,
 
-    /// `fast_mode: z.boolean().nullable().optional()`.
+    /// `service_tier: ServiceTierSchema.nullable().optional()`.
+    #[serde(default)]
+    #[garde(custom(reasoning_token))]
+    service_tier: PatchField<String>,
+
+    /// Legacy spelling from clients predating `service_tier`; never both.
     #[serde(default)]
     #[garde(skip)]
     fast_mode: PatchField<bool>,
@@ -361,6 +368,7 @@ impl TryFrom<AgentPatchRaw> for AgentTuningEdit {
             description,
             model,
             reasoning_effort,
+            service_tier,
             fast_mode,
             // A present `runtime` key was already rejected at decode; matched here to
             // prove the field is consumed.
@@ -378,7 +386,14 @@ impl TryFrom<AgentPatchRaw> for AgentTuningEdit {
         let description = field_edit(description);
         let model = field_edit(model);
         let reasoning_effort = field_edit(reasoning_effort);
-        let fast_mode = field_edit(fast_mode);
+        let service_tier = match (service_tier, fast_mode) {
+            (tier, PatchField::Missing) => field_edit(tier),
+            (PatchField::Missing, PatchField::Null) => FieldEdit::Clear,
+            (PatchField::Missing, PatchField::Value(fast)) => {
+                FieldEdit::Set(service_tier_from_fast_mode(fast).to_owned())
+            }
+            _ => return Err(()),
+        };
 
         // `.refine(Object.keys(v).length > 0)` on the STRIPPED object: at least one KNOWN
         // field must be named (a null clear counts as named); unknown-only bodies, whose
@@ -387,7 +402,7 @@ impl TryFrom<AgentPatchRaw> for AgentTuningEdit {
             || description.is_present()
             || model.is_present()
             || reasoning_effort.is_present()
-            || fast_mode.is_present();
+            || service_tier.is_present();
         if !names_a_field {
             return Err(());
         }
@@ -397,7 +412,7 @@ impl TryFrom<AgentPatchRaw> for AgentTuningEdit {
             description,
             model,
             reasoning_effort,
-            fast_mode,
+            service_tier,
         })
     }
 }
@@ -598,7 +613,7 @@ mod tests {
         }
 
         /// Set the locked current context the fake decides against — e.g. a claude agent
-        /// so a `fast_mode` edit is re-rejected under the lock.
+        /// so a `service_tier` edit is re-rejected under the lock.
         fn with_context(mut self, context: AgentTuningContext) -> Self {
             self.context = context;
             self
@@ -631,7 +646,7 @@ mod tests {
                         agent_id: agent.clone(),
                         display_name: "Base Name".to_owned(),
                         description: Some("base desc".to_owned()),
-                        fast_mode: Some(true),
+                        service_tier: Some("priority".into()),
                         avatar: AgentAvatarRow::Absent,
                         context: self.context.clone(),
                     };
@@ -648,7 +663,7 @@ mod tests {
                                 description: apply_str(edit.description(), Some("base desc")),
                                 model: apply_str(edit.model(), Some("gpt-5.6-sol")),
                                 reasoning_effort: apply_str(edit.reasoning_effort(), Some("ultra")),
-                                fast_mode: apply_bool(edit.fast_mode(), Some(true)),
+                                service_tier: apply_str(edit.service_tier(), Some("priority")),
                                 avatar: AgentAvatarRow::Absent,
                                 updated_at: now_ms,
                             };
@@ -681,14 +696,6 @@ mod tests {
             FieldEdit::Leave => base.map(str::to_owned),
             FieldEdit::Clear => None,
             FieldEdit::Set(value) => Some(value.clone()),
-        }
-    }
-
-    fn apply_bool(edit: &FieldEdit<bool>, base: Option<bool>) -> Option<bool> {
-        match edit {
-            FieldEdit::Leave => base,
-            FieldEdit::Clear => None,
-            FieldEdit::Set(value) => Some(*value),
         }
     }
 
@@ -728,7 +735,7 @@ mod tests {
 
     // ---- fixtures ----
 
-    /// A codex projection: model gpt-5.6-sol, reasoning ultra, fast_mode true — a full
+    /// A codex projection: model gpt-5.6-sol, reasoning ultra, service tier priority — a full
     /// tuning state the edits below stay legal against.
     fn codex_projection() -> AgentDetailProjection {
         AgentDetailProjection {
@@ -737,7 +744,7 @@ mod tests {
             runtime: RuntimeKind::Codex,
             model: Some("gpt-5.6-sol".to_owned()),
             reasoning_effort: Some("ultra".to_owned()),
-            fast_mode: Some(true),
+            service_tier: Some("priority".into()),
             host_id: "h1".to_owned(),
             host_display_label: Some("Host One".to_owned()),
             host_name: Some("host-one".to_owned()),
@@ -1022,6 +1029,7 @@ mod tests {
             r#"{"display_name":123}"#,  // not a string
             r#"{"description":5}"#,     // not a string
             r#"{"model":5}"#,           // not a string
+            r#"{"service_tier":true}"#, // not a string
             r#"{"fast_mode":"yes"}"#,   // not a boolean
         ] {
             let reply = ok_run(body).await;
@@ -1098,9 +1106,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_fast_mode_set_on_a_claude_agent_is_the_typed_tuning_400() {
-        // The write's locked context is a claude agent, which does not support fast
-        // mode, so the raw `fast_mode: true` request is re-rejected under the lock.
+    async fn a_service_tier_set_on_a_claude_agent_is_the_typed_tuning_400() {
+        // A claude agent has no service tier, so the legacy `fast_mode` request is
+        // re-rejected under the lock.
         let reply = patch_with(
             FakeReads::new(present(creator_facts()), present(committed_facts())),
             SealingWrites::new(WriteOutcome::Commits).with_context(claude_context()),
@@ -1114,8 +1122,8 @@ mod tests {
         assert_eq!(
             parsed(&reply.body),
             json!({
-                "error": "fast_mode is not valid for runtime 'claude'",
-                "code": "fast_mode_invalid_for_runtime"
+                "error": "service_tier is not valid for runtime 'claude'",
+                "code": "service_tier_invalid_for_runtime"
             })
         );
         assert_eq!(reply.writes, 1);
@@ -1321,7 +1329,7 @@ mod corpus {
             "description": nullable(&edit.description),
             "model": nullable(&edit.model),
             "reasoning_effort": nullable(&edit.reasoning_effort),
-            "fast_mode": nullable(&edit.fast_mode),
+            "service_tier": nullable(&edit.service_tier),
         })
     }
 

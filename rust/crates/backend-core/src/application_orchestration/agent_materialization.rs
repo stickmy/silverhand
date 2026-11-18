@@ -128,7 +128,7 @@ pub struct ReserveAgentInput {
     pub runtime: RuntimeKind,
     pub model: Option<String>,
     pub reasoning_effort: Option<String>,
-    pub fast_mode: Option<bool>,
+    pub service_tier: Option<String>,
     pub host_id: HostId,
     pub description: Option<String>,
     pub session_scope: AgentSessionScope,
@@ -150,7 +150,7 @@ pub struct ReservedAgentRow {
     pub model: Option<String>,
     pub reasoning_effort: Option<String>,
     /// The stored `0`/`1`/null boolean column, decoded by the domain.
-    pub fast_mode: Option<i64>,
+    pub service_tier: Option<String>,
     pub host_id: String,
     pub description: Option<String>,
     pub session_scope: String,
@@ -192,7 +192,7 @@ pub struct ReservedAgent {
     runtime: RuntimeKind,
     model: Option<String>,
     reasoning_effort: Option<String>,
-    fast_mode: Option<bool>,
+    service_tier: Option<String>,
     host_id: HostId,
     description: Option<String>,
     session_scope: AgentSessionScope,
@@ -255,14 +255,10 @@ impl ReservedAgent {
                 reason: "reserve witness reasoning_effort differs from the request",
             });
         }
-        let fast_mode = decode_fast_mode(row.fast_mode).ok_or(
-            MaterializationFault::ReserveWitnessMismatch {
-                reason: "reserve witness carries a non-boolean fast_mode column",
-            },
-        )?;
-        if fast_mode != input.fast_mode {
+        let service_tier = row.service_tier;
+        if service_tier != input.service_tier {
             return Err(MaterializationFault::ReserveWitnessMismatch {
-                reason: "reserve witness fast_mode differs from the request",
+                reason: "reserve witness service_tier differs from the request",
             });
         }
         let host_id = HostId::parse(row.host_id).map_err(|_| {
@@ -317,7 +313,7 @@ impl ReservedAgent {
             runtime,
             model: row.model,
             reasoning_effort: row.reasoning_effort,
-            fast_mode,
+            service_tier,
             host_id,
             description: row.description,
             session_scope,
@@ -352,8 +348,8 @@ impl ReservedAgent {
         self.reasoning_effort.as_deref()
     }
 
-    pub fn fast_mode(&self) -> Option<bool> {
-        self.fast_mode
+    pub fn service_tier(&self) -> Option<&str> {
+        self.service_tier.as_deref()
     }
 
     pub fn host_id(&self) -> &HostId {
@@ -382,18 +378,6 @@ impl ReservedAgent {
 
     pub fn updated_at(&self) -> i64 {
         self.updated_at
-    }
-}
-
-/// Decode the stored `fast_mode` column: `0`/`1`/null → `Some(false)`/`Some(true)`/`None`,
-/// matching the `fast_mode === undefined ? null : fast_mode ? 1 : 0` the reserve writes.
-/// Any other integer is a corrupt column, surfaced to the caller as a witness mismatch.
-fn decode_fast_mode(raw: Option<i64>) -> Option<Option<bool>> {
-    match raw {
-        None => Some(None),
-        Some(0) => Some(Some(false)),
-        Some(1) => Some(Some(true)),
-        Some(_) => None,
     }
 }
 
@@ -1749,7 +1733,7 @@ mod tests {
             runtime: RuntimeKind::Codex,
             model: Some("gpt".to_string()),
             reasoning_effort: Some("high".to_string()),
-            fast_mode: Some(true),
+            service_tier: Some("priority".into()),
             host_id: host("h1"),
             description: Some("d".to_string()),
             session_scope: AgentSessionScope::Conversation,
@@ -1766,7 +1750,7 @@ mod tests {
             runtime: "codex".to_string(),
             model: Some("gpt".to_string()),
             reasoning_effort: Some("high".to_string()),
-            fast_mode: Some(1),
+            service_tier: Some("priority".into()),
             host_id: "h1".to_string(),
             description: Some("d".to_string()),
             session_scope: "conversation".to_string(),
@@ -1851,7 +1835,7 @@ mod tests {
         assert_eq!(reserved.runtime(), RuntimeKind::Codex);
         assert_eq!(reserved.model(), Some("gpt"));
         assert_eq!(reserved.reasoning_effort(), Some("high"));
-        assert_eq!(reserved.fast_mode(), Some(true));
+        assert_eq!(reserved.service_tier(), Some("priority"));
         assert_eq!(reserved.host_id(), &host("h1"));
         assert_eq!(reserved.description(), Some("d"));
         assert_eq!(reserved.session_scope(), AgentSessionScope::Conversation);
@@ -1904,11 +1888,8 @@ mod tests {
         let mut wrong_reasoning = faithful_reserved_row(7);
         wrong_reasoning.reasoning_effort = Some("low".to_string());
 
-        let mut corrupt_fast_mode = faithful_reserved_row(7);
-        corrupt_fast_mode.fast_mode = Some(2);
-
-        let mut wrong_fast_mode = faithful_reserved_row(7);
-        wrong_fast_mode.fast_mode = Some(0);
+        let mut wrong_service_tier = faithful_reserved_row(7);
+        wrong_service_tier.service_tier = Some("default".into());
 
         let mut empty_host = faithful_reserved_row(7);
         empty_host.host_id = String::new();
@@ -1953,8 +1934,7 @@ mod tests {
             wrong_runtime,
             wrong_model,
             wrong_reasoning,
-            corrupt_fast_mode,
-            wrong_fast_mode,
+            wrong_service_tier,
             empty_host,
             wrong_host,
             wrong_description,

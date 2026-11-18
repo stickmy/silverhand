@@ -339,7 +339,9 @@ fn valid_migration_titles() -> Vec<MigrationTitleCase> {
         .collect()
 }
 
-const UNDO_STEP_100: &str = "DROP TABLE agent_runtime_credentials; \
+const UNDO_STEP_100: &str = "ALTER TABLE agents ADD COLUMN fast_mode INTEGER; \
+     ALTER TABLE agents DROP COLUMN service_tier; \
+     DROP TABLE agent_runtime_credentials; \
      ALTER TABLE conversations ADD COLUMN status TEXT NOT NULL DEFAULT 'idle'; \
      ALTER TABLE conversations ADD COLUMN closed_at INTEGER; \
      ALTER TABLE conversations ADD COLUMN close_summary TEXT; \
@@ -358,7 +360,7 @@ async fn seed_step95_titles(path: &std::path::Path, cases: &[MigrationTitleCase]
     use sqlx::Executor;
 
     let mut db = current_schema::create_current_schema(path).await;
-    // The snapshot already carries steps 100-104; undo them so the replay from 96 is real.
+    // The snapshot already carries steps 100-105; undo them so the replay from 96 is real.
     db.execute(sqlx::raw_sql(UNDO_STEP_100)).await.unwrap();
     for statement in SEED {
         db.execute(*statement).await.unwrap();

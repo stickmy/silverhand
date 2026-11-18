@@ -62,7 +62,7 @@ pub struct AgentDetailProjection {
     pub runtime: RuntimeKind,
     pub model: Option<String>,
     pub reasoning_effort: Option<String>,
-    pub fast_mode: Option<bool>,
+    pub service_tier: Option<String>,
     pub host_id: String,
     /// `hosts.display_label` via the `LEFT JOIN`; absent when the host row is gone.
     pub host_display_label: Option<String>,
@@ -193,7 +193,7 @@ mod tests {
             runtime: RuntimeKind::Qoder,
             model: None,
             reasoning_effort: None,
-            fast_mode: None,
+            service_tier: None,
             host_id: "h1".to_string(),
             host_display_label: None,
             host_name: None,

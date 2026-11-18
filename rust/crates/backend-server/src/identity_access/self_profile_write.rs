@@ -766,7 +766,7 @@ mod tests {
             agent_id: agent(),
             display_name: display_name.to_owned(),
             description: None,
-            fast_mode: None,
+            service_tier: None,
             avatar,
             context: ctx(),
         }
@@ -779,7 +779,7 @@ mod tests {
             description: None,
             model: None,
             reasoning_effort: None,
-            fast_mode: None,
+            service_tier: None,
             avatar,
             updated_at: NOW,
         }
@@ -1240,7 +1240,7 @@ mod tests {
             runtime: RuntimeKind::Claude,
             model: None,
             reasoning_effort: None,
-            fast_mode: None,
+            service_tier: None,
             host_id: "h1".to_owned(),
             host_display_label: None,
             host_name: Some("host-one".to_owned()),

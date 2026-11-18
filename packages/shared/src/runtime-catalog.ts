@@ -1,4 +1,10 @@
-import { ReasoningEffortTokenSchema, type ReasoningEffort, type RuntimeKind } from './db/schema.js';
+import {
+  ReasoningEffortTokenSchema,
+  ServiceTierSchema,
+  type ReasoningEffort,
+  type RuntimeKind,
+  type ServiceTier,
+} from './db/schema.js';
 
 /**
  * Single source of truth for per-runtime UI facts.
@@ -33,8 +39,11 @@ export interface RuntimeCatalogEntry {
    * only token shape, and the CLI decides whether a model accepts a value.
    */
   reasoningEffortOptions: readonly ReasoningEffort[];
-  /** Whether the runtime accepts the persisted fast-mode tri-state. */
-  supportsFastMode: boolean;
+  /**
+   * Service tiers offered when the CLI reports none for a model (empty = no
+   * Speed control). Writes check only token shape; the CLI decides the rest.
+   */
+  serviceTierOptions: readonly ServiceTier[];
   /**
    * Profile MCP servers load at spawn for this runtime. Source of truth
    * is the host spawn loader (`mcp-spawn.ts`); this mirrors it and a
@@ -67,7 +76,7 @@ const CATALOG: Record<RuntimeKind, RuntimeCatalogEntry> = {
     cliLabel: 'Claude Code',
     selectable: true,
     reasoningEffortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
-    supportsFastMode: false,
+    serviceTierOptions: [],
     supportsProfileMcp: true,
     modelSuggestions: [],
   },
@@ -77,7 +86,7 @@ const CATALOG: Record<RuntimeKind, RuntimeCatalogEntry> = {
     cliLabel: 'Codex CLI',
     selectable: true,
     reasoningEffortOptions: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
-    supportsFastMode: true,
+    serviceTierOptions: ['default', 'priority'],
     supportsProfileMcp: true,
     // Suggested model ids for the Model combobox. Free text still accepted;
     // these are quick-picks only (no `defaultModel` — codex has no forced
@@ -100,7 +109,7 @@ const CATALOG: Record<RuntimeKind, RuntimeCatalogEntry> = {
     selectable: true,
     // qoder's full allowed set (known from the qodercli binary).
     reasoningEffortOptions: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
-    supportsFastMode: false,
+    serviceTierOptions: [],
     supportsProfileMcp: true,
     // The five capability tiers from `qodercli --list-models`. Specific
     // model ids (Qwen*/GLM*/DeepSeek*/Kimi*/MiniMax*) go through free
@@ -114,7 +123,7 @@ const CATALOG: Record<RuntimeKind, RuntimeCatalogEntry> = {
     cliLabel: 'OpenCode',
     selectable: true,
     reasoningEffortOptions: [],
-    supportsFastMode: false,
+    serviceTierOptions: [],
     // Profile MCP rides the deep-merged OPENCODE_CONFIG_CONTENT env seam
     // (#task:1405) — the same additive layer claude/codex/qoder get, so
     // opencode reaches parity rather than shipping uniquely weaker.
@@ -127,7 +136,7 @@ const CATALOG: Record<RuntimeKind, RuntimeCatalogEntry> = {
     cliLabel: 'Pi',
     selectable: true,
     reasoningEffortOptions: ['off', 'minimal', 'low', 'medium', 'high'],
-    supportsFastMode: false,
+    serviceTierOptions: [],
     // User-installed Pi extensions remain enabled. This flag describes only
     // Silverhand profile-config injection, which needs an extension contract.
     supportsProfileMcp: false,
@@ -139,7 +148,7 @@ const CATALOG: Record<RuntimeKind, RuntimeCatalogEntry> = {
     cliLabel: 'Grok Build',
     selectable: true,
     reasoningEffortOptions: ['low', 'medium', 'high', 'xhigh'],
-    supportsFastMode: false,
+    serviceTierOptions: [],
     supportsProfileMcp: true,
     modelSuggestions: ['grok-4.6', 'grok-4.5'],
   },
@@ -149,7 +158,7 @@ const CATALOG: Record<RuntimeKind, RuntimeCatalogEntry> = {
     cliLabel: 'Cursor',
     selectable: false,
     reasoningEffortOptions: [],
-    supportsFastMode: false,
+    serviceTierOptions: [],
     supportsProfileMcp: false,
     modelSuggestions: [],
   },
@@ -159,7 +168,7 @@ const CATALOG: Record<RuntimeKind, RuntimeCatalogEntry> = {
     cliLabel: 'Gemini',
     selectable: false,
     reasoningEffortOptions: [],
-    supportsFastMode: false,
+    serviceTierOptions: [],
     supportsProfileMcp: false,
     modelSuggestions: [],
   },
@@ -216,9 +225,18 @@ export function runtimeSupportsReasoningEffort(kind: RuntimeKind): boolean {
   return CATALOG[kind].reasoningEffortOptions.length > 0;
 }
 
-/** True when the runtime exposes the fast-mode control. */
-export function runtimeSupportsFastMode(kind: RuntimeKind): boolean {
-  return CATALOG[kind].supportsFastMode;
+/** True when the runtime exposes the Speed control. */
+export function runtimeSupportsServiceTier(kind: RuntimeKind): boolean {
+  return CATALOG[kind].serviceTierOptions.length > 0;
+}
+
+/** Null delegates to the CLI default. */
+export function serviceTierValidForRuntime(
+  kind: RuntimeKind,
+  value: ServiceTier | null | undefined,
+): boolean {
+  if (value === null || value === undefined) return true;
+  return runtimeSupportsServiceTier(kind) && ServiceTierSchema.safeParse(value).success;
 }
 
 /** Null delegates to the runtime default. Any well-formed token is admitted on a

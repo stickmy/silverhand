@@ -538,7 +538,7 @@ mod tests {
             runtime: RuntimeKind::Claude,
             model: None,
             reasoning_effort: None,
-            fast_mode: None,
+            service_tier: None,
             host_id: host_id.to_string(),
             host_display_label: None,
             host_name: None,

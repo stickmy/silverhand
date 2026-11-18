@@ -84,6 +84,21 @@ through the existing runtime error path, or the CLI may fall back to its default
 (Claude 2.1.300 warns and falls back). Silverhand keeps that vendor behavior.
 Claude now passes explicit effort via `--effort`.
 
+## Codex service tier
+
+Codex `serviceTiers` feed optional `service_tiers_by_model: { [modelId]: [{ id, name }] }`
+(non-default tiers only). The agent stores `service_tier` (null = Codex default,
+`default`, `priority` = Fast, `ultrafast`, ...); writes check token shape only. The
+driver passes it as `serviceTier` on `thread/start`/`thread/resume`; Codex falls back
+to Standard when the model or CLI lacks the tier. The Speed control lists Standard
+plus the model's discovered tiers, else the static `priority`. Only Codex ≥0.169
+reports `ultrafast` (currently `gpt-6.2-sol`).
+
+The daemon advertises `runtime.service_tier.v1`; an older daemon is sent the
+derived `fast_mode` boolean instead. Clients predating the field may still send
+`fast_mode` (true → `priority`, false → `default`); agent DTOs keep a derived
+`fast_mode`.
+
 ## Compatibility and verification
 
 An old server may omit `model_discovery`; an old daemon is never sent the new

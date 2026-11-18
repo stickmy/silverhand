@@ -83,13 +83,13 @@ const ABORT_TRANSITION_CAS: &str = "UPDATE agents \
 /// the target guarded are bound from the SAME lock-sourced string, so the pair CHECK, the
 /// ownership guard, and the committed runtime cannot disagree.
 const COMPLETE_TRANSITION_CAS: &str = "UPDATE agents \
-        SET runtime = ?, model = ?, reasoning_effort = ?, fast_mode = ?, \
+        SET runtime = ?, model = ?, reasoning_effort = ?, service_tier = ?, \
             runtime_transition_target = NULL, runtime_transition_started_at = NULL, \
             updated_at = ? \
       WHERE id = ? \
         AND runtime_transition_target = ? \
         AND runtime_transition_started_at = ? \
-    RETURNING id, runtime, model, reasoning_effort, fast_mode, updated_at, \
+    RETURNING id, runtime, model, reasoning_effort, service_tier, updated_at, \
               runtime_transition_target, runtime_transition_started_at";
 
 const SELECT_HELD_TRANSITION: &str = "SELECT id, runtime_transition_target, \
@@ -125,12 +125,6 @@ fn begin_precheck(row: &SqliteRow) -> Result<BeginPrecheck, sqlx::Error> {
         deletion_started_at: row.try_get("deletion_started_at")?,
         runtime_transition_target: row.try_get::<Option<String>, _>("runtime_transition_target")?,
     })
-}
-
-/// The stored `fast_mode` boolean as its `0`/`1`/null column, matching the
-/// `fast_mode === null ? null : fast_mode ? 1 : 0` the TypeScript writer applies.
-fn fast_mode_column(fast_mode: Option<bool>) -> Option<i64> {
-    fast_mode.map(|on| if on { 1 } else { 0 })
 }
 
 /// Project the acquired lock from the `begin` `RETURNING` row. The `AgentId` is decoded
@@ -172,7 +166,7 @@ fn complete_after_image(row: &SqliteRow) -> Result<RuntimeTransitionAfterImage, 
         runtime: row.try_get::<String, _>("runtime")?,
         model: row.try_get::<Option<String>, _>("model")?,
         reasoning_effort: row.try_get::<Option<String>, _>("reasoning_effort")?,
-        fast_mode: row.try_get::<Option<i64>, _>("fast_mode")?,
+        service_tier: row.try_get::<Option<String>, _>("service_tier")?,
         updated_at: row.try_get::<i64, _>("updated_at")?,
         transition_target: row.try_get::<Option<String>, _>("runtime_transition_target")?,
         transition_started_at: row.try_get::<Option<i64>, _>("runtime_transition_started_at")?,
@@ -263,7 +257,7 @@ impl RuntimeTransitionWrite for SqliteHostAgentStore {
             .bind(lock.target().as_str())
             .bind(commit.model.as_deref())
             .bind(commit.reasoning_effort.as_deref())
-            .bind(fast_mode_column(commit.fast_mode))
+            .bind(commit.service_tier.as_deref())
             .bind(now_ms)
             .bind(lock.agent_id().as_str())
             .bind(lock.target().as_str())
@@ -653,7 +647,7 @@ mod tests {
         let commit = RuntimeTransitionCommit {
             model: None,
             reasoning_effort: None,
-            fast_mode: None,
+            service_tier: None,
         };
         assert_eq!(
             complete_runtime_transition(&store, &stale, &commit, 42)
@@ -678,7 +672,7 @@ mod tests {
         let commit = RuntimeTransitionCommit {
             model: Some("gpt".to_string()),
             reasoning_effort: Some("high".to_string()),
-            fast_mode: Some(true),
+            service_tier: Some("priority".into()),
         };
         let CompleteTransition::Committed(sealed) =
             complete_runtime_transition(&store, &lock, &commit, 42)
@@ -691,11 +685,11 @@ mod tests {
         assert_eq!(sealed.runtime(), RuntimeKind::Codex);
         assert_eq!(sealed.model(), Some("gpt"));
         assert_eq!(sealed.reasoning_effort(), Some("high"));
-        assert_eq!(sealed.fast_mode(), Some(true));
+        assert_eq!(sealed.service_tier(), Some("priority"));
         assert_eq!(sealed.updated_at(), 42);
 
         let row = sqlx::query(
-            "SELECT runtime, model, reasoning_effort, fast_mode, updated_at, \
+            "SELECT runtime, model, reasoning_effort, service_tier, updated_at, \
                     runtime_transition_target, runtime_transition_started_at \
                FROM agents WHERE id = 'a1'",
         )
@@ -713,7 +707,10 @@ mod tests {
             row.get::<Option<String>, _>("reasoning_effort"),
             Some("high".to_string())
         );
-        assert_eq!(row.get::<Option<i64>, _>("fast_mode"), Some(1));
+        assert_eq!(
+            row.get::<Option<String>, _>("service_tier"),
+            Some("priority".to_owned())
+        );
         assert_eq!(row.get::<i64, _>("updated_at"), 42);
         assert_eq!(
             row.get::<Option<String>, _>("runtime_transition_target"),
@@ -736,7 +733,7 @@ mod tests {
             created_by_user_id = "u1",
             model = "old",
             reasoning_effort = "low",
-            fast_mode = 1,
+            service_tier = "priority",
         );
         let path = seed_schema(&dir, "complete-null.db", &[USER, HOST, seeded]).await;
         let store = SqliteHostAgentStore::open(&path).await.unwrap();
@@ -745,7 +742,7 @@ mod tests {
         let commit = RuntimeTransitionCommit {
             model: None,
             reasoning_effort: None,
-            fast_mode: None,
+            service_tier: None,
         };
         let CompleteTransition::Committed(sealed) =
             complete_runtime_transition(&store, &lock, &commit, 42)
@@ -756,15 +753,15 @@ mod tests {
         };
         assert_eq!(sealed.model(), None);
         assert_eq!(sealed.reasoning_effort(), None);
-        assert_eq!(sealed.fast_mode(), None);
+        assert_eq!(sealed.service_tier(), None);
 
         let row =
-            sqlx::query("SELECT model, reasoning_effort, fast_mode FROM agents WHERE id = 'a1'")
+            sqlx::query("SELECT model, reasoning_effort, service_tier FROM agents WHERE id = 'a1'")
                 .fetch_one(store.pool())
                 .await
                 .unwrap();
         assert_eq!(row.get::<Option<String>, _>("model"), None);
         assert_eq!(row.get::<Option<String>, _>("reasoning_effort"), None);
-        assert_eq!(row.get::<Option<i64>, _>("fast_mode"), None);
+        assert_eq!(row.get::<Option<String>, _>("service_tier"), None);
     }
 }

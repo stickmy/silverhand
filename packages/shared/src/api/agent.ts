@@ -7,13 +7,13 @@ import {
   ConversationAgentStatusSchema,
   ConversationPlacementKindSchema,
   ConversationRosterPolicySchema,
-  FastModeSchema,
   ReasoningEffortTokenSchema,
   RuntimeKindSchema,
+  ServiceTierSchema,
 } from '../db/schema.js';
 import { DisplayNameSchema } from './user.js';
 import { ParticipantNameSchema } from './name.js';
-import { reasoningEffortValidForRuntime, runtimeSupportsFastMode } from '../runtime-catalog.js';
+import { reasoningEffortValidForRuntime, serviceTierValidForRuntime } from '../runtime-catalog.js';
 
 export const AgentDtoSchema = z.object({
   id: z.string(),
@@ -22,7 +22,7 @@ export const AgentDtoSchema = z.object({
   runtime: RuntimeKindSchema,
   model: z.string().nullable(),
   reasoning_effort: ReasoningEffortTokenSchema.nullable(),
-  fast_mode: FastModeSchema.nullable(),
+  service_tier: ServiceTierSchema.nullable(),
   host_id: z.string(),
   // Server-resolved computer name (`hosts.display_label ?? hosts.name`), null
   // only when the host row is gone. Denormalized here because `GET /api/hosts`
@@ -94,7 +94,7 @@ export const AgentPublicDtoSchema = AgentDtoSchema.pick({
   runtime: true,
   model: true,
   reasoning_effort: true,
-  fast_mode: true,
+  service_tier: true,
   host_id: true,
   host_label: true,
   description: true,
@@ -126,7 +126,7 @@ export const CreateAgentInputSchema = z
     runtime: RuntimeKindSchema,
     model: z.string().optional(),
     reasoning_effort: ReasoningEffortTokenSchema.optional(),
-    fast_mode: FastModeSchema.optional(),
+    service_tier: ServiceTierSchema.optional(),
     host_id: z.string().optional(), // defaults to the current user's owned local host
     description: z.string().optional(),
     /** Defaults to the established one-runtime-per-conversation model. */
@@ -140,11 +140,11 @@ export const CreateAgentInputSchema = z
         message: `reasoning_effort '${val.reasoning_effort}' is not valid for runtime '${val.runtime}' and model '${val.model ?? 'driver default'}'`,
       });
     }
-    if (!runtimeSupportsFastMode(val.runtime) && val.fast_mode !== undefined) {
+    if (!serviceTierValidForRuntime(val.runtime, val.service_tier)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['fast_mode'],
-        message: `fast_mode is not supported by runtime '${val.runtime}'`,
+        path: ['service_tier'],
+        message: `service_tier is not supported by runtime '${val.runtime}'`,
       });
     }
   });
@@ -169,7 +169,7 @@ export const UpdateAgentInputSchema = z
     runtime: z.never().optional(),
     model: z.string().nullable().optional(),
     reasoning_effort: ReasoningEffortTokenSchema.nullable().optional(),
-    fast_mode: FastModeSchema.nullable().optional(),
+    service_tier: ServiceTierSchema.nullable().optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: 'no fields to update' });
 export type UpdateAgentInput = z.infer<typeof UpdateAgentInputSchema>;
@@ -184,7 +184,7 @@ export const SwitchAgentRuntimeInputSchema = z
     runtime: RuntimeKindSchema,
     model: z.string().trim().min(1).nullable(),
     reasoning_effort: ReasoningEffortTokenSchema.nullable(),
-    fast_mode: FastModeSchema.nullable(),
+    service_tier: ServiceTierSchema.nullable(),
   })
   .strict()
   .superRefine((val, ctx) => {
@@ -195,11 +195,11 @@ export const SwitchAgentRuntimeInputSchema = z
         message: `reasoning_effort '${val.reasoning_effort}' is not valid for runtime '${val.runtime}' and model '${val.model ?? 'driver default'}'`,
       });
     }
-    if (!runtimeSupportsFastMode(val.runtime) && val.fast_mode !== null) {
+    if (!serviceTierValidForRuntime(val.runtime, val.service_tier)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['fast_mode'],
-        message: `fast_mode is not supported by runtime '${val.runtime}'`,
+        path: ['service_tier'],
+        message: `service_tier is not supported by runtime '${val.runtime}'`,
       });
     }
   });

@@ -573,7 +573,7 @@ mod tests {
             agent_id: agent(),
             display_name: display_name.to_owned(),
             description: description.map(str::to_owned),
-            fast_mode: None,
+            service_tier: None,
             avatar,
             context: ctx(),
         }
@@ -591,7 +591,7 @@ mod tests {
             description: description.map(str::to_owned),
             model: None,
             reasoning_effort: None,
-            fast_mode: None,
+            service_tier: None,
             avatar,
             updated_at: NOW,
         }
@@ -949,10 +949,10 @@ mod tests {
     #[tokio::test]
     async fn a_commit_whose_tuning_column_was_tampered_retains_the_fresh_blob() {
         // The committed avatar correctly points at FRESH, but a column the internal
-        // capability leaves untouched (fast_mode) came back changed: the full-column seal
+        // capability leaves untouched (service_tier) came back changed: the full-column seal
         // fails, yet the durable row references the fresh blob, so it is RETAINED.
         let mut tampered = committed("New", None, present(FRESH));
-        tampered.fast_mode = Some(true);
+        tampered.service_tier = Some("priority".into());
         let writes = FakeWrites::Row(AgentProfileRowWrite::Committed {
             before: before("Old", None, AgentAvatarRow::Absent),
             row: tampered,

@@ -572,11 +572,13 @@ impl RuntimeStartTransport for ProductionStartTransport {
         &self,
         handoff: &RuntimeStartHandoff,
     ) -> Result<(), RuntimeDispatchFailure<Self::Error>> {
-        let params = runtime_start_codec::encode(&self.target, handoff).map_err(|_| {
-            RuntimeDispatchFailure::ProvenNotDispatched(StartDispatchError::Hard(
-                "runtime_start request is not wire-safe",
-            ))
-        })?;
+        let features = self.data_plane.features(&self.custody).unwrap_or_default();
+        let params =
+            runtime_start_codec::encode(&self.target, handoff, features).map_err(|_| {
+                RuntimeDispatchFailure::ProvenNotDispatched(StartDispatchError::Hard(
+                    "runtime_start request is not wire-safe",
+                ))
+            })?;
         let expected = self.custody.clone();
         let result = self
             .data_plane

@@ -72,7 +72,7 @@ use crate::{
 pub struct RuntimeTransitionCommit {
     pub model: Option<String>,
     pub reasoning_effort: Option<String>,
-    pub fast_mode: Option<bool>,
+    pub service_tier: Option<String>,
 }
 
 /// The raw witness an acquire returns: the row the compare-and-set touched, decoded
@@ -111,7 +111,7 @@ pub struct RuntimeTransitionAfterImage {
     pub model: Option<String>,
     pub reasoning_effort: Option<String>,
     /// Raw `0` / `1` / null column; the domain decodes it to `Option<bool>`.
-    pub fast_mode: Option<i64>,
+    pub service_tier: Option<String>,
     pub updated_at: i64,
     pub transition_target: Option<String>,
     pub transition_started_at: Option<i64>,
@@ -198,7 +198,7 @@ pub struct CommittedRuntimeTransition {
     runtime: RuntimeKind,
     model: Option<String>,
     reasoning_effort: Option<String>,
-    fast_mode: Option<bool>,
+    service_tier: Option<String>,
     updated_at: i64,
 }
 
@@ -244,9 +244,9 @@ impl CommittedRuntimeTransition {
                 reason: "committed reasoning_effort differs from the request",
             });
         }
-        if decode_fast_mode(after.fast_mode)? != commit.fast_mode {
+        if after.service_tier != commit.service_tier {
             return Err(RuntimeTransitionFault::CommitWitnessMismatch {
-                reason: "committed fast_mode differs from the request",
+                reason: "committed service_tier differs from the request",
             });
         }
         if after.updated_at != now_ms {
@@ -259,7 +259,7 @@ impl CommittedRuntimeTransition {
             runtime,
             model: after.model,
             reasoning_effort: after.reasoning_effort,
-            fast_mode: commit.fast_mode,
+            service_tier: commit.service_tier.clone(),
             updated_at: now_ms,
         })
     }
@@ -280,25 +280,12 @@ impl CommittedRuntimeTransition {
         self.reasoning_effort.as_deref()
     }
 
-    pub fn fast_mode(&self) -> Option<bool> {
-        self.fast_mode
+    pub fn service_tier(&self) -> Option<&str> {
+        self.service_tier.as_deref()
     }
 
     pub fn updated_at(&self) -> i64 {
         self.updated_at
-    }
-}
-
-/// The stored `fast_mode` column decoded to `Option<bool>`. Anything but null / `0` / `1`
-/// is a corrupt after-image, sealed as a mismatch rather than silently coerced.
-fn decode_fast_mode(raw: Option<i64>) -> Result<Option<bool>, RuntimeTransitionFault> {
-    match raw {
-        None => Ok(None),
-        Some(0) => Ok(Some(false)),
-        Some(1) => Ok(Some(true)),
-        Some(_) => Err(RuntimeTransitionFault::CommitWitnessMismatch {
-            reason: "committed fast_mode column is neither null, 0, nor 1",
-        }),
     }
 }
 
@@ -657,7 +644,7 @@ mod tests {
         RuntimeTransitionCommit {
             model: Some("gpt".to_string()),
             reasoning_effort: Some("high".to_string()),
-            fast_mode: Some(true),
+            service_tier: Some("priority".into()),
         }
     }
 
@@ -668,7 +655,7 @@ mod tests {
             runtime: "codex".to_string(),
             model: Some("gpt".to_string()),
             reasoning_effort: Some("high".to_string()),
-            fast_mode: Some(1),
+            service_tier: Some("priority".into()),
             updated_at: now_ms,
             transition_target: None,
             transition_started_at: None,
@@ -818,7 +805,7 @@ mod tests {
         assert_eq!(sealed.runtime(), RuntimeKind::Codex);
         assert_eq!(sealed.model(), Some("gpt"));
         assert_eq!(sealed.reasoning_effort(), Some("high"));
-        assert_eq!(sealed.fast_mode(), Some(true));
+        assert_eq!(sealed.service_tier(), Some("priority"));
         assert_eq!(sealed.updated_at(), 42);
     }
 
@@ -843,7 +830,7 @@ mod tests {
         wrong_effort.reasoning_effort = Some("low".to_string());
 
         let mut wrong_fast = faithful_after("a1", 42);
-        wrong_fast.fast_mode = Some(0);
+        wrong_fast.service_tier = Some("default".into());
 
         let mut wrong_stamp = faithful_after("a1", 42);
         wrong_stamp.updated_at = 41;

@@ -1573,7 +1573,7 @@ export class Supervisor implements SupervisorContract {
       cliSessionId: startOptions.driver.cli_session_id,
       model: startOptions.driver.model,
       reasoningEffort: startOptions.driver.reasoning_effort,
-      fastMode: startOptions.driver.fast_mode,
+      serviceTier: startOptions.driver.service_tier,
       systemPromptPath: spawnPrep.systemPromptPath,
       initialPrompt: driver.oneShot && params.startup_delivery ? params.startup_delivery.text : '',
     };

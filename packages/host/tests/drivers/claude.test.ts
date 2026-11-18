@@ -21,7 +21,7 @@ function makeSpawnCtx(overrides: Partial<DriverSpawnContext> = {}): {
     cliSessionId: null,
     model: null,
     reasoningEffort: null,
-    fastMode: null,
+    serviceTier: null,
     systemPromptPath,
     initialPrompt: '',
     ...overrides,

@@ -40,7 +40,7 @@ function makeCtx(overrides: Partial<DriverSpawnContext> = {}): {
       cliSessionId: null,
       model: null,
       reasoningEffort: null,
-      fastMode: null,
+      serviceTier: null,
       systemPromptPath,
       initialPrompt: '',
       ...overrides,
@@ -98,19 +98,6 @@ describe('runtime catalog ⟺ host invariants', () => {
               r.params.value === 'high',
           );
         expect(forwardsReasoning).toBe(runtimeSupportsReasoningEffort(entry.kind));
-      } finally {
-        built.cleanup();
-      }
-    }
-  });
-
-  it('supportsFastMode ⟺ the driver forwards the fast-mode flag', () => {
-    for (const entry of RUNTIME_CATALOG) {
-      if (entry.kind === 'cursor' || entry.kind === 'gemini') continue;
-      const built = makeCtx({ fastMode: true });
-      try {
-        const args = getDriver(entry.kind).buildArgs(built.ctx);
-        expect(args.includes('fast_mode')).toBe(entry.supportsFastMode);
       } finally {
         built.cleanup();
       }

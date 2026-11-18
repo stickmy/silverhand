@@ -12,7 +12,7 @@
 //!     #2234 CP6 mount. Framework body extraction precedes this composition check.
 //!  2. WIRE ADMISSION (body) — parse against `CreateAgentInputSchema`: the handle
 //!     grammar, the runtime enum, the reasoning-effort token shape AND its
-//!     runtime tuning policy, the fast-mode runtime allowlist, and the session-scope
+//!     runtime tuning policy, the service-tier runtime allowlist, and the session-scope
 //!     enum. Structural failures keep native JSON `400/422/415`; semantic rule
 //!     failures return `422 {"error":"invalid input"}` without an issues array.
 //!     `host_id: ""` is FALSY in the TS
@@ -113,7 +113,7 @@ use silverhand_backend_core::{
         runtime::RuntimeKind,
         runtime_capability::{
             is_reasoning_effort_token, reasoning_effort_valid_for_runtime,
-            runtime_supports_fast_mode,
+            service_tier_from_fast_mode, service_tier_valid_for_runtime,
         },
         session_scope::AgentSessionScope,
     },
@@ -335,7 +335,7 @@ where
     };
 
     // SEMANTIC ADMISSION — the cross-field `TryFrom` settles handle grammar, the runtime
-    // enum, reasoning shape+runtime policy, fast-mode capability, session-scope enum, and
+    // enum, reasoning shape+runtime policy, service-tier capability, session-scope enum, and
     // host_id normalization; any fault is the one terminal `422 {"error":"invalid input"}`.
     let input = match CreateAgentInput::try_from(raw) {
         Ok(input) => input,
@@ -660,7 +660,7 @@ fn materialize_failure_message(code: MaterializeFailureCode) -> &'static str {
 ///
 /// Every rule create needs is cross-field or normalization (the handle grammar, the
 /// runtime enum, the reasoning-token shape AND its runtime tuning policy, the
-/// fast-mode runtime allowlist, the session-scope enum, the `host_id` empty→default
+/// service-tier runtime allowlist, the session-scope enum, the `host_id` empty→default
 /// normalization), so all of it lives in `TryFrom<RawCreateBody>`; there is no stateless
 /// single-field garde rule to run, hence every field is `#[garde(skip)]`.
 #[derive(Debug, Deserialize, Validate)]
@@ -675,6 +675,10 @@ struct RawCreateBody {
     #[serde(default)]
     #[garde(skip)]
     reasoning_effort: RequiredPatchField<String>,
+    #[serde(default)]
+    #[garde(skip)]
+    service_tier: RequiredPatchField<String>,
+    /// Legacy spelling from clients predating `service_tier`.
     #[serde(default)]
     #[garde(skip)]
     fast_mode: RequiredPatchField<bool>,
@@ -710,7 +714,9 @@ impl TryFrom<RawCreateBody> for CreateAgentInput {
     fn try_from(raw: RawCreateBody) -> Result<Self, Self::Error> {
         let model = present(raw.model);
         let reasoning_effort = present(raw.reasoning_effort);
-        let fast_mode = present(raw.fast_mode);
+        let service_tier = present(raw.service_tier).or_else(|| {
+            present(raw.fast_mode).map(|fast| service_tier_from_fast_mode(fast).to_owned())
+        });
         let description = present(raw.description);
         let host_id = present(raw.host_id);
         let session_scope = present(raw.session_scope);
@@ -731,8 +737,7 @@ impl TryFrom<RawCreateBody> for CreateAgentInput {
             return Err(());
         }
 
-        // `fast_mode`: only a fast-mode-capable runtime may carry the tri-state at all.
-        if fast_mode.is_some() && !runtime_supports_fast_mode(runtime) {
+        if !service_tier_valid_for_runtime(runtime, service_tier.as_deref()) {
             return Err(());
         }
 
@@ -755,7 +760,7 @@ impl TryFrom<RawCreateBody> for CreateAgentInput {
             runtime,
             model,
             reasoning_effort,
-            fast_mode,
+            service_tier,
             description,
             host_id,
             session_scope,
@@ -979,7 +984,7 @@ mod tests {
             runtime: RuntimeKind::Codex,
             model: Some("gpt-5.6-sol".to_owned()),
             reasoning_effort: Some("high".to_owned()),
-            fast_mode: Some(false),
+            service_tier: Some("default".into()),
             host_id: "h1".to_owned(),
             host_display_label: Some("Host One".to_owned()),
             host_name: Some("host-one".to_owned()),
@@ -1732,9 +1737,11 @@ mod tests {
             r#"{"runtime":"codex"}"#,
             r#"{"name":"a"}"#,
             r#"{"name":123,"runtime":"codex"}"#,
+            r#"{"name":"a","runtime":"codex","service_tier":true}"#,
             r#"{"name":"a","runtime":"codex","fast_mode":"yes"}"#,
             r#"{"name":"a","runtime":"codex","model":null}"#,
             r#"{"name":"a","runtime":"codex","reasoning_effort":null}"#,
+            r#"{"name":"a","runtime":"codex","service_tier":null}"#,
             r#"{"name":"a","runtime":"codex","fast_mode":null}"#,
             r#"{"name":"a","runtime":"codex","description":null}"#,
             r#"{"name":"a","runtime":"codex","host_id":null}"#,
@@ -1758,14 +1765,16 @@ mod tests {
     #[tokio::test]
     async fn a_semantic_rule_fault_is_the_minimal_422_invalid_input() {
         // Structurally valid bodies that fail the cross-field `TryFrom`: bad handle
-        // grammar, bad runtime enum, bad reasoning shape, fast-mode on a non-capable
+        // grammar, bad runtime enum, bad reasoning shape, service-tier on a non-capable
         // runtime, bad session-scope enum. Each is the ONE terminal semantic 422.
         for body in [
             r#"{"name":"has space","runtime":"codex"}"#,
             r#"{"name":"a","runtime":"nope"}"#,
             r#"{"name":"a","runtime":"codex","reasoning_effort":"HIGH"}"#,
             r#"{"name":"a","runtime":"opencode","reasoning_effort":"high"}"#,
+            r#"{"name":"a","runtime":"claude","service_tier":"default"}"#,
             r#"{"name":"a","runtime":"claude","fast_mode":false}"#,
+            r#"{"name":"a","runtime":"codex","service_tier":"Bad Tier"}"#,
             r#"{"name":"a","runtime":"codex","session_scope":"team"}"#,
         ] {
             let (status, resp) = oneshot(create_request(body, true)).await;

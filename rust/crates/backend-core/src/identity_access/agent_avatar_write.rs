@@ -542,7 +542,7 @@ mod tests {
             agent_id: agent(),
             display_name: "Agent One".to_owned(),
             description: None,
-            fast_mode: None,
+            service_tier: None,
             avatar,
             context: ctx(),
         }
@@ -557,7 +557,7 @@ mod tests {
             description: None,
             model: None,
             reasoning_effort: None,
-            fast_mode: None,
+            service_tier: None,
             avatar,
             updated_at: NOW,
         }

@@ -3,6 +3,7 @@ import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import {
   modelReasoningOptions,
+  modelServiceTierOptions,
   runtimeModelsKey,
   runtimeModelsQueryOptions,
 } from "./use-runtime-models";
@@ -121,4 +122,30 @@ it("uses discovered per-model efforts, including an explicit empty set, else the
     "xhigh",
     "max",
   ]);
+});
+
+it("lists Standard plus discovered per-model tiers, else the static Fast tier", () => {
+  const discovery = {
+    runtime: "codex" as const,
+    status: "ok" as const,
+    models: ["sol", "plain"],
+    detected_at: 1,
+    cached: false,
+    service_tiers_by_model: {
+      sol: [
+        { id: "priority", name: "Fast" },
+        { id: "ultrafast", name: "Ultrafast" },
+      ],
+    },
+  };
+  expect(modelServiceTierOptions("codex", "sol", discovery)).toEqual([
+    { id: "default" },
+    { id: "priority", name: "Fast" },
+    { id: "ultrafast", name: "Ultrafast" },
+  ]);
+  expect(modelServiceTierOptions("codex", "plain", discovery)).toEqual([
+    { id: "default" },
+    { id: "priority" },
+  ]);
+  expect(modelServiceTierOptions("claude", null, null)).toEqual([]);
 });

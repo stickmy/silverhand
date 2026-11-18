@@ -17,7 +17,7 @@ const agent = (overrides: Partial<AgentDto> = {}): AgentDto =>
     description: null,
     model: null,
     reasoning_effort: null,
-    fast_mode: null,
+    service_tier: null,
     avatar_url: null,
     created_by_user_id: "u-creator",
     created_at: 0,

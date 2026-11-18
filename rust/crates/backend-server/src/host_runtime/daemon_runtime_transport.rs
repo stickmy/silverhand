@@ -19,7 +19,9 @@ use silverhand_backend_core::{
 
 use crate::{
     conversation_messaging::messaging::references::MarkdownReferencePositions,
-    foundation::daemon_transport::{AttachedHostDataPlane, CommandDispatchError, CommandRefusal},
+    foundation::daemon_transport::{
+        AttachedHostDataPlane, CommandDispatchError, CommandRefusal, DaemonFeatures,
+    },
     host_runtime::daemon_runtime_codecs::{
         runtime_start,
         runtime_stop::{self, RuntimeStopCodecError, RuntimeStopCommand},
@@ -80,9 +82,10 @@ impl<D: RuntimeDispatchReadPort> RuntimeStartTransport for StartTransport<D> {
                 StartTransportError::TargetUnavailable,
             ));
         }
-        let params = runtime_start::encode(&self.target, handoff).map_err(|_| {
-            RuntimeDispatchFailure::ProvenNotDispatched(StartTransportError::InvalidRequest)
-        })?;
+        let params =
+            runtime_start::encode(&self.target, handoff, self.plane.features()).map_err(|_| {
+                RuntimeDispatchFailure::ProvenNotDispatched(StartTransportError::InvalidRequest)
+            })?;
         match self
             .plane
             .dispatch(
@@ -296,7 +299,7 @@ where
                 ));
             }
         };
-        let params = runtime_deliver_params(&self.target, handoff, &batch);
+        let params = runtime_deliver_params(&self.target, handoff, &batch, self.plane.features());
         match self
             .plane
             .dispatch(
@@ -406,6 +409,7 @@ fn runtime_deliver_params(
     target: &RuntimeDispatchTarget,
     handoff: &RuntimeStartHandoff,
     batch: &ClaimedInboxBatch,
+    features: DaemonFeatures,
 ) -> Value {
     let deliveries = batch
         .deliveries()
@@ -433,7 +437,7 @@ fn runtime_deliver_params(
         "deliveries": deliveries,
         "kind": "message",
         "text": compose_delivery_text(batch),
-        "spawn_options": spawn_options(&target.plan, handoff.daemon_auth_token()),
+        "spawn_options": spawn_options(&target.plan, handoff.daemon_auth_token(), features),
     })
 }
 

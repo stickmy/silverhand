@@ -2556,7 +2556,7 @@ async fn runtime_control_start_traverses_typed_codec_and_production_fifo() {
                 runtime: RuntimeKind::Codex,
                 model: None,
                 reasoning_effort: None,
-                fast_mode: None,
+                service_tier: None,
                 cli_session_id: None,
             },
             workspace: None,

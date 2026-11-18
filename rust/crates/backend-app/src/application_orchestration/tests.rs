@@ -7165,7 +7165,7 @@ async fn the_composition_agent_runtime_control_faces_reach_the_shared_production
             "/api/agents/a-switch/runtime",
             Some(&bearer),
             Body::from(
-                r#"{"runtime":"codex","model":null,"reasoning_effort":null,"fast_mode":null}"#,
+                r#"{"runtime":"codex","model":null,"reasoning_effort":null,"service_tier":null}"#,
             ),
         )
         .await;
