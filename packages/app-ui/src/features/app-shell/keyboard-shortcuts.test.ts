@@ -197,6 +197,22 @@ it("closes a human inspector before its preserved thread", () => {
   ).toEqual({ outcome: "closed-panel", target: "human" });
 });
 
+it("closes an attachment preview before the files list under it", () => {
+  expect(
+    resolveContextualClose({
+      agentPanelId: null,
+      humanPanelId: null,
+      attachmentPanelId: "att",
+      filesListOpen: true,
+      taskPaneOpen: false,
+      sideConversationId: null,
+      threadRootId: null,
+      threadsListOpen: false,
+      activityChannelOpen: false,
+    }),
+  ).toEqual({ outcome: "closed-panel", target: "attachment" });
+});
+
 it("closes channel settings before the preserved thread", () => {
   expect(
     resolveContextualClose({

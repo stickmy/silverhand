@@ -308,6 +308,8 @@ export function useConversationShell({
         closeAgentPanel: nav.closeAgentPanel,
         closeHumanPanel: nav.closeHumanPanel,
         closeFilesList: nav.closeFilesList,
+        openAttachmentPanel: nav.openAttachmentPanel,
+        closeAttachmentPanel: nav.closeAttachmentPanel,
         closeThread: nav.closeThread,
         closeThreadsList: nav.closeThreadsList,
         openThread: nav.openThread,

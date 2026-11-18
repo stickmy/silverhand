@@ -297,6 +297,10 @@ export interface RouteState {
    *  `/members/:agentId` *full-page* route segment. */
   agentPanelId: string | null;
   humanPanelId: string | null;
+  /** Attachment previewed in the right pane (`?attachment=<id>`). With
+   *  `?files=1` it previews inside the Attachments panel, which keeps its list
+   *  underneath for Back; alone it is its own overlay pane. */
+  attachmentPanelId: string | null;
 }
 
 /**
@@ -383,6 +387,7 @@ export function parseRouteState(pathname: string, search: string): RouteState {
   const rawAgentPanel = searchParams.get("agent");
   const agentPanelId = rawAgentPanel && rawAgentPanel.length > 0 ? rawAgentPanel : null;
   const humanPanelId = searchParams.get("human") || null;
+  const attachmentPanelId = searchParams.get("attachment") || null;
   const rawTask = searchParams.get("task");
   // Opaque id, treated exactly like `?side` / `?agent`: non-empty or null.
   // An unresolvable value is NOT filtered out here — the modal host resolves
@@ -447,6 +452,7 @@ export function parseRouteState(pathname: string, search: string): RouteState {
     userId: mUser?.params.userId ?? null,
     agentPanelId,
     humanPanelId,
+    attachmentPanelId,
   };
 }
 
@@ -645,6 +651,7 @@ const SECONDARY_PANES = {
   human: { mode: "overlay", survivesOverlay: false },
   settings: { mode: "overlay", survivesOverlay: false },
   files: { mode: "overlay", survivesOverlay: false },
+  attachment: { mode: "overlay", survivesOverlay: false },
   task: { mode: "overlay", survivesOverlay: false },
 } as const satisfies Record<string, { mode: "overlay" | "replace"; survivesOverlay: boolean }>;
 
@@ -681,6 +688,8 @@ function writeSecondaryPaneOpen(params: URLSearchParams, pane: SecondaryPane, va
 function writeSecondaryPaneClose(params: URLSearchParams, pane: SecondaryPane): void {
   params.delete(pane);
   if (pane === "settings") params.delete("settingsPage");
+  // A preview inside the Attachments panel leaves with the panel.
+  if (pane === "files") params.delete("attachment");
   params.delete("fullscreen");
 }
 
@@ -959,6 +968,31 @@ export function withAgentQuery(pathname: string, search: string, agentId: string
   return serializeQuery(pathname, params);
 }
 
+/**
+ * Build a URL with `?attachment` written or cleared. An overlay pane; with
+ * `inFiles` the open keeps `?files=1`, so the preview replaces the
+ * Attachments list and closing it returns to that list.
+ */
+export function withAttachmentQuery(
+  pathname: string,
+  search: string,
+  attachmentId: string | null,
+  inFiles = false,
+): string {
+  const params = new URLSearchParams(search);
+
+  if (attachmentId === null) {
+    writeSecondaryPaneClose(params, "attachment");
+  } else {
+    writeSecondaryPaneOpen(params, "attachment", attachmentId);
+    if (inFiles) {
+      params.set("files", "1");
+    }
+  }
+
+  return serializeQuery(pathname, params);
+}
+
 export function withHumanQuery(pathname: string, search: string, userId: string | null): string {
   const params = new URLSearchParams(search);
 
@@ -993,6 +1027,7 @@ export type NavigationTarget =
   | { kind: "conversation-settings"; conversationId: string }
   | { kind: "conversation-members"; conversationId: string; add?: boolean }
   | { kind: "attachments" }
+  | { kind: "attachment"; attachmentId: string; inFiles?: boolean }
   | { kind: "threads" }
   | { kind: "task"; taskId: string }
   | { kind: "agent"; agentId: string }
@@ -1036,6 +1071,8 @@ export function resolveNavigationTarget(
       return withChannelSettingsQuery(pathname, search, target.conversationId);
     case "attachments":
       return withFilesQuery(pathname, search, true);
+    case "attachment":
+      return withAttachmentQuery(pathname, search, target.attachmentId, target.inFiles);
     case "threads":
       return withThreadsQuery(pathname, search, true);
     case "task":
@@ -1151,6 +1188,10 @@ export function useNav() {
         new URLSearchParams(search).get("files") === "1"
           ? drive(withFilesQuery(pathname, search, false), { replace: true })
           : navigate({ kind: "attachments" }),
+      openAttachmentPanel: (attachmentId: string, inFiles = false) =>
+        navigate({ kind: "attachment", attachmentId, inFiles }),
+      closeAttachmentPanel: () =>
+        drive(withAttachmentQuery(pathname, search, null), { replace: true }),
       openChannelSettings: (conversationId: string) =>
         navigate({ kind: "conversation-settings", conversationId }),
       openChannelMembers: (conversationId: string, add = false) =>

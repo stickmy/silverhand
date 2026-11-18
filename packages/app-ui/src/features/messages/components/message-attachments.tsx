@@ -1,7 +1,8 @@
 import { getPlatform } from "@/platform";
 import { fetchAttachmentBytes } from "@/lib/api";
 import { useState, type ReactNode } from "react";
-import { DocumentIcon, ViewIcon } from "@/icons";
+import { DocumentIcon, ExpandIcon } from "@/icons";
+import { useCompactLayout } from "@/navigation/layout";
 import type { AttachmentSnapshot } from "@silverhand/shared";
 import { resolveAttachmentLabels } from "@silverhand/shared";
 import {
@@ -20,6 +21,7 @@ export function AttachmentList({
   lead,
   canExport = true,
   onOpenAttachment,
+  onExpandAttachment,
 }: {
   attachments: AttachmentSnapshot[];
   /** Leads the strip as its first item, so it sits right before the first tile
@@ -31,9 +33,11 @@ export function AttachmentList({
    *  `false` for a non-member browsing a public channel: inline
    *  PREVIEW stays, but the download / open affordances are withheld. */
   canExport?: boolean;
-  /** Open a md/html attachment in its previewer tab (#task:2122). Absent → the
-   *  tile keeps the open-with-OS main click for every type. */
+  /** Preview a md/html attachment beside the conversation. Absent → the tile
+   *  keeps the open-with-OS main click for every type. */
   onOpenAttachment?: (attachment: AttachmentSnapshot) => void;
+  /** Preview a md/html attachment in a main-pane tab. */
+  onExpandAttachment?: (attachment: AttachmentSnapshot) => void;
 }): JSX.Element {
   // Resolve every tile's label once at the list level so ordinals match the
   // agent-facing stdin suffix exactly (same shared resolver). This lets a
@@ -49,6 +53,7 @@ export function AttachmentList({
           label={labels[i]}
           canExport={canExport}
           onOpenAttachment={onOpenAttachment}
+          onExpandAttachment={onExpandAttachment}
         />
       ))}
     </div>
@@ -60,12 +65,15 @@ export function AttachmentTile({
   label,
   canExport = true,
   onOpenAttachment,
+  onExpandAttachment,
 }: {
   attachment: AttachmentSnapshot;
   label?: string;
   canExport?: boolean;
   onOpenAttachment?: (attachment: AttachmentSnapshot) => void;
+  onExpandAttachment?: (attachment: AttachmentSnapshot) => void;
 }): JSX.Element {
+  const compact = useCompactLayout();
   const isImage = attachment.content_type.startsWith("image/");
   // The owner supplies the destination tab controller, directly or via a sibling
   // pane relay. Legacy generic MIME types still classify by filename suffix.
@@ -194,21 +202,21 @@ export function AttachmentTile({
             {formatBytes(attachment.size)}
           </span>
         </button>
-        {previewable ? (
+        {previewable && onExpandAttachment && !compact ? (
           <button
             type="button"
-            onClick={() => onOpenAttachment?.(attachment)}
-            className="flex shrink-0 items-center justify-center px-2 text-text-muted hover:text-text-primary focus-outline"
-            title={t("messages.view")}
-            aria-label={t("messages.viewFile", { file: attachment.filename })}
+            onClick={() => onExpandAttachment(attachment)}
+            className="flex shrink-0 items-center justify-center px-1 text-text-muted hover:text-text-primary focus-outline"
+            title={t("messages.openInMainPane")}
+            aria-label={t("messages.openFileInMainPane", { file: attachment.filename })}
           >
-            <ViewIcon className="size-3.5" />
+            <ExpandIcon className="size-3.5" />
           </button>
         ) : null}
         <button
           type="button"
           onClick={() => void saveAttachmentToDisk(attachment)}
-          className="flex shrink-0 items-center justify-center px-2 text-text-muted hover:text-text-primary focus-outline"
+          className="flex shrink-0 items-center justify-center pr-2 pl-1 text-text-muted hover:text-text-primary focus-outline"
           title={t("messages.download")}
           aria-label={t("messages.downloadFile", { file: attachment.filename })}
         >

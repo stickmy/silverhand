@@ -71,6 +71,8 @@ export const conversationShell: Translation<typeof en> = {
   zoomLevel: "缩放比例",
   zoomIn: "放大",
   openInDefaultApp: "用默认应用打开",
+  openInMainPane: "在主栏打开",
+  openInSidePanel: "在侧栏打开",
   open: "打开",
   download: "下载",
   loadingAttachmentPreview: "正在加载附件预览",

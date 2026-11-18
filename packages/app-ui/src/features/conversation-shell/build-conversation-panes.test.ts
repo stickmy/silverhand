@@ -37,6 +37,7 @@ beforeEach(() => {
     threadRootId: null,
     agentPanelId: null,
     humanPanelId: null,
+    attachmentPanelId: null,
   };
   read = {
     workspaceNameById: (id) => id,
@@ -96,6 +97,8 @@ beforeEach(() => {
     closeAgentPanel: vi.fn(),
     closeHumanPanel: vi.fn(),
     closeFilesList: vi.fn(),
+    openAttachmentPanel: vi.fn(),
+    closeAttachmentPanel: vi.fn(),
     closeThread: vi.fn(() => {
       calls.push("close");
     }),
@@ -239,12 +242,41 @@ describe("branch-specific data and commands", () => {
       created_by_id: "u",
     };
     model.props.onOpenAttachment?.(attachment);
+    expect(commands.openAttachmentPanel).toHaveBeenCalledExactlyOnceWith("a", true);
+    model.props.onClose();
+    expect(commands.closeFilesList).toHaveBeenCalledTimes(1);
+  });
+  it("previews inside the files list, backs to it, and expands into the issuing conversation", () => {
+    state.filesListMounted = true;
+    route.attachmentPanelId = "a";
+    const model = secondary();
+    if (model.kind !== "files" || !model.preview) {
+      throw new Error("Expected files preview");
+    }
+    route.channelId = "later";
+    model.preview.onBack?.();
+    expect(commands.closeAttachmentPanel).toHaveBeenCalledTimes(1);
+    model.preview.onClose();
+    expect(commands.closeFilesList).toHaveBeenCalledTimes(1);
+    const attachment = { id: "a", filename: "a.md", size: 1, content_type: "text/markdown" };
+    model.preview.onExpand?.(attachment);
     expect(commands.setPaneAttachmentRequest).toHaveBeenCalledExactlyOnceWith({
       conversationId: "c",
       attachment,
     });
+    expect(commands.closeFilesList).toHaveBeenCalledTimes(2);
+  });
+  it("shows a standalone attachment preview that closes only itself", () => {
+    route.attachmentPanelId = "a";
+    route.threadRootId = "root";
+    const model = secondary();
+    if (model.kind !== "attachment") {
+      throw new Error("Expected attachment");
+    }
+    expect(model.props.attachmentId).toBe("a");
+    expect(model.props.onBack).toBeUndefined();
     model.props.onClose();
-    expect(commands.closeFilesList).toHaveBeenCalledTimes(1);
+    expect(commands.closeAttachmentPanel).toHaveBeenCalledTimes(1);
   });
   it("keeps DM thread coordinates, inherited permissions and prime-before-close ordering", () => {
     route.workspaceId = null;
@@ -287,6 +319,8 @@ describe("branch-specific data and commands", () => {
       created_by_id: "u",
     };
     model.props.onOpenAttachment?.(attachment);
+    expect(commands.openAttachmentPanel).toHaveBeenCalledExactlyOnceWith("a");
+    model.props.onExpandAttachment?.(attachment);
     expect(commands.setPaneAttachmentRequest).toHaveBeenCalledExactlyOnceWith({
       conversationId: "dm",
       attachment,

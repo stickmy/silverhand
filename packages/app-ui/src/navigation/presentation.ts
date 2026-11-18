@@ -5,8 +5,16 @@ export function showsTabBar(path: string, search = ""): boolean {
   const query = new URLSearchParams(search);
   return (
     root &&
-    !["side", "thread", "threads", "files", "settings", "task", "agent", "human"].some((key) =>
-      query.has(key),
-    )
+    ![
+      "side",
+      "thread",
+      "threads",
+      "files",
+      "attachment",
+      "settings",
+      "task",
+      "agent",
+      "human",
+    ].some((key) => query.has(key))
   );
 }

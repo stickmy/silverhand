@@ -59,11 +59,11 @@ export interface MessageItemProps {
   /** Lookup by conversation id for inline `#conv:<id>` references. */
   conversationRefsById?: Map<string, WorkspaceChannelReference>;
   onOpenConversationRef?: (id: string) => void;
-  /** Open a `.md` / `.html` attachment in its in-app previewer tab (#task:2122),
-   *  open-or-focus on the attachment id. Wired by the parent to the
-   *  conversation's tab controller. Absent (e.g. thread pane, or view tabs
-   *  disabled) → md/html keep the open-with-OS behaviour of every other type. */
+  /** Preview a `.md` / `.html` attachment beside the conversation. Absent →
+   *  md/html keep the open-with-OS behaviour of every other type. */
   onOpenAttachment?: (attachment: AttachmentSnapshot) => void;
+  /** Open a `.md` / `.html` attachment in a main-pane tab. */
+  onExpandAttachment?: (attachment: AttachmentSnapshot) => void;
   onStartThread?: (msg: CachedMessage, jumpToMessageId?: string) => void;
   /** When this message has an open thread anchored to it, the count of
    *  non-system replies in that thread. Drives the button label
@@ -286,6 +286,7 @@ function ActorMessageItem({
   conversationRefsById,
   onOpenConversationRef,
   onOpenAttachment,
+  onExpandAttachment,
   onStartThread,
   threadReplyCount,
   threadReplySummary,
@@ -497,6 +498,7 @@ function ActorMessageItem({
         lead={alignRight && !bodyNode ? hoverTime : null}
         canExport={canParticipate}
         onOpenAttachment={onOpenAttachment}
+        onExpandAttachment={onExpandAttachment}
       />
     ) : null;
   // Null when the message has no reactions — keeps the shared bottom row

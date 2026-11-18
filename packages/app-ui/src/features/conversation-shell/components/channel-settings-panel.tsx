@@ -1,8 +1,9 @@
 import { ChannelSettingsSkeleton } from "./channel-settings-skeleton";
 import { useChannelSettingsDetail } from "../use-channel-settings-detail";
 import { toast } from "@/lib/toast";
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { AnimatePresence, motion, useIsPresent, useReducedMotion } from "motion/react";
+import { useEffect, useRef, useState } from "react";
+import { AnimatePresence } from "motion/react";
+import { PageSwapTransition } from "@/components/layout/page-swap";
 import { ChevronRightIcon, HashIcon, LockIcon, PowerIcon, RefreshIcon } from "@/icons";
 import type { ChannelDetailResponse } from "@silverhand/shared";
 import { useNav, useRouteState } from "@/router";
@@ -160,7 +161,6 @@ function SettingsBody({
   onArchived: (archived: boolean) => void;
   onLeft: (channel: ChannelDetailResponse["channel"]) => void;
 }): JSX.Element {
-  const reducedMotion = useReducedMotion();
   const { channel } = detail;
   const channelId = channel.id;
   const mounted = useRef(false);
@@ -236,10 +236,10 @@ function SettingsBody({
 
   return (
     <AnimatePresence initial={false} mode="wait" custom={membersPage ? 1 : -1}>
-      <SettingsPageTransition
+      <PageSwapTransition
         key={membersPage ? "members" : "overview"}
         direction={membersPage ? 1 : -1}
-        reducedMotion={!!reducedMotion}
+        className="min-h-0 flex-1 overflow-y-auto"
       >
         <div className="flex flex-col gap-8 p-4">
           {membersPage ? (
@@ -334,51 +334,7 @@ function SettingsBody({
             </>
           )}
         </div>
-      </SettingsPageTransition>
+      </PageSwapTransition>
     </AnimatePresence>
-  );
-}
-
-/** An exiting page stays visible briefly, but must no longer accept input. */
-function SettingsPageTransition({
-  children,
-  direction,
-  reducedMotion,
-}: {
-  children: ReactNode;
-  direction: number;
-  reducedMotion: boolean;
-}): JSX.Element {
-  const isPresent = useIsPresent();
-
-  return (
-    <motion.div
-      ref={(node) => node?.toggleAttribute("inert", !isPresent)}
-      aria-hidden={!isPresent || undefined}
-      className="min-h-0 flex-1 overflow-y-auto"
-      style={{ pointerEvents: isPresent ? undefined : "none" }}
-      custom={direction}
-      variants={{
-        enter: (nextDirection: number) => ({
-          opacity: 0,
-          x: reducedMotion ? 0 : nextDirection * 8,
-        }),
-        visible: {
-          opacity: 1,
-          x: 0,
-          transition: { duration: reducedMotion ? 0 : 0.12, ease: "easeOut" },
-        },
-        exit: (nextDirection: number) => ({
-          opacity: 0,
-          x: reducedMotion ? 0 : nextDirection * -8,
-          transition: { duration: reducedMotion ? 0 : 0.06, ease: "easeIn" },
-        }),
-      }}
-      initial="enter"
-      animate="visible"
-      exit="exit"
-    >
-      {children}
-    </motion.div>
   );
 }

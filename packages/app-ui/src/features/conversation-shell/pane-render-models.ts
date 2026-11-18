@@ -3,6 +3,7 @@ import type { ComponentProps } from "react";
 import type { DirectPairDraftPane } from "@/features/direct-pairs/direct-pair-draft-pane";
 import type { ChannelView } from "@/features/conversation-shell/components/channel-view";
 import type { AgentView } from "@/features/agents/components/agent-view";
+import type { AttachmentSidePanel } from "@/features/conversation-shell/components/attachment-side-panel";
 import type { ChannelAttachmentsPanel } from "@/features/conversation-shell/components/channel-attachments-panel";
 import type { TaskDetailPanel } from "@/features/tasks/components/task-detail-panel";
 import type { SideUnresolvedPlaceholder } from "@/features/conversation-shell/components/side-unresolved-placeholder";
@@ -38,6 +39,7 @@ export type PrimaryPaneProps = Pick<
   | "onJumpToMessage"
   | "onOpenAdvancedSearch"
   | "viewTabsEnabled"
+  | "onOpenAttachmentPanel"
   | "openAttachmentRequest"
   | "onAttachmentRequestConsumed"
 >;
@@ -55,6 +57,11 @@ export type AgentPaneProps = Pick<
 export type FilesPaneProps = Pick<
   ComponentProps<typeof ChannelAttachmentsPanel>,
   "channelId" | "workspaceId" | "parentTitle" | "onClose" | "onJumpToMessage" | "onOpenAttachment"
+>;
+
+export type AttachmentPaneProps = Pick<
+  ComponentProps<typeof AttachmentSidePanel>,
+  "attachmentId" | "onClose" | "onBack" | "onExpand"
 >;
 
 export type TaskPaneProps = Pick<
@@ -92,6 +99,7 @@ export type ThreadPaneProps = Pick<
   | "directory"
   | "rootMessageId"
   | "onOpenAttachment"
+  | "onExpandAttachment"
   | "parentTitle"
   | "parentCounterpart"
   | "closed"
@@ -128,7 +136,8 @@ export type SecondaryPaneModel =
     }
   | { kind: "agent"; props: AgentPaneProps }
   | { kind: "human"; props: Pick<ComponentProps<typeof HumanView>, "userId" | "onClose"> }
-  | { kind: "files"; props: FilesPaneProps }
+  | { kind: "files"; props: FilesPaneProps; preview: AttachmentPaneProps | null }
+  | { kind: "attachment"; props: AttachmentPaneProps }
   | { kind: "task"; props: TaskPaneProps }
   | { kind: "conversation"; status: "resolved"; props: SidePaneProps }
   | { kind: "conversation"; status: "unresolved"; props: UnresolvedPaneProps }

@@ -3,7 +3,7 @@ import { DocumentSkeleton } from "@/components/layout/document-skeleton";
 import { RangeInput } from "@/components/ui/range-input";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "@/lib/toast";
-import { OpenExternalIcon, ZoomInIcon, ZoomOutIcon } from "@/icons";
+import { OpenExternalIcon, CollapseIcon, ZoomInIcon, ZoomOutIcon } from "@/icons";
 import { cn } from "@/lib/cn";
 import { fetchAttachmentBytes } from "@/lib/api";
 import { useAttachmentBlobToken } from "@/features/attachments/attachment-blob-cache";
@@ -42,11 +42,21 @@ export interface ChannelAttachmentTabProps {
   /** The `content_type` captured when the tab was opened. Used as the
    *  classification fallback; the freshly fetched type wins when present. */
   contentType: string;
+  /** Moves this preview to the side panel. Absent where there is no side
+   *  panel to move to. */
+  onCollapse?: () => void;
 }
 
-type LoadState =
+export type AttachmentPreviewState =
   | { status: "loading" }
-  | { status: "ready"; text: string; contentType: string }
+  | {
+      status: "ready";
+      text: string;
+      contentType: string;
+      /** From the response, so a preview opened by id alone can name itself. */
+      filename: string | null;
+      size: number;
+    }
   | { status: "error"; message: string };
 
 // Continuous host zoom for the HTML preview. Min below 100% so a fixed-size
@@ -69,14 +79,15 @@ const htmlZoomByAttachment = new Map<string, number>();
 const storedHtmlZoom = (attachmentId: string): number =>
   htmlZoomByAttachment.get(attachmentId) ?? 1;
 
-export function ChannelAttachmentTab({
-  attachmentId,
-  filename,
-  contentType,
-}: ChannelAttachmentTabProps): JSX.Element {
+/**
+ * Bytes, classification and HTML zoom for one attachment preview, shared by the
+ * main-pane tab and the side panel so both follow the same revision and keep
+ * the same per-attachment zoom.
+ */
+export function useAttachmentPreview(attachmentId: string, contentType: string, filename: string) {
   const token = useAttachmentBlobToken(attachmentId);
   const revision = Number(token.split(":")[1] ?? 0);
-  const [state, setState] = useState<LoadState>({ status: "loading" });
+  const [state, setState] = useState<AttachmentPreviewState>({ status: "loading" });
   const [htmlZoom, setHtmlZoom] = useState(() => storedHtmlZoom(attachmentId));
   const shownRef = useRef<{ attachmentId: string; revision: number } | null>(null);
   // Read during render so a zoom committed in the same tick keys off the
@@ -116,7 +127,7 @@ export function ChannelAttachmentTab({
     // never flashes a spinner.
     if (!isRefresh) setState({ status: "loading" });
     fetchAttachmentBytes(attachmentId)
-      .then(({ bytes, contentType: fetchedType }) => {
+      .then(({ bytes, contentType: fetchedType, filename: fetchedName }) => {
         if (cancelled) return;
         // Not `fatal` — a stray non-UTF-8 byte degrades to U+FFFD rather than
         // blanking the whole preview.
@@ -126,7 +137,13 @@ export function ChannelAttachmentTab({
         const isRevisionBump =
           isRefresh && shown !== null && Number.isFinite(revision) && revision > shown.revision;
         shownRef.current = { attachmentId, revision };
-        setState({ status: "ready", text, contentType: fetchedType });
+        setState({
+          status: "ready",
+          text,
+          contentType: fetchedType,
+          filename: fetchedName,
+          size: bytes.byteLength,
+        });
         if (isRevisionBump)
           toast(t("conversationShell.attachmentUpdated"), { icon: toastIcon("attachment") });
       })
@@ -147,11 +164,23 @@ export function ChannelAttachmentTab({
 
   const readyKind =
     state.status === "ready"
-      ? attachmentPreviewKind(state.contentType || contentType, filename)
+      ? attachmentPreviewKind(state.contentType || contentType, state.filename ?? filename)
       : null;
   const atMinZoom = htmlZoom <= HTML_ZOOM_MIN + 1e-3;
   const atMaxZoom = htmlZoom >= HTML_ZOOM_MAX - 1e-3;
   usePinchZoomLease(readyKind === "html");
+
+  return { state, readyKind, htmlZoom, zoomTo, onPinch, atMinZoom, atMaxZoom };
+}
+
+export function ChannelAttachmentTab({
+  attachmentId,
+  filename,
+  contentType,
+  onCollapse,
+}: ChannelAttachmentTabProps): JSX.Element {
+  const { state, readyKind, htmlZoom, zoomTo, onPinch, atMinZoom, atMaxZoom } =
+    useAttachmentPreview(attachmentId, contentType, filename);
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-(--pane-bg,var(--bg-base))">
@@ -206,6 +235,20 @@ export function ChannelAttachmentTab({
             </span>
           </div>
         ) : null}
+        {onCollapse ? (
+          <button
+            type="button"
+            onClick={onCollapse}
+            data-sticker
+            data-sticker-size="md"
+            data-sticker-tone="neutral"
+            className="flex size-7 shrink-0 items-center justify-center rounded-(--chip-radius) text-text-secondary hover:text-text-primary focus-outline"
+            aria-label={t("conversationShell.openInSidePanel")}
+            title={t("conversationShell.openInSidePanel")}
+          >
+            <CollapseIcon className="size-3.5" />
+          </button>
+        ) : null}
         {getPlatform().files.openAttachmentExternal ? (
           <button
             type="button"
@@ -235,7 +278,7 @@ export function ChannelAttachmentTab({
           {t("conversationShell.download")}
         </button>
       </div>
-      <AttachmentTabBody
+      <AttachmentPreviewBody
         state={state}
         filename={filename}
         fallbackContentType={contentType}
@@ -246,14 +289,14 @@ export function ChannelAttachmentTab({
   );
 }
 
-function AttachmentTabBody({
+export function AttachmentPreviewBody({
   state,
   filename,
   fallbackContentType,
   htmlZoom,
   onPinch,
 }: {
-  state: LoadState;
+  state: AttachmentPreviewState;
   filename: string;
   fallbackContentType: string;
   htmlZoom: number;

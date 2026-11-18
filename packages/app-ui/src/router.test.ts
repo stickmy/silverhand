@@ -1,4 +1,4 @@
-import { routes, withHumanQuery } from "./router";
+import { routes, withAttachmentQuery, withHumanQuery } from "./router";
 import { describe, expect, it } from "vitest";
 import {
   buildAgentPanelOpenUrl,
@@ -1022,6 +1022,32 @@ describe("human profile overlay routing", () => {
       "human=",
     );
     expect(parseRouteState("/chat/d/dm-a", "?human=").humanPanelId).toBeNull();
+  });
+});
+
+describe("attachment preview routing", () => {
+  it("previews inside the files list and returns to it", () => {
+    const opened = withAttachmentQuery("/chat/w/w-1/c/c-a", "?files=1&thread=root", "att", true);
+    const search = opened.slice(opened.indexOf("?"));
+    const route = parseRouteState("/chat/w/w-1/c/c-a", search);
+
+    expect(route.attachmentPanelId).toBe("att");
+    expect(route.filesListOpen).toBe(true);
+    expect(route.threadRootId).toBe("root");
+    const back = withAttachmentQuery("/chat/w/w-1/c/c-a", search, null);
+    expect(parseRouteState("/chat/w/w-1/c/c-a", back.slice(back.indexOf("?")))).toMatchObject({
+      attachmentPanelId: null,
+      filesListOpen: true,
+    });
+    expect(withFilesQuery("/chat/w/w-1/c/c-a", search, false)).toBe(
+      "/chat/w/w-1/c/c-a?thread=root",
+    );
+  });
+
+  it("opens on its own as an overlay that clears the files list", () => {
+    const url = withAttachmentQuery("/chat/w/w-1/c/c-a", "?files=1&side=c-b", "att");
+
+    expect(url).toBe("/chat/w/w-1/c/c-a?attachment=att");
   });
 });
 

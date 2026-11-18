@@ -221,6 +221,9 @@ interface ChannelViewProps {
    *  inline. Only the PRIMARY pane passes it: a thread / side pane is a child
    *  view of the same container and gets no tab strip of its own. */
   viewTabsEnabled?: boolean;
+  /** Preview a md/html attachment in the right pane. Only the primary pane has
+   *  one beside it; elsewhere md/html open in a tab or with the system. */
+  onOpenAttachmentPanel?: (attachmentId: string) => void;
   /** One-shot request to open an attachment from a SIBLING pane (the Attachments
    *  list, #task:2122) into THIS primary pane. The list can't reach this pane's
    *  tab controller directly, so it hands the attachment up to App, which relays
@@ -333,6 +336,7 @@ function ActiveChannelView({
   onJumpToMessage,
   onOpenAdvancedSearch,
   viewTabsEnabled = false,
+  onOpenAttachmentPanel,
   openAttachmentRequest,
   onAttachmentRequestConsumed,
 }: ChannelViewProps & { conversation: ConversationPaneDescriptor }): JSX.Element {
@@ -1222,7 +1226,16 @@ function ActiveChannelView({
                 threadUnreadByRoot={threadUnreadByRoot}
                 conversationRefsById={conversationRefsById}
                 onOpenConversationRef={onOpenConversationRef}
-                onOpenAttachment={viewTabsShown ? handleOpenAttachment : undefined}
+                onOpenAttachment={
+                  onOpenAttachmentPanel
+                    ? (attachment) => onOpenAttachmentPanel(attachment.id)
+                    : viewTabsShown
+                      ? handleOpenAttachment
+                      : undefined
+                }
+                onExpandAttachment={
+                  onOpenAttachmentPanel && viewTabsShown ? handleOpenAttachment : undefined
+                }
                 onOpenChannelRef={
                   // A `#channel` chip resolves inside a workspace, so a
                   // workspace-less pane offers no navigation for one (it still
@@ -1294,6 +1307,15 @@ function ActiveChannelView({
                   attachmentId={activeAttachmentTab.attachmentId}
                   filename={activeAttachmentTab.filename}
                   contentType={activeAttachmentTab.contentType}
+                  onCollapse={
+                    onOpenAttachmentPanel && !compact
+                      ? () => {
+                          tabController.closeTab(tabKey(activeAttachmentTab));
+                          tabController.setActive("chat");
+                          onOpenAttachmentPanel(activeAttachmentTab.attachmentId);
+                        }
+                      : undefined
+                  }
                 />
               </div>
             ) : null}

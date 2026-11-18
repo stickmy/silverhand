@@ -187,6 +187,7 @@ type CloseTarget =
   | "agent"
   | "settings"
   | "files"
+  | "attachment"
   | "task"
   | "side"
   | "thread"
@@ -204,6 +205,9 @@ export interface ContextualCloseState {
   agentPanelId: string | null;
   humanPanelId?: string | null;
   filesListOpen: boolean;
+  /** Attachment preview (`?attachment`); inside the Attachments panel it peels
+   *  before the list. */
+  attachmentPanelId?: string | null;
   channelSettingsId?: string | null;
   /** Task detail is showing as the OVERLAY SIDE PANE (`?task`, #task:1721), not
    *  the app-level modal. Only the pane is a ⌘W peel target — the modal (board /
@@ -254,6 +258,7 @@ export function resolveContextualClose(state: ContextualCloseState): ContextualC
     return { outcome: "closed-panel", target: "human" };
   }
   if (state.channelSettingsId) return { outcome: "closed-panel", target: "settings" };
+  if (state.attachmentPanelId) return { outcome: "closed-panel", target: "attachment" };
   if (state.filesListOpen) return { outcome: "closed-panel", target: "files" };
   if (state.taskPaneOpen) return { outcome: "closed-panel", target: "task" };
   if (state.sideConversationId != null) {
@@ -276,6 +281,7 @@ export interface ContextualCloseNav {
   closeAgentPanel: () => void;
   closeHumanPanel: () => void;
   closeFilesList: () => void;
+  closeAttachmentPanel: () => void;
   closeChannelSettings: () => void;
   /** Clear `?task` — closes the task detail side pane (#task:1721). */
   closeTask: () => void;
@@ -293,6 +299,7 @@ type ContextualCloseRoute = Pick<
   | "agentPanelId"
   | "humanPanelId"
   | "filesListOpen"
+  | "attachmentPanelId"
   | "channelSettingsId"
   | "sideConversationId"
   | "threadRootId"
@@ -326,6 +333,7 @@ export function useContextualCloseResponder(
         agentPanelId: route.agentPanelId,
         humanPanelId: route.humanPanelId,
         filesListOpen: route.filesListOpen,
+        attachmentPanelId: route.attachmentPanelId,
         channelSettingsId: route.channelSettingsId,
         taskPaneOpen,
         sideConversationId: route.sideConversationId,
@@ -347,6 +355,9 @@ export function useContextualCloseResponder(
           break;
         case "files":
           nav.closeFilesList();
+          break;
+        case "attachment":
+          nav.closeAttachmentPanel();
           break;
         case "task":
           nav.closeTask();

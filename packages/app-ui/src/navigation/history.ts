@@ -20,6 +20,7 @@ export function parentUrl(url: string): string | null {
     "agent",
     "human",
     "task",
+    "attachment",
     "files",
     "settings",
     "thread",

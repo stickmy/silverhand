@@ -53,8 +53,8 @@ import {
   Info,
   Layers,
   Link2,
-  Maximize2,
-  Minimize2,
+  Maximize,
+  Minimize,
   Palette,
   PenLine,
   Pencil,
@@ -133,7 +133,7 @@ export const ClockIcon = icon("clock", Clock);
 export const CloseIcon = icon("close", X);
 export const CodeFontIcon = icon("code-font", CodeXml);
 export const CodeIcon = icon("code", Code);
-export const CollapseIcon = icon("collapse", Minimize2);
+export const CollapseIcon = icon("collapse", Minimize);
 export const CopyMarkdownIcon = icon("copy-markdown", ClipboardCopy);
 export const CpuIcon = icon("cpu", Cpu);
 export const CreatedByIcon = icon("created-by", PenLine);
@@ -146,7 +146,7 @@ export const EnterIcon = icon("enter", CornerDownLeft);
 /** An empty list or collection: an empty tray. */
 export const EmptyIcon = icon("empty", Inbox);
 export const ErrorIcon = icon("error", CircleAlert);
-export const ExpandIcon = icon("expand", Maximize2);
+export const ExpandIcon = icon("expand", Maximize);
 export const FailedIcon = icon("failed", CircleX);
 export const FiltersIcon = icon("filters", SlidersHorizontal);
 const chatBubble: IconNode = [

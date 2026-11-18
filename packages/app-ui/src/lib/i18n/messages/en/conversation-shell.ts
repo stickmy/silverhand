@@ -68,6 +68,8 @@ export const conversationShell = {
   zoomLevel: "Zoom level",
   zoomIn: "Zoom in",
   openInDefaultApp: "Open in default app",
+  openInMainPane: "Open in main pane",
+  openInSidePanel: "Open in side panel",
   open: "Open",
   download: "Download",
   loadingAttachmentPreview: "Loading attachment preview",

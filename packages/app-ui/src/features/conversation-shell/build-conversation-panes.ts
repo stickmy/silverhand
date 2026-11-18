@@ -1,6 +1,10 @@
 import { selectSecondarySurface } from "./model/secondary-surface";
 import { directPairSenderSeed } from "@/features/search/advanced-search-seed";
-import type { ConversationPanesModel, SecondaryPaneModel } from "./pane-render-models";
+import type {
+  AttachmentPaneProps,
+  ConversationPanesModel,
+  SecondaryPaneModel,
+} from "./pane-render-models";
 import type {
   PaneContentRoute,
   PaneContentRead,
@@ -55,6 +59,7 @@ export function buildConversationPanes(
             onJumpToMessage: commands.handleJumpToMessage,
             onOpenAdvancedSearch: commands.handleOpenAdvancedSearch,
             viewTabsEnabled: true,
+            onOpenAttachmentPanel: commands.openAttachmentPanel,
             openAttachmentRequest: state.paneAttachmentRequest,
             onAttachmentRequestConsumed: () => commands.setPaneAttachmentRequest(null),
           },
@@ -75,6 +80,7 @@ export function resolveSecondaryPane(
     human: Boolean(route.humanPanelId),
     settings: Boolean(route.channelSettingsId && route.channelId),
     files: Boolean(state.filesListMounted && route.channelId),
+    attachment: Boolean(route.attachmentPanelId && route.channelId),
     task: Boolean(state.taskPaneId && route.channelId),
     conversation: Boolean(state.secondaryDescriptor),
     thread: Boolean(route.threadRootId && route.channelId),
@@ -119,12 +125,23 @@ export function resolveSecondaryPane(
         parentTitle: read.selectedChannel?.title ?? null,
         onClose: commands.closeFilesList,
         onJumpToMessage: commands.handleJumpToMessage,
-        onOpenAttachment: (attachment) =>
-          commands.setPaneAttachmentRequest({
-            conversationId: channelId,
-            attachment,
-          }),
+        onOpenAttachment: (attachment) => commands.openAttachmentPanel(attachment.id, true),
       },
+      preview: route.attachmentPanelId
+        ? attachmentPaneProps(route.attachmentPanelId, channelId, commands, {
+            onClose: commands.closeFilesList,
+            onBack: commands.closeAttachmentPanel,
+          })
+        : null,
+    };
+  }
+
+  if (surface === "attachment" && route.attachmentPanelId && route.channelId) {
+    return {
+      kind: "attachment",
+      props: attachmentPaneProps(route.attachmentPanelId, route.channelId, commands, {
+        onClose: commands.closeAttachmentPanel,
+      }),
     };
   }
 
@@ -188,7 +205,8 @@ export function resolveSecondaryPane(
         workspaceId: threadWorkspaceId,
         directory: read.primaryThreadComposerDirectory,
         rootMessageId: threadRoot,
-        onOpenAttachment: (attachment) =>
+        onOpenAttachment: (attachment) => commands.openAttachmentPanel(attachment.id),
+        onExpandAttachment: (attachment) =>
           commands.setPaneAttachmentRequest({
             conversationId: threadChannelId,
             attachment,
@@ -236,4 +254,22 @@ export function resolveSecondaryPane(
   }
 
   return { kind: "none" };
+}
+
+/** Expanding hands the preview to the primary pane's tab and closes it here,
+ * so one attachment is never open in both places. */
+function attachmentPaneProps(
+  attachmentId: string,
+  conversationId: string,
+  commands: PaneContentCommands,
+  exits: Pick<AttachmentPaneProps, "onClose" | "onBack">,
+): AttachmentPaneProps {
+  return {
+    attachmentId,
+    ...exits,
+    onExpand: (attachment) => {
+      commands.setPaneAttachmentRequest({ conversationId, attachment });
+      exits.onClose();
+    },
+  };
 }

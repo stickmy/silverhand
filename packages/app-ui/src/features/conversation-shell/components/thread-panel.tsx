@@ -82,6 +82,7 @@ interface ThreadPanelProps {
   gate: ChannelGate;
   onClose: () => void;
   onOpenAttachment: (attachment: AttachmentSnapshot) => void;
+  onExpandAttachment: (attachment: AttachmentSnapshot) => void;
   /** "View in channel": close this panel and scroll-locate + flash the
    *  root message in the main channel stream. Wired by App to
    *  `requestJump` + `closeThread`. Omitted = button hidden. */
@@ -163,6 +164,7 @@ export function ThreadPanel({
   onClose,
   onViewInChannel,
   onOpenAttachment,
+  onExpandAttachment,
   conversationRefsById,
   onOpenConversationRef,
   onOpenChannelRef,
@@ -577,6 +579,7 @@ export function ThreadPanel({
               conversationRefsById={conversationRefsById}
               onOpenConversationRef={onOpenConversationRef}
               onOpenAttachment={onOpenAttachment}
+              onExpandAttachment={onExpandAttachment}
               onOpenChannelRef={handleOpenChannelRef}
               canReact={!closed && !archived && canParticipate}
               canSave={canParticipate}

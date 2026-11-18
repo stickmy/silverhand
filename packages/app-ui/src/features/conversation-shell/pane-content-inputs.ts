@@ -72,6 +72,8 @@ export interface PaneContentCommands {
   closeAgentPanel: () => void;
   closeHumanPanel: () => void;
   closeFilesList: () => void;
+  openAttachmentPanel: (attachmentId: string, inFiles?: boolean) => void;
+  closeAttachmentPanel: () => void;
   closeThread: () => void;
   closeThreadsList: () => void;
   openThread: (id: string) => void;
@@ -85,5 +87,6 @@ export type PaneContentRoute = Pick<
   | "threadRootId"
   | "agentPanelId"
   | "humanPanelId"
+  | "attachmentPanelId"
   | "channelSettingsId"
 >;

@@ -85,6 +85,7 @@ export function MessageList({
   conversationRefsById,
   onOpenConversationRef,
   onOpenAttachment,
+  onExpandAttachment,
   onOpenChannelRef,
   canReact,
   canSave = true,
@@ -171,9 +172,11 @@ export function MessageList({
   replyPreviewsByRoot?: Record<string, ThreadReplyPreviewRow[]>;
   conversationRefsById?: Map<string, WorkspaceChannelReference>;
   onOpenConversationRef?: (id: string) => void;
-  /** Open a `.md` / `.html` attachment in its previewer tab (#task:2122).
-   *  Threaded to each row's attachment card; absent → md/html keep open-with-OS. */
+  /** Preview a `.md` / `.html` attachment beside the conversation. Threaded to
+   *  each row's attachment card; absent → md/html keep open-with-OS. */
   onOpenAttachment?: (attachment: AttachmentSnapshot) => void;
+  /** Preview a `.md` / `.html` attachment in a main-pane tab. */
+  onExpandAttachment?: (attachment: AttachmentSnapshot) => void;
   /** Pre-bound (workspace already resolved) click handler for inline
    *  `#<channel_name>` chips. */
   onOpenChannelRef?: (channelId: string) => void;
@@ -273,7 +276,11 @@ export function MessageList({
   );
   const rowOpenConversationRef = onOpenConversationRef ? openConversationRef : undefined;
   const rowOpenChannelRef = onOpenChannelRef ? openChannelRef : undefined;
+  const expandAttachment = useEventCallback((attachment: AttachmentSnapshot) =>
+    onExpandAttachment?.(attachment),
+  );
   const rowOpenAttachment = onOpenAttachment ? openAttachment : undefined;
+  const rowExpandAttachment = onExpandAttachment ? expandAttachment : undefined;
   const rowStartThread = onOpenThread ? handleOpenThread : undefined;
 
   const items = useMemo(() => groupMessages(messages), [messages]);
@@ -642,6 +649,7 @@ export function MessageList({
           conversationRefsById={conversationRefsById}
           onOpenConversationRef={rowOpenConversationRef}
           onOpenAttachment={rowOpenAttachment}
+          onExpandAttachment={rowExpandAttachment}
           {...actions.rowActionProps(m)}
           onStartThread={rowStartThread}
           threadReplyCount={
@@ -675,6 +683,7 @@ export function MessageList({
       conversationRefsById,
       rowOpenConversationRef,
       rowOpenAttachment,
+      rowExpandAttachment,
       actions.rowActionProps,
       rowStartThread,
       replyCountsByRoot,

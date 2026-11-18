@@ -65,6 +65,7 @@ export function useConversationPanes(
     human: Boolean(route.humanPanelId),
     settings: Boolean(route.channelSettingsId && selectedChannelId),
     files: Boolean(filesListMounted && selectedChannelId),
+    attachment: Boolean(route.attachmentPanelId && selectedChannelId),
     task: Boolean(taskPaneId && selectedChannelId),
     conversation: Boolean(secondaryDescriptor),
     thread: Boolean(threadRootId && selectedChannelId),

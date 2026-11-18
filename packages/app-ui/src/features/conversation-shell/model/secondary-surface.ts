@@ -5,6 +5,7 @@ export function selectSecondarySurface(input: {
   human: boolean;
   settings: boolean;
   files: boolean;
+  attachment: boolean;
   task: boolean;
   conversation: boolean;
   thread: boolean;
@@ -15,6 +16,7 @@ export function selectSecondarySurface(input: {
     "human",
     "settings",
     "files",
+    "attachment",
     "task",
     "conversation",
     "thread",
