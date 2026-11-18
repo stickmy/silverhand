@@ -83,6 +83,18 @@ export interface MenuBarCapability {
   onOpenConversation(handler: (conversationId: string) => void): () => void;
 }
 
+/** A host whose startup can fail before any backend exists. While failed, the
+ *  UI talks only to this capability and the connection profile. */
+export interface BootCapability {
+  getState(): Promise<BootState>;
+  /** Restarts the whole app; startup runs again from the beginning. */
+  relaunch(): Promise<void>;
+  quit(): Promise<void>;
+  revealLogs(): Promise<void>;
+  copyDiagnostics(): Promise<void>;
+  reportIssue(): Promise<void>;
+}
+
 export interface FileCapability {
   openExternal(url: string): Promise<void>;
   /** Omitted when the host cannot hand attachment files to external apps. */
@@ -333,6 +345,8 @@ export interface ClientPlatform {
   menuBar?: MenuBarCapability;
   /** Present only where the app can update itself. */
   appUpdate?: AppUpdateCapability;
+  /** Present only where startup can fail before the UI has a backend. */
+  boot?: BootCapability;
   /** Native chrome (menus, tabs, sheets) follows the language the page resolved. */
   setLocale?(locale: "en" | "zh"): void;
   /** The store page this build is installed from, offered when the server requires a newer app. */

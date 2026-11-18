@@ -3,17 +3,24 @@ import { Brandmark } from "@/components/brand/brandmark";
 import { AuthScene } from "./auth-scene";
 import { t } from "@/lib/i18n";
 
-/** Split shell shared by the auth gate and the profile-setup step: a narrow
- *  brand column on the left, the form on the open page to the right. Below
- *  `min-[860px]` the brand column is hidden and a compact brand header sits
- *  above the form. */
-export function AuthSplitLayout({ children }: { children: ReactNode }): JSX.Element {
+/** Split shell shared by the auth gate, the profile-setup step and the startup
+ *  failure page: a narrow brand column on the left, the form on the open page
+ *  to the right. Below `min-[860px]` the brand column is hidden and a compact
+ *  brand header sits above the form. `quiet` drops the sample conversation and
+ *  headline, for a page that must not sell the product. */
+export function AuthSplitLayout({
+  children,
+  quiet = false,
+}: {
+  children: ReactNode;
+  quiet?: boolean;
+}): JSX.Element {
   return (
     <main
       className="auth-layout flex h-screen w-screen overflow-y-auto bg-bg-base text-text-primary"
       style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
     >
-      <BrandPanel />
+      <BrandPanel quiet={quiet} />
       <div className="auth-content grid w-full place-items-center px-6 py-14 min-[860px]:flex-1">
         <header className="auth-mobile-brand mb-8 hidden">
           <div className="flex items-center gap-2">
@@ -33,7 +40,7 @@ const ISO_GRID =
 
 const GRID_FADE = "linear-gradient(to top, #000 10%, transparent 75%)";
 
-function BrandPanel(): JSX.Element {
+function BrandPanel({ quiet }: { quiet: boolean }): JSX.Element {
   return (
     <section
       aria-hidden
@@ -45,17 +52,19 @@ function BrandPanel(): JSX.Element {
         style={{ backgroundImage: ISO_GRID, maskImage: GRID_FADE, WebkitMaskImage: GRID_FADE }}
       />
       <div className="relative flex h-full flex-col justify-between px-14 pt-16 pb-12">
-        <AuthScene />
+        {quiet ? <span /> : <AuthScene />}
         <div className="flex flex-col gap-4">
           <div className="flex items-center gap-2 text-[15px] font-semibold text-text-secondary">
             <Brandmark className="size-5.5 shrink-0" />
             Silverhand
           </div>
-          <h2 className="text-[32px] font-bold leading-tight tracking-tight">
-            {t("appShell.welcome.headline")}
-            <br />
-            <span className="text-text-muted">{t("appShell.welcome.headlineAccent")}</span>
-          </h2>
+          {quiet ? null : (
+            <h2 className="text-[32px] font-bold leading-tight tracking-tight">
+              {t("appShell.welcome.headline")}
+              <br />
+              <span className="text-text-muted">{t("appShell.welcome.headlineAccent")}</span>
+            </h2>
+          )}
         </div>
       </div>
     </section>

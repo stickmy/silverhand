@@ -91,3 +91,4 @@ features/messages/model/composer-activity.ts: Waiting…
 features/messages/model/composer-activity.ts: Writing
 features/app-shell/auth-scene-model.ts: Leo
 features/app-shell/auth-scene-model.ts: Doge
+*: placeholder="https://silverhand.example.com"

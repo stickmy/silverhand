@@ -17,25 +17,34 @@ import { t } from "@/lib/i18n";
 
 /** Checks and saves a new server origin; the message is why it was not saved. */
 export async function saveServerAddress(qc: QueryClient, draft: string): Promise<string | null> {
+  const failure = await checkAndSaveServerAddress(qc, draft);
+  return failure ? (failure.detail ?? failure.title) : null;
+}
+
+/** The same save, with the failure split into its headline and the probe's own words. */
+export async function checkAndSaveServerAddress(
+  qc: QueryClient,
+  draft: string,
+): Promise<{ title: string; detail: string | null } | null> {
   try {
     const policy = await getPlatform().client.getConnectionPolicy();
     if (
       validateServerUrlDraft(draft, { allowInsecureRemote: policy.allow_insecure_remote }).kind !==
       "ok"
     ) {
-      return t("appShell.server.invalid");
+      return { title: t("appShell.server.invalid"), detail: null };
     }
     const result = await getPlatform().client.saveServerConnectionProfile({
       serverUrl: draft.trim(),
     });
     if (!result.ok) {
       const message = describeProfileSaveForGate(result);
-      return message.description ?? message.title;
+      return { title: message.title, detail: message.description || null };
     }
     await refreshServerEnvironment(qc);
     return null;
   } catch (err) {
-    return String(err);
+    return { title: t("appShell.unreachable.saveFailed"), detail: String(err) };
   }
 }
 

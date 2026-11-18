@@ -41,6 +41,7 @@ import {
   useViewerUser,
 } from "@/features/session/hooks";
 import { useServerEnvironment } from "@/features/session/server-environment";
+import { BootGate } from "@/features/app-shell/startup-failure-scene";
 import { EmbeddedProfileSetupGate } from "@/features/app-shell/embedded-profile-setup-gate";
 import { RegistrationGate } from "@/features/app-shell/registration-gate";
 import { UpdateRequiredGate } from "@/features/app-shell/update-required-gate";
@@ -65,7 +66,9 @@ export { LAST_CHANNEL_KEY, clearPlaceMemory };
 export function AppRoot(props: { initialNavigationUrl?: string }): JSX.Element {
   return (
     <>
-      <App {...props} />
+      <BootGate>
+        <App {...props} />
+      </BootGate>
       <AppUpdateDialog />
     </>
   );
