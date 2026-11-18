@@ -1,5 +1,5 @@
 import { useRuntimeModels } from "../hooks/use-runtime-models";
-import { ModelDiscoveryHint } from "./model-discovery-hint";
+import { ModelRefreshButton } from "./model-refresh-button";
 import { useEffect, useMemo, useRef, useState, type JSX } from "react";
 import * as Select from "@radix-ui/react-select";
 import { ChevronDownIcon, RefreshIcon } from "@/icons";
@@ -596,8 +596,9 @@ function EditForm({
         </div>
 
         <div className="flex min-w-0 flex-col gap-1.5">
-          <div className="flex h-5 items-center">
+          <div className="flex h-5 items-center justify-between gap-2">
             <Label required>{t("agents.model")}</Label>
+            <ModelRefreshButton discovery={modelDiscovery} />
           </div>
           <ModelPicker
             id="rc-model"
@@ -605,7 +606,6 @@ function EditForm({
             suggestions={modelDiscovery.suggestions}
             onDraft={onDraft}
           />
-          <ModelDiscoveryHint discovery={modelDiscovery} />
         </div>
 
         {supportsReasoning ? (

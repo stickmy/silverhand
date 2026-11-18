@@ -57,7 +57,7 @@ export function useRuntimeModels(
   const options = runtimeModelsQueryOptions(hostId, runtime, enabled);
   const query = useQuery(options);
   const data = query.data;
-  // `unsupported` keeps the static catalog without a hint, as before discovery existed.
+  // `unsupported` keeps the static catalog without a refresh control.
   const status = !options.enabled
     ? "idle"
     : query.isFetching
@@ -66,11 +66,7 @@ export function useRuntimeModels(
         ? "error"
         : !data || data.status === "unsupported"
           ? "idle"
-          : data.models.length === 0
-            ? "empty"
-            : data.cached
-              ? "cached"
-              : "ok";
+          : "ok";
 
   return {
     status,

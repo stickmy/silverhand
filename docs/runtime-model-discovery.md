@@ -51,7 +51,7 @@ Successful results have a 60-second in-memory daemon cache scoped to runtime,
 executable/version, and effective environment. Concurrent identical requests
 share one probe. Force refresh bypasses completed cache entries; failures are not
 cached by the daemon. Renderer queries use a separate host/runtime key and expose
-refresh plus loading/failure/unsupported/empty status. Authentication changes that
+a refresh icon in the Model label row that spins while loading and turns red on failure. Authentication changes that
 do not change the environment become visible on refresh or cache expiry.
 
 These are computer-level suggestions, not a project-specific model catalog:
@@ -74,8 +74,8 @@ The runtime configuration editor uses that model's discovered effort options,
 falling back to the runtime's static effort vocabulary (`reasoningEffortOptions`)
 when metadata is absent. It retains a saved/draft effort even if the refreshed list
 omits it. The default choice remains null; the reported default is a label, never
-an automatic persisted selection. `unsupported` shows no hint and uses the static
-catalog, as before discovery existed; `error` shows a failure hint with refresh.
+an automatic persisted selection. `unsupported` shows no refresh control and uses the
+static catalog, as before discovery existed.
 
 For every runtime with a Reasoning control, create/switch/PATCH enforce token shape
 only; a model change never clears or rejects the effort. The CLI owns actual

@@ -2,12 +2,8 @@ import type { agents as en } from "../en/agents";
 import type { Translation } from "../../translate";
 
 export const agents: Translation<typeof en> = {
-  modelsDetecting: "正在查询模型，可直接输入 model ID。",
-  modelsFailed: "模型查询失败，可直接输入 model ID。",
-  modelsEmpty: "未返回模型，可直接输入 model ID。",
-  modelsCached: "缓存的模型建议，也可自由输入 model ID。",
-  modelsDetected: "此电脑的模型建议，也可自由输入 model ID。",
-  modelsRefresh: "刷新",
+  modelsFailed: "模型列表获取失败，点击重试",
+  modelsRefresh: "刷新模型列表",
 
   notInAnyChannel: "不在任何频道中。",
   active: "进行中",

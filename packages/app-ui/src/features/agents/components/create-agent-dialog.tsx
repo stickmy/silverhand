@@ -1,5 +1,5 @@
 import { useRuntimeModels } from "../hooks/use-runtime-models";
-import { ModelDiscoveryHint } from "./model-discovery-hint";
+import { ModelRefreshButton } from "./model-refresh-button";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { RefreshIcon } from "@/icons";
 import type {
@@ -374,7 +374,10 @@ export function CreateAgentDialog({
                 list open (shiki 2026-07-21). The input carries its own
                 `aria-label="Model"`, so a11y naming is unaffected. Matches the
                 edit form's bare `<Label>Model</Label>` (RuntimeConfigEditor). */}
-            <Label className="font-semibold">{t("agentPage.model")}</Label>
+            <div className="flex items-center justify-between gap-2">
+              <Label className="font-semibold">{t("agentPage.model")}</Label>
+              <ModelRefreshButton discovery={modelDiscovery} />
+            </div>
             <Combobox
               id="ag-model"
               ariaLabel={t("agentPage.model")}
@@ -388,7 +391,6 @@ export function CreateAgentDialog({
               placeholder={t("agentPage.driverDefault")}
               className="h-8"
             />
-            <ModelDiscoveryHint discovery={modelDiscovery} />
           </div>
 
           {/* Submit-only failure line: rendered conditionally so it reserves no
