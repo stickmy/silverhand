@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { delimiter, dirname, join } from 'node:path';
 import { defaultAppRoot } from '@silverhand/shared/app-data-layout';
 import type { RuntimeInfo, RuntimeKind, RuntimeModelDiscovery } from '@silverhand/shared';
+import { CLAUDE_DEFAULT_MODEL } from './drivers/claude.js';
 
 const LIMIT = 2 * 1024 * 1024;
 type Frame = Record<string, any>;
@@ -76,7 +77,8 @@ function protocol(kind: RuntimeKind, version: string | null) {
     id: 1,
     method: 'initialize',
     params: {
-      clientInfo: { name: 'silverhand-models', version: '1.0.0' },
+      // Codex rolls models out by client name, so match the driver's.
+      clientInfo: { name: 'silverhand', version: '1.0.0' },
       ...(kind === 'grok' ? { protocolVersion: 1, clientCapabilities: {} } : {}),
     },
   };
@@ -139,6 +141,7 @@ function protocol(kind: RuntimeKind, version: string | null) {
           const r = record(row);
           collectReasoning(modelIds([r], select), r.supportedEffortLevels);
         }
+        defaultModel = CLAUDE_DEFAULT_MODEL;
         return listing(models);
       }
       if (kind === 'pi') {

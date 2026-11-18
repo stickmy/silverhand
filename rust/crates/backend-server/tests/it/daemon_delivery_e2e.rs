@@ -3276,6 +3276,7 @@ async fn the_unmounted_host_management_router_composes_sqlite_live_transport_and
     )
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
+    // A daemon without `runtime.model_discovery.v1` is never sent `models_for`.
     let models_app = app.clone();
     let models_read = tokio::spawn(async move {
         management_request(
@@ -3287,19 +3288,19 @@ async fn the_unmounted_host_management_router_composes_sqlite_live_transport_and
         .await
     });
     let command = next_json(&mut daemon).await;
-    assert_eq!(
-        command["params"],
-        json!({"force":true,"models_for":"codex"})
-    );
-    let result = json!({"runtimes":[],"detected_at":5,"model_discovery":{
-        "runtime":"codex","status":"ok","models":["provider/custom-model"],
-        "reasoning_by_model":{"provider/custom-model":{"supported_efforts":["future-tier"],"default_effort":"future-tier"}},
-        "default_model":"provider/custom-model","detected_at":5,"cached":false
-    }});
-    respond(&mut daemon, &command, result.clone()).await;
+    assert_eq!(command["params"], json!({ "force": true }));
+    respond(
+        &mut daemon,
+        &command,
+        json!({ "runtimes": [], "detected_at": 5 }),
+    )
+    .await;
     let (status, body) = models_read.await.unwrap();
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(body, result);
+    assert_eq!(
+        body["model_discovery"],
+        json!({"runtime":"codex","status":"unsupported","models":[],"detected_at":5,"cached":false})
+    );
 
     let (status, body) = management_request(&app, "POST", "/api/hosts/host-1/disconnect", "").await;
     assert_eq!(status, StatusCode::OK);
@@ -4147,10 +4148,14 @@ async fn the_runtime_catalog_probe_binds_its_answer_to_the_custody_that_produced
 }
 
 #[tokio::test]
-async fn runtime_model_discovery_round_trips_and_rejects_a_different_runtime() {
+async fn runtime_model_discovery_round_trips_and_drops_a_different_runtime() {
     let fixture = fixture("runtime-model-discovery.sqlite").await;
     let mut socket = connect(fixture.address).await;
-    complete_attachment(&mut socket, &fixture.controller).await;
+    send_ready_with_capabilities(&mut socket, json!(["runtime.model_discovery.v1"])).await;
+    let hydrate = next_json(&mut socket).await;
+    respond(&mut socket, &hydrate, json!({ "runtimes": [] })).await;
+    wait_for_attached_count(&fixture.controller, 1).await;
+    answer_status_seed(&mut socket, &fixture.controller, "host-1").await;
     let dispatch = fixture.controller.owning_host_data_plane();
     for (runtime, accepted) in [("pi", true), ("codex", false)] {
         let request = catalog_request(custody(&dispatch, "host-1"), true).with_models_for(
@@ -4163,22 +4168,14 @@ async fn runtime_model_discovery_round_trips_and_rejects_a_different_runtime() {
             "runtimes":[], "detected_at":1,
             "model_discovery":{"runtime":runtime,"status":"ok","models":["provider/model"],"detected_at":1,"cached":false}
         })).await;
-        let outcome = probing.await.unwrap();
-        if accepted {
-            let RuntimeCatalogOutcome::Detected(catalog) = outcome else {
-                panic!("expected catalog")
-            };
-            let view = catalog.rows_for(&custody(&dispatch, "host-1")).unwrap();
-            assert_eq!(
-                serde_json::to_value(view.model_discovery.unwrap()).unwrap()["models"],
-                json!(["provider/model"])
-            );
-        } else {
-            assert!(matches!(
-                outcome,
-                RuntimeCatalogOutcome::DaemonInternalError
-            ));
-        }
+        let RuntimeCatalogOutcome::Detected(catalog) = probing.await.unwrap() else {
+            panic!("a malformed discovery must not fail the catalog")
+        };
+        let view = catalog.rows_for(&custody(&dispatch, "host-1")).unwrap();
+        let models = view
+            .model_discovery
+            .map(|discovery| serde_json::to_value(discovery).unwrap()["models"].clone());
+        assert_eq!(models, accepted.then(|| json!(["provider/model"])));
     }
     socket.close(None).await.unwrap();
     fixture.controller.close().await;

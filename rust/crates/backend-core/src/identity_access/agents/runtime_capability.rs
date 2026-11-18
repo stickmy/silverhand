@@ -1,72 +1,38 @@
-//! Runtime tuning admission. Claude/Codex own model-specific effort support;
-//! we validate token shape only. Other runtimes retain their curated options.
+//! Runtime tuning admission. Effort values belong to each runtime's CLI, so writes
+//! check only the token shape and whether the runtime takes an effort at all.
 
 use crate::identity_access::agents::runtime::RuntimeKind;
 
-fn baseline_reasoning_effort_options(kind: RuntimeKind) -> &'static [&'static str] {
-    match kind {
-        // Native runtimes bypass this table; the others expose no reasoning control.
-        RuntimeKind::Claude
-        | RuntimeKind::Codex
-        | RuntimeKind::Opencode
-        | RuntimeKind::Cursor
-        | RuntimeKind::Gemini => &[],
-        RuntimeKind::Grok => &["low", "medium", "high"],
-        RuntimeKind::Pi => &["off", "minimal", "low", "medium", "high"],
-        RuntimeKind::Qoder => &["none", "low", "medium", "high", "xhigh", "max"],
-    }
+/// Upper bound of `ReasoningEffortTokenSchema`.
+pub const REASONING_EFFORT_TOKEN_MAX: usize = 32;
+
+/// `ReasoningEffortTokenSchema`: `^[a-z][a-z0-9_-]*$`, 1..=32 chars.
+pub fn is_reasoning_effort_token(value: &str) -> bool {
+    value.len() <= REASONING_EFFORT_TOKEN_MAX
+        && value.as_bytes().first().is_some_and(u8::is_ascii_lowercase)
+        && value
+            .bytes()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'_' || c == b'-')
 }
 
-fn per_model_reasoning_effort_options(
-    kind: RuntimeKind,
-    model_id: &str,
-) -> Option<&'static [&'static str]> {
+/// Mirrors `runtimeSupportsReasoningEffort`: the driver forwards an effort.
+pub fn runtime_supports_reasoning_effort(kind: RuntimeKind) -> bool {
     match kind {
-        RuntimeKind::Grok => match model_id {
-            "grok-4.6" => Some(&["low", "medium", "high", "xhigh"]),
-            _ => None,
-        },
-        // Remaining runtimes use the baseline.
         RuntimeKind::Claude
         | RuntimeKind::Codex
         | RuntimeKind::Qoder
-        | RuntimeKind::Opencode
-        | RuntimeKind::Cursor
-        | RuntimeKind::Gemini
-        | RuntimeKind::Pi => None,
+        | RuntimeKind::Pi
+        | RuntimeKind::Grok => true,
+        RuntimeKind::Opencode | RuntimeKind::Cursor | RuntimeKind::Gemini => false,
     }
 }
 
-pub fn reasoning_effort_options_for_runtime(
-    kind: RuntimeKind,
-    model: Option<&str>,
-) -> &'static [&'static str] {
-    let model_id = model.map(str::trim).filter(|id| !id.is_empty());
-    if let Some(model_id) = model_id
-        && let Some(options) = per_model_reasoning_effort_options(kind, model_id)
-    {
-        return options;
-    }
-    baseline_reasoning_effort_options(kind)
-}
-
-/// Null delegates to the runtime default. Native model catalogs never gate writes.
-pub fn reasoning_effort_valid_for_runtime(
-    kind: RuntimeKind,
-    value: Option<&str>,
-    model: Option<&str>,
-) -> bool {
-    match value {
-        None => true,
-        Some(value) if matches!(kind, RuntimeKind::Claude | RuntimeKind::Codex) => {
-            value.len() <= 32
-                && value.as_bytes().first().is_some_and(u8::is_ascii_lowercase)
-                && value
-                    .bytes()
-                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'_' || c == b'-')
-        }
-        Some(value) => reasoning_effort_options_for_runtime(kind, model).contains(&value),
-    }
+/// Null delegates to the runtime default. Whether the CLI accepts the value for the
+/// chosen model is the runtime's call, surfaced when it runs.
+pub fn reasoning_effort_valid_for_runtime(kind: RuntimeKind, value: Option<&str>) -> bool {
+    value.is_none_or(|value| {
+        runtime_supports_reasoning_effort(kind) && is_reasoning_effort_token(value)
+    })
 }
 
 /// Whether the runtime accepts the persisted fast-mode tri-state. Only Codex does;
@@ -107,66 +73,37 @@ mod tests {
             RuntimeKind::Cursor,
             RuntimeKind::Gemini,
         ] {
-            assert!(reasoning_effort_options_for_runtime(kind, None).is_empty());
-            // Unset is always legal …
-            assert!(reasoning_effort_valid_for_runtime(kind, None, None));
-            // … but any concrete token — even one legal elsewhere — is out of range.
-            for token in ["low", "medium", "high", "xhigh", "max", "ultra", "none"] {
-                assert!(
-                    !reasoning_effort_valid_for_runtime(kind, Some(token), None),
-                    "{kind:?} must reject {token:?}"
-                );
+            assert!(reasoning_effort_valid_for_runtime(kind, None));
+            for token in ["low", "high", "max", "none"] {
+                assert!(!reasoning_effort_valid_for_runtime(kind, Some(token)));
             }
         }
     }
 
     #[test]
-    fn native_runtime_effort_admission_is_structural_not_a_model_allowlist() {
-        for kind in [RuntimeKind::Claude, RuntimeKind::Codex] {
-            for model in [None, Some("custom/future-model"), Some("gpt-5.6-terra")] {
-                for token in ["low", "max", "ultra", "future-tier", "none"] {
-                    assert!(reasoning_effort_valid_for_runtime(kind, Some(token), model));
-                }
-                for token in [
-                    "",
-                    "High",
-                    "high;exec",
-                    "a b",
-                    "9tier",
-                    "超高",
-                    "12345678901234567890123456789012345",
-                ] {
-                    assert!(!reasoning_effort_valid_for_runtime(
-                        kind,
-                        Some(token),
-                        model
-                    ));
-                }
+    fn effort_admission_is_structural_for_every_reasoning_runtime() {
+        for kind in [
+            RuntimeKind::Claude,
+            RuntimeKind::Codex,
+            RuntimeKind::Qoder,
+            RuntimeKind::Pi,
+            RuntimeKind::Grok,
+        ] {
+            for token in ["low", "max", "ultra", "future-tier", "none", "a_1"] {
+                assert!(reasoning_effort_valid_for_runtime(kind, Some(token)));
+            }
+            for token in [
+                "",
+                "High",
+                "high;exec",
+                "a b",
+                "9tier",
+                "超高",
+                "123456789012345678901234567890123",
+            ] {
+                assert!(!reasoning_effort_valid_for_runtime(kind, Some(token)));
             }
         }
-    }
-
-    #[test]
-    fn qoder_accepts_its_full_set_including_none() {
-        for token in ["none", "low", "medium", "high", "xhigh", "max"] {
-            assert!(reasoning_effort_valid_for_runtime(
-                RuntimeKind::Qoder,
-                Some(token),
-                None
-            ));
-        }
-        // qoder has no per-model override, so a model never widens or narrows it.
-        assert!(reasoning_effort_valid_for_runtime(
-            RuntimeKind::Qoder,
-            Some("none"),
-            Some("Ultimate")
-        ));
-        // `ultra` is codex's, not qoder's.
-        assert!(!reasoning_effort_valid_for_runtime(
-            RuntimeKind::Qoder,
-            Some("ultra"),
-            None
-        ));
     }
 
     #[test]

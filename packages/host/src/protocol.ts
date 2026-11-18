@@ -119,13 +119,10 @@ export const HOST_PROTOCOL_VERSION = PROTOCOL_VERSIONS.host;
 //     wire field is an open `string[]`, never an enum), so advertising a new
 //     token never breaks an old peer. Unadvertised = unsupported.
 //
-// `runtime.codex.reasoning.v1` means: this daemon's `runtime_start` accepts an
-// OPEN reasoning-effort token (`ReasoningEffortTokenSchema`) rather than a closed
-// enum, so the backend may safely send values beyond the historical baseline
-// (e.g. Codex `ultra`). A daemon binary predating this token has the closed
-// enum and would strict-reject such a value, so the backend must withhold
-// non-baseline tokens from it. Bump to `.v2` only if the token's *contract*
-// changes; adding a new effort VALUE does not.
+// `runtime.codex.reasoning.v1`: `runtime_start` accepts the open effort token
+// rather than the historical closed enum.
+// `runtime.model_discovery.v1`: `host_runtime_catalog` accepts `models_for`; the
+// server answers `unsupported` itself for a daemon without it.
 
 /**
  * #task:1614 — this daemon serves the `agent_stale_receive` intent
@@ -141,6 +138,7 @@ export const KNOWN_CAPABILITIES_V1 = [
   'runtime.qoder',
   'runtime.grok',
   'runtime.codex.reasoning.v1',
+  'runtime.model_discovery.v1',
   'transport.unix_socket',
   'fs.local',
   'proxy.env_inherit',
@@ -745,14 +743,8 @@ const RuntimeStartAgentRefSchema = z
   .strict();
 
 /**
- * Reasoning-effort as it travels on the `runtime_start` wire — the shared OPEN,
- * length/charset-bounded token (`ReasoningEffortTokenSchema`), NOT the closed
- * product enum. See its definition in `@silverhand/shared` for the full
- * two-layer rationale; in short: a daemon must parse a token it has never heard
- * of rather than strict-reject the whole `runtime_start`, so adding a new effort
- * value never requires a protocol bump. The driver forwards this token verbatim,
- * and the backend gates non-baseline tokens on `runtime.codex.reasoning.v1`
- * before they ride here.
+ * Reasoning-effort as it travels on the `runtime_start` wire: the shared open,
+ * bounded token (`ReasoningEffortTokenSchema`). The driver forwards it verbatim.
  */
 const RuntimeStartDriverOptionsSchema = z
   .object({

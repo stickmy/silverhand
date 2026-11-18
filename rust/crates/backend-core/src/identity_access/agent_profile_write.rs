@@ -36,11 +36,10 @@
 //! ## Legality is judged UNDER THE WRITE LOCK, against the row's CURRENT runtime
 //!
 //! PATCH cannot change `runtime` (the product's `z.never()`), so the tuning legality
-//! ([`crate::identity_access::agents::runtime_capability`]) is judged against the runtime/model/effort
+//! ([`crate::identity_access::agents::runtime_capability`]) is judged against the runtime
 //! read UNDER THE WRITE LOCK — not a pre-read snapshot. Judging it earlier would open a
 //! TOCTOU window: two concurrent PATCHes, each legal against the same stale state,
-//! could compose an illegal final row (e.g. one moves off `grok-4.6`, the other
-//! sets `xhigh`, outside the new Grok model's curated options). Admitting
+//! could compose an illegal final row. Admitting
 //! the raw request inside the lock, against the locked current values, closes that
 //! window — and because the port never accepts a pre-sealed edit, there is nothing a
 //! caller could admit against a stale snapshot in the first place. `reasoning_effort`
@@ -322,10 +321,9 @@ pub fn admit_public_tuning_edit(
         FieldEdit::Set(value) => Some(value.as_str()),
     };
 
-    // Re-judge reasoning legality only when the request names either input — the
-    // product's `reasoning_effort !== undefined || model !== undefined` guard.
-    if (request.reasoning_effort.is_present() || request.model.is_present())
-        && !reasoning_effort_valid_for_runtime(context.runtime, next_reasoning, next_model)
+    // Only a named effort is judged; the model no longer constrains it.
+    if request.reasoning_effort.is_present()
+        && !reasoning_effort_valid_for_runtime(context.runtime, next_reasoning)
     {
         // `reasoning_effort_valid_for_runtime` only fails on a present token, so
         // `next_reasoning` is `Some` here; render exactly the offending pair.

@@ -580,9 +580,8 @@ describe("Pi runtime configuration", () => {
     },
   );
 
-  it("rejects foreign reasoning and resets tuning across runtime changes", () => {
-    expect(canSaveRuntimeConfig(baseAgent, { ...draft, reasoning: "ultra" })).toBe(false);
-    expect(canSaveRuntimeConfig(baseAgent, { ...draft, reasoning: "none" })).toBe(false);
+  it("leaves effort support to the CLI and resets tuning across runtime changes", () => {
+    expect(canSaveRuntimeConfig(baseAgent, { ...draft, reasoning: "ultra" })).toBe(true);
     expect(draftAfterRuntimeChange(baseAgent, "pi")).toEqual({
       runtime: "pi",
       modelChoice: "unset",

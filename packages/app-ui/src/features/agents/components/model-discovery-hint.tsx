@@ -12,13 +12,11 @@ export function ModelDiscoveryHint({
       ? t("agents.modelsDetecting")
       : discovery.status === "error"
         ? t("agents.modelsFailed")
-        : discovery.status === "unsupported"
-          ? t("agents.modelsUnsupported")
-          : discovery.status === "empty"
-            ? t("agents.modelsEmpty")
-            : discovery.status === "cached"
-              ? t("agents.modelsCached")
-              : t("agents.modelsDetected");
+        : discovery.status === "empty"
+          ? t("agents.modelsEmpty")
+          : discovery.status === "cached"
+            ? t("agents.modelsCached")
+            : t("agents.modelsDetected");
   return (
     <div className="flex items-center gap-2 text-xs text-text-muted">
       <span role="status">{message}</span>

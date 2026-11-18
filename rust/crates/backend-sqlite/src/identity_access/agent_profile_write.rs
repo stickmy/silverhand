@@ -594,8 +594,6 @@ mod tests {
     #[tokio::test]
     async fn a_clear_writes_null_and_leaves_untouched_columns_alone() {
         let (_dir, adapter) = open_seeded().await;
-        // Clearing model would strand the stored `ultra` effort, so also clear it —
-        // the under-lock admission accepts this (baseline codex + no effort is legal).
         let request = AgentTuningEdit {
             model: FieldEdit::Clear,
             reasoning_effort: FieldEdit::Clear,
@@ -669,59 +667,33 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn an_effort_is_rejected_after_an_earlier_model_change_and_writes_nothing() {
+    async fn an_effort_is_not_judged_against_the_stored_model() {
         let (_dir, adapter) = open_seeded().await;
-
-        let a = admit_and_apply(
-            &adapter,
-            &agent("agent-3"),
-            &AgentTuningEdit {
-                model: FieldEdit::Set("grok-4.5".to_owned()),
-                ..leave_all()
-            },
-            500,
-        )
-        .await
-        .unwrap();
-        assert!(
-            matches!(a, AgentProfileRowWrite::Committed { .. }),
-            "A: {a:?}"
-        );
-        let (_, _, model_a, _, effort_a, updated_a) = stored(&adapter, "agent-3").await;
-        assert_eq!(model_a.as_deref(), Some("grok-4.5"));
-        assert_eq!(effort_a.as_deref(), Some("high"));
-        assert_eq!(updated_a, 500);
-
-        // `xhigh` was legal against the original `grok-4.6` state. These sequential
-        // calls prove re-reading current values, not concurrent lock scheduling.
-        let b = admit_and_apply(
-            &adapter,
-            &agent("agent-3"),
-            &AgentTuningEdit {
-                reasoning_effort: FieldEdit::Set("xhigh".to_owned()),
-                ..leave_all()
-            },
-            900,
-        )
-        .await
-        .unwrap();
-        // Refused under the lock → the adapter writes nothing and reports the LOCKED
-        // before-image it read (grok + `grok-4.5` + `high`), NOT a verdict, bound to the
-        // agent id decoded from the SELECTED row. The domain replays the rule against
-        // this witness to mint the 400; a `grok-4.5 + xhigh` row is never composed.
-        let AgentProfileRowWrite::Unchanged { before } = b else {
-            panic!("B must report an Unchanged witness under the lock, got {b:?}");
-        };
-        assert_eq!(before.agent_id, agent("agent-3"));
-        assert_eq!(before.context.runtime, RuntimeKind::Grok);
-        assert_eq!(before.context.model.as_deref(), Some("grok-4.5"));
-        assert_eq!(before.context.reasoning_effort.as_deref(), Some("high"));
-        // Zero UPDATE: model, effort, and the instant are exactly as A left them —
-        // the illegal `grok-4.5 + xhigh` combination never reached the row.
-        let (_, _, model_b, _, effort_b, updated_b) = stored(&adapter, "agent-3").await;
-        assert_eq!(model_b.as_deref(), Some("grok-4.5"));
-        assert_eq!(effort_b.as_deref(), Some("high"));
-        assert_eq!(updated_b, 500);
+        for (request, at) in [
+            (
+                AgentTuningEdit {
+                    model: FieldEdit::Set("grok-4.5".to_owned()),
+                    ..leave_all()
+                },
+                500,
+            ),
+            (
+                AgentTuningEdit {
+                    reasoning_effort: FieldEdit::Set("xhigh".to_owned()),
+                    ..leave_all()
+                },
+                900,
+            ),
+        ] {
+            let outcome = admit_and_apply(&adapter, &agent("agent-3"), &request, at)
+                .await
+                .unwrap();
+            assert!(matches!(outcome, AgentProfileRowWrite::Committed { .. }));
+        }
+        let (_, _, model, _, effort, updated) = stored(&adapter, "agent-3").await;
+        assert_eq!(model.as_deref(), Some("grok-4.5"));
+        assert_eq!(effort.as_deref(), Some("xhigh"));
+        assert_eq!(updated, 900);
     }
 
     #[tokio::test]

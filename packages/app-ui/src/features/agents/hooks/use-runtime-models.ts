@@ -3,7 +3,6 @@ import {
   apiPaths,
   RuntimeCatalogResponseSchema,
   runtimeCatalogEntry,
-  reasoningEffortOptionsForRuntime,
   type RuntimeModelDiscovery,
   type RuntimeKind,
 } from "@silverhand/shared";
@@ -35,18 +34,16 @@ export function runtimeModelsQueryOptions(
   };
 }
 
-/** Missing metadata uses fallback suggestions; an explicit empty set does not. */
+/** Discovered per-model efforts win; otherwise the runtime's static vocabulary. */
 export function modelReasoningOptions(
   runtime: RuntimeKind,
   model: string | null,
   discovery: RuntimeModelDiscovery | null | undefined,
 ) {
-  const native = runtime === "claude" || runtime === "codex";
-  const id = model?.trim() || (runtime === "claude" ? "opus" : discovery?.default_model);
-  const details =
-    native && discovery?.status === "ok" && id ? discovery.reasoning_by_model?.[id] : undefined;
+  const id = model?.trim() || discovery?.default_model;
+  const details = discovery?.status === "ok" && id ? discovery.reasoning_by_model?.[id] : undefined;
   return {
-    options: details?.supported_efforts ?? reasoningEffortOptionsForRuntime(runtime, model),
+    options: details?.supported_efforts ?? runtimeCatalogEntry(runtime).reasoningEffortOptions,
     defaultEffort: details?.default_effort,
   };
 }
@@ -60,6 +57,7 @@ export function useRuntimeModels(
   const options = runtimeModelsQueryOptions(hostId, runtime, enabled);
   const query = useQuery(options);
   const data = query.data;
+  // `unsupported` keeps the static catalog without a hint, as before discovery existed.
   const status = !options.enabled
     ? "idle"
     : query.isFetching
@@ -67,7 +65,7 @@ export function useRuntimeModels(
       : query.isError || data?.status === "error"
         ? "error"
         : !data || data.status === "unsupported"
-          ? "unsupported"
+          ? "idle"
           : data.models.length === 0
             ? "empty"
             : data.cached

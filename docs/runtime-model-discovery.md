@@ -24,8 +24,11 @@ requests do not discover models. A discovery response adds:
 
 `status` is `ok`, `unsupported`, or `error`; non-success responses have no models.
 An empty successful list is distinct from failure. The server checks the requested
-runtime and binds the result to the existing host connection custody. No new
-permissions, persisted model table, or runtime library dependency is introduced.
+runtime and binds the result to the existing host connection custody. It forwards
+`models_for` only to a daemon advertising `runtime.model_discovery.v1` and answers
+`unsupported` itself otherwise; a malformed discovery is dropped without failing the
+inventory. No new permissions, persisted model table, or runtime library dependency
+is introduced.
 
 ## Native adapters
 
@@ -61,33 +64,29 @@ quota or access; the runtime remains authoritative when it runs the model.
 Claude `supportedEffortLevels` and Codex `supportedReasoningEfforts` feed optional
 `reasoning_by_model: { [modelId]: { supported_efforts, default_effort? } }` in the
 same discovery response. Claude aliases and resolved IDs carry the same metadata.
-Codex also reports `default_model` from `isDefault`; only Codex currently reports
-an effort default. Missing/malformed effort metadata means unknown; an explicit
+Codex reports `default_model` from `isDefault`; Claude reports the driver default
+`opus`. Only Codex currently reports an effort default. Missing/malformed effort metadata means unknown; an explicit
 empty list means no advertised effort options. Tokens have the existing bounded
 lowercase format. The Rust boundary validates metadata shape and model references,
 not a static list of model capabilities.
 
 The runtime configuration editor uses that model's discovered effort options,
-falling back to existing static suggestions when metadata is absent. It retains a
-saved/draft effort even if the refreshed list omits it. The default choice remains
-null; the reported default is a label, never an automatic persisted selection.
-For a null Claude model, metadata uses `opus`, matching the existing driver default.
-Creating an agent still uses the runtime's default effort; effort is configurable
-in the existing runtime editor or API.
+falling back to the runtime's static effort vocabulary (`reasoningEffortOptions`)
+when metadata is absent. It retains a saved/draft effort even if the refreshed list
+omits it. The default choice remains null; the reported default is a label, never
+an automatic persisted selection. `unsupported` shows no hint and uses the static
+catalog, as before discovery existed; `error` shows a failure hint with refresh.
 
-For Claude/Codex, create/switch/PATCH enforce token shape only. The CLI owns actual
-model/effort compatibility; probe failures and stale metadata cannot block writes.
-Claude now passes explicit effort via `--effort`; Codex retains its existing
-`model_reasoning_effort` forwarding. Other runtimes' admission rules are unchanged.
-An unsupported CLI option/value may fail startup or the turn and is handled by the
-existing runtime error path. Claude 2.1.300 instead warns and falls back to its
-default for an unknown `--effort` token; Silverhand does not override that vendor
-behavior or promise that every unsupported value is rejected. Discovery never
-promises inference success.
+For every runtime with a Reasoning control, create/switch/PATCH enforce token shape
+only; a model change never clears or rejects the effort. The CLI owns actual
+model/effort compatibility: an unsupported value may fail startup or the turn
+through the existing runtime error path, or the CLI may fall back to its default
+(Claude 2.1.300 warns and falls back). Silverhand keeps that vendor behavior.
+Claude now passes explicit effort via `--effort`.
 
 ## Compatibility and verification
 
-An old server may omit `model_discovery`; an old daemon may reject the new
+An old server may omit `model_discovery`; an old daemon is never sent the new
 parameter. Both leave manual input usable. Dynamic discovery requires an updated
 server and daemon; existing clients keep using ordinary catalog responses.
 Explicit Claude effort additionally requires the updated daemon: old drivers

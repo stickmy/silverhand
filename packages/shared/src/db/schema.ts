@@ -16,32 +16,12 @@ export type RuntimeKind = z.infer<typeof RuntimeKindSchema>;
 export const AgentSessionScopeSchema = z.enum(['conversation', 'agent']);
 export type AgentSessionScope = z.infer<typeof AgentSessionScopeSchema>;
 
-// Reasoning effort is a bounded, opaque, lowercase TOKEN — one shape shared by
-// persistence, the HTTP DTOs, and the daemon `runtime_start` wire. It has NO
-// global legality semantics: this schema only bounds the STRUCTURE (charset +
-// length), it is NOT a registry of which values are legal. Reasoning effort has
-// no cross-vendor standard, so the value namespace belongs to each runtime — the
-// admission policy lives in `reasoningEffortValidForRuntime`, never a global
-// enum. Claude/Codex delegate model-specific support to their native CLI; other
-// runtimes keep their curated option sets.
-//
-// Two consequences of the bound:
-//   - it stops a malformed value from reaching a CLI as a config override;
-//   - any NEW daemon that adopts this open-token schema can FRAME a token it has
-//     never heard of rather than strict-reject the whole `runtime_start`, so
-//     adding a new effort value never requires a wire-protocol bump — the
-//     receiver-future-compat half of the two-layer capability model (#task:1486).
-//     An OLD daemon still on a closed enum would strict-reject an unknown token;
-//     it is protected NOT by this schema but by the send gate — the backend only
-//     sends a non-baseline token to a daemon advertising the
-//     `runtime.codex.reasoning.v1` capability, so a strict old daemon never
-//     receives one. (That daemon capability protects backend→daemon only; it does
-//     NOT make an old backend→desktop DTO reader understand a future token.)
-//
-// Codex's own app-server protocol models per-model effort exactly this way (a
-// non-empty string). Stored/sent verbatim (lowercase). `null` (unset) is
-// distinct from `'none'` (explicitly disabled): unset means the driver passes
-// no reasoning override.
+// Reasoning effort is a bounded, opaque, lowercase TOKEN shared by persistence,
+// the HTTP DTOs, and the daemon `runtime_start` wire. The schema bounds structure
+// only: values belong to each runtime's CLI, which decides what a model accepts.
+// The bound keeps a malformed value out of CLI config overrides and lets a daemon
+// frame a value it has never seen, so a new effort never needs a protocol bump.
+// `null` (unset) is distinct from `'none'`: unset passes no reasoning override.
 export const ReasoningEffortTokenSchema = z
   .string()
   .min(1)

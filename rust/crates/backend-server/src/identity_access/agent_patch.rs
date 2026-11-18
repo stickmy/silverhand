@@ -85,6 +85,7 @@ use silverhand_backend_core::{
         AgentProfileWriteUnitOfWork, AgentTuningEdit, FieldEdit, RequiredEdit, TuningRejection,
         update_agent_profile_and_announce,
     },
+    identity_access::agents::runtime_capability::is_reasoning_effort_token,
     identity_access::capability::{
         agent_authority::{AgentAuthority, can_edit_agent},
         agent_view::{VisibleStages, can_view_agent},
@@ -114,9 +115,6 @@ const INTERNAL_ERROR_BODY: &str = "Internal Server Error";
 /// `.length`).
 const DESCRIPTION_MAX_UTF16: usize = 2000;
 /// `ReasoningEffortTokenSchema` bounds: `.min(1).max(32)` code units.
-const REASONING_TOKEN_MIN: usize = 1;
-const REASONING_TOKEN_MAX: usize = 32;
-
 #[derive(Clone)]
 struct PatchState<R, W, S, C> {
     reads: R,
@@ -346,7 +344,7 @@ struct AgentPatchRaw {
 /// [`is_reasoning_token`]. The value-less arms carry no token and pass.
 fn reasoning_token(field: &PatchField<String>, _: &()) -> garde::Result {
     match field {
-        PatchField::Value(value) if !is_reasoning_token(value) => {
+        PatchField::Value(value) if !is_reasoning_effort_token(value) => {
             Err(garde::Error::new("not a reasoning-effort token"))
         }
         _ => Ok(()),
@@ -412,24 +410,6 @@ fn field_edit<T>(field: PatchField<T>) -> FieldEdit<T> {
         PatchField::Null => FieldEdit::Clear,
         PatchField::Value(value) => FieldEdit::Set(value),
     }
-}
-
-/// `ReasoningEffortTokenSchema`: `.min(1).max(32).regex(/^[a-z][a-z0-9_-]*$/)`. The
-/// regex admits only ASCII `[a-z0-9_-]`, so a code-unit count equals the char count;
-/// the first char must be `[a-z]`, the rest `[a-z0-9_-]`.
-fn is_reasoning_token(value: &str) -> bool {
-    let length = value.chars().count();
-    if !(REASONING_TOKEN_MIN..=REASONING_TOKEN_MAX).contains(&length) {
-        return false;
-    }
-    let mut chars = value.chars();
-    let Some(first) = chars.next() else {
-        return false;
-    };
-    if !first.is_ascii_lowercase() {
-        return false;
-    }
-    chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-')
 }
 
 // ===========================================================================
@@ -1258,7 +1238,8 @@ mod corpus {
     use serde_json::{Value, json};
     use silverhand_backend_core::identity_access::agent_profile_write::{FieldEdit, RequiredEdit};
 
-    use super::{AgentPatchRaw, AgentTuningEdit, DESCRIPTION_MAX_UTF16, REASONING_TOKEN_MAX};
+    use super::{AgentPatchRaw, AgentTuningEdit, DESCRIPTION_MAX_UTF16};
+    use silverhand_backend_core::identity_access::agents::runtime_capability::REASONING_EFFORT_TOKEN_MAX;
 
     /// The shared fixture, embedded at compile time. The path climbs five levels from
     /// this source file (`rust/crates/backend-server/src/identity_access/agent_patch.rs`) to
@@ -1358,7 +1339,7 @@ mod corpus {
         );
         assert_eq!(
             corpus["reasoningTokenMax"].as_u64(),
-            Some(REASONING_TOKEN_MAX as u64)
+            Some(REASONING_EFFORT_TOKEN_MAX as u64)
         );
 
         let cases = corpus["cases"].as_array().expect("cases is an array");

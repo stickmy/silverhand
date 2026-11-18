@@ -111,7 +111,10 @@ use silverhand_backend_core::{
     identity_access::agent_profile_write::AgentChangedSink,
     identity_access::agents::{
         runtime::RuntimeKind,
-        runtime_capability::{reasoning_effort_valid_for_runtime, runtime_supports_fast_mode},
+        runtime_capability::{
+            is_reasoning_effort_token, reasoning_effort_valid_for_runtime,
+            runtime_supports_fast_mode,
+        },
         session_scope::AgentSessionScope,
     },
     identity_access::user_identity::ParticipantHandle,
@@ -720,15 +723,11 @@ impl TryFrom<RawCreateBody> for CreateAgentInput {
         // `reasoning_effort`: the token SHAPE (ReasoningEffortTokenSchema) then the
         // runtime tuning policy (the superRefine). A present token must clear both.
         if let Some(token) = reasoning_effort.as_deref()
-            && !is_reasoning_token(token)
+            && !is_reasoning_effort_token(token)
         {
             return Err(());
         }
-        if !reasoning_effort_valid_for_runtime(
-            runtime,
-            reasoning_effort.as_deref(),
-            model.as_deref(),
-        ) {
+        if !reasoning_effort_valid_for_runtime(runtime, reasoning_effort.as_deref()) {
             return Err(());
         }
 
@@ -763,26 +762,6 @@ impl TryFrom<RawCreateBody> for CreateAgentInput {
         })
     }
 }
-
-/// `ReasoningEffortTokenSchema`: `.min(1).max(32)` code units, `/^[a-z][a-z0-9_-]*$/`.
-/// Every legal token is ASCII, so byte length equals code-unit length.
-fn is_reasoning_token(token: &str) -> bool {
-    let length = token.chars().count();
-    if !(REASONING_TOKEN_MIN..=REASONING_TOKEN_MAX).contains(&length) {
-        return false;
-    }
-    let mut chars = token.chars();
-    let Some(first) = chars.next() else {
-        return false;
-    };
-    if !first.is_ascii_lowercase() {
-        return false;
-    }
-    chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-')
-}
-
-const REASONING_TOKEN_MIN: usize = 1;
-const REASONING_TOKEN_MAX: usize = 32;
 
 /// Parse the `Idempotency-Key` header (design §14 Q1). Absent or empty → the `missing`
 /// refusal (TS `!raw` treats an empty string as absent); present but not matching

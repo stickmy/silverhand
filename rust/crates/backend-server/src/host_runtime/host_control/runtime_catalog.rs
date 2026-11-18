@@ -20,7 +20,9 @@ use std::{collections::BTreeMap, time::Duration};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use silverhand_backend_core::identity_access::agents::runtime::RuntimeKind;
+use silverhand_backend_core::identity_access::agents::{
+    runtime::RuntimeKind, runtime_capability::is_reasoning_effort_token,
+};
 
 #[cfg(test)]
 use crate::application_orchestration::daemon_delivery::{CommandRefusal, DaemonRefusalCode};
@@ -33,6 +35,8 @@ use super::wire_number::js_safe_integer;
 /// This operation's own budget: one probe may shell out to every runtime binary
 /// on the machine, so it is far longer than a control-plane round trip.
 const PROBE_TIMEOUT: Duration = Duration::from_secs(45);
+/// Inventory plus one model probe, which the daemon bounds at 15 seconds.
+const MODEL_DISCOVERY_TIMEOUT: Duration = Duration::from_secs(75);
 
 pub struct RuntimeCatalogRequest {
     custody: HostDataPlaneCustody,
@@ -240,6 +244,18 @@ enum ModelDiscoveryStatus {
 }
 
 impl ModelDiscovery {
+    fn unsupported(runtime: RuntimeKind, detected_at: i64) -> Self {
+        Self {
+            runtime: runtime.as_str().to_owned(),
+            status: ModelDiscoveryStatus::Unsupported,
+            models: Vec::new(),
+            reasoning_by_model: None,
+            default_model: None,
+            detected_at,
+            cached: false,
+        }
+    }
+
     fn decode(value: Value, requested: Option<RuntimeKind>) -> Option<Self> {
         let result: Self = serde_json::from_value(value).ok()?;
         if RuntimeKind::parse(&result.runtime) != requested
@@ -257,16 +273,10 @@ impl ModelDiscovery {
                 entries.iter().any(|(id, reasoning)| {
                     !result.models.contains(id)
                         || reasoning.supported_efforts.len() > 64
-                        || reasoning.supported_efforts.iter().any(|token| {
-                            token.len() > 32
-                                || !token.as_bytes().first().is_some_and(u8::is_ascii_lowercase)
-                                || !token.bytes().all(|c| {
-                                    c.is_ascii_lowercase()
-                                        || c.is_ascii_digit()
-                                        || c == b'_'
-                                        || c == b'-'
-                                })
-                        })
+                        || !reasoning
+                            .supported_efforts
+                            .iter()
+                            .all(|token| is_reasoning_effort_token(token))
                         || reasoning
                             .default_effort
                             .as_ref()
@@ -285,16 +295,23 @@ pub async fn probe(
     dispatch: &OwningHostDataPlane,
     request: RuntimeCatalogRequest,
 ) -> RuntimeCatalogOutcome {
+    let requested = request.models_for;
+    // A daemon without discovery strict-rejects `models_for`; answer unsupported instead.
+    let models_for = requested.filter(|_| {
+        dispatch
+            .features(&request.custody)
+            .is_ok_and(|features| features.model_discovery)
+    });
     let mut params = json!({ "force": request.force });
-    if let Some(runtime) = request.models_for {
+    if let Some(runtime) = models_for {
         params["models_for"] = json!(runtime.as_str());
     }
     let answer = match dispatch
         .dispatch(HostDataPlaneRequest {
             custody: request.custody.clone(),
             command: command::runtime_catalog(params),
-            timeout: if request.models_for.is_some() {
-                Duration::from_secs(75)
+            timeout: if models_for.is_some() {
+                MODEL_DISCOVERY_TIMEOUT
             } else {
                 PROBE_TIMEOUT
             },
@@ -309,15 +326,16 @@ pub async fn probe(
     let Ok(result) = answer.into_result_for(&request.custody) else {
         return RuntimeCatalogOutcome::TransportContractViolation;
     };
-    let model_discovery = match result.get("model_discovery") {
-        None => None,
-        Some(value) => match ModelDiscovery::decode(value.clone(), request.models_for) {
-            Some(models) => Some(models),
-            None => return RuntimeCatalogOutcome::DaemonInternalError,
-        },
-    };
+    // Discovery is advisory: a malformed one is dropped without failing the catalog.
+    let discovered = result
+        .get("model_discovery")
+        .and_then(|value| ModelDiscovery::decode(value.clone(), models_for));
     let Some((runtimes, detected_at)) = CatalogWire::decode(result) else {
         return RuntimeCatalogOutcome::DaemonInternalError;
+    };
+    let model_discovery = match (requested, models_for) {
+        (Some(runtime), None) => Some(ModelDiscovery::unsupported(runtime, detected_at)),
+        _ => discovered,
     };
     RuntimeCatalogOutcome::Detected(RuntimeCatalog {
         custody: request.custody,

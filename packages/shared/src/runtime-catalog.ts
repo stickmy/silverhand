@@ -1,4 +1,4 @@
-import { type ReasoningEffort, type RuntimeKind } from './db/schema.js';
+import { ReasoningEffortTokenSchema, type ReasoningEffort, type RuntimeKind } from './db/schema.js';
 
 /**
  * Single source of truth for per-runtime UI facts.
@@ -27,20 +27,12 @@ export interface RuntimeCatalogEntry {
    * offer a runtime we can't actually spawn.
    */
   selectable: boolean;
-  /** Static effort suggestions, also the admission set for curated runtimes.
-   * Claude/Codex prefer native discovery and delegate semantic validation to
-   * their CLI; their fallback suggestions never restrict stored tokens. */
-  reasoningEffortOptions: readonly ReasoningEffort[];
   /**
-   * Full replacement option lists for models whose effort capability differs
-   * from the runtime baseline. Default and unlisted models outside approved families use the
-   * baseline: free-text model ids are open-ended, so Silverhand must not
-   * promise a model-specific effort without an explicit capability entry.
+   * This runtime's effort vocabulary, in display order (empty = no Reasoning
+   * control). UI fallback when the CLI reports no per-model efforts; writes check
+   * only token shape, and the CLI decides whether a model accepts a value.
    */
-  reasoningEffortOptionsByModel?: Readonly<Record<string, readonly ReasoningEffort[]>>;
-  /** Approved model families: matches the exact family or a nonempty `family-*`
-   * suffix. Exact model entries take precedence; unrelated names use baseline. */
-  reasoningEffortOptionsByModelFamily?: Readonly<Record<string, readonly ReasoningEffort[]>>;
+  reasoningEffortOptions: readonly ReasoningEffort[];
   /** Whether the runtime accepts the persisted fast-mode tri-state. */
   supportsFastMode: boolean;
   /**
@@ -74,7 +66,7 @@ const CATALOG: Record<RuntimeKind, RuntimeCatalogEntry> = {
     label: 'Claude',
     cliLabel: 'Claude Code',
     selectable: true,
-    reasoningEffortOptions: [],
+    reasoningEffortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
     supportsFastMode: false,
     supportsProfileMcp: true,
     modelSuggestions: [],
@@ -84,25 +76,15 @@ const CATALOG: Record<RuntimeKind, RuntimeCatalogEntry> = {
     label: 'Codex',
     cliLabel: 'Codex CLI',
     selectable: true,
-    reasoningEffortOptions: ['low', 'medium', 'high', 'xhigh'],
-    // 5.6 remains exact-model gated. Shiki approved the GPT-6 family for
-    // Max/Ultra; its family boundary must not match gpt-60 or proxy aliases.
-    reasoningEffortOptionsByModel: {
-      'gpt-6.1-sol': ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
-      'gpt-6.1-terra': ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
-      'gpt-5.6-sol': ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
-      'gpt-5.6-terra': ['low', 'medium', 'high', 'xhigh', 'max'],
-      'gpt-5.6-luna': ['low', 'medium', 'high', 'xhigh', 'max'],
-    },
-    reasoningEffortOptionsByModelFamily: {
-      'gpt-6': ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
-    },
+    reasoningEffortOptions: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
     supportsFastMode: true,
     supportsProfileMcp: true,
     // Suggested model ids for the Model combobox. Free text still accepted;
     // these are quick-picks only (no `defaultModel` — codex has no forced
     // create-time default).
     modelSuggestions: [
+      'gpt-6.2-sol',
+      'gpt-6.2-astra',
       'gpt-6.1-sol',
       'gpt-6.1-terra',
       'gpt-6-astra',
@@ -156,8 +138,7 @@ const CATALOG: Record<RuntimeKind, RuntimeCatalogEntry> = {
     label: 'Grok',
     cliLabel: 'Grok Build',
     selectable: true,
-    reasoningEffortOptions: ['low', 'medium', 'high'],
-    reasoningEffortOptionsByModel: { 'grok-4.6': ['low', 'medium', 'high', 'xhigh'] },
+    reasoningEffortOptions: ['low', 'medium', 'high', 'xhigh'],
     supportsFastMode: false,
     supportsProfileMcp: true,
     modelSuggestions: ['grok-4.6', 'grok-4.5'],
@@ -232,29 +213,7 @@ export function runtimeDefaultModel(kind: RuntimeKind): string | null {
 
 /** True if the runtime exposes a reasoning-effort control. */
 export function runtimeSupportsReasoningEffort(kind: RuntimeKind): boolean {
-  return kind === 'claude' || CATALOG[kind].reasoningEffortOptions.length > 0;
-}
-
-/** Model-aware reasoning options. The runtime baseline is the safe fallback
- * for driver-default, custom, and future model ids whose capability has not
- * been explicitly verified, either individually or as an approved family. */
-export function reasoningEffortOptionsForRuntime(
-  kind: RuntimeKind,
-  model: string | null | undefined,
-): readonly ReasoningEffort[] {
-  const entry = CATALOG[kind];
-  const modelId = model?.trim();
-  if (!modelId) return entry.reasoningEffortOptions;
-  const exact = entry.reasoningEffortOptionsByModel?.[modelId];
-  if (exact) return exact;
-  for (const [family, options] of Object.entries(entry.reasoningEffortOptionsByModelFamily ?? {})) {
-    if (
-      modelId === family ||
-      (modelId.startsWith(`${family}-`) && modelId.length > family.length + 1)
-    )
-      return options;
-  }
-  return entry.reasoningEffortOptions;
+  return CATALOG[kind].reasoningEffortOptions.length > 0;
 }
 
 /** True when the runtime exposes the fast-mode control. */
@@ -262,22 +221,16 @@ export function runtimeSupportsFastMode(kind: RuntimeKind): boolean {
   return CATALOG[kind].supportsFastMode;
 }
 
-/** Claude/Codex own model capability validation. Static options are UI fallbacks,
- * not an admission allowlist. Other runtimes retain their existing contract. */
+/** Null delegates to the runtime default. Any well-formed token is admitted on a
+ * runtime with a Reasoning control; the CLI decides what a model accepts. */
 export function reasoningEffortValidForRuntime(
   kind: RuntimeKind,
   value: ReasoningEffort | null | undefined,
-  model?: string | null,
 ): boolean {
   if (value === null || value === undefined) return true;
-  if (kind === 'claude' || kind === 'codex')
-    return value.length <= 32 && /^[a-z][a-z0-9_-]*$/u.test(value);
-  return reasoningEffortOptionsForRuntime(kind, model).includes(value);
-}
-
-/** Whether a token is offered by the static fallback list (not an admission rule). */
-export function isBaselineReasoningEffort(kind: RuntimeKind, value: ReasoningEffort): boolean {
-  return CATALOG[kind].reasoningEffortOptions.includes(value);
+  return (
+    runtimeSupportsReasoningEffort(kind) && ReasoningEffortTokenSchema.safeParse(value).success
+  );
 }
 
 /** Generic display label for a reasoning-effort value (title-cased):

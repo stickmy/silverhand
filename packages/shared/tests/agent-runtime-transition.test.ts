@@ -47,8 +47,8 @@ describe('SwitchAgentRuntimeInputSchema', () => {
     ).toBe(false);
   });
 
-  it('delegates Claude/Codex capability checks to the native CLI, but validates token shape', () => {
-    for (const runtime of ['claude', 'codex']) {
+  it('admits any well-formed effort and leaves model support to the CLI', () => {
+    for (const runtime of ['claude', 'codex', 'qoder', 'pi', 'grok']) {
       for (const model of ['custom-model', 'gpt-5.6-luna', null]) {
         for (const effort of ['high', 'ultra', 'future-tier']) {
           expect(

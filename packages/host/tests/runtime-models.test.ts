@@ -43,6 +43,7 @@ it('Claude sends only a metadata request, disables hooks/MCP, and preserves alia
   expect(await probeRuntimeModels(runtime, { root })).toEqual({
     status: 'ok',
     models: ['opus', 'claude-opus'],
+    default_model: 'opus',
     reasoning_by_model: {
       opus: { supported_efforts: ['low', 'future-tier'] },
       'claude-opus': { supported_efforts: ['low', 'future-tier'] },

@@ -136,8 +136,7 @@ export function draftIsDirty(agent: AgentDto, draft: RuntimeConfigDraft): boolea
  *  driver default"). Same discipline as the old transition dialog:
  *  the system NEVER picks a default silently.
  *
- *  Reasoning admission follows the runtime contract (`reasoningEffortValidForRuntime`),
- *  which leaves Claude/Codex model-specific validation to their CLI. */
+ *  Reasoning admission checks token shape only; the CLI decides what a model accepts. */
 export function canSaveRuntimeConfig(agent: AgentDto, draft: RuntimeConfigDraft): boolean {
   if (!draftIsDirty(agent, draft)) return false;
   if (draft.modelChoice === "unset") return false;
@@ -147,10 +146,9 @@ export function canSaveRuntimeConfig(agent: AgentDto, draft: RuntimeConfigDraft)
   if (runtimeSupportsReasoningEffort(draft.runtime) && draft.reasoning === "") {
     return false;
   }
-  const model = draft.modelChoice === "specify" ? draft.modelValue.trim() : null;
   const reasoning =
     draft.reasoning === "" || draft.reasoning === "__default__" ? null : draft.reasoning;
-  if (!reasoningEffortValidForRuntime(draft.runtime, reasoning, model)) {
+  if (!reasoningEffortValidForRuntime(draft.runtime, reasoning)) {
     return false;
   }
   if (runtimeSupportsFastMode(draft.runtime) && draft.fastMode === "") {
@@ -875,11 +873,11 @@ function ModelPicker({
  *  cleared their typed value — that is a real transition to unset. */
 export function modelDraftAfterCommit(draft: RuntimeConfigDraft, next: string): RuntimeConfigDraft {
   if (next === modelDefaultLabel()) {
-    return clearIncompatibleReasoning({
+    return {
       ...draft,
       modelChoice: "default",
       modelValue: "",
-    });
+    };
   }
   const trimmed = next.trim();
   if (trimmed.length === 0) {
@@ -887,30 +885,17 @@ export function modelDraftAfterCommit(draft: RuntimeConfigDraft, next: string): 
     // design); collapse `specify` to `unset` (user cleared what they
     // typed); leave `unset` unchanged.
     if (draft.modelChoice === "default") return draft;
-    return clearIncompatibleReasoning({
+    return {
       ...draft,
       modelChoice: "unset",
       modelValue: "",
-    });
+    };
   }
-  return clearIncompatibleReasoning({
+  return {
     ...draft,
     modelChoice: "specify",
     modelValue: trimmed,
-  });
-}
-
-/** Curated runtimes require a re-pick when a model change invalidates the effort.
- * Claude/Codex retain explicit values independently of discovery freshness. */
-function clearIncompatibleReasoning(draft: RuntimeConfigDraft): RuntimeConfigDraft {
-  if (!runtimeSupportsReasoningEffort(draft.runtime)) return draft;
-  if (draft.reasoning === "" || draft.reasoning === "__default__") return draft;
-  const model = draft.modelChoice === "specify" ? draft.modelValue.trim() : null;
-  if (reasoningEffortValidForRuntime(draft.runtime, draft.reasoning, model)) {
-    return draft;
-  }
-  // Force a positive re-pick instead of silently downgrading a curated value.
-  return { ...draft, reasoning: "" };
+  };
 }
 
 function triggerClass(): string {

@@ -81,7 +81,10 @@ use silverhand_backend_core::{
     identity_access::agent_profile_write::{AgentChangedAnnounce, AgentChangedSink},
     identity_access::agents::{
         runtime::RuntimeKind,
-        runtime_capability::{reasoning_effort_valid_for_runtime, runtime_supports_fast_mode},
+        runtime_capability::{
+            is_reasoning_effort_token, reasoning_effort_valid_for_runtime,
+            runtime_supports_fast_mode,
+        },
     },
     identity_access::capability::{
         agent_authority::{AgentAuthority, can_edit_agent},
@@ -107,9 +110,6 @@ const FORBIDDEN: &str = "forbidden";
 const INTERNAL_ERROR_BODY: &str = "Internal Server Error";
 
 /// `ReasoningEffortTokenSchema` bounds: `.min(1).max(32)` code units.
-const REASONING_TOKEN_MIN: usize = 1;
-const REASONING_TOKEN_MAX: usize = 32;
-
 #[allow(clippy::type_complexity)]
 struct SwitchState<Reads, Snap, Avail, Coord, W, Seats, Inboxes, Cust, Focus, P, Changed, C> {
     reads: Reads,
@@ -477,7 +477,7 @@ impl TryFrom<SwitchBodyRaw> for SwitchAgentRuntimeConfig {
         // a string must clear the token SHAPE (per-runtime legality is the refine below).
         let reasoning_effort = match raw.reasoning_effort {
             RequiredNullable::Null => None,
-            RequiredNullable::Value(token) if is_reasoning_token(&token) => Some(token),
+            RequiredNullable::Value(token) if is_reasoning_effort_token(&token) => Some(token),
             RequiredNullable::Value(_) => return Err(()),
         };
 
@@ -490,11 +490,7 @@ impl TryFrom<SwitchBodyRaw> for SwitchAgentRuntimeConfig {
         // `.superRefine`: reasoning-effort must be valid for the TARGET runtime + model, and
         // fast-mode may be set only on a runtime that supports it (an explicit null — now
         // `None` — is always allowed, matching the schema's `!== null` guard).
-        if !reasoning_effort_valid_for_runtime(
-            runtime,
-            reasoning_effort.as_deref(),
-            model.as_deref(),
-        ) {
+        if !reasoning_effort_valid_for_runtime(runtime, reasoning_effort.as_deref()) {
             return Err(());
         }
         if !runtime_supports_fast_mode(runtime) && fast_mode.is_some() {
@@ -508,24 +504,6 @@ impl TryFrom<SwitchBodyRaw> for SwitchAgentRuntimeConfig {
             fast_mode,
         })
     }
-}
-
-/// `ReasoningEffortTokenSchema`: `.min(1).max(32).regex(/^[a-z][a-z0-9_-]*$/)`. The regex
-/// admits only ASCII `[a-z0-9_-]`, so a code-unit count equals the char count; the first
-/// char must be `[a-z]`, the rest `[a-z0-9_-]`.
-fn is_reasoning_token(value: &str) -> bool {
-    let length = value.chars().count();
-    if !(REASONING_TOKEN_MIN..=REASONING_TOKEN_MAX).contains(&length) {
-        return false;
-    }
-    let mut chars = value.chars();
-    let Some(first) = chars.next() else {
-        return false;
-    };
-    if !first.is_ascii_lowercase() {
-        return false;
-    }
-    chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-')
 }
 
 // ===========================================================================

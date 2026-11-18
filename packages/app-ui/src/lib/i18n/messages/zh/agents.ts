@@ -4,7 +4,6 @@ import type { Translation } from "../../translate";
 export const agents: Translation<typeof en> = {
   modelsDetecting: "正在查询模型，可直接输入 model ID。",
   modelsFailed: "模型查询失败，可直接输入 model ID。",
-  modelsUnsupported: "暂不支持模型发现，可直接输入 model ID。",
   modelsEmpty: "未返回模型，可直接输入 model ID。",
   modelsCached: "缓存的模型建议，也可自由输入 model ID。",
   modelsDetected: "此电脑的模型建议，也可自由输入 model ID。",

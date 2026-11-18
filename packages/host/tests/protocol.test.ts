@@ -487,10 +487,8 @@ describe('protocol — reasoning-effort frozen old-daemon compatibility (#task:1
     expect(ReasoningEffortTokenSchema.safeParse('ultra').success).toBe(true);
     // A future, never-seen effort also frames on the wire (additive/ignorable).
     expect(ReasoningEffortTokenSchema.safeParse('giga').success).toBe(true);
-    // Product legality now lives in the per-runtime catalog (no global enum):
-    // `ultra` is legal for a verified Codex 5.6 model — the value the old
-    // frozen enum lacks — while remaining out of the historical baseline.
-    expect(reasoningEffortValidForRuntime('codex', 'ultra', 'gpt-5.6-sol')).toBe(true);
+    // Admission accepts the value the old frozen enum lacks.
+    expect(reasoningEffortValidForRuntime('codex', 'ultra')).toBe(true);
   });
 });
 

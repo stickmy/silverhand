@@ -132,10 +132,8 @@ export const CreateAgentInputSchema = z
     /** Defaults to the established one-runtime-per-conversation model. */
     session_scope: AgentSessionScopeSchema.optional(),
   })
-  // Shape is bounded globally; the runtime policy below retains curated sets
-  // where applicable. Claude/Codex own their model-specific capability checks.
   .superRefine((val, ctx) => {
-    if (!reasoningEffortValidForRuntime(val.runtime, val.reasoning_effort, val.model)) {
+    if (!reasoningEffortValidForRuntime(val.runtime, val.reasoning_effort)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['reasoning_effort'],
@@ -190,7 +188,7 @@ export const SwitchAgentRuntimeInputSchema = z
   })
   .strict()
   .superRefine((val, ctx) => {
-    if (!reasoningEffortValidForRuntime(val.runtime, val.reasoning_effort, val.model)) {
+    if (!reasoningEffortValidForRuntime(val.runtime, val.reasoning_effort)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['reasoning_effort'],

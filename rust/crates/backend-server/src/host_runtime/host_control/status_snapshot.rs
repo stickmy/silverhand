@@ -229,7 +229,9 @@ pub async fn probe(
     request: StatusSnapshotRequest,
 ) -> StatusSnapshotOutcome {
     let custody = &request.custody;
-    let include_machine = dispatch.reports_machine_facts(custody).unwrap_or(false);
+    let include_machine = dispatch
+        .features(custody)
+        .is_ok_and(|features| features.machine_facts);
     let answer = match dispatch
         .dispatch(HostDataPlaneRequest {
             custody: custody.clone(),

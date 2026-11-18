@@ -271,7 +271,7 @@ struct DaemonAttachment {
     connection_id: String,
     daemon_instance: DaemonInstanceId,
     host_name: String,
-    reports_machine_facts: bool,
+    features: DaemonFeatures,
     commands: mpsc::Sender<ConnectionControl>,
 }
 
@@ -313,12 +313,27 @@ impl AttachedHostDataPlane {
 struct AttachedDaemon {
     daemon_instance: DaemonInstanceId,
     host_name: String,
-    /// Advertised `host_status.machine.v1` in its `ready` frame.
-    reports_machine_facts: bool,
+    features: DaemonFeatures,
 }
 
-/// Daemon capability: `host_status` answers machine facts when asked.
-const HOST_STATUS_MACHINE_CAPABILITY: &str = "host_status.machine.v1";
+/// Optional daemon behaviors advertised in its `ready` frame.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) struct DaemonFeatures {
+    /// `host_status.machine.v1`: `host_status` answers machine facts when asked.
+    pub(crate) machine_facts: bool,
+    /// `runtime.model_discovery.v1`: `host_runtime_catalog` accepts `models_for`.
+    pub(crate) model_discovery: bool,
+}
+
+impl DaemonFeatures {
+    fn advertised(capabilities: &[String]) -> Self {
+        let has = |token: &str| capabilities.iter().any(|advertised| advertised == token);
+        Self {
+            machine_facts: has("host_status.machine.v1"),
+            model_discovery: has("runtime.model_discovery.v1"),
+        }
+    }
+}
 
 #[derive(Clone)]
 pub(crate) struct DaemonRegistry {
@@ -436,7 +451,7 @@ impl DaemonRegistry {
             connection_id: slot.connection_id.clone(),
             daemon_instance: attached.daemon_instance,
             host_name: attached.host_name,
-            reports_machine_facts: attached.reports_machine_facts,
+            features: attached.features,
             commands: slot.commands.clone(),
         }))
     }
@@ -1162,20 +1177,21 @@ impl OwningHostDataPlane {
             .map(AttachedHostDataPlane::new))
     }
 
-    /// Whether the daemon holding exactly this custody advertised machine facts.
-    /// A replaced or absent custody answers `false`; its dispatch fails anyway.
-    pub(crate) fn reports_machine_facts(
+    /// The features advertised by the daemon holding exactly this custody. A replaced
+    /// or absent custody answers none; its dispatch fails anyway.
+    pub(crate) fn features(
         &self,
         custody: &HostDataPlaneCustody,
-    ) -> Result<bool, DaemonRegistryError> {
+    ) -> Result<DaemonFeatures, DaemonRegistryError> {
         Ok(self
             .registry
             .attachment(custody.host.as_str())?
-            .is_some_and(|attachment| {
+            .filter(|attachment| {
                 attachment.connection_id == custody.connection_id
                     && attachment.daemon_instance == custody.instance
-                    && attachment.reports_machine_facts
-            }))
+            })
+            .map(|attachment| attachment.features)
+            .unwrap_or_default())
     }
 
     /// Resolve the attached custody for `host`. `None` is the ordinary offline
@@ -1741,9 +1757,7 @@ async fn connection(
                             let ready = AttachedDaemon {
                                 daemon_instance: instance.clone(),
                                 host_name: host_descriptor.name,
-                                reports_machine_facts: capabilities
-                                    .iter()
-                                    .any(|token| token == HOST_STATUS_MACHINE_CAPABILITY),
+                                features: DaemonFeatures::advertised(&capabilities),
                             };
                             socket.ready(protocol_version);
                             compatible = Some(ready.clone());
@@ -1752,7 +1766,7 @@ async fn connection(
                                 connection_id: connection_id.clone(),
                                 daemon_instance: instance,
                                 host_name: ready.host_name.clone(),
-                                reports_machine_facts: ready.reports_machine_facts,
+                                features: ready.features,
                                 commands: control.clone(),
                             });
                             let hydration = Arc::clone(&hydration);

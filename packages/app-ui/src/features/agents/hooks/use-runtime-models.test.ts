@@ -83,7 +83,7 @@ it("Qoder and unavailable hosts never start discovery", async () => {
   releases.forEach((release) => release());
 });
 
-it("uses per-model native efforts, including an explicit empty set, without inventing a default", () => {
+it("uses discovered per-model efforts, including an explicit empty set, else the runtime vocabulary", () => {
   const discovery = {
     runtime: "codex" as const,
     status: "ok" as const,
@@ -96,32 +96,24 @@ it("uses per-model native efforts, including an explicit empty set, without inve
       plain: { supported_efforts: [] },
     },
   };
+  const codex = ["low", "medium", "high", "xhigh", "max", "ultra"];
   expect(modelReasoningOptions("codex", "custom", discovery)).toEqual({
     options: ["high", "future-tier"],
     defaultEffort: "high",
   });
   expect(modelReasoningOptions("codex", null, discovery).options).toEqual(["high", "future-tier"]);
   expect(modelReasoningOptions("codex", "plain", discovery).options).toEqual([]);
-  expect(modelReasoningOptions("codex", "unlisted", discovery).options).toEqual([
-    "low",
-    "medium",
-    "high",
-    "xhigh",
-  ]);
-  expect(modelReasoningOptions("codex", "custom", null).options).toEqual([
-    "low",
-    "medium",
-    "high",
-    "xhigh",
-  ]);
+  expect(modelReasoningOptions("codex", "unlisted", discovery).options).toEqual(codex);
+  expect(modelReasoningOptions("codex", "custom", null).options).toEqual(codex);
   expect(
     modelReasoningOptions("claude", null, {
       ...discovery,
       runtime: "claude",
+      default_model: "opus",
       reasoning_by_model: { opus: { supported_efforts: ["max"] } },
     }).options,
   ).toEqual(["max"]);
-  expect(modelReasoningOptions("qoder", "custom", discovery).options).toEqual([
+  expect(modelReasoningOptions("qoder", "custom", null).options).toEqual([
     "none",
     "low",
     "medium",

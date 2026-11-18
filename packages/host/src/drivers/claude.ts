@@ -36,6 +36,9 @@ const DISALLOWED_TOOLS = [
  * - We delete `CLAUDECODE` from the env to keep nested invocations from
  *   tripping Claude's "I'm running inside Claude Code" branch.
  */
+/** Model used when the agent stores none. */
+export const CLAUDE_DEFAULT_MODEL = 'opus';
+
 export class ClaudeDriver implements Driver {
   readonly kind = 'claude' as const;
   readonly binary = 'claude';
@@ -67,7 +70,7 @@ export class ClaudeDriver implements Driver {
       '--input-format',
       'stream-json',
       '--model',
-      ctx.model || 'opus',
+      ctx.model || CLAUDE_DEFAULT_MODEL,
       '--disallowed-tools',
       DISALLOWED_TOOLS,
       '--append-system-prompt-file',
