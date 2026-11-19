@@ -154,6 +154,7 @@
   "GET /api/tasks/board/facets",
   "GET /api/tasks/by-number",
   "GET /api/tasks/:taskId",
+  "GET /api/tasks/:taskId/history",
   "POST /internal/agents/:aid/cli-trace",
   "POST /internal/agents/:aid/members",
   "POST /internal/agents/:aid/send-message",

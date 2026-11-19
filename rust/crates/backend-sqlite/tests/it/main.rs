@@ -60,6 +60,7 @@ mod stale_message_resolution_admission;
 mod task_claim_write;
 mod task_create_write;
 mod task_edit_write;
+mod task_history_read;
 mod task_human_board_read;
 mod task_point_snapshot;
 mod task_status_write;

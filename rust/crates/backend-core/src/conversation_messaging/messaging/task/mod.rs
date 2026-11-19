@@ -92,9 +92,9 @@ pub use human_board::{
     TaskBoardFilters, TaskBoardPerson,
 };
 pub use point_detail::{
-    TaskAuthorizedPointRead, TaskConversationBoardRead, TaskEditorDisplay, TaskMessageRef,
-    TaskNavigation, TaskPointCandidate, TaskPointFetch, TaskPointSource, VisibleTaskPoint,
-    authorize_task_point_on,
+    TaskAuthorizedPointRead, TaskConversationBoardRead, TaskEditorDisplay, TaskHistoryEvent,
+    TaskHistoryRead, TaskMessageRef, TaskNavigation, TaskPointCandidate, TaskPointFetch,
+    TaskPointSource, VisibleTaskPoint, authorize_task_point_on,
 };
 pub use read::{
     AgentBoardResolver, AgentRead, AgentReadableBoards, AuthorizedAgentBoard, AuthorizedTaskBoards,

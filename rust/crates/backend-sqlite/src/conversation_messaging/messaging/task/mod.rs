@@ -19,6 +19,7 @@
 //!    only; participation, ordering, and limit are the core's).
 //!  - `human_board_read` — the public board/count/facet read model, with human
 //!    placement visibility inside each SQL query before pagination;
+//!  - `history_read` — the task's lifecycle events behind the by-id gate;
 //!  - `point_detail` — viewer-independent task-detail sidecars, board lookup,
 //!    message navigation candidates, and last-editor display resolution.
 //!
@@ -31,6 +32,7 @@ mod create_admission;
 mod create_write;
 mod edit_write;
 mod event_append;
+mod history_read;
 mod human_board_read;
 mod point_detail;
 mod point_read;

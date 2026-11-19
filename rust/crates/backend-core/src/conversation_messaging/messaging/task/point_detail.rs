@@ -106,6 +106,24 @@ pub trait TaskAuthorizedPointRead {
     ) -> impl Future<Output = Result<Option<VisibleTaskPoint>, PersistenceFailure>> + Send;
 }
 
+/// One task lifecycle system message; `metadata` is the stored event payload.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TaskHistoryEvent {
+    pub id: MessageId,
+    pub created_at: i64,
+    pub metadata: serde_json::Value,
+}
+
+pub trait TaskHistoryRead {
+    /// `None` exactly when the human by-id point read would be `None`; the gate
+    /// and the event fetch share one snapshot.
+    fn read_authorized_history(
+        &self,
+        viewer: UserId,
+        task: super::TaskId,
+    ) -> impl Future<Output = Result<Option<Vec<TaskHistoryEvent>>, PersistenceFailure>> + Send;
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VisibleTaskPoint {
     viewer: ReadViewer,

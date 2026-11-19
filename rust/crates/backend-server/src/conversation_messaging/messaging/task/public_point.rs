@@ -10,7 +10,8 @@ use axum::{
     routing::get,
 };
 use silverhand_backend_core::conversation_messaging::messaging::task::{
-    ReadViewer, TaskAuthorizedPointRead, TaskReadActor, TaskReadAddress, TaskReadRequest,
+    ReadViewer, TaskAuthorizedPointRead, TaskHistoryRead, TaskReadActor, TaskReadAddress,
+    TaskReadRequest,
 };
 use silverhand_backend_core::foundation::identity::{ConversationId, UserId};
 
@@ -23,12 +24,48 @@ pub struct HumanTaskPointState<R> {
 
 pub fn human_task_point_router<R>(state: HumanTaskPointState<R>) -> Router
 where
-    R: TaskAuthorizedPointRead + Send + Sync + 'static,
+    R: TaskAuthorizedPointRead + TaskHistoryRead + Send + Sync + 'static,
 {
     Router::new()
         .route("/api/tasks/by-number", get(by_number::<R>))
         .route("/api/tasks/{taskId}", get(by_id::<R>))
+        .route("/api/tasks/{taskId}/history", get(history::<R>))
         .with_state(Arc::new(state))
+}
+
+async fn history<R>(
+    State(state): State<Arc<HumanTaskPointState<R>>>,
+    Path(raw): Path<String>,
+    principal: Option<Extension<UserId>>,
+) -> Response
+where
+    R: TaskHistoryRead + Send + Sync + 'static,
+{
+    let Some(Extension(viewer)) = principal else {
+        return safe_500();
+    };
+    let Ok(id) =
+        silverhand_backend_core::conversation_messaging::messaging::task::TaskId::parse(raw)
+    else {
+        return not_found();
+    };
+    match state.read.read_authorized_history(viewer, id).await {
+        Ok(Some(events)) => {
+            let events: Vec<_> = events
+                .into_iter()
+                .map(|event| {
+                    serde_json::json!({
+                        "id": event.id.as_str(),
+                        "created_at": event.created_at,
+                        "metadata": event.metadata,
+                    })
+                })
+                .collect();
+            (StatusCode::OK, Json(serde_json::json!({"events":events}))).into_response()
+        }
+        Ok(None) => not_found(),
+        Err(_) => safe_500(),
+    }
 }
 
 async fn by_number<R>(
@@ -187,6 +224,19 @@ mod tests {
     #[derive(Clone)]
     struct RecordingRead(Arc<Mutex<Vec<i64>>>);
 
+    impl TaskHistoryRead for RecordingRead {
+        async fn read_authorized_history(
+            &self,
+            _viewer: UserId,
+            _task: silverhand_backend_core::conversation_messaging::messaging::task::TaskId,
+        ) -> Result<
+            Option<Vec<silverhand_backend_core::conversation_messaging::messaging::task::TaskHistoryEvent>>,
+            PersistenceFailure,
+        >{
+            unreachable!("the by-number route does not read history")
+        }
+    }
+
     impl TaskAuthorizedPointRead for RecordingRead {
         async fn read_authorized_point(
             &self,
@@ -267,5 +317,85 @@ mod tests {
                 case.raw
             );
         }
+    }
+
+    struct FixedHistory(
+        Option<
+            Vec<silverhand_backend_core::conversation_messaging::messaging::task::TaskHistoryEvent>,
+        >,
+    );
+
+    impl TaskHistoryRead for FixedHistory {
+        async fn read_authorized_history(
+            &self,
+            _viewer: UserId,
+            _task: silverhand_backend_core::conversation_messaging::messaging::task::TaskId,
+        ) -> Result<
+            Option<Vec<silverhand_backend_core::conversation_messaging::messaging::task::TaskHistoryEvent>>,
+            PersistenceFailure,
+        >{
+            Ok(self.0.clone())
+        }
+    }
+
+    impl TaskAuthorizedPointRead for FixedHistory {
+        async fn read_authorized_point(
+            &self,
+            _request: TaskReadRequest,
+        ) -> Result<Option<VisibleTaskPoint>, PersistenceFailure> {
+            unreachable!()
+        }
+
+        async fn read_authorized_point_by_conversation_number(
+            &self,
+            _viewer: UserId,
+            _conversation: ConversationId,
+            _number: silverhand_backend_core::conversation_messaging::messaging::task::TaskNumber,
+        ) -> Result<Option<VisibleTaskPoint>, PersistenceFailure> {
+            unreachable!()
+        }
+    }
+
+    async fn get_history(read: FixedHistory) -> (StatusCode, serde_json::Value) {
+        let response = human_task_point_router(HumanTaskPointState { read })
+            .layer(Extension(UserId::parse("user-1").unwrap()))
+            .oneshot(
+                Request::builder()
+                    .uri("/api/tasks/task-1/history")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let status = response.status();
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        (status, serde_json::from_slice(&bytes).unwrap())
+    }
+
+    #[tokio::test]
+    async fn history_projects_events_and_maps_hidden_to_not_found() {
+        use silverhand_backend_core::conversation_messaging::messaging::{
+            MessageId, task::TaskHistoryEvent,
+        };
+        let metadata = serde_json::json!({"subtype":"task_claim","task_id":"task-1"});
+        let (status, body) = get_history(FixedHistory(Some(vec![TaskHistoryEvent {
+            id: MessageId::parse("m1").unwrap(),
+            created_at: 7,
+            metadata: metadata.clone(),
+        }])))
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(
+            body,
+            serde_json::json!({"events":[{"id":"m1","created_at":7,"metadata":metadata}]})
+        );
+        let (status, body) = get_history(FixedHistory(None)).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        assert_eq!(
+            body,
+            serde_json::json!({"error":"task not found","code":"not_found"})
+        );
     }
 }

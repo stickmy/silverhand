@@ -20,8 +20,8 @@ use super::row::{
 };
 use super::{SqliteTaskStore, corrupt, driver};
 
-struct SnapshotAuthority<'a> {
-    connection: &'a mut SqliteConnection,
+pub(super) struct SnapshotAuthority<'a> {
+    pub(super) connection: &'a mut SqliteConnection,
 }
 
 #[cfg(test)]
