@@ -14,7 +14,21 @@ import type {
   SecondaryDescriptor,
   SecondaryViewInputs,
 } from "@/features/conversation-shell/model/secondary-pane";
-import type { RouteState } from "@/router";
+import type { PaneColumn, RouteState } from "@/router";
+import type { ConversationIdentityStatus } from "@/features/conversations/conversation-identity";
+import type { DirectPairListItem } from "@silverhand/shared";
+
+/** The second column of a split view, resolved. */
+export interface SplitColumnRead {
+  id: string | null;
+  status: ConversationIdentityStatus | null;
+  descriptor: ConversationPaneDescriptor | null;
+  pair: DirectPairListItem | null;
+  membership: ResolvedChannelMembership;
+  hasChannelNamespace: boolean;
+  capabilities: ConversationPaneCapabilities;
+  threadComposerDirectory: ComposerDirectory;
+}
 
 export interface PaneContentRead {
   workspaceNameById: (wid: string | null) => string | null;
@@ -30,6 +44,9 @@ export interface PaneContentRead {
   primaryPaneCapabilities: ConversationPaneCapabilities;
   primaryPaneHasChannelNamespace: boolean;
   primaryThreadComposerDirectory: ComposerDirectory;
+  split?: SplitColumnRead;
+  /** The column the channel-scoped right panes belong to. */
+  paneContext?: { column: PaneColumn };
 }
 
 export interface PaneContentState {
@@ -46,6 +63,8 @@ export interface PaneContentState {
   threadJumpMessageId: string | null;
   parentJumpPrimePending: boolean;
   threadJumpPhase: JumpPhase | null;
+  splitJumpTarget?: { channelId: string; messageId: string } | null;
+  splitJumpPrimePending?: boolean;
 }
 
 export interface PaneContentCommands {
@@ -62,14 +81,20 @@ export interface PaneContentCommands {
   handleMessageAgent: (agentId: string) => void;
   handleDraftOpenedPair: (conversationId: string) => void;
   handleJumped: () => void;
-  handleOpenThreadFromChannel: (rootMessageId: string, jumpToMessageId?: string) => void;
+  handleOpenThreadFromChannel: (
+    rootMessageId: string,
+    jumpToMessageId?: string,
+    column?: PaneColumn,
+  ) => void;
   openSide: (id: string) => void;
-  toggleThreadsList: () => void;
-  toggleFilesList: () => void;
+  toggleThreadsList: (column?: PaneColumn) => void;
+  toggleFilesList: (column?: PaneColumn) => void;
+  /** Close one column of a split view; the other stays as the only column. */
+  closeColumn: (column: PaneColumn) => void;
   closeAgentPanel: () => void;
   closeHumanPanel: () => void;
   closeFilesList: () => void;
-  openAttachmentPanel: (attachmentId: string, inFiles?: boolean) => void;
+  openAttachmentPanel: (attachmentId: string, inFiles?: boolean, column?: PaneColumn) => void;
   closeAttachmentPanel: () => void;
   closeThread: () => void;
   closeThreadsList: () => void;

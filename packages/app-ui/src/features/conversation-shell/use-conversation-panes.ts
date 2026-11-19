@@ -9,7 +9,8 @@ import {
   selectSecondaryViewInputs,
   selectSidebarSelectedConversationId,
 } from "@/features/conversation-shell/model/secondary-pane";
-import { useNav, useRouteState } from "@/router";
+import { routes, useNav, useRouteState, type PaneColumn } from "@/router";
+import { dissolveSplitPair } from "./split-pairs";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { PaneJumpModel, PaneReadModel } from "./conversation-shell-models";
 
@@ -31,12 +32,24 @@ export function useConversationPanes(
     taskDetailId,
     threadRootId,
   } = route;
-  const { primaryPointer, parentChannelMembership, hasChannelNamespace, deferredChannelId } = read;
+  const { primaryPointer, hasChannelNamespace, deferredChannelId } = read;
+  // Channel-scoped right panes (thread, threads, attachments) belong to one
+  // column at a time; without a split view that is the route's conversation.
+  const paneContext = read.paneContext ?? {
+    column: "primary" as PaneColumn,
+    channelId: selectedChannelId,
+    workspaceId: selectedWorkspaceId,
+    membership: read.parentChannelMembership,
+  };
+  const contextChannelId = paneContext.channelId;
+  const splitDescriptor = read.split?.descriptor ?? null;
   const { jumpTarget, isPrimePendingFor, primePhaseFor, handleJumpToMessage } = jump;
 
   const lastSelectedMessageReadKey = useRef<string | null>(null);
 
   const lastThreadMessageReadKey = useRef<string | null>(null);
+
+  const lastSplitMessageReadKey = useRef<string | null>(null);
 
   const { secondaryDescriptor, visibleConversations, focusedConversation } = useSecondaryPaneModel({
     primary: primaryPointer,
@@ -50,10 +63,10 @@ export function useConversationPanes(
   const channelIndexesAvailable = selectedChannelId !== null;
 
   const filesListMounted =
-    channelIndexesAvailable && mountsMemberOnlyPanel(filesListOpen, parentChannelMembership);
+    contextChannelId !== null && mountsMemberOnlyPanel(filesListOpen, paneContext.membership);
 
   const threadsListMounted =
-    channelIndexesAvailable && mountsMemberOnlyPanel(threadsListOpen, parentChannelMembership);
+    contextChannelId !== null && mountsMemberOnlyPanel(threadsListOpen, paneContext.membership);
 
   const taskPaneId = resolveTaskDetailSurface(route) === "pane" ? taskDetailId : null;
   const surface = selectSecondarySurface({
@@ -65,6 +78,12 @@ export function useConversationPanes(
   });
   const compactSecondary = compact && surface !== "none";
   const visiblePrimary = compactSecondary ? null : visibleConversations.primary;
+  // The second column is on screen beside the first unless a pane takes the
+  // whole stage; compact shows one column only.
+  const visibleSplit =
+    splitDescriptor && !compact && !routeFullscreen
+      ? { id: splitDescriptor.id, rosterPolicy: splitDescriptor.roster_policy }
+      : null;
   const visibleSecondary = compact && surface !== "side" ? null : visibleConversations.secondary;
   const notificationFocus =
     compactSecondary && surface !== "side" && surface !== "thread"
@@ -100,6 +119,19 @@ export function useConversationPanes(
     markMessageChannelRead.mutate(visibleSecondary.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleSecondary?.id]);
+
+  useEffect(() => {
+    if (!visibleSplit) {
+      lastSplitMessageReadKey.current = null;
+      return;
+    }
+    if (lastSplitMessageReadKey.current === visibleSplit.id) {
+      return;
+    }
+    lastSplitMessageReadKey.current = visibleSplit.id;
+    markMessageChannelRead.mutate(visibleSplit.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleSplit?.id]);
 
   const openTaskRef = useRef(nav.openTask);
 
@@ -165,15 +197,30 @@ export function useConversationPanes(
 
   const secondaryJumpPrimePending = false;
 
+  const splitJumpTarget = useMemo(
+    () =>
+      jumpTarget && !jumpTarget.threadRootId && jumpTarget.channelId === splitDescriptor?.id
+        ? { channelId: jumpTarget.channelId, messageId: jumpTarget.messageId }
+        : null,
+    [jumpTarget, splitDescriptor?.id],
+  );
+
+  const splitJumpPrimePending = useMemo(
+    () =>
+      splitJumpTarget !== null &&
+      isPrimePendingFor(splitJumpTarget.channelId, splitJumpTarget.messageId),
+    [isPrimePendingFor, splitJumpTarget],
+  );
+
   const threadJumpMessageId = useMemo(
     () =>
       jumpTarget &&
       jumpTarget.threadRootId &&
       jumpTarget.threadRootId === threadRootId &&
-      jumpTarget.channelId === selectedChannelId
+      jumpTarget.channelId === contextChannelId
         ? jumpTarget.messageId
         : null,
-    [jumpTarget, threadRootId, selectedChannelId],
+    [jumpTarget, threadRootId, contextChannelId],
   );
 
   const parentJumpPrimePending = useMemo(
@@ -185,14 +232,21 @@ export function useConversationPanes(
 
   const threadJumpPhase = useMemo(
     () =>
-      threadJumpMessageId !== null && selectedChannelId !== null
-        ? primePhaseFor(selectedChannelId, threadJumpMessageId)
+      threadJumpMessageId !== null && contextChannelId !== null
+        ? primePhaseFor(contextChannelId, threadJumpMessageId)
         : null,
-    [primePhaseFor, threadJumpMessageId, selectedChannelId],
+    [primePhaseFor, threadJumpMessageId, contextChannelId],
   );
 
-  const handleOpenThreadFromChannel = (rootMessageId: string, jumpToMessageId?: string): void => {
-    if (jumpToMessageId && selectedChannelId) {
+  const handleOpenThreadFromChannel = (
+    rootMessageId: string,
+    jumpToMessageId?: string,
+    column: PaneColumn = "primary",
+  ): void => {
+    // A jump navigates to the thread's own conversation, so it would replace
+    // the split view; the second column opens its thread in place and lets the
+    // thread pane find the reply.
+    if (jumpToMessageId && column === "primary" && selectedChannelId) {
       handleJumpToMessage({
         workspaceId: selectedWorkspaceId ?? undefined,
         channelId: selectedChannelId,
@@ -201,7 +255,20 @@ export function useConversationPanes(
       });
       return;
     }
-    nav.openThread(rootMessageId);
+    nav.openThread(rootMessageId, column);
+  };
+
+  const closeColumn = (column: PaneColumn): void => {
+    if (selectedChannelId) dissolveSplitPair(selectedChannelId);
+    if (column === "split" || !splitDescriptor) {
+      nav.closeSplit();
+      return;
+    }
+    nav.promoteSplit(
+      splitDescriptor.workspace_id
+        ? routes.chatChannel(splitDescriptor.workspace_id, splitDescriptor.id)
+        : routes.chatDirect(splitDescriptor.id),
+    );
   };
   return {
     secondaryDescriptor,
@@ -223,6 +290,10 @@ export function useConversationPanes(
     threadJumpMessageId,
     parentJumpPrimePending,
     threadJumpPhase,
+    splitJumpTarget,
+    splitJumpPrimePending,
     handleOpenThreadFromChannel,
+    closeColumn,
+    visibleSplitId: visibleSplit?.id ?? null,
   };
 }

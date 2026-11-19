@@ -140,7 +140,7 @@ export function useMarkNotificationsRead() {
  * `onJump`. When omitted, notifications still show but are inert.
  */
 export function useNotificationToasts(
-  viewing: { conversationId: string | null; threadRootId: string | null },
+  viewing: NotificationViewing,
   onJump?: (target: MessageJumpTarget) => void,
 ) {
   const qc = useQueryClient();
@@ -287,6 +287,11 @@ export function useNotificationToasts(
       dismissAlerts(viewing.conversationId);
     }
   }, [viewing.conversationId, dismissAlerts]);
+  useEffect(() => {
+    if (viewing.splitConversationId && document.hasFocus()) {
+      dismissAlerts(viewing.splitConversationId);
+    }
+  }, [viewing.splitConversationId, dismissAlerts]);
 
   // Native-notification click bridge. Main process forwards the
   // `notificationId` originally passed to `showSystemNotification`
@@ -396,12 +401,21 @@ export function useNotificationToasts(
   }, [data, qc, handleClickById, markRead]);
 }
 
+/** What the window shows: the focused conversation with its open thread, and
+ *  the second column of a split view, which shows its main stream only. */
+export interface NotificationViewing {
+  conversationId: string | null;
+  threadRootId: string | null;
+  splitConversationId?: string | null;
+}
+
 /** Whether the alert's message is on screen: its conversation is the focused
- *  one and, for a reply, that reply's thread is open. */
-function isOnScreen(
-  alert: MessageAlert,
-  viewing: { conversationId: string | null; threadRootId: string | null },
-): boolean {
+ *  one and, for a reply, that reply's thread is open; or it is a main-stream
+ *  message of the split column. */
+function isOnScreen(alert: MessageAlert, viewing: NotificationViewing): boolean {
+  if (alert.conversation_id === viewing.splitConversationId && !alert.thread_root_id) {
+    return true;
+  }
   if (alert.conversation_id !== viewing.conversationId) {
     return false;
   }

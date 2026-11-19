@@ -40,6 +40,9 @@ export type PrimaryPaneProps = Pick<
   | "onOpenAdvancedSearch"
   | "viewTabsEnabled"
   | "onOpenAttachmentPanel"
+  | "onCloseChild"
+  | "closeLabel"
+  | "column"
 >;
 
 export type AgentPaneProps = Pick<
@@ -142,7 +145,13 @@ export type SecondaryPaneModel =
   | { kind: "thread"; props: ThreadPaneProps; capabilities: ConversationPaneCapabilities }
   | { kind: "threads"; props: ThreadsPaneProps };
 
+/** The second column of a split view. */
+export type SplitPaneModel =
+  | { kind: "conversation"; props: PrimaryPaneProps }
+  | { kind: "unresolved"; props: UnresolvedPaneProps };
+
 export interface ConversationPanesModel {
   primary: PrimaryPaneModel;
+  split: SplitPaneModel | null;
   secondary: SecondaryPaneModel;
 }

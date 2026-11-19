@@ -118,6 +118,7 @@ export function ChatShell({
                     ready={deferredSection === "chat"}
                     fullscreen={fullscreen}
                     storageKey="silverhand.layout.split-ratio"
+                    acceptsSplitDrop={route.channelId !== null && !model.directDraftTarget}
                   />
                 </>
               ))}

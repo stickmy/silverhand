@@ -93,6 +93,7 @@ beforeEach(() => {
     handleDraftOpenedPair: vi.fn(),
     handleJumped: vi.fn(),
     handleOpenThreadFromChannel: vi.fn(),
+    closeColumn: vi.fn(),
     openSide: vi.fn(),
     toggleThreadsList: vi.fn(),
     toggleFilesList: vi.fn(),

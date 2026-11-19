@@ -3,6 +3,7 @@ import {
   useMemo,
   useState,
   type ButtonHTMLAttributes,
+  type MouseEvent,
   type ReactElement,
   type ReactNode,
 } from "react";
@@ -45,7 +46,8 @@ import {
 } from "@/features/workspaces/hooks";
 import { AppContextMenu } from "@/components/menus/app-context-menu";
 import { starredConversationIds, useFavoritesList } from "@/features/workspaces/favorites";
-import { DirectPairStarMenuItem } from "./direct-messages-panel";
+import { DirectPairStarMenuItem, OpenOnRightMenuItem } from "./direct-messages-panel";
+import { useSidebarSplit, wantsSplit } from "./sidebar-split";
 import { useViewerUser } from "@/features/session/hooks";
 import { channelNodeBadge, directRowBadge } from "@/features/attention/row-badges";
 import {
@@ -193,6 +195,7 @@ export function RecentList(props: {
 
   const viewerId = viewer.data && "id" in viewer.data ? viewer.data.id : null;
   const now = Date.now();
+  const split = useSidebarSplit();
   const loading =
     rows.length === 0 && (pairsQuery.isLoading || channelLists.some((list) => list.isLoading));
 
@@ -242,7 +245,15 @@ export function RecentList(props: {
       <ul className="flex flex-col">
         {visible.map((row, index) => (
           <li key={row.id}>
-            <RecentRowMenu row={row} pinned={pinned.has(row.id)}>
+            <RecentRowMenu
+              row={row}
+              pinned={pinned.has(row.id)}
+              onOpenInSplit={
+                split?.canOpen && row.id !== props.selectedConversationId
+                  ? () => split.openInSplit(row.id)
+                  : undefined
+              }
+            >
               <RecentRow
                 row={row}
                 selected={row.id === props.selectedConversationId}
@@ -256,7 +267,11 @@ export function RecentList(props: {
                 now={now}
                 agentAvatarUrls={agentAvatarUrls}
                 humanAvatarUrls={humanAvatarUrls}
-                onSelect={() => {
+                onSelect={(event) => {
+                  if (wantsSplit(event, split)) {
+                    split!.openInSplit(row.id);
+                    return;
+                  }
                   const workspaceId = row.kind === "channel" ? row.workspaceId : null;
                   if (row.latest?.thread_root_id) {
                     props.onOpenThread({
@@ -347,7 +362,7 @@ interface RecentRowProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "
   now: number;
   agentAvatarUrls: ReadonlyMap<string, string | null>;
   humanAvatarUrls: ReadonlyMap<string, string | null>;
-  onSelect: () => void;
+  onSelect: (event: MouseEvent<HTMLButtonElement>) => void;
 }
 
 // Forwards the ref and the menu trigger's handlers to the button, which the
@@ -510,18 +525,20 @@ const RecentRow = forwardRef<HTMLButtonElement, RecentRowProps>(function RecentR
 function RecentRowMenu(props: {
   row: RecentListRow;
   pinned: boolean;
+  onOpenInSplit?: () => void;
   children: ReactElement;
 }): JSX.Element {
   if (props.row.kind !== "channel") {
     return (
       <AppContextMenu trigger={props.children}>
+        {props.onOpenInSplit ? <OpenOnRightMenuItem onSelect={props.onOpenInSplit} /> : null}
         <DirectPairStarMenuItem conversationId={props.row.id} starred={props.pinned} />
       </AppContextMenu>
     );
   }
 
   return (
-    <RecentChannelMenu row={props.row} pinned={props.pinned}>
+    <RecentChannelMenu row={props.row} pinned={props.pinned} onOpenInSplit={props.onOpenInSplit}>
       {props.children}
     </RecentChannelMenu>
   );
@@ -530,6 +547,7 @@ function RecentRowMenu(props: {
 function RecentChannelMenu(props: {
   row: Extract<RecentListRow, { kind: "channel" }>;
   pinned: boolean;
+  onOpenInSplit?: () => void;
   children: ReactElement;
 }): JSX.Element {
   const { row, pinned } = props;
@@ -548,6 +566,7 @@ function RecentChannelMenu(props: {
         attention={row.attention}
         workspaceMuted={row.workspaceMuted}
         onStar={() => star.mutate({ channelId: row.id, starred: !pinned })}
+        onOpenInSplit={props.onOpenInSplit}
         onArchive={() =>
           archive.mutate({ channelId: row.id, archived: true, workspaceId: row.workspaceId })
         }

@@ -2,6 +2,9 @@ import type { conversationShell as en } from "../en/conversation-shell";
 import type { Translation } from "../../translate";
 
 export const conversationShell: Translation<typeof en> = {
+  closeColumn: "关闭此列",
+  openOnRight: "在右侧打开",
+  closeHalf: "关闭 {name}",
   closeSidePane: "关闭侧边面板",
   attachments: "附件",
   filterAttachmentsByTime: "按时间筛选附件",

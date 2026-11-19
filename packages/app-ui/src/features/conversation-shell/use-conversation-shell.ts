@@ -16,11 +16,13 @@ import { getChannelLayout, getCloseWatermark } from "@/features/app-shell/place-
 import {
   buildChannelLayoutUrl,
   buildChannelPathPreservingAgent,
+  buildSplitUrl,
   routes,
   useNav,
   useRouteState,
 } from "@/router";
-import { useCallback, useDeferredValue, useMemo } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo } from "react";
+import { recordSplitPair } from "./split-pairs";
 import type { ConversationShellModel, ConversationShellSignals } from "./conversation-shell-models";
 import { useConversationInvalidation } from "./use-conversation-invalidation";
 import { useConversationJump } from "./use-conversation-jump";
@@ -60,6 +62,7 @@ export function useConversationShell({
     threadRootId,
     fullscreen: routeFullscreen,
     agentPanelId,
+    splitConversationId,
   } = route;
 
   const read = useConversationReadModel();
@@ -121,9 +124,37 @@ export function useConversationShell({
   const panes = useConversationPanes(read, jump, { compact });
 
   useNotificationToasts(
-    { conversationId: panes.focusedConversation?.id ?? null, threadRootId: threadRootId ?? null },
+    {
+      conversationId: panes.focusedConversation?.id ?? null,
+      threadRootId: threadRootId ?? null,
+      splitConversationId: panes.visibleSplitId,
+    },
     (target) => handleJumpToMessage(target),
   );
+
+  // A split view on screen is a pair the sidebar keeps until the viewer closes
+  // a column. Recorded once the second column resolves, so a dead id never
+  // lands in the sidebar.
+  const splitResolvedId = read.split.descriptor ? read.split.id : null;
+  useEffect(() => {
+    if (appSection !== "chat" || !selectedChannelId || !splitResolvedId) return;
+    recordSplitPair({ left: selectedChannelId, right: splitResolvedId });
+  }, [appSection, selectedChannelId, splitResolvedId]);
+
+  const splitView =
+    appSection === "chat" && selectedChannelId && splitConversationId
+      ? { left: selectedChannelId, right: splitConversationId }
+      : null;
+
+  /** Reopen a sidebar pair: its first conversation with the second beside it. */
+  const openPair = (workspaceId: string, left: string, right: string): void => {
+    nav.go(buildSplitUrl(routes.chatChannel(workspaceId, left), right));
+  };
+
+  const openInSplit = (conversationId: string): void => {
+    if (compact || !selectedChannelId || conversationId === selectedChannelId) return;
+    nav.openSplit(conversationId);
+  };
 
   // Regular width defers a section's teardown past the click (`SectionLayer`).
   // A compact page mounts fresh and keeps the page it covers, so it renders its
@@ -259,6 +290,10 @@ export function useConversationShell({
       handleJumpToMessage,
 
       sidebarSelectedConversationId: panes.sidebarSelectedConversationId,
+      splitView,
+      openInSplit,
+      openPair,
+      closeSplitColumn: panes.closeColumn,
     },
     activity: {
       appSection,
@@ -285,6 +320,8 @@ export function useConversationShell({
         threadJumpMessageId: panes.threadJumpMessageId,
         parentJumpPrimePending: panes.parentJumpPrimePending,
         threadJumpPhase: panes.threadJumpPhase,
+        splitJumpTarget: panes.splitJumpTarget,
+        splitJumpPrimePending: panes.splitJumpPrimePending,
       },
       {
         requestJump,
@@ -300,6 +337,7 @@ export function useConversationShell({
         handleDraftOpenedPair,
         handleJumped,
         handleOpenThreadFromChannel: panes.handleOpenThreadFromChannel,
+        closeColumn: panes.closeColumn,
         openSide: nav.openSide,
         toggleThreadsList: nav.toggleThreadsList,
         toggleFilesList: nav.toggleFilesList,

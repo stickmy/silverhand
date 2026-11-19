@@ -1,4 +1,4 @@
-import { ArchiveIcon, CopyIcon, StarIcon, UnarchiveIcon } from "@/icons";
+import { ArchiveIcon, CopyIcon, SplitRightIcon, StarIcon, UnarchiveIcon } from "@/icons";
 import type { ChannelAttentionModeRowDto } from "@silverhand/shared";
 import {
   AppContextMenuItem,
@@ -25,6 +25,7 @@ export function ChannelRowMenuItems({
   onStar,
   onArchive,
   archivePending,
+  onOpenInSplit,
 }: {
   channelId: string;
   title: string;
@@ -37,11 +38,24 @@ export function ChannelRowMenuItems({
   onStar: () => void;
   onArchive: () => void;
   archivePending: boolean;
+  /** Open this conversation as a second column beside the current one. */
+  onOpenInSplit?: () => void;
 }): JSX.Element {
   const AttentionGlyph = attentionIcon(attention?.mode);
 
   return (
     <>
+      {onOpenInSplit ? (
+        <>
+          <AppContextMenuItem
+            icon={<SplitRightIcon className="size-3.5" />}
+            onSelect={onOpenInSplit}
+          >
+            {t("conversationShell.openOnRight")}
+          </AppContextMenuItem>
+          <AppContextMenuSeparator />
+        </>
+      ) : null}
       <AppContextMenuItem
         icon={<StarIcon className={"size-3.5" + (starred ? " fill-current" : "")} />}
         onSelect={onStar}

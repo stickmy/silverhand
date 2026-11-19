@@ -220,6 +220,9 @@ interface ChannelViewProps {
   /** Preview a md/html attachment in the right pane. Only the primary pane has
    *  one beside it; elsewhere md/html open in a tab or with the system. */
   onOpenAttachmentPanel?: (attachmentId: string) => void;
+  /** Which column of a split view this pane is. Only the first column claims
+   *  ⌘F while focus is nowhere in particular. Absent outside a split view. */
+  column?: "primary" | "split";
 }
 
 export const ChannelView = memo(function ChannelView(props: ChannelViewProps): JSX.Element {
@@ -316,6 +319,7 @@ function ActiveChannelView({
   onOpenAdvancedSearch,
   viewTabsEnabled = false,
   onOpenAttachmentPanel,
+  column,
 }: ChannelViewProps & { conversation: ConversationPaneDescriptor }): JSX.Element {
   // Per-viewer membership gate. A PUBLIC channel is readable by a
   // workspace user who has not joined it: they browse (message history + thread
@@ -634,7 +638,7 @@ function ActiveChannelView({
   useInlineFindHotkey({
     rootRef: findRootRef,
     enabled: findAvailable,
-    isPrimary: true,
+    isPrimary: column !== "split",
     onOpen: find.openFind,
   });
 
@@ -828,8 +832,12 @@ function ActiveChannelView({
     },
   });
   const nativeHeader = native.active;
-  useTabCycleShortcut(findRootRef, viewTabsShown && !nativeHeader, (step) =>
-    tabController.setActive(adjacentTabKey(tabController.tabs, tabController.activeKey, step)),
+  useTabCycleShortcut(
+    findRootRef,
+    viewTabsShown && !nativeHeader,
+    (step) =>
+      tabController.setActive(adjacentTabKey(tabController.tabs, tabController.activeKey, step)),
+    column ?? "any",
   );
 
   return (

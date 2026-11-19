@@ -138,7 +138,7 @@ vi.mock("@/features/direct-pairs/hooks", async (original) => {
 });
 vi.mock("@/features/conversations/conversation-identity", async (original) => ({
   ...(await original<typeof import("@/features/conversations/conversation-identity")>()),
-  useConversationIdentity: () => h.side,
+  useConversationIdentity: (id: string | null) => (id === null ? { status: "loading" } : h.side),
 }));
 vi.mock("@/features/channels/hooks", () => ({
   useMarkMessageChannelRead: () => ({ mutate: h.reads }),
@@ -210,6 +210,8 @@ beforeEach(() => {
     channelId: "c",
     directConversationId: null,
     sideConversationId: null,
+    splitConversationId: null,
+    paneColumn: "primary",
     fullscreen: false,
     filesListOpen: false,
     threadsListOpen: false,

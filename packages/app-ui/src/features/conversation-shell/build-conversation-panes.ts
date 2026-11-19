@@ -7,7 +7,9 @@ import type {
   AttachmentPaneProps,
   ConversationPanesModel,
   SecondaryPaneModel,
+  SplitPaneModel,
 } from "./pane-render-models";
+import type { PaneColumn } from "@/router";
 import type {
   PaneContentRoute,
   PaneContentRead,
@@ -22,6 +24,8 @@ export function buildConversationPanes(
   state: PaneContentState,
   commands: PaneContentCommands,
 ): ConversationPanesModel {
+  const split = buildSplitPane(read, state, commands);
+  const context = read.paneContext?.column ?? "primary";
   return {
     primary: route.directDraftTarget
       ? {
@@ -47,14 +51,14 @@ export function buildConversationPanes(
             onOpenThread: commands.handleOpenThreadFromChannel,
             onToggleThreadsList:
               state.channelIndexesAvailable && read.primaryPaneDescriptor != null
-                ? commands.toggleThreadsList
+                ? () => commands.toggleThreadsList("primary")
                 : undefined,
-            threadsListActive: state.threadsListMounted,
+            threadsListActive: context === "primary" && state.threadsListMounted,
             onToggleFilesList:
               state.channelIndexesAvailable && read.primaryPaneDescriptor != null
-                ? commands.toggleFilesList
+                ? () => commands.toggleFilesList("primary")
                 : undefined,
-            filesListActive: state.filesListMounted,
+            filesListActive: context === "primary" && state.filesListMounted,
             conversationRefsById: read.conversationRefsById,
             onOpenConversationRef: commands.openSide,
             onOpenChannelRef: commands.handleOpenChannelByName,
@@ -62,10 +66,103 @@ export function buildConversationPanes(
             onJumpToMessage: commands.handleJumpToMessage,
             onOpenAdvancedSearch: commands.handleOpenAdvancedSearch,
             viewTabsEnabled: true,
-            onOpenAttachmentPanel: commands.openAttachmentPanel,
+            onOpenAttachmentPanel: (id) => commands.openAttachmentPanel(id, false, "primary"),
+            ...(split
+              ? {
+                  onCloseChild: () => commands.closeColumn("primary"),
+                  closeLabel: t("conversationShell.closeColumn"),
+                  column: "primary" as const,
+                }
+              : {}),
           },
         },
+    split,
     secondary: resolveSecondaryPane(route, read, state, commands),
+  };
+}
+
+/** The second column. Its panes open on the right like the first column's,
+ *  owned by this column (`?ctx=split`). */
+function buildSplitPane(
+  read: PaneContentRead,
+  state: PaneContentState,
+  commands: PaneContentCommands,
+): SplitPaneModel | null {
+  const split = read.split;
+  if (!split?.id) return null;
+  const close = () => commands.closeColumn("split");
+  if (!split.descriptor) {
+    return {
+      kind: "unresolved",
+      props: {
+        conversationId: split.id,
+        status: split.status === "resolved" || split.status === null ? "loading" : split.status,
+        onClose: close,
+      },
+    };
+  }
+  const descriptor = split.descriptor;
+  const owns = read.paneContext?.column === "split";
+  const member = split.membership.membership === "member";
+  return {
+    kind: "conversation",
+    props: {
+      hasChannelNamespace: split.hasChannelNamespace,
+      workspaceName: read.workspaceNameById(descriptor.workspace_id),
+      conversation: descriptor,
+      parentTitle: null,
+      jumpTarget: state.splitJumpTarget ?? null,
+      jumpPrimePending: state.splitJumpPrimePending ?? false,
+      onJumped: commands.handleJumped,
+      onOpenThread: (rootId, jumpTo) =>
+        commands.handleOpenThreadFromChannel(rootId, jumpTo, "split"),
+      onToggleThreadsList: () => commands.toggleThreadsList("split"),
+      threadsListActive: owns && member && state.threadsListMounted,
+      onToggleFilesList: () => commands.toggleFilesList("split"),
+      filesListActive: owns && member && state.filesListMounted,
+      conversationRefsById: read.conversationRefsById,
+      onOpenConversationRef: commands.openSide,
+      onOpenChannelRef: commands.handleOpenChannelByName,
+      onOpenTask: commands.openTaskInPane,
+      onJumpToMessage: commands.handleJumpToMessage,
+      onOpenAdvancedSearch: commands.handleOpenAdvancedSearch,
+      viewTabsEnabled: true,
+      onOpenAttachmentPanel: (id) => commands.openAttachmentPanel(id, false, "split"),
+      onCloseChild: close,
+      closeLabel: t("conversationShell.closeColumn"),
+      column: "split",
+    },
+  };
+}
+
+/** The coordinates of the column that owns the channel-scoped right panes. */
+function contextColumn(route: PaneContentRoute, read: PaneContentRead) {
+  const split = read.split;
+  if (read.paneContext?.column === "split" && split?.id && split.descriptor) {
+    return {
+      column: "split" as PaneColumn,
+      channelId: split.id,
+      workspaceId: split.descriptor.workspace_id,
+      title: split.descriptor.title,
+      descriptor: split.descriptor,
+      parentCounterpart: split.descriptor.counterpart ?? null,
+      capabilities: split.capabilities,
+      composerDirectory: split.threadComposerDirectory,
+      gate: split.membership.gate,
+      counterpart: split.pair?.counterpart,
+    };
+  }
+  return {
+    column: "primary" as PaneColumn,
+    channelId: route.channelId,
+    workspaceId: route.workspaceId ?? null,
+    title: read.selectedChannel?.title ?? null,
+    descriptor: read.selectedChannelDescriptor,
+    parentCounterpart: read.primaryPaneDescriptor?.counterpart ?? null,
+    capabilities: read.primaryPaneCapabilities,
+    composerDirectory: read.primaryThreadComposerDirectory,
+    gate: read.parentMembership.gate,
+    counterpart: read.directPair?.counterpart,
   };
 }
 
@@ -106,14 +203,16 @@ export function resolveSecondaryPane(
     };
   }
 
-  if (surface === "files" && state.filesListMounted && route.channelId) {
-    const channelId = route.channelId;
+  const ctx = contextColumn(route, read);
+
+  if (surface === "files" && state.filesListMounted && ctx.channelId) {
+    const channelId = ctx.channelId;
     return {
       kind: "files",
       props: {
-        channelId: route.channelId,
-        workspaceId: route.workspaceId ?? null,
-        parentTitle: read.selectedChannel?.title ?? null,
+        channelId,
+        workspaceId: ctx.workspaceId,
+        parentTitle: ctx.title,
         onClose: commands.closeFilesList,
         onJumpToMessage: commands.handleJumpToMessage,
         onOpenAttachment: (attachment) => commands.openAttachmentPanel(attachment.id, true),
@@ -127,10 +226,10 @@ export function resolveSecondaryPane(
     };
   }
 
-  if (surface === "attachment" && route.attachmentPanelId && route.channelId) {
+  if (surface === "attachment" && route.attachmentPanelId && ctx.channelId) {
     return {
       kind: "attachment",
-      props: attachmentPaneProps(route.attachmentPanelId, route.channelId, read, {
+      props: attachmentPaneProps(route.attachmentPanelId, ctx.channelId, read, {
         onClose: commands.closeAttachmentPanel,
       }),
     };
@@ -184,25 +283,25 @@ export function resolveSecondaryPane(
     return { kind: "none" };
   }
 
-  if (surface === "thread" && route.threadRootId && route.channelId) {
-    const threadChannelId = route.channelId;
-    const threadWorkspaceId = route.workspaceId ?? null;
+  if (surface === "thread" && route.threadRootId && ctx.channelId) {
+    const threadChannelId = ctx.channelId;
+    const threadWorkspaceId = ctx.workspaceId;
     const threadRoot = route.threadRootId;
     return {
       kind: "thread",
-      capabilities: read.primaryPaneCapabilities,
+      capabilities: ctx.capabilities,
       props: {
         channelId: threadChannelId,
         workspaceId: threadWorkspaceId,
-        directory: read.primaryThreadComposerDirectory,
+        directory: ctx.composerDirectory,
         rootMessageId: threadRoot,
         onOpenAttachment: (attachment) => commands.openAttachmentPanel(attachment.id),
         onExpandAttachment: expandIntoPrimary(read, threadChannelId),
-        parentTitle: read.selectedChannel?.title ?? null,
-        parentCounterpart: read.primaryPaneDescriptor?.counterpart ?? null,
-        closed: read.selectedChannelDescriptor?.closed_at != null,
-        archived: read.selectedChannelDescriptor?.archived_at != null,
-        gate: read.parentMembership.gate,
+        parentTitle: ctx.title,
+        parentCounterpart: ctx.parentCounterpart,
+        closed: ctx.descriptor?.closed_at != null,
+        archived: ctx.descriptor?.archived_at != null,
+        gate: ctx.gate,
         onClose: commands.closeThread,
         onViewInChannel: () => {
           // Scroll-locate + flash the root in the main channel stream,
@@ -223,17 +322,17 @@ export function resolveSecondaryPane(
         onJumped: commands.handleJumped,
         onJumpToMessage: commands.handleJumpToMessage,
         onOpenAdvancedSearch: commands.handleOpenAdvancedSearch,
-        advancedSearchSender: directPairSenderSeed(read.directPair?.counterpart),
+        advancedSearchSender: directPairSenderSeed(ctx.counterpart),
       },
     };
   }
 
-  if (surface === "threads" && state.threadsListMounted && route.channelId) {
+  if (surface === "threads" && state.threadsListMounted && ctx.channelId) {
     return {
       kind: "threads",
       props: {
-        channelId: route.channelId,
-        parentTitle: read.selectedChannel?.title ?? null,
+        channelId: ctx.channelId,
+        parentTitle: ctx.title,
         onClose: commands.closeThreadsList,
         onOpenThread: commands.openThread,
       },
@@ -264,15 +363,21 @@ function attachmentPaneProps(
   };
 }
 
-/** Opens the attachment as a tab of the primary pane, offered only while that
- * pane shows `conversationId` with its tab strip. */
+/** Opens the attachment as a tab of the column showing `conversationId`,
+ * offered only while that column has its tab strip. */
 function expandIntoPrimary(
   read: PaneContentRead,
   conversationId: string,
 ): ((attachment: AttachmentSnapshot) => void) | undefined {
-  const primary = read.primaryPaneDescriptor;
-  if (primary?.id !== conversationId) return undefined;
-  if (!hostsViewTabs(primary, read.parentMembership.gate.allowMemberEffects)) return undefined;
+  const split = read.split;
+  const host =
+    read.primaryPaneDescriptor?.id === conversationId
+      ? { descriptor: read.primaryPaneDescriptor, gate: read.parentMembership.gate }
+      : split?.descriptor?.id === conversationId
+        ? { descriptor: split.descriptor, gate: split.membership.gate }
+        : null;
+  if (!host) return undefined;
+  if (!hostsViewTabs(host.descriptor, host.gate.allowMemberEffects)) return undefined;
   return (attachment) =>
     openConversationTab(conversationId, {
       kind: "attachment",

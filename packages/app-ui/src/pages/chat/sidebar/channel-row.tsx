@@ -1,4 +1,4 @@
-import { forwardRef, type ComponentProps, type HTMLAttributes } from "react";
+import { forwardRef, type ComponentProps, type HTMLAttributes, type MouseEvent } from "react";
 import { cn } from "@/lib/cn";
 import { ChannelIcon } from "@/components/channel-icon";
 import type { RowBadge } from "@/features/attention/attention-mode";
@@ -12,7 +12,7 @@ interface ChannelRowProps extends Omit<HTMLAttributes<HTMLDivElement>, "children
   selected: boolean;
   column: "outer" | "nested";
   draggable?: boolean;
-  onSelect: () => void;
+  onSelect: (event: MouseEvent<HTMLButtonElement>) => void;
   channelTitle: string;
   visibility?: ComponentProps<typeof ChannelIcon>["visibility"];
   muted: boolean;

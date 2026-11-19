@@ -42,6 +42,7 @@ import {
   tabKey,
   type Tab,
 } from "../conversation-shell/model/conversation-tabs";
+import { clearSplitPairs } from "../conversation-shell/split-pairs";
 
 export const LAST_CHANNEL_KEY = "silverhand:layout.last-channel-by-workspace";
 export const LAST_WORKSPACE_KEY = "silverhand:layout.last-workspace";
@@ -472,6 +473,7 @@ export function clearPlaceMemory(): void {
   functionalTabs = [...DEFAULT_TABS];
   activeTabByConversation.clear();
   notifyConversationTabs();
+  clearSplitPairs();
   try {
     localStorage.removeItem(LAST_WORKSPACE_KEY);
     localStorage.removeItem(LAST_CHANNEL_KEY);

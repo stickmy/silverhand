@@ -1,4 +1,5 @@
 import { useListSortSensors } from "./list-sort-sensors";
+import { dragLandsOnStage } from "./split-drop";
 import type { CSSProperties, ReactNode } from "react";
 import { DndContext, closestCenter } from "@dnd-kit/core";
 import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers";
@@ -54,7 +55,7 @@ export function SortableGroup({
       collisionDetection={closestCenter}
       modifiers={[restrictToVerticalAxis, restrictToParentElement]}
       onDragEnd={({ active, over }) => {
-        if (!over || active.id === over.id) return;
+        if (!over || active.id === over.id || dragLandsOnStage()) return;
         const oldIndex = ids.indexOf(String(active.id));
         const newIndex = ids.indexOf(String(over.id));
         if (oldIndex < 0 || newIndex < 0) return;

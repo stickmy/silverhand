@@ -1,9 +1,14 @@
 import { SidebarRowsSkeleton } from "@/components/layout/sidebar-skeleton";
 import { SidebarReveal, SidebarRevealRow } from "@/components/layout/sidebar-reveal";
-import { forwardRef, useMemo, type HTMLAttributes } from "react";
+import { forwardRef, useMemo, type HTMLAttributes, type MouseEvent } from "react";
 import type { DirectPairCounterpart } from "@silverhand/shared";
-import { DirectMessageIcon, StarIcon } from "@/icons";
-import { AppContextMenu, AppContextMenuItem } from "@/components/menus/app-context-menu";
+import { DirectMessageIcon, SplitRightIcon, StarIcon } from "@/icons";
+import {
+  AppContextMenu,
+  AppContextMenuItem,
+  AppContextMenuSeparator,
+} from "@/components/menus/app-context-menu";
+import { useSidebarSplit, wantsSplit } from "./sidebar-split";
 import {
   starredConversationIds,
   useFavoritesList,
@@ -154,6 +159,7 @@ function DirectMessageRow({
   onSelectDirectPair: (conversationId: string) => void;
   onSelectDirectDraft?: (target: DirectMessageTarget) => void;
 }): JSX.Element {
+  const split = useSidebarSplit();
   const face = (
     <DirectLineRowView
       counterpart={row.counterpart}
@@ -161,7 +167,11 @@ function DirectMessageRow({
       selected={row.selected}
       agentAvatarUrls={agentAvatarUrls}
       humanAvatarUrls={humanAvatarUrls}
-      onSelect={() => {
+      onSelect={(event) => {
+        if (row.kind === "pair" && wantsSplit(event, split)) {
+          split!.openInSplit(row.conversationId);
+          return;
+        }
         // A draft row stays on the draft even when a pair for the same agent
         // exists: that is what makes it one row instead of two.
         if (row.kind === "draft") {
@@ -175,8 +185,23 @@ function DirectMessageRow({
   if (row.kind === "draft") return face;
   return (
     <AppContextMenu trigger={face}>
+      {split?.canOpen && !row.selected ? (
+        <OpenOnRightMenuItem onSelect={() => split.openInSplit(row.conversationId)} />
+      ) : null}
       <DirectPairStarMenuItem conversationId={row.conversationId} starred={false} />
     </AppContextMenu>
+  );
+}
+
+/** "Open on right": the conversation joins the open one as a second column. */
+export function OpenOnRightMenuItem({ onSelect }: { onSelect: () => void }): JSX.Element {
+  return (
+    <>
+      <AppContextMenuItem icon={<SplitRightIcon className="size-3.5" />} onSelect={onSelect}>
+        {t("conversationShell.openOnRight")}
+      </AppContextMenuItem>
+      <AppContextMenuSeparator />
+    </>
   );
 }
 
@@ -209,7 +234,7 @@ export const DirectLineRowView = forwardRef<
     draggable?: boolean;
     agentAvatarUrls: ReadonlyMap<string, string | null>;
     humanAvatarUrls: ReadonlyMap<string, string | null>;
-    onSelect: () => void;
+    onSelect: (event: MouseEvent<HTMLButtonElement>) => void;
   }
 >(function DirectLineRowView(
   { counterpart: raw, unread, agentAvatarUrls, humanAvatarUrls, ...layout },

@@ -146,6 +146,9 @@ export function useTabCycleShortcut(
   rootRef: RefObject<HTMLElement | null>,
   enabled: boolean,
   onStep: (step: -1 | 1) => void,
+  /** In a split view only the column holding focus cycles; the first column
+   *  also takes the chord while focus is nowhere in particular. */
+  scope: "any" | "primary" | "split" = "any",
 ): void {
   const live = usePageLive();
   const stepRef = useRef(onStep);
@@ -159,13 +162,20 @@ export function useTabCycleShortcut(
       const step = tabCycleStep(event);
       if (step === 0) return;
       if (event.key === "Tab" && !event.ctrlKey && bareTabExempt(event.target)) return;
-      if (!rootRef.current || rootRef.current.getClientRects().length === 0) return;
+      const root = rootRef.current;
+      if (!root || root.getClientRects().length === 0) return;
+      if (scope !== "any") {
+        const active = document.activeElement;
+        const inThisPane = active instanceof Node && root.contains(active);
+        const focusOutside = !active || active === document.body;
+        if (!inThisPane && !(scope === "primary" && focusOutside)) return;
+      }
       event.preventDefault();
       stepRef.current(step);
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [rootRef, enabled, live]);
+  }, [rootRef, enabled, live, scope]);
 }
 
 // ── ⌘W contextual close ──────────────────────────────────────────────────────

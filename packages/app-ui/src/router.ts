@@ -170,6 +170,10 @@ export type ChatView = "channel" | "saved" | "search" | "archived";
  * Resolved view of the current URL. Components read this instead of
  * useState — single hook keeps the parsing in one place.
  */
+/** A conversation column of the chat stage: the route's own conversation, or
+ *  the second column of a split view. */
+export type PaneColumn = "primary" | "split";
+
 export interface RouteState {
   section: AppSection;
   /** Within the chat section: 'channel' or 'saved'. */
@@ -229,6 +233,14 @@ export interface RouteState {
    *  exist in the current workspace's channels union; cross-workspace
    *  resolution lands in PR-2 with `useConversationById`. */
   sideConversationId: string | null;
+  /** The conversation open in the second column of a split view
+   *  (`?split=<conversation_id>`). The route's own conversation is the first
+   *  column. Ignored when it names the route's conversation. */
+  splitConversationId: string | null;
+  /** Which column owns the channel-scoped right panes (thread, threads,
+   *  attachments): `split` when `?ctx=split`, otherwise the route's own
+   *  conversation. */
+  paneColumn: PaneColumn;
   /** Reply-cluster (thread) pane pointer (`?thread=<root_message_id>`).
    *  When set, the right pane shows that main-line message's thread (root +
    *  replies sharing the parent channel context). A thread is NOT a
@@ -372,6 +384,11 @@ export function parseRouteState(pathname: string, search: string): RouteState {
   // Defensive: empty string treated as unset; prevents `?side=` from
   // forcing an "unresolved secondary" placeholder.
   const sideConversationId = rawSide && rawSide.length > 0 ? rawSide : null;
+  const rawSplit = searchParams.get("split");
+  const splitConversationId =
+    rawSplit && rawSplit.length > 0 && rawSplit !== channelId ? rawSplit : null;
+  const paneColumn: PaneColumn =
+    splitConversationId !== null && searchParams.get("ctx") === "split" ? "split" : "primary";
   const rawThread = searchParams.get("thread");
   // Defensive: empty string treated as unset (mirrors `?side`). The value
   // is a main-line message id whose thread (reply cluster) the right pane
@@ -442,6 +459,8 @@ export function parseRouteState(pathname: string, search: string): RouteState {
     directConversationId,
     directDraftTarget,
     sideConversationId,
+    splitConversationId,
+    paneColumn,
     threadRootId,
     threadsListOpen,
     filesListOpen,
@@ -626,6 +645,7 @@ function writeSecondaryPaneOpen(params: URLSearchParams, pane: SecondaryPane, va
     params.delete(other);
     if (other === "settings") params.delete("settingsPage");
   }
+  dropOrphanPaneColumn(params);
 }
 
 /**
@@ -639,6 +659,86 @@ function writeSecondaryPaneClose(params: URLSearchParams, pane: SecondaryPane): 
   // A preview inside the Attachments panel leaves with the panel.
   if (pane === "files") params.delete("attachment");
   params.delete("fullscreen");
+  dropOrphanPaneColumn(params);
+}
+
+function dropOrphanPaneColumn(params: URLSearchParams): void {
+  if (!COLUMN_PANES.some((p) => params.has(p))) params.delete("ctx");
+}
+
+/** Right panes resolved against a column's conversation. One column owns them
+ *  at a time (`?ctx`), so opening one from the other column replaces them. */
+const COLUMN_PANES: readonly SecondaryPane[] = ["thread", "threads", "files", "attachment"];
+
+/**
+ * Re-home a pane-open URL onto `column`. Opening from the column that does not
+ * own the current panes first drops that column's panes, so a thread of one
+ * column never resolves against the other column's conversation.
+ */
+export function withPaneColumn(
+  pathname: string,
+  search: string,
+  requested: PaneColumn | undefined,
+  open: (pathname: string, search: string) => string,
+): string {
+  const params = new URLSearchParams(search);
+  const current = paneColumnOf(params);
+  const column = requested ?? current;
+  if (current !== column) {
+    for (const pane of COLUMN_PANES) params.delete(pane);
+  }
+  const url = open(pathname, params.toString());
+  const queryAt = url.indexOf("?");
+  const next = new URLSearchParams(queryAt < 0 ? "" : url.slice(queryAt + 1));
+  if (column === "split") next.set("ctx", "split");
+  else next.delete("ctx");
+  return serializeQuery(queryAt < 0 ? url : url.slice(0, queryAt), next);
+}
+
+function paneColumnOf(params: URLSearchParams): PaneColumn {
+  return params.get("ctx") === "split" && params.has("split") ? "split" : "primary";
+}
+
+/** Whether `pane` is open and owned by `column`. */
+function paneOpenIn(search: string, pane: "threads" | "files", column: PaneColumn): boolean {
+  const params = new URLSearchParams(search);
+  return params.get(pane) === "1" && paneColumnOf(params) === column;
+}
+
+/** The URL of a split view: `primaryPath` in the first column, `splitId` in
+ *  the second. */
+export function buildSplitUrl(primaryPath: string, splitId: string): string {
+  return `${primaryPath}?${new URLSearchParams({ split: splitId }).toString()}`;
+}
+
+/**
+ * Close the first column: the second column's conversation (at `path`) becomes
+ * the route's conversation. Right panes the second column owned stay open on
+ * it; the first column's go.
+ */
+export function withSplitPromoted(search: string, path: string): string {
+  const params = new URLSearchParams(search);
+  if (paneColumnOf(params) !== "split") {
+    for (const pane of COLUMN_PANES) params.delete(pane);
+  }
+  params.delete("ctx");
+  params.delete("split");
+  return serializeQuery(path, params);
+}
+
+/**
+ * Write or clear the second column. Panes owned by the column being replaced
+ * or closed go with it; the first column's panes stay.
+ */
+export function withSplitQuery(pathname: string, search: string, splitId: string | null): string {
+  const params = new URLSearchParams(search);
+  if (params.get("ctx") === "split") {
+    for (const pane of COLUMN_PANES) params.delete(pane);
+    params.delete("ctx");
+  }
+  if (splitId === null) params.delete("split");
+  else params.set("split", splitId);
+  return serializeQuery(pathname, params);
 }
 
 function serializeQuery(pathname: string, params: URLSearchParams): string {
@@ -971,12 +1071,18 @@ export type NavigationTarget =
   | { kind: "section"; tab: MainTab; root?: string }
   | { kind: "url"; url: string }
   | { kind: "conversation"; conversationId: string; workspaceId?: string }
-  | { kind: "thread"; rootMessageId: string; conversationId?: string; workspaceId?: string }
+  | {
+      kind: "thread";
+      rootMessageId: string;
+      conversationId?: string;
+      workspaceId?: string;
+      column?: PaneColumn;
+    }
   | { kind: "conversation-settings"; conversationId: string }
   | { kind: "conversation-members"; conversationId: string; add?: boolean }
-  | { kind: "attachments" }
-  | { kind: "attachment"; attachmentId: string; inFiles?: boolean }
-  | { kind: "threads" }
+  | { kind: "attachments"; column?: PaneColumn }
+  | { kind: "attachment"; attachmentId: string; inFiles?: boolean; column?: PaneColumn }
+  | { kind: "threads"; column?: PaneColumn }
   | { kind: "task"; taskId: string }
   | { kind: "agent"; agentId: string }
   | { kind: "human"; userId: string }
@@ -1010,7 +1116,9 @@ export function resolveNavigationTarget(
         ? routes.chatChannel(target.workspaceId, target.conversationId)
         : routes.chatDirect(target.conversationId);
     case "thread":
-      return buildThreadOpenUrl(pathname, search, target.rootMessageId);
+      return withPaneColumn(pathname, search, target.column, (p, q) =>
+        buildThreadOpenUrl(p, q, target.rootMessageId),
+      );
     case "conversation-members": {
       const url = withChannelSettingsQuery(pathname, search, target.conversationId);
       return `${url}&settingsPage=${target.add ? "add" : "members"}`;
@@ -1018,11 +1126,15 @@ export function resolveNavigationTarget(
     case "conversation-settings":
       return withChannelSettingsQuery(pathname, search, target.conversationId);
     case "attachments":
-      return withFilesQuery(pathname, search, true);
+      return withPaneColumn(pathname, search, target.column, (p, q) => withFilesQuery(p, q, true));
     case "attachment":
-      return withAttachmentQuery(pathname, search, target.attachmentId, target.inFiles);
+      return withPaneColumn(pathname, search, target.column, (p, q) =>
+        withAttachmentQuery(p, q, target.attachmentId, target.inFiles),
+      );
     case "threads":
-      return withThreadsQuery(pathname, search, true);
+      return withPaneColumn(pathname, search, target.column, (p, q) =>
+        withThreadsQuery(p, q, true),
+      );
     case "task":
       return buildTaskOpenUrl(pathname, search, target.taskId);
     case "agent":
@@ -1121,23 +1233,27 @@ export function useNav() {
         navigate({ kind: "section", tab: "me", root: routes[section]() }),
       toSettings: () => go(routes.settings()),
       openSide: (conversationId: string) => navigate({ kind: "side-conversation", conversationId }),
+      openSplit: (conversationId: string) => go(withSplitQuery(pathname, search, conversationId)),
+      closeSplit: () => drive(withSplitQuery(pathname, search, null), { replace: true }),
+      promoteSplit: (path: string) => drive(withSplitPromoted(search, path), { replace: true }),
       closeSide: () => drive(withSideQuery(pathname, search, null), { replace: true }),
-      openThread: (rootMessageId: string) => navigate({ kind: "thread", rootMessageId }),
+      openThread: (rootMessageId: string, column?: PaneColumn) =>
+        navigate({ kind: "thread", rootMessageId, column }),
       closeThread: () => drive(withThreadQuery(pathname, search, null), { replace: true }),
       openThreadsList: () => navigate({ kind: "threads" }),
       closeThreadsList: () => drive(withThreadsQuery(pathname, search, false), { replace: true }),
-      toggleThreadsList: () =>
-        new URLSearchParams(search).get("threads") === "1"
+      toggleThreadsList: (column: PaneColumn = "primary") =>
+        paneOpenIn(search, "threads", column)
           ? drive(withThreadsQuery(pathname, search, false), { replace: true })
-          : navigate({ kind: "threads" }),
+          : navigate({ kind: "threads", column }),
       openFilesList: () => navigate({ kind: "attachments" }),
       closeFilesList: () => drive(withFilesQuery(pathname, search, false), { replace: true }),
-      toggleFilesList: () =>
-        new URLSearchParams(search).get("files") === "1"
+      toggleFilesList: (column: PaneColumn = "primary") =>
+        paneOpenIn(search, "files", column)
           ? drive(withFilesQuery(pathname, search, false), { replace: true })
-          : navigate({ kind: "attachments" }),
-      openAttachmentPanel: (attachmentId: string, inFiles = false) =>
-        navigate({ kind: "attachment", attachmentId, inFiles }),
+          : navigate({ kind: "attachments", column }),
+      openAttachmentPanel: (attachmentId: string, inFiles = false, column?: PaneColumn) =>
+        navigate({ kind: "attachment", attachmentId, inFiles, column }),
       closeAttachmentPanel: () =>
         drive(withAttachmentQuery(pathname, search, null), { replace: true }),
       openChannelSettings: (conversationId: string) =>

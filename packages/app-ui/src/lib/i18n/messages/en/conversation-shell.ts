@@ -1,4 +1,7 @@
 export const conversationShell = {
+  closeColumn: "Close column",
+  openOnRight: "Open on right",
+  closeHalf: "Close {name}",
   closeSidePane: "Close side pane",
   attachments: "Attachments",
   filterAttachmentsByTime: "Filter attachments by time",

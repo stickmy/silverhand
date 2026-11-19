@@ -7,6 +7,11 @@ import {
   type ConversationPaneDescriptor,
 } from "@/features/conversations/pane-descriptor";
 import {
+  conversationPaneDescriptorFromIdentity,
+  useConversationIdentity,
+  type ConversationIdentityStatus,
+} from "@/features/conversations/conversation-identity";
+import {
   inheritedComposerDirectory,
   inheritedPaneCapabilities,
 } from "@/features/conversations/pane-mode";
@@ -36,9 +41,12 @@ import { useCompactLayout } from "@/navigation/layout";
 /** Carrier authority only; navigation and read-cursor writes belong to the coordinators. */
 export function useConversationReadModel() {
   const {
+    section,
     workspaceId: selectedWorkspaceId,
     channelId: selectedChannelId,
     directConversationId,
+    splitConversationId,
+    paneColumn,
   } = useRouteState();
 
   const { data: workspaces = [], isLoading: workspacesLoading } = useWorkspaces();
@@ -248,6 +256,49 @@ export function useConversationReadModel() {
 
   const primaryPaneHasChannelNamespace = directPairDescriptor ? false : hasChannelNamespace;
 
+  // The second column of a split view (`?split`). A channel of this workspace
+  // reads from the list already in hand (it carries `is_member`); anything else
+  // — another workspace's channel, a direct pair — resolves by identity.
+  const splitId = section === "chat" && selectedChannelId ? splitConversationId : null;
+  const splitChannel = splitId ? (channels.find((c) => c.id === splitId) ?? null) : null;
+  const splitIdentity = useConversationIdentity(splitChannel ? null : splitId);
+  const splitDescriptor = useMemo<ConversationPaneDescriptor | null>(() => {
+    if (splitChannel) return buildChannelDescriptor(splitChannel);
+    if (splitId && splitIdentity.status === "resolved") {
+      return conversationPaneDescriptorFromIdentity(splitIdentity.identity);
+    }
+    return null;
+  }, [splitChannel, splitId, splitIdentity, buildChannelDescriptor]);
+  const splitStatus: ConversationIdentityStatus | null =
+    splitId === null ? null : splitDescriptor ? "resolved" : splitIdentity.status;
+  const splitIsDirect = splitDescriptor?.placement_kind === "direct_pair";
+  const splitMembership = useChannelMembership(
+    splitChannel ?? splitDescriptor,
+    splitDescriptor ? splitId : null,
+    splitIsDirect ? { readOnly: splitDescriptor?.read_only === true } : null,
+  );
+  const splitHasChannelNamespace =
+    splitDescriptor !== null && splitDescriptor.workspace_id !== null;
+  const splitCapabilities = useMemo(
+    () => inheritedPaneCapabilities(splitDescriptor),
+    [splitDescriptor],
+  );
+  const splitThreadComposerDirectory = useMemo(
+    () =>
+      inheritedComposerDirectory(splitDescriptor, {
+        workspaceName: workspaceNameById(splitDescriptor?.workspace_id ?? null),
+        hasChannelNamespace: splitHasChannelNamespace,
+      }),
+    [splitDescriptor, workspaceNameById, splitHasChannelNamespace],
+  );
+  const splitPair =
+    splitIdentity.status === "resolved" && splitIdentity.identity.placement === "direct_pair"
+      ? splitIdentity.identity.pair
+      : null;
+  // The column that owns the channel-scoped right panes. Falls back to the
+  // first column until the second one resolves.
+  const contextIsSplit = paneColumn === "split" && splitDescriptor !== null;
+
   const primaryThreadComposerDirectory = useMemo(
     () =>
       inheritedComposerDirectory(primaryPaneDescriptor, {
@@ -286,6 +337,30 @@ export function useConversationReadModel() {
     hasChannelNamespace,
     primaryPaneHasChannelNamespace,
     primaryThreadComposerDirectory,
+    split: {
+      id: splitId,
+      status: splitStatus,
+      channel: splitChannel,
+      descriptor: splitDescriptor,
+      pair: splitPair,
+      membership: splitMembership,
+      hasChannelNamespace: splitHasChannelNamespace,
+      capabilities: splitCapabilities,
+      threadComposerDirectory: splitThreadComposerDirectory,
+    },
+    paneContext: contextIsSplit
+      ? {
+          column: "split" as const,
+          channelId: splitId,
+          workspaceId: splitDescriptor?.workspace_id ?? null,
+          membership: splitMembership.membership,
+        }
+      : {
+          column: "primary" as const,
+          channelId: selectedChannelId,
+          workspaceId: selectedWorkspaceId,
+          membership: parentChannelMembership,
+        },
     resolveNavWorkspaceId,
     activeSettled: activeChannelsStatus === "success" && activeChannelsFetchStatus === "idle",
     archivedSettled: archivedChannelsStatus === "success" && archivedChannelsFetchStatus === "idle",

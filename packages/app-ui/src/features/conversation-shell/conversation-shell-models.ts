@@ -10,7 +10,7 @@ import type {
   ConversationPointer,
   SecondaryDescriptor,
 } from "@/features/conversation-shell/model/secondary-pane";
-import type { ChatView, RouteState, useNav } from "@/router";
+import type { ChatView, PaneColumn, RouteState, useNav } from "@/router";
 import type { AgentDto, AttentionBadgeRollupDto, SavedMessageDto } from "@silverhand/shared";
 import type { ConversationPanesModel } from "./pane-render-models";
 
@@ -24,6 +24,18 @@ export interface PaneReadModel {
   parentChannelMembership: MembershipState;
   hasChannelNamespace: boolean;
   deferredChannelId: string | null;
+  /** The second column of a split view, once resolved. */
+  split?: {
+    id: string | null;
+    descriptor: { id: string; roster_policy: "open" | "fixed"; workspace_id: string | null } | null;
+  };
+  /** The column owning the channel-scoped right panes, with its coordinates. */
+  paneContext?: {
+    column: PaneColumn;
+    channelId: string | null;
+    workspaceId: string | null;
+    membership: MembershipState;
+  };
 }
 
 export interface PaneJumpModel {
@@ -55,6 +67,14 @@ export interface ChatShellModel {
   handleSelectChannel: (id: string, workspaceId?: string | null) => void;
   handleJumpToMessage: (target: MessageJumpTarget) => boolean;
   sidebarSelectedConversationId: string | null;
+  /** The split view on screen, as the sidebar pairs it. */
+  splitView: { left: string; right: string } | null;
+  /** Open `conversationId` in the second column beside the current one. */
+  openInSplit: (conversationId: string) => void;
+  /** Reopen a pair kept in the sidebar. */
+  openPair: (workspaceId: string, left: string, right: string) => void;
+  /** Close one column of the split view on screen. */
+  closeSplitColumn: (column: PaneColumn) => void;
 }
 
 export interface ActivityShellModel {

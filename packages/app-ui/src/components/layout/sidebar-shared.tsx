@@ -4,6 +4,7 @@ import {
   useState,
   type ButtonHTMLAttributes,
   type HTMLAttributes,
+  type MouseEvent,
   type ReactNode,
 } from "react";
 import { BellOffIcon, ChevronDownIcon, PlusIcon } from "@/icons";
@@ -492,7 +493,7 @@ export const SidebarRow = forwardRef<HTMLButtonElement, RowProps>(function Sideb
 
 interface ConversationRowLayoutProps extends Omit<
   HTMLAttributes<HTMLDivElement>,
-  "title" | "children" | "className"
+  "title" | "children" | "className" | "onSelect"
 > {
   /** `true` iff this row is the open conversation — the ONE selection object in
    *  the tree (`conversationSelectionTier`). Paints the row AND sets the
@@ -512,7 +513,8 @@ interface ConversationRowLayoutProps extends Omit<
   /** Native tooltip on the name button — for a row whose visible title is not the
    *  whole story (STARRED shows `title — parent`). */
   title?: string;
-  onSelect: () => void;
+  /** Receives the click, so a row can read a modifier (⌥ opens on the right). */
+  onSelect: (event: MouseEvent<HTMLButtonElement>) => void;
   /** What rides ON the row, inside the name button: identity glyph, title,
    *  markers, trailing badge. */
   children: ReactNode;

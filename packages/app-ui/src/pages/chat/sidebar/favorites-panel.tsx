@@ -29,7 +29,12 @@ import { SidebarSection, SidebarEmptyRow } from "../../../components/layout/side
 import { useAgentAvatarObjectUrls } from "@/features/agents/hooks/avatar-hooks";
 import { useUserAvatarObjectUrls } from "@/features/users/avatar-hooks";
 import { collectCounterpartAvatarSources } from "@/features/direct-pairs/counterpart-presentation";
-import { DirectLineRowView, DirectPairStarMenuItem } from "./direct-messages-panel";
+import {
+  DirectLineRowView,
+  DirectPairStarMenuItem,
+  OpenOnRightMenuItem,
+} from "./direct-messages-panel";
+import { useSidebarSplit, wantsSplit } from "./sidebar-split";
 import { directRowBadge } from "@/features/attention/row-badges";
 import { t } from "@/lib/i18n";
 
@@ -256,19 +261,28 @@ function DirectFavoriteRow({
   onSelectDirectPair: (conversationId: string) => void;
   draggable: boolean;
 }): JSX.Element {
+  const split = useSidebarSplit();
+  const selected = conversationSelectionTier(pair.conversation_id, selectedChannelId) === "primary";
   const row = (
     <DirectLineRowView
       counterpart={pair.counterpart}
       unread={pair.unread_count}
-      selected={conversationSelectionTier(pair.conversation_id, selectedChannelId) === "primary"}
+      selected={selected}
       draggable={draggable}
       agentAvatarUrls={avatars.agents}
       humanAvatarUrls={avatars.humans}
-      onSelect={() => onSelectDirectPair(pair.conversation_id)}
+      onSelect={(event) =>
+        wantsSplit(event, split)
+          ? split!.openInSplit(pair.conversation_id)
+          : onSelectDirectPair(pair.conversation_id)
+      }
     />
   );
   return (
     <AppContextMenu trigger={row}>
+      {split?.canOpen && !selected ? (
+        <OpenOnRightMenuItem onSelect={() => split.openInSplit(pair.conversation_id)} />
+      ) : null}
       <DirectPairStarMenuItem conversationId={pair.conversation_id} starred />
     </AppContextMenu>
   );
@@ -285,6 +299,7 @@ function FavoriteRow({
 }: FavoriteRowProps): JSX.Element {
   const isPrimary = conversationSelectionTier(item.entity_id, selectedChannelId) === "primary";
   const archive = useArchiveChannel(item.workspace_id);
+  const split = useSidebarSplit();
 
   const badge = favoriteRowBadge(item, attention);
   const isSilenced = attention?.mode === "mute";
@@ -295,7 +310,11 @@ function FavoriteRow({
       column="nested"
       draggable={draggable}
       title={`${item.title} — ${item.parent_title}`}
-      onSelect={() => onSelectConversation(item.workspace_id, item.entity_id)}
+      onSelect={(event) =>
+        wantsSplit(event, split)
+          ? split!.openInSplit(item.entity_id)
+          : onSelectConversation(item.workspace_id, item.entity_id)
+      }
       channelTitle={item.title}
       visibility={item.roster_policy === "open" ? item.visibility : undefined}
       muted={isSilenced}
@@ -314,6 +333,9 @@ function FavoriteRow({
         onArchive={(archived) =>
           archive.mutate({ channelId: item.entity_id, archived, workspaceId: item.workspace_id })
         }
+        onOpenInSplit={
+          split?.canOpen && !isPrimary ? () => split.openInSplit(item.entity_id) : undefined
+        }
       />
     </AppContextMenu>
   );
@@ -327,9 +349,11 @@ function FavoriteMenuItems({
   onUnstar,
   onArchive,
   archivePending,
+  onOpenInSplit,
 }: Pick<FavoriteRowProps, "item" | "attention" | "workspaceMuted" | "onUnstar"> & {
   onArchive: (archived: boolean) => void;
   archivePending: boolean;
+  onOpenInSplit?: () => void;
 }): JSX.Element {
   const { data } = useChannelDetail(item.entity_id);
   const isArchived = data?.channel.archived_at != null;
@@ -346,6 +370,7 @@ function FavoriteMenuItems({
       onStar={onUnstar}
       onArchive={() => onArchive(!isArchived)}
       archivePending={archivePending}
+      onOpenInSplit={onOpenInSplit}
     />
   );
 }

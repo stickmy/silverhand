@@ -17,6 +17,10 @@ import {
   withThreadsQuery,
   withFilesQuery,
   withChannelSettingsQuery,
+  withSplitPromoted,
+  withSplitQuery,
+  buildSplitUrl,
+  resolveNavigationTarget,
 } from "./router";
 import type { SecondaryRouteFields } from "./router";
 
@@ -1089,5 +1093,62 @@ describe("channel settings overlay", () => {
   });
   it("ordinary channel navigation carries no old settings target", () => {
     expect(parseRouteState("/chat/w/w-1/c/c-b", "").channelSettingsId).toBeNull();
+  });
+});
+
+describe("split view — ?split second column and ?ctx pane owner", () => {
+  const path = "/chat/w/w1/c/c1";
+
+  it("parses the second column, ignoring a split that names the route's own conversation", () => {
+    expect(parseRouteState(path, "?split=c2").splitConversationId).toBe("c2");
+    expect(parseRouteState(path, "?split=c1").splitConversationId).toBeNull();
+    expect(parseRouteState(path, "?split=").splitConversationId).toBeNull();
+  });
+
+  it("gives the right panes to the second column only while one is open", () => {
+    expect(parseRouteState(path, "?split=c2&ctx=split").paneColumn).toBe("split");
+    expect(parseRouteState(path, "?ctx=split").paneColumn).toBe("primary");
+    expect(parseRouteState(path, "?split=c2").paneColumn).toBe("primary");
+  });
+
+  it("opening a thread from the second column replaces the first column's panes", () => {
+    const url = resolveNavigationTarget(
+      { kind: "thread", rootMessageId: "r2", column: "split" },
+      path,
+      "?split=c2&thread=r1",
+    );
+    const state = parseRouteState(path, url.slice(url.indexOf("?")));
+    expect(state.threadRootId).toBe("r2");
+    expect(state.paneColumn).toBe("split");
+    expect(state.splitConversationId).toBe("c2");
+  });
+
+  it("a pane opened without a column stays with the column that owns the panes", () => {
+    const url = resolveNavigationTarget({ kind: "threads" }, path, "?split=c2&ctx=split&thread=r2");
+    const state = parseRouteState(path, url.slice(url.indexOf("?")));
+    expect(state.threadsListOpen).toBe(true);
+    expect(state.threadRootId).toBeNull();
+    expect(state.paneColumn).toBe("split");
+  });
+
+  it("closing the last column pane drops the owner", () => {
+    const url = withThreadQuery(path, "?split=c2&ctx=split&thread=r2", null);
+    expect(url).toBe(`${path}?split=c2`);
+  });
+
+  it("closing or replacing the second column takes its panes with it", () => {
+    expect(withSplitQuery(path, "?split=c2&ctx=split&thread=r2", null)).toBe(path);
+    expect(withSplitQuery(path, "?split=c2&thread=r1", "c3")).toBe(`${path}?split=c3&thread=r1`);
+  });
+
+  it("closing the first column keeps the second column's panes on it", () => {
+    expect(withSplitPromoted("?split=c2&ctx=split&thread=r2", "/chat/w/w1/c/c2")).toBe(
+      "/chat/w/w1/c/c2?thread=r2",
+    );
+    expect(withSplitPromoted("?split=c2&thread=r1", "/chat/w/w1/c/c2")).toBe("/chat/w/w1/c/c2");
+  });
+
+  it("builds a pair's URL", () => {
+    expect(buildSplitUrl(path, "c2")).toBe(`${path}?split=c2`);
   });
 });

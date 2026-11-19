@@ -1,6 +1,13 @@
 import { useMemo } from "react";
 import { useEventCallback } from "@/hooks/use-event-callback";
+import { useCompactLayout } from "@/navigation/layout";
 import { ChatSidebar } from "./sidebar/chat-sidebar";
+import { SidebarSplitContext, type SidebarSplit } from "./sidebar/sidebar-split";
+import {
+  dissolveSplitPair,
+  useSplitPairs,
+  type SplitPair,
+} from "@/features/conversation-shell/split-pairs";
 import type { WorkspaceActions } from "./use-workspace-actions";
 import type { ChatShellModel } from "@/features/conversation-shell/conversation-shell-models";
 
@@ -28,7 +35,13 @@ export function ChatBrowseSidebar({
     handleSelectChannel,
     handleJumpToMessage,
     sidebarSelectedConversationId,
+    splitView,
+    openInSplit,
+    openPair,
+    closeSplitColumn,
   } = model;
+  const compact = useCompactLayout();
+  const pairs = useSplitPairs();
 
   // The sidebar is memoized; the shell rebuilds its model on every
   // navigation, so rows and handlers keep their identities here.
@@ -75,51 +88,84 @@ export function ChatBrowseSidebar({
       }),
   );
 
+  const openInSplitStable = useEventCallback(openInSplit);
+  const openPairStable = useEventCallback((pair: SplitPair, workspaceId: string) =>
+    openPair(workspaceId, pair.left, pair.right),
+  );
+  const closeHalf = useEventCallback((pair: SplitPair, half: "left" | "right") => {
+    const onScreen = splitView?.left === pair.left && splitView.right === pair.right;
+    if (onScreen) {
+      closeSplitColumn(half === "left" ? "primary" : "split");
+      return;
+    }
+    dissolveSplitPair(pair.left);
+  });
+  const active = splitView
+    ? (pairs.find((p) => p.left === splitView.left && p.right === splitView.right) ?? null)
+    : null;
+  const canOpen = sidebarSelectedConversationId !== null && model.route.channelId !== null;
+  const split = useMemo<SidebarSplit | null>(
+    () =>
+      compact
+        ? null
+        : {
+            pairs,
+            active,
+            canOpen,
+            openInSplit: openInSplitStable,
+            openPair: openPairStable,
+            closeHalf,
+          },
+    [compact, pairs, active, canOpen, openInSplitStable, openPairStable, closeHalf],
+  );
+
   return (
-    <ChatSidebar
-      fill={fill}
-      workspacesLoading={workspacesLoading}
-      workspaces={rows}
-      agentsById={agentsById}
-      selectedWorkspaceId={selectedWorkspaceId}
-      // The tree's ONE selection object. Carries forward the
-      // secondary-pane preference the retired channel column owned;
-      // `selectSidebarSelectedConversationId` holds the rule (a
-      // resolved secondary owns the highlight only when its row is
-      // in this sidebar — always true for a private line, which
-      // lives in the workspace-independent DIRECT MESSAGES list).
-      selectedChannelId={sidebarSelectedConversationId}
-      onSelectChannel={selectChannel}
-      // A pair has no workspace to open it in, so it takes the
-      // workspace-less route directly. No remembered-layout
-      // restore: the panes that memory replays (thread /
-      // threads-list / side) are channel-scoped, so there is
-      // nothing recorded for a pair to restore (#task:2035).
-      onSelectDirectPair={selectDirectPair}
-      // The transient draft row (#task:2039) re-opens THE DRAFT,
-      // never the pair: while the draft route is open that row is
-      // the draft's (`mergeDirectLineRows`), and it holds unsent
-      // text or a failed first send. Routing it through
-      // `handleMessageAgent` — which prefers an existing pair —
-      // would discard both (@Cindy, #task:2039 review).
-      directDraftTarget={directDraftTarget}
-      onSelectDirectDraft={selectDirectDraft}
-      onCreateChannel={createChannel}
-      onOpenWorkspaceSettings={openWorkspaceSettings}
-      // STARRED is global, so the parent workspace is explicit —
-      // `handleSelectChannel` then opens a starred channel in another
-      // workspace with the SAME remembered-layout restore as its home
-      // row, instead of a bare jump.
-      onSelectConversation={selectConversation}
-      onCreateWorkspace={createWorkspace}
-      savedActive={view === "saved"}
-      onSelectSaved={selectSaved}
-      archivedActive={view === "archived"}
-      onSelectArchived={selectArchived}
-      searchActive={view === "search"}
-      onSelectSearch={selectSearch}
-      savedCount={savedItems?.length}
-      onOpenThread={openThread}
-    />
+    <SidebarSplitContext.Provider value={split}>
+      <ChatSidebar
+        fill={fill}
+        workspacesLoading={workspacesLoading}
+        workspaces={rows}
+        agentsById={agentsById}
+        selectedWorkspaceId={selectedWorkspaceId}
+        // The tree's ONE selection object. Carries forward the
+        // secondary-pane preference the retired channel column owned;
+        // `selectSidebarSelectedConversationId` holds the rule (a
+        // resolved secondary owns the highlight only when its row is
+        // in this sidebar — always true for a private line, which
+        // lives in the workspace-independent DIRECT MESSAGES list).
+        selectedChannelId={sidebarSelectedConversationId}
+        onSelectChannel={selectChannel}
+        // A pair has no workspace to open it in, so it takes the
+        // workspace-less route directly. No remembered-layout
+        // restore: the panes that memory replays (thread /
+        // threads-list / side) are channel-scoped, so there is
+        // nothing recorded for a pair to restore (#task:2035).
+        onSelectDirectPair={selectDirectPair}
+        // The transient draft row (#task:2039) re-opens THE DRAFT,
+        // never the pair: while the draft route is open that row is
+        // the draft's (`mergeDirectLineRows`), and it holds unsent
+        // text or a failed first send. Routing it through
+        // `handleMessageAgent` — which prefers an existing pair —
+        // would discard both (@Cindy, #task:2039 review).
+        directDraftTarget={directDraftTarget}
+        onSelectDirectDraft={selectDirectDraft}
+        onCreateChannel={createChannel}
+        onOpenWorkspaceSettings={openWorkspaceSettings}
+        // STARRED is global, so the parent workspace is explicit —
+        // `handleSelectChannel` then opens a starred channel in another
+        // workspace with the SAME remembered-layout restore as its home
+        // row, instead of a bare jump.
+        onSelectConversation={selectConversation}
+        onCreateWorkspace={createWorkspace}
+        savedActive={view === "saved"}
+        onSelectSaved={selectSaved}
+        archivedActive={view === "archived"}
+        onSelectArchived={selectArchived}
+        searchActive={view === "search"}
+        onSelectSearch={selectSearch}
+        savedCount={savedItems?.length}
+        onOpenThread={openThread}
+      />
+    </SidebarSplitContext.Provider>
   );
 }
