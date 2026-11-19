@@ -710,7 +710,7 @@ export function MessageList({
       const dayLabel = dayLabels.get(key);
 
       return (
-        <div className="mx-auto max-w-300 px-(--message-list-gutter) py-0.5">
+        <div className="mx-auto w-full max-w-300 px-(--message-list-gutter) py-0.5">
           {dayLabel ? <DaySeparator label={dayLabel} /> : null}
           {renderItem(item)}
         </div>
@@ -760,13 +760,13 @@ export function MessageList({
                 scroller, so rows scroll beneath it. */}
                 <div aria-hidden data-pane-chrome-spacer />
                 {leadingSlot ? (
-                  <div className="mx-auto mb-1 max-w-300 px-(--message-list-gutter)">
+                  <div className="mx-auto mb-1 w-full max-w-300 px-(--message-list-gutter)">
                     {leadingSlot}
                   </div>
                 ) : null}
                 {leadingMessage ? (
                   <>
-                    <div className="mx-auto max-w-300 px-(--message-list-gutter) py-0.5">
+                    <div className="mx-auto w-full max-w-300 px-(--message-list-gutter) py-0.5">
                       {renderItem({ kind: "message", message: leadingMessage })}
                     </div>
                     <div className="my-2 shrink-0 border-t border-border-subtle" />
