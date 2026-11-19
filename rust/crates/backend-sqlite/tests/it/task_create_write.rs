@@ -489,3 +489,61 @@ async fn concurrent_creates_on_one_board_get_distinct_consecutive_numbers() {
         .unwrap();
     assert_eq!(task_count, 2);
 }
+
+#[tokio::test]
+async fn a_sourced_task_and_its_notice_live_in_the_source_thread() {
+    let (_dir, path) = open_db().await;
+    insert_source(&path, "src-main").await;
+    let mut c = conn(&path).await;
+    sqlx::query("INSERT INTO messages (id, conversation_id, from_kind, from_user_id, content, seq, created_at, thread_root_id) VALUES ('src-reply', ?, 'user', 'user-1', 'reply', 2, 2, 'src-main')")
+        .bind(CONV).execute(&mut c).await.unwrap();
+    sqlx::query("UPDATE conversations SET latest_message_seq = 2 WHERE id = ?")
+        .bind(CONV)
+        .execute(&mut c)
+        .await
+        .unwrap();
+    let writer = SqliteTaskCreateWrite::open(&path).await.unwrap();
+
+    for source in ["src-main", "src-reply"] {
+        let witness = match writer
+            .create_tasks(&batch(vec![plan(Some(source))]))
+            .await
+            .unwrap()
+        {
+            TaskCreateOutcome::Created(mut w) => w.remove(0),
+            other => panic!("expected Created, got {other:?}"),
+        };
+        let root = |id: Option<
+            &silverhand_backend_core::conversation_messaging::messaging::task::ThreadRootId,
+        >| { id.map(|t| t.as_str().to_owned()) };
+        assert_eq!(
+            root(witness.mutation().thread_root_id.as_ref()).as_deref(),
+            Some("src-main")
+        );
+        assert_eq!(
+            root(witness.mutation().event_message.thread_root_id.as_ref()).as_deref(),
+            Some("src-main")
+        );
+        let stored: (Option<String>, Option<String>) = sqlx::query_as(
+            "SELECT t.thread_root_id, m.thread_root_id FROM tasks t
+             JOIN messages m ON m.id = t.created_event_message_id WHERE t.id = ?",
+        )
+        .bind(witness.task_id().as_str())
+        .fetch_one(&mut c)
+        .await
+        .unwrap();
+        assert_eq!(stored, (Some("src-main".into()), Some("src-main".into())));
+    }
+}
+
+#[tokio::test]
+async fn an_unsourced_task_keeps_the_target_placement() {
+    let (_dir, path) = open_db().await;
+    let writer = SqliteTaskCreateWrite::open(&path).await.unwrap();
+    let witness = match writer.create_tasks(&batch(vec![plan(None)])).await.unwrap() {
+        TaskCreateOutcome::Created(mut w) => w.remove(0),
+        other => panic!("expected Created, got {other:?}"),
+    };
+    assert!(witness.mutation().thread_root_id.is_none());
+    assert!(witness.mutation().event_message.thread_root_id.is_none());
+}

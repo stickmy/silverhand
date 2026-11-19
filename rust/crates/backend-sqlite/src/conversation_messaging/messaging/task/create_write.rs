@@ -23,7 +23,7 @@ use silverhand_backend_core::conversation_messaging::messaging::task::{
     BoardKey, CreatedEventMessageId, ExistingSourceTask, TaskCommittedEventMessage,
     TaskCreateBatch, TaskCreateOutcome, TaskCreateWrite, TaskCreatedWitness, TaskCreator,
     TaskEventFacts, TaskEventKind, TaskId, TaskMutationWitness, TaskNumber, TaskStatus,
-    TaskWriteCapability, TaskWriteClock, compose_create_event,
+    TaskWriteCapability, TaskWriteClock, ThreadRootId, compose_create_event,
 };
 use silverhand_backend_core::foundation::persistence::PersistenceFailure;
 use sqlx::Row;
@@ -133,7 +133,8 @@ fn storage_board_key(board: &BoardKey) -> String {
 const SELECT_TASK_BY_SOURCE: &str =
     "SELECT id, task_number, status FROM tasks WHERE source_message_id = ?";
 const SELECT_DESTINATION_LIFECYCLE: &str = "SELECT archived_at FROM conversations WHERE id = ?";
-const SELECT_SOURCE_CONVERSATION: &str = "SELECT conversation_id FROM messages WHERE id = ?";
+/// The source's conversation and the root of the cluster it belongs to (itself on the main line).
+const SELECT_SOURCE_PLACE: &str = "SELECT conversation_id, COALESCE(thread_root_id, id) AS cluster_root FROM messages WHERE id = ?";
 async fn has_capability(
     tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     workspace: &silverhand_backend_core::foundation::identity::WorkspaceId,
@@ -226,25 +227,33 @@ impl TaskCreateWrite for SqliteTaskCreateWrite {
             }
         }
 
-        let mut distinct_sources = std::collections::HashSet::new();
+        // A sourced task lives in its source's thread: its notices land where the
+        // requester asked, regardless of the target's own thread suffix.
+        let mut source_threads: HashMap<String, ThreadRootId> = HashMap::new();
         for source in batch
             .items()
             .iter()
             .filter_map(|item| item.source_message_id.as_ref())
         {
-            if !distinct_sources.insert(source.as_str()) {
+            if source_threads.contains_key(source.as_str()) {
                 continue;
             }
-            let source_conversation: Option<String> =
-                sqlx::query_scalar(SELECT_SOURCE_CONVERSATION)
-                    .bind(source.as_str())
-                    .fetch_optional(&mut *tx)
-                    .await
-                    .map_err(driver)?;
-            let Some(source_conversation) = source_conversation else {
+            let place = sqlx::query(SELECT_SOURCE_PLACE)
+                .bind(source.as_str())
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(driver)?;
+            let Some(place) = place else {
                 tx.rollback().await.map_err(driver)?;
                 return Ok(TaskCreateOutcome::SourceMessageNotFound);
             };
+            let source_conversation: String = place.try_get("conversation_id").map_err(driver)?;
+            let cluster_root: String = place.try_get("cluster_root").map_err(driver)?;
+            source_threads.insert(
+                source.as_str().to_owned(),
+                ThreadRootId::parse(cluster_root)
+                    .map_err(|_| corrupt("messages.thread_root_id"))?,
+            );
             if source_conversation != batch.conversation_id().as_str() {
                 tx.rollback().await.map_err(driver)?;
                 return Ok(TaskCreateOutcome::SourceConversationMismatch);
@@ -280,6 +289,12 @@ impl TaskCreateWrite for SqliteTaskCreateWrite {
 
         let mut witnesses = Vec::with_capacity(batch.items().len());
         for plan in batch.items() {
+            let thread_root_id = plan
+                .source_message_id
+                .as_ref()
+                .and_then(|source| source_threads.get(source.as_str()))
+                .cloned()
+                .or_else(|| plan.thread_root_id.clone());
             let board_key = storage_board_key(batch.board());
             // 1. Allocate the next per-board number under the reserved writer. Within
             //    the same tx, a prior item's insert is visible, so consecutive numbers
@@ -309,7 +324,7 @@ impl TaskCreateWrite for SqliteTaskCreateWrite {
                 .bind(&board_key)
                 .bind(next_number)
                 .bind(batch.conversation_id().as_str())
-                .bind(plan.thread_root_id.as_ref().map(|t| t.as_str()))
+                .bind(thread_root_id.as_ref().map(|t| t.as_str()))
                 .bind(plan.title.as_str())
                 .bind(plan.content.as_str())
                 .bind(status.as_str())
@@ -362,7 +377,7 @@ impl TaskCreateWrite for SqliteTaskCreateWrite {
                 .bind(&event.metadata)
                 .bind(seq.get())
                 .bind(now)
-                .bind(plan.thread_root_id.as_ref().map(|t| t.as_str()))
+                .bind(thread_root_id.as_ref().map(|t| t.as_str()))
                 .bind(None::<&str>)
                 .bind(None::<&str>)
                 .bind(None::<&str>)
@@ -370,8 +385,7 @@ impl TaskCreateWrite for SqliteTaskCreateWrite {
                 .execute(&mut *tx)
                 .await
                 .map_err(driver)?;
-            let message_thread_root = plan
-                .thread_root_id
+            let message_thread_root = thread_root_id
                 .as_ref()
                 .map(|t| MessagingThreadRootId::parse(t.as_str()))
                 .transpose()
@@ -402,14 +416,14 @@ impl TaskCreateWrite for SqliteTaskCreateWrite {
                     id: CreatedEventMessageId::parse(message_id)
                         .map_err(|_| corrupt("tasks.created_event_message_id"))?,
                     conversation_id: batch.conversation_id().clone(),
-                    thread_root_id: plan.thread_root_id.clone(),
+                    thread_root_id: thread_root_id.clone(),
                     message: event,
                     seq: seq.get(),
                     created_at: now,
                 },
                 conversation_id: batch.conversation_id().clone(),
                 board: batch.board().clone(),
-                thread_root_id: plan.thread_root_id.clone(),
+                thread_root_id: thread_root_id.clone(),
                 title: plan.title.clone(),
                 status,
                 assignee: plan.event_assignee.clone(),
