@@ -36,9 +36,9 @@
 
   /* Surface, text and border foundations */
   --bg-base: #ffffff;
-  --bg-elevated: #f2efe8;
-  --bg-hover: #f4f2ec;
-  --bg-primary: #eceae2;
+  --bg-elevated: #f1f1f0;
+  --bg-hover: #f3f3f2;
+  --bg-primary: #ebebea;
   --bg-selected: var(--brand-primary);
   --bg-structure-dark: var(--poster-ink);
   --border: rgba(13, 12, 11, 0.14);
@@ -242,7 +242,7 @@
 
 [data-theme="poster"] {
   --bg-nav-rail: transparent;
-  --pane-bg: var(--poster-paper);
+  --pane-bg: var(--bg-base);
 
   /* Primary CTA is poster-only avocado green; kept out of `:root` so other
    *  themes' CTA falls back to their own `--accent`. */
