@@ -158,17 +158,23 @@ export const messages: Translation<typeof en> = {
   skippedOccurrences: {
     other: "跳过了 {count} 次",
   },
+  taskEvent: {
+    moved: "{actor} 移至 {status}",
+    created: "{actor} 创建",
+    filed: "{actor} 从其他对话提交",
+    claimed: "{actor} 认领",
+    unclaimed: "{actor} 放弃",
+    edited: "{actor} 编辑",
+    assigned: "{actor} 分配给 {assignee}",
+    assignedNobody: "{actor} 分配",
+    unassigned: "{actor} 取消分配",
+  },
   taskVerb: {
-    moved: "移动了",
-    assigned: "分配了",
-    unassigned: "取消分配了",
-    filed: "提交了",
     created: "创建了",
     claimed: "认领了",
     edited: "编辑了",
     unclaimed: "放弃了",
   },
-  fromAnotherConversation: "(来自其他对话)",
   taskStatus: {
     todo: "待办",
     inProgress: "进行中",

@@ -6,7 +6,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { MessageDto, TaskSummaryDto } from "@silverhand/shared";
 import { decodeMessageSeq } from "@silverhand/shared";
 import { SystemActivityCluster } from "./system-activity-cluster";
-import { t } from "@/lib/i18n";
 import { TaskRefContextProvider } from "@/features/tasks/components/task-ref-context";
 import { taskBoardCacheScope, taskByNumberKey } from "@/features/tasks/hooks/use-task-by-number";
 
@@ -114,7 +113,7 @@ describe("SystemActivityCluster (PR-10)", () => {
     expect(html).toMatch(/^<div[^>]*\bdata-system-activity-cluster="2"/);
   });
 
-  it("folds consecutive events on one task into its latest line, and keeps other tasks apart", () => {
+  it("shows consecutive events on one task as its latest line, and keeps other tasks apart", () => {
     const a = makeSystemMessage("task_claim", fullTaskMeta(), { id: "a" });
     const b = makeSystemMessage("task_status", fullTaskMeta({ task_status: "in_review" }), {
       id: "b",
@@ -122,12 +121,11 @@ describe("SystemActivityCluster (PR-10)", () => {
     const c = makeSystemMessage("task_unclaim", fullTaskMeta({ task_status: "todo" }), { id: "c" });
     const folded = renderCluster([a, b, c], [seededTask()]);
     expect(folded.match(/data-system-event-row="1"/g) ?? []).toHaveLength(1);
-    expect(folded).toContain(t("messages.activityRecords", { count: 3 }));
+    expect(folded).toContain('data-task-event-dot="unclaim"');
 
     const other = makeSystemMessage("task_create", fullTaskMeta({ task_number: 7 }), { id: "d" });
     const apart = renderCluster([a, other], [seededTask()]);
     expect(apart.match(/data-system-event-row="1"/g) ?? []).toHaveLength(2);
-    expect(apart).not.toContain("data-activity-fold-toggle");
   });
 
   it("faithfully renders whatever subtypes it is handed, without re-gating (defensive passthrough)", () => {

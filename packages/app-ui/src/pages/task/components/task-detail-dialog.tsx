@@ -21,6 +21,7 @@ import {
 } from "@/features/tasks/components/task-detail-shared";
 import { Markdown } from "@/features/messages/components/markdown";
 import { useTaskDetail } from "@/features/tasks/hooks/hooks";
+import { TaskHistorySection } from "@/features/tasks/components/task-history-section";
 import {
   classifyTaskDetailFailure,
   resolveTaskDetailView,
@@ -395,7 +396,9 @@ function TaskDetailBody({
           put. Load / failure states never reach here — they get their own
           compact shell, so this column is always real content. */}
       <div className="flex min-h-0 flex-1">
-        <div className="min-w-0 flex-1 overflow-y-auto px-5 py-4">
+        <div className="flex min-w-0 flex-1 flex-col gap-6 overflow-y-auto px-5 py-4">
+          <TaskHistorySection taskId={detail.id} />
+
           {editingField === "content" ? (
             <InlineFieldEditor
               taskId={detail.id}

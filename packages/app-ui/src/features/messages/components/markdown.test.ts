@@ -739,20 +739,17 @@ describe("SystemMessage task event rows (PR-2)", () => {
     expect(html).toContain('data-task-ref="42"');
   });
 
-  it("task_status renders actor moved chip → status pill (PR-9 actor-first)", () => {
+  it("task_status leads with the task, then the status and the actor", () => {
     const msg = makeSystemMessage("task_status", fullMeta({ task_status: "in_review" }));
     const html = renderTaskEvent(msg, () => undefined, [seededTask({ status: "in_review" })]);
     expect(html).toContain(">Alice</span>");
     expect(html).toContain('data-task-ref="42"');
     expect(html).toContain('data-task-event-status="in_review"');
-    // PR-9: actor is now the first text node, NOT a "by <actor>"
-    // suffix. Verify we don't accidentally re-introduce the old form.
-    expect(html).not.toContain("by Alice");
-    // Reading order: actor → task-ref chip → status marker. Keyed on
-    // stable nodes, not the connecting verb (which is copy).
-    expect(html.indexOf(">Alice</span>")).toBeLessThan(html.indexOf('data-task-ref="42"'));
     expect(html.indexOf('data-task-ref="42"')).toBeLessThan(
       html.indexOf('data-task-event-status="in_review"'),
+    );
+    expect(html.indexOf('data-task-event-status="in_review"')).toBeLessThan(
+      html.indexOf(">Alice</span>"),
     );
   });
 
@@ -770,10 +767,8 @@ describe("SystemMessage task event rows (PR-2)", () => {
     );
     const html = renderTaskEvent(msg, () => undefined, [seededTask({ status: "done" })]);
     expect(html).toContain('data-task-event-status="done"');
-    // PR-9 actor-first: `you moved ... → DONE`, not `... by you`. The
-    // viewer's own id renders the friendly bare `you` label (#task:1768).
+    // The viewer's own id renders the friendly bare `you` label (#task:1768).
     expect(html).toContain(">you</span>");
-    expect(html).not.toContain("by you");
   });
 
   it("chip is inert (no click handler) when no onOpenTask handler is supplied", () => {

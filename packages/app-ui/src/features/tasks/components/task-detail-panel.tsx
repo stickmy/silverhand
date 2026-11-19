@@ -15,6 +15,7 @@ import {
   type EditingField,
 } from "@/features/tasks/components/task-detail-shared";
 import { useTaskDetail } from "@/features/tasks/hooks/hooks";
+import { TaskHistorySection } from "@/features/tasks/components/task-history-section";
 import {
   classifyTaskDetailFailure,
   resolveTaskDetailView,
@@ -381,6 +382,8 @@ function PaneBody({
           </Fragment>
         ))}
       </div>
+
+      <TaskHistorySection taskId={detail.id} />
 
       <section className="flex min-w-0 flex-col gap-2">
         <div className="flex items-center gap-2">

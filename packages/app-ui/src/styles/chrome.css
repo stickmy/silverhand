@@ -31,8 +31,7 @@
 .system-message-row .font-mono {
   font-family: var(--appearance-code-font, var(--font-mono));
 }
-.system-message-row [data-task-ref],
-.system-message-row [data-task-event-status] {
+.system-message-row [data-task-ref] {
   height: var(--system-message-control-height);
 }
 
@@ -237,93 +236,137 @@ html[data-theme] [data-sonner-toast][data-styled="true"] [data-button][data-disa
 .system-activity-cluster {
   container: activity-strip / inline-size;
   margin-block: 7px;
-  margin-inline-start: 54px;
+  margin-inline-start: 60px;
   margin-inline-end: 16px;
   max-width: 85%;
-  padding-inline-start: 10px;
-  border-inline-start: var(--activity-cluster-rule, 1px solid var(--border-subtle));
 }
 
+/* Each row leads with the task and its state; what happened and who did it
+   trail in muted text. The row is only as wide as its text, and hover lifts
+   the title's ink instead of filling a band across the stream. */
 .system-activity-cluster [data-activity-row] {
   display: flex;
+  width: fit-content;
+  max-width: 100%;
   align-items: center;
   gap: 8px;
 }
 .system-activity-cluster [data-activity-row] > [data-system-event-row="1"] {
   min-width: 0;
 }
-.system-activity-cluster [data-activity-fold-toggle] {
-  flex-shrink: 0;
-  font-size: var(--text-badge);
-  color: var(--text-muted);
-  white-space: nowrap;
-  cursor: pointer;
+.system-activity-cluster [data-system-event-row="1"] > * {
+  padding-block: 3px;
+  padding-inline: 0;
 }
-.system-activity-cluster [data-activity-fold-toggle]:hover {
+/* An event sits a step below a message: meta size, secondary ink. */
+.system-message-row [data-task-event-line] {
+  font-size: var(--text-meta);
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+}
+.system-message-row [data-task-event-task] {
+  display: flex;
+  min-width: 0;
+  flex-shrink: 1;
+}
+.system-message-row [data-task-event-task] [data-task-ref] {
+  height: auto;
+  font-size: inherit;
+  font-weight: 400;
+  color: var(--text-secondary);
+  transition: color 120ms;
+}
+.system-message-row [data-task-event-task] [data-task-ref-state="resolved"]:hover {
+  color: var(--text-primary);
+}
+.system-message-row [data-task-event-task] [data-task-ref-num] {
+  font-family: inherit;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: normal;
+  color: var(--text-muted);
+}
+.system-message-row
+  [data-task-event-task]
+  [data-task-ref-state="resolved"]:hover
+  [data-task-ref-label] {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.system-message-row [data-task-event-meta] {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.35em;
+  color: var(--text-muted);
+}
+.system-message-row [data-task-event-person] {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   color: var(--text-secondary);
 }
-/* Indented on the row body, not the history box, so the hover times stay in
-   the same column. */
-/* The opened history is a plain list under the line: who did what, in muted
-   text. The line above names the task and carries the status sticker, so the
-   history repeats neither. Its dots keep their width unpainted, so each name
-   starts under the name above. */
-.system-activity-cluster [data-activity-history] {
-  margin-block: 0 4px;
-  font-size: var(--text-meta);
-  color: var(--text-muted);
+
+/* Same cube as the inline task reference; the event's after-state. The cube
+   alone carries the status hue, so the status word stays neutral. */
+.system-message-row [data-task-event-dot] {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  margin-inline-end: -2px;
+  border-radius: var(--task-ref-cube-radius);
+  background-color: var(--task-event-tone);
 }
-.system-activity-cluster [data-activity-history] :is([data-task-ref], [data-activity-time]) {
-  display: none;
+.system-message-row [data-task-event-dot="todo"] {
+  background-color: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--task-event-tone);
 }
-.system-activity-cluster [data-activity-history] [data-task-event-dot] {
-  visibility: hidden;
+.system-message-row [data-task-event-dot="unclaim"] {
+  background-color: transparent;
+  outline: 1px dashed var(--text-muted);
+  outline-offset: -1px;
 }
-.system-activity-cluster [data-activity-history] [data-system-event-row="1"] > * {
-  padding-block: 0;
-  font-size: inherit;
+.system-message-row [data-task-event-status] {
+  color: var(--text-secondary);
 }
-.system-activity-cluster
-  [data-activity-history]
-  :is([data-task-event-actor], [data-task-event-verb], [data-task-event-arrow]) {
-  font-weight: 400;
-  color: inherit;
+[data-task-event-dot="todo"],
+[data-task-event-status="todo"] {
+  --task-event-tone: var(--task-status-todo-solid);
 }
-.system-activity-cluster [data-activity-history] [data-task-event-status][data-task-event-status] {
-  border: 0;
-  padding: 0;
-  font-family: inherit;
-  font-size: inherit;
-  font-weight: 400;
-  letter-spacing: normal;
-  text-transform: none;
-  color: inherit;
-  opacity: 1;
+[data-task-event-dot="in_progress"],
+[data-task-event-status="in_progress"] {
+  --task-event-tone: var(--task-status-in-progress-solid);
+}
+[data-task-event-dot="in_review"],
+[data-task-event-status="in_review"] {
+  --task-event-tone: var(--task-status-in-review-solid);
+}
+[data-task-event-dot="done"],
+[data-task-event-status="done"] {
+  --task-event-tone: var(--task-status-done-solid);
+}
+[data-task-event-dot="closed"],
+[data-task-event-status="closed"] {
+  --task-event-tone: var(--task-status-closed-solid);
 }
 
-/* A narrow strip keeps a task line on one line: the line names the task and
-   its state, and who did what moves to the opened history. */
+/* A narrow strip keeps a task line to the task and its cube; who did what
+   stays in the task's History. */
 @container activity-strip (max-width: 419px) {
-  [data-activity-fold]
-    > [data-activity-row]
-    :is([data-task-event-actor], [data-task-event-verb], [data-task-event-arrow]) {
+  .system-activity-cluster [data-task-event-meta] {
     display: none;
-  }
-  [data-activity-fold] > [data-activity-row] [data-system-event-row="1"] > * {
-    flex-wrap: nowrap;
-  }
-  [data-activity-fold] > [data-activity-row] [data-task-ref] {
-    min-width: 0;
-    flex-shrink: 1;
   }
 }
 
 /* The time sits in the avatar column, right-aligned where a continuation
-   row's hover time sits (cluster inset 54px + 10px padding, rail ends 40px in). */
+   row's hover time sits (34px in; the row starts at 60px with message text). */
 .system-activity-cluster [data-activity-time] {
   position: absolute;
   inset-block: 0;
-  right: calc(100% + 24px);
+  right: calc(100% + 26px);
   display: flex;
   align-items: center;
   white-space: nowrap;
@@ -342,53 +385,76 @@ html[data-theme] [data-sonner-toast][data-styled="true"] [data-button][data-disa
   }
 }
 
-.system-activity-cluster [data-system-event-row="1"] > * {
-  padding-block: 2px;
-  padding-inline: 0;
+/* Task History: a quiet timeline. Status changes get a filled dot in the
+   status colour; every other change a hollow muted one. */
+[data-task-history-list] {
+  position: relative;
+  display: flex;
+  flex-direction: column;
 }
-
-.system-activity-cluster .font-medium.text-text-primary {
-  font-weight: 400;
+[data-task-history-list]::before {
+  content: "";
+  position: absolute;
+  inset-block: 10px;
+  left: 4px;
+  width: 1px;
+  background-color: var(--border-subtle);
+}
+[data-task-history-item] {
+  position: relative;
+  display: grid;
+  grid-template-columns: 9px minmax(0, 1fr) auto;
+  column-gap: 10px;
+  align-items: center;
+  padding-block: 4px;
+  font-size: var(--text-meta);
+  color: var(--text-muted);
+}
+[data-task-history-dot] {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background-color: var(--bg-base);
+  box-shadow: inset 0 0 0 1.5px var(--task-history-tone, var(--text-muted));
+}
+[data-task-history-item]:not([data-task-history-kind="change"]) [data-task-history-dot] {
+  background-color: var(--task-history-tone);
+}
+[data-task-history-text] {
+  display: inline-flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3em;
+}
+[data-task-history-item] [data-task-event-person] {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-primary);
+}
+[data-task-history-status] {
   color: var(--text-secondary);
 }
-
-.system-activity-cluster [data-task-ref] {
-  background: transparent;
-  border: none;
-  color: var(--task-ref-activity-color);
-  font-weight: 400;
-  padding-inline: var(--task-ref-activity-padding);
-  margin-inline: var(--task-ref-activity-margin);
+[data-task-history-item] time {
+  font-size: var(--text-badge);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
-.system-activity-cluster [data-task-ref]:hover {
-  background: var(--task-ref-activity-hover-bg);
-  color: var(--task-ref-activity-hover-color);
+[data-task-history-kind="todo"] {
+  --task-history-tone: var(--task-status-todo-solid);
 }
-
-.system-activity-cluster [data-task-event-status] {
-  background: transparent;
-  border: 1px solid currentColor;
-  opacity: var(--activity-status-opacity, 0.85);
+[data-task-history-kind="in_progress"] {
+  --task-history-tone: var(--task-status-in-progress-solid);
 }
-.system-activity-cluster [data-task-event-status="todo"] {
-  color: var(--task-status-todo-solid);
+[data-task-history-kind="in_review"] {
+  --task-history-tone: var(--task-status-in-review-solid);
 }
-.system-activity-cluster [data-task-event-status="in_progress"] {
-  color: var(--task-status-in-progress-solid);
+[data-task-history-kind="done"] {
+  --task-history-tone: var(--task-status-done-solid);
 }
-.system-activity-cluster [data-task-event-status="in_review"] {
-  color: var(--task-status-in-review-solid);
-}
-.system-activity-cluster [data-task-event-status="done"] {
-  color: var(--task-status-done-solid);
-}
-.system-activity-cluster [data-task-event-status="closed"] {
-  color: var(--task-status-closed-solid);
-}
-
-.system-activity-cluster [data-task-event-dot] {
-  width: 6px;
-  height: 6px;
+[data-task-history-kind="closed"] {
+  --task-history-tone: var(--task-status-closed-solid);
 }
 
 /* The Recent avatar takes the row's corner scaled to its own size (32 of the

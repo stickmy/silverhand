@@ -189,6 +189,15 @@
   border-radius: var(--task-ref-radius);
   transition: background-color 120ms ease;
 }
+/* The number is an index, not the subject: muted ink in the prose face, so
+   the title carries the chip. */
+.markdown-body [data-task-ref] [data-task-ref-num] {
+  font-family: inherit;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: normal;
+  color: var(--text-muted);
+}
 .markdown-body [data-task-ref][data-task-ref-state="resolved"]:hover {
   background-color: color-mix(in srgb, var(--text-primary) var(--task-ref-hover-mix), transparent);
 }
@@ -233,27 +242,6 @@
 }
 [data-task-ref-tone="closed"] {
   --task-ref-tone: var(--task-status-closed-solid);
-}
-
-@property --task-ref-marker-color {
-  syntax: "<color>";
-  inherits: false;
-  initial-value: transparent;
-}
-.system-activity-cluster [data-task-ref] > span {
-  background-image: linear-gradient(var(--task-ref-marker-color), var(--task-ref-marker-color));
-  background-repeat: no-repeat;
-  background-position: 0 88%;
-  transition:
-    --task-ref-marker-color 130ms ease,
-    background-size 130ms ease;
-}
-.system-activity-cluster [data-task-ref] > span {
-  --task-ref-marker-color: var(--task-ref-activity-marker);
-  background-size: 100% 0%;
-}
-.system-activity-cluster [data-task-ref]:hover > span {
-  background-size: 100% 42%;
 }
 
 .markdown-body .code-block {

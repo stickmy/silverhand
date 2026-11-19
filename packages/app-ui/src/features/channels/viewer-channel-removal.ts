@@ -470,6 +470,11 @@ export const VIEWER_LOCAL_CHANNEL_KEY_CLASSIFICATION: Record<string, ChannelKeyC
     verdicts: ["cleaned"],
     reason: "single-object task read → discarded by registry `tasks`",
   },
+  "task-history": {
+    verdicts: ["refetch-authoritative"],
+    reason:
+      "one task's events, rendered only inside that task's detail (whose read is discarded by registry `tasks`); the server gates it by the same task read and every mount re-reads it (default staleTime)",
+  },
   tasks: { verdicts: ["cleaned"], reason: "rows carry channel_id → registry `tasks`" },
   users: { verdicts: ["exempt"], reason: "user directory; no conversation axis" },
   workspaces: {

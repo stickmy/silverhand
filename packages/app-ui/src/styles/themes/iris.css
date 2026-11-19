@@ -136,8 +136,6 @@
   --message-activity-radius: 4px;
 
   /* Messages and activity */
-  --activity-cluster-rule: none;
-  --activity-status-opacity: 1;
   --activity-meta: oklab(0 0 0 / 0.4);
   --activity-params-bg: oklab(0 0 0 / 0.05);
   --chip-bg: rgba(31, 26, 18, 0.06);
@@ -188,12 +186,6 @@
   --search-hit-bg: #ffe9a3;
   --search-hit-bg-active: #ffd75e;
   --search-hit-text: #1f1a12;
-  --task-ref-activity-color: var(--text-secondary);
-  --task-ref-activity-hover-bg: var(--accent);
-  --task-ref-activity-hover-color: var(--text-on-accent);
-  --task-ref-activity-margin: -0.125rem;
-  --task-ref-activity-marker: transparent;
-  --task-ref-activity-padding: 0.375rem;
   --task-ref-cube-radius: 2px;
   --task-ref-font: initial;
   --task-ref-hover-mix: 10%;

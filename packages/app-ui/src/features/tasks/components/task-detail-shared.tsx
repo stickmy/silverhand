@@ -131,7 +131,7 @@ export interface TaskMetaRowSpec {
  * fields show, in what order, with what value node and write wiring. Each
  * surface renders these into its own grid (the modal's fixed sidebar, the
  * pane's width-adaptive columns), so the field set never forks between them.
- * Missing optional facts (Edited / Closed) emit no row — never a `—`
+ * A missing optional fact (Closed) emits no row — never a `—`
  * placeholder, so present rows don't shift when one appears.
  */
 export function useTaskMetaRows({
@@ -145,8 +145,6 @@ export function useTaskMetaRows({
   onAssign,
 }: TaskMetaWriteProps): TaskMetaRowSpec[] {
   const directory = usePersonDirectory();
-  const editor = view.last_editor;
-  const editedAt = view.last_edited_at;
   const canAssign = !ASSIGNMENT_FROZEN.has(view.status);
 
   const rows: TaskMetaRowSpec[] = [
@@ -250,31 +248,6 @@ export function useTaskMetaRows({
     },
   ];
 
-  // Last DEFINITION edit (title or content) — a product fact (the body is the
-  // definition-of-record, and `task_edit` broadcasts to the channel), only when
-  // the task has actually been edited.
-  if (editor && editedAt !== null) {
-    rows.push({
-      key: "edited",
-      label: t("tasks.edited"),
-      value: (
-        <span className="flex min-w-0 flex-col gap-1">
-          <span className="flex min-w-0 items-center gap-1.5">
-            <PersonAvatar
-              person={{ type: editor.kind, id: editor.id }}
-              name={editor.name}
-              {...directory}
-            />
-            <span className="truncate" title={editor.name}>
-              {editor.name}
-            </span>
-          </span>
-          <Timestamp at={editedAt} muted />
-        </span>
-      ),
-    });
-  }
-
   if (view.closed_at !== null) {
     rows.push({
       key: "closed",
@@ -286,12 +259,9 @@ export function useTaskMetaRows({
   return rows;
 }
 
-function Timestamp({ at, muted }: { at: number; muted?: boolean }): JSX.Element {
+function Timestamp({ at }: { at: number }): JSX.Element {
   return (
-    <time
-      dateTime={new Date(at).toISOString()}
-      className={cn("font-mono text-(length:--text-meta)", muted && "text-text-muted")}
-    >
+    <time dateTime={new Date(at).toISOString()} className="font-mono text-(length:--text-meta)">
       {dayjs(at).format(TIMESTAMP_FORMAT)}
     </time>
   );
