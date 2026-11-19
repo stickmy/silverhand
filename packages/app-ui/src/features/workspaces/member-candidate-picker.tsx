@@ -68,6 +68,7 @@ export function MemberCandidatePicker({
   footer,
   onQueryChange,
   placeholder = t("workspaces.searchByNameOr"),
+  inputId,
 }: {
   /** Candidate pool, already narrowed by the caller's eligibility rules. */
   groups: readonly MemberCandidateGroup[];
@@ -86,6 +87,8 @@ export function MemberCandidatePicker({
   footer?: ReactNode;
   onQueryChange?: (query: string) => void;
   placeholder?: string;
+  /** Lets a form `<Label htmlFor>` target the search input. */
+  inputId?: string;
 }): JSX.Element {
   const inline = mode === "inline";
   const [query, setQuery] = useState("");
@@ -249,6 +252,7 @@ export function MemberCandidatePicker({
       <label data-input="" className={cn(SEARCH_FIELD_FRAME, disabled ? "opacity-60" : "")}>
         <SearchIcon className="size-3.5 shrink-0 text-text-muted" aria-hidden />
         <input
+          id={inputId}
           type="text"
           role="combobox"
           aria-expanded={listOpen}

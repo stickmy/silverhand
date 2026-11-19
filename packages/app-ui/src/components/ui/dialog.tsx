@@ -161,6 +161,18 @@ export const DialogContent = forwardRef<
           className,
         )}
         {...props}
+        // An in-dialog combobox whose list is open owns the first Escape: Radix
+        // reads Escape at document capture, before the input's own handler, so
+        // without this the dialog (and the form in it) would close instead.
+        onEscapeKeyDown={(event) => {
+          if (
+            event.target instanceof Element &&
+            event.target.matches('[role="combobox"][aria-expanded="true"]')
+          ) {
+            event.preventDefault();
+          }
+          props.onEscapeKeyDown?.(event);
+        }}
       >
         <DialogBoundaryContext.Provider value={boundary}>{children}</DialogBoundaryContext.Provider>
         {/* Top-right corner action cluster: optional peer actions, then the close

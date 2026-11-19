@@ -1,12 +1,13 @@
-import * as Select from "@radix-ui/react-select";
-import { AddMemberIcon, ChevronDownIcon, CloseIcon } from "@/icons";
+import { CloseIcon } from "@/icons";
 import { useMemo } from "react";
 import type { AgentDto, UserDto } from "@silverhand/shared";
 import { AgentAvatar } from "@/components/agent-avatar";
 import { UserAvatar } from "@/components/user-avatar";
 import { AVATAR_PX } from "@/components/avatar-scale";
 import { useAgentAvatarObjectUrls } from "@/features/agents/hooks/avatar-hooks";
-import { t } from "@/lib/i18n";
+import { t, useLocale } from "@/lib/i18n";
+import { MemberCandidatePicker } from "./member-candidate-picker";
+import type { MemberCandidateGroup } from "./member-search";
 
 interface AgentPickerProps {
   candidates: AgentDto[];
@@ -33,8 +34,9 @@ interface MemberPickerProps {
 }
 
 /**
- * Shared member picker. The add-member Select trigger stays anchored
- * at the bottom; selected members render ABOVE it as compact wrapping
+ * Shared member picker. The add-member search field (the same
+ * `MemberCandidatePicker` the rosters use, so typing narrows the pool)
+ * stays anchored at the bottom; selected members render ABOVE it as compact wrapping
  * tags (avatar + display_name + monospace `@handle` + tiny remove X)
  * rather than full-width rows — picked members are confirmed identity
  * chips, not "directory entries you can re-inspect". Per shiki
@@ -99,7 +101,15 @@ export function MemberPicker({
   const byKey = new Map(candidates.map((c) => [memberKey(c), c]));
   const selectedKeys = value.filter((id, index) => value.indexOf(id) === index);
   const selectedSet = new Set(selectedKeys);
-  const available = candidates.filter((c) => !selectedSet.has(memberKey(c)));
+  const locale = useLocale();
+  const groups = useMemo<MemberCandidateGroup[]>(() => {
+    const picked = new Set(value);
+    const available = candidates.filter((c) => !picked.has(memberKey(c)));
+    return [
+      { label: t("workspaces.agents"), items: available.filter((c) => c.kind === "agent") },
+      { label: t("workspaces.humans"), items: available.filter((c) => c.kind === "human") },
+    ].filter((g) => g.items.length > 0);
+  }, [locale, candidates, value]);
 
   // Resolve avatars for the whole candidate pool — selected rows and
   // dropdown items share the same map. The hook caches by
@@ -185,78 +195,16 @@ export function MemberPicker({
         </ul>
       ) : null}
 
-      <Select.Root
-        value=""
-        onValueChange={(v) => {
-          if (v) addMember(v);
-        }}
+      <MemberCandidatePicker
+        mode="floating"
+        inputId={selectId}
+        groups={groups}
+        onPick={(candidate) => addMember(memberKey(candidate))}
         disabled={candidates.length === 0}
-      >
-        <Select.Trigger
-          id={selectId}
-          aria-label={t("workspaces.addMember")}
-          className="flex w-full items-center justify-between gap-2 rounded-(--control-radius) border-(length:--control-border-width) border-border bg-bg-base px-2.5 py-1.5 text-sm text-text-primary outline-none transition-colors hover:border-(--border-control-hover) focus:border-border-focus disabled:cursor-not-allowed disabled:opacity-60 data-placeholder:text-text-muted"
-        >
-          <span className="flex min-w-0 items-center gap-1.5">
-            <AddMemberIcon className="size-3.5 shrink-0 text-text-muted" />
-            <Select.Value placeholder={placeholder} />
-          </span>
-          <Select.Icon>
-            <ChevronDownIcon className="size-3.5 text-text-muted" />
-          </Select.Icon>
-        </Select.Trigger>
-        <Select.Portal>
-          <Select.Content
-            position="popper"
-            sideOffset={4}
-            className="z-(--z-in-dialog) max-h-[40vh] min-w-(--radix-select-trigger-width) overflow-hidden rounded-md border border-border bg-bg-floating shadow-popover"
-          >
-            <Select.Viewport className="p-1">
-              {candidates.length === 0 ? (
-                <PickerHint>{emptyText}</PickerHint>
-              ) : available.length === 0 ? (
-                <PickerHint>{allSelectedText}</PickerHint>
-              ) : (
-                available.map((candidate) => {
-                  const key = memberKey(candidate);
-                  const displayName = memberDisplayName(candidate);
-                  const handle = memberHandle(candidate);
-                  return (
-                    <Select.Item
-                      key={key}
-                      value={key}
-                      className="flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-text-primary outline-none data-highlighted:bg-bg-hover"
-                    >
-                      {candidate.kind === "agent" ? (
-                        <AgentAvatar
-                          runtime={candidate.agent.runtime}
-                          size={AVATAR_PX.sm}
-                          avatarObjectUrl={agentAvatars.get(candidate.agent.id) ?? null}
-                          alt={displayName}
-                        />
-                      ) : (
-                        <UserAvatar
-                          size={AVATAR_PX.sm}
-                          avatarObjectUrl={humanAvatars.get(candidate.user.id) ?? null}
-                          alt={displayName}
-                        />
-                      )}
-                      <Select.ItemText>
-                        <span className="flex min-w-0 items-baseline gap-1.5">
-                          <span className="truncate font-medium">{displayName}</span>
-                          <span className="truncate font-mono text-(length:--text-meta) text-text-muted">
-                            @{handle}
-                          </span>
-                        </span>
-                      </Select.ItemText>
-                    </Select.Item>
-                  );
-                })
-              )}
-            </Select.Viewport>
-          </Select.Content>
-        </Select.Portal>
-      </Select.Root>
+        ariaLabel={t("workspaces.addMember")}
+        emptyHint={candidates.length === 0 ? emptyText : allSelectedText}
+        placeholder={placeholder}
+      />
     </div>
   );
 }
@@ -348,8 +296,4 @@ function memberDisplayName(candidate: MemberPickerCandidate): string {
 
 function memberHandle(candidate: MemberPickerCandidate): string {
   return candidate.kind === "agent" ? candidate.agent.name : candidate.user.name;
-}
-
-function PickerHint({ children }: { children: string }): JSX.Element {
-  return <div className="px-2 py-2 text-center text-xs italic text-text-muted">{children}</div>;
 }
