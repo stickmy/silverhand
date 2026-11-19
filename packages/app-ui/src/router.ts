@@ -1,4 +1,9 @@
 import type { MainTab } from "@/navigation/history";
+import {
+  SECONDARY_PANES,
+  SECONDARY_PANE_ORDER,
+  type SecondaryPane,
+} from "@/navigation/secondary-panes";
 import { useNavigationDriver, useNavigationReader, type Driver } from "@/navigation/provider";
 import type { DirectMessageTarget } from "@/features/direct-pairs/target";
 import { useCallback, useMemo } from "react";
@@ -604,63 +609,6 @@ export function buildLocatorTargetUrl(target: LocatorTarget): string {
 }
 
 /**
- * Behavior registry for the right-pane "secondary family" — the SINGLE source
- * of truth for how opening one pane treats the panes beneath it. `PaneKind`
- * and the opener's clear-list both derive from this one object, so adding a
- * pane forces a behavior declaration in exactly one place; the runtime set and
- * the type can't drift apart.
- *
- * `mode` is an intrinsic property of the pane KIND, never a caller argument —
- * so the illegal "open `side` as an overlay" combination has no API surface at
- * all (it's unconstructable, not merely gated).
- *
- *  - `mode: 'replace'` — conversation-context panes (`side`/`thread`/`threads`).
- *    Opening one writes itself and clears EVERY other secondary param (+
- *    `fullscreen`): one conversation context at a time, no restore stack.
- *  - `mode: 'overlay'` — utility/inspector panes (`agent`/`files`/`task`).
- *    Opening one writes itself, drops `fullscreen`, clears `?side` and the
- *    OTHER overlays, but PRESERVES every pane flagged `survivesOverlay` as the
- *    URL restore stack — closing brings the covered pane back with no in-memory
- *    state.
- *
- * `survivesOverlay` is a second axis because `mode` alone underdetermines the
- * restore stack: `side` is `replace` yet must NOT survive being covered. The
- * two `false` values are NOT the same kind of `false` — do not "unify" them:
- *  - `side: false` is a HARD CORRECTNESS invariant, never flippable to `true`.
- *    A hidden `?side` still feeds `useSecondaryPaneModel`'s visible/focused set
- *    (driving notification suppression + read-advance), so leaving it set while
- *    invisible is data corruption. The runtime matrix test locks this — it is a
- *    gate, not a style choice; do not remove it.
- *  - `agent`/`files`/`task` `false` is a SOFT TOPOLOGY choice — "one overlay on
- *    top at a time." These panes are visually neutral (no visible/focused
- *    side-effect), so this could flip to `true` later (e.g. if an agent panel
- *    is allowed to coexist with another overlay) without hurting correctness.
- *  - `thread`/`threads` `true`: pure render panes with no visibility
- *    side-effect, so an overlay preserves them as the restore stack.
- */
-const SECONDARY_PANES = {
-  // `replace` conversation-context panes.
-  //   side: covered-but-in-URL is data corruption → false is a HARD invariant.
-  side: { mode: "replace", survivesOverlay: false },
-  //   thread/threads: pure render, safe to keep under an overlay (restore stack).
-  thread: { mode: "replace", survivesOverlay: true },
-  threads: { mode: "replace", survivesOverlay: true },
-  // `overlay` utility/inspector panes. survivesOverlay:false here is a SOFT
-  // topology choice ("one overlay at a time"), flippable without correctness risk.
-  agent: { mode: "overlay", survivesOverlay: false },
-  human: { mode: "overlay", survivesOverlay: false },
-  settings: { mode: "overlay", survivesOverlay: false },
-  files: { mode: "overlay", survivesOverlay: false },
-  attachment: { mode: "overlay", survivesOverlay: false },
-  task: { mode: "overlay", survivesOverlay: false },
-} as const satisfies Record<string, { mode: "overlay" | "replace"; survivesOverlay: boolean }>;
-
-/** Every secondary-pane query param, derived from the registry. */
-export type SecondaryPane = keyof typeof SECONDARY_PANES;
-
-const SECONDARY_PANE_KEYS = Object.keys(SECONDARY_PANES) as SecondaryPane[];
-
-/**
  * Write an "open pane" transform onto `params` in place. `mode` is looked up
  * from {@link SECONDARY_PANES}, never passed, so `side` can never take overlay
  * semantics. An overlay open preserves the `survivesOverlay` panes (the URL
@@ -672,7 +620,7 @@ function writeSecondaryPaneOpen(params: URLSearchParams, pane: SecondaryPane, va
   params.set(pane, value);
   params.delete("fullscreen");
   const overlay = SECONDARY_PANES[pane].mode === "overlay";
-  for (const other of SECONDARY_PANE_KEYS) {
+  for (const other of SECONDARY_PANE_ORDER) {
     if (other === pane) continue;
     if (overlay && SECONDARY_PANES[other].survivesOverlay) continue;
     params.delete(other);

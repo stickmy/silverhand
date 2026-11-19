@@ -40,8 +40,6 @@ export type PrimaryPaneProps = Pick<
   | "onOpenAdvancedSearch"
   | "viewTabsEnabled"
   | "onOpenAttachmentPanel"
-  | "openAttachmentRequest"
-  | "onAttachmentRequestConsumed"
 >;
 
 export type AgentPaneProps = Pick<

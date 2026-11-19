@@ -3,6 +3,7 @@ import { useEffect, useRef, type RefObject } from "react";
 import { usePageLive } from "@/navigation/page-stack";
 import type { AppSection } from "@/components/layout/nav-rail";
 import type { RouteState } from "@/router";
+import { topSecondaryPane, type SecondaryPane } from "@/navigation/secondary-panes";
 
 /**
  * App-wide keyboard shortcuts. Deliberately a SMALL, fixed set —
@@ -182,38 +183,18 @@ export function useTabCycleShortcut(
 export type ContextualCloseOutcome = "closed-panel" | "background-app";
 
 /** Which surface to peel this press, or none. */
-type CloseTarget =
-  | "human"
-  | "agent"
-  | "settings"
-  | "files"
-  | "attachment"
-  | "task"
-  | "side"
-  | "thread"
-  | "threads"
-  | "activity-channel"
-  | null;
+type CloseTarget = SecondaryPane | "activity-channel" | null;
 
 /** The authoritative slice of state the ⌘W ladder reads at keypress time. ⌘W
  *  acts purely on this explicit panel allowlist — a surface is closeable only
  *  if it appears here. */
 export interface ContextualCloseState {
-  /** Agent side-panel (`?agent`). The topmost overlay — the render layer draws
-   *  it above every other pane (`agent > files > task > side > thread > threads`), so
-   *  ⌘W peels it first; closing it reveals whatever pane it covered. */
   agentPanelId: string | null;
   humanPanelId?: string | null;
   filesListOpen: boolean;
-  /** Attachment preview (`?attachment`); inside the Attachments panel it peels
-   *  before the list. */
   attachmentPanelId?: string | null;
   channelSettingsId?: string | null;
-  /** Task detail is showing as the OVERLAY SIDE PANE (`?task`, #task:1721), not
-   *  the app-level modal. Only the pane is a ⌘W peel target — the modal (board /
-   *  Tasks-tab entry) is a Radix Dialog that owns its own dismissal. Sits just below
-   *  files in the ladder, mirroring the render order `agent > files > task > side
-   *  > thread > threads`. */
+  /** Task detail is showing as the side pane (`?task`), not the modal. */
   taskPaneOpen: boolean;
   sideConversationId: string | null;
   threadRootId: string | null;
@@ -234,41 +215,28 @@ export interface ContextualCloseResolution {
  * The ⌘W ladder — one layer peeled per press, top surface first. Pure so the
  * layer order is unit-testable without IPC/DOM.
  *
- * Layer 1  ?agent (Agent panel)    → close the agent side-panel (topmost overlay)
- * Layer 2  ?files (Attachments)    → close files
- * Layer 3  ?task pane              → close the task detail side pane (#task:1721;
- *          the modal entry is not a target — Radix owns its dismissal)
- * Layer 4  secondary pane          → close side / thread / threads-list, in the
- *          SAME priority the render layer resolves (`side > thread > threads`,
- *          see `layoutMemoryFromRoute`), so we peel whichever pane is actually
- *          visible when a malformed URL sets more than one.
- * Layer 5  Activity channel detail → pop back to the full-screen Activity list
- * Layer 6  nothing left            → background-app (main hides the app)
- *
- * The order mirrors the render-layer priority `agent > files > task > side >
- * thread > threads`, then the Activity channel underneath, so ⌘W always peels
- * the surface actually on top. The Chat section's main ChannelView is not a
- * target — when only it remains, ⌘W backgrounds the app.
+ * Secondary panes peel in the registry's stacking order (`SECONDARY_PANES`),
+ * the same order the render layer resolves, so ⌘W peels whichever pane is on
+ * top even when a malformed URL sets more than one. Task detail counts only as
+ * the side pane; the modal entry is a Radix Dialog that owns its dismissal.
+ * Below the panes, an Activity channel detail pops back to the Activity list;
+ * with nothing left, ⌘W backgrounds the app. The Chat section's main
+ * ChannelView is never a target.
  */
 export function resolveContextualClose(state: ContextualCloseState): ContextualCloseResolution {
-  if (state.agentPanelId != null) {
-    return { outcome: "closed-panel", target: "agent" };
-  }
-  if (state.humanPanelId != null) {
-    return { outcome: "closed-panel", target: "human" };
-  }
-  if (state.channelSettingsId) return { outcome: "closed-panel", target: "settings" };
-  if (state.attachmentPanelId) return { outcome: "closed-panel", target: "attachment" };
-  if (state.filesListOpen) return { outcome: "closed-panel", target: "files" };
-  if (state.taskPaneOpen) return { outcome: "closed-panel", target: "task" };
-  if (state.sideConversationId != null) {
-    return { outcome: "closed-panel", target: "side" };
-  }
-  if (state.threadRootId != null) {
-    return { outcome: "closed-panel", target: "thread" };
-  }
-  if (state.threadsListOpen) {
-    return { outcome: "closed-panel", target: "threads" };
+  const pane = topSecondaryPane({
+    agent: state.agentPanelId != null,
+    human: state.humanPanelId != null,
+    settings: Boolean(state.channelSettingsId),
+    attachment: Boolean(state.attachmentPanelId),
+    files: state.filesListOpen,
+    task: state.taskPaneOpen,
+    side: state.sideConversationId != null,
+    thread: state.threadRootId != null,
+    threads: state.threadsListOpen,
+  });
+  if (pane) {
+    return { outcome: "closed-panel", target: pane };
   }
   if (state.activityChannelOpen) {
     return { outcome: "closed-panel", target: "activity-channel" };

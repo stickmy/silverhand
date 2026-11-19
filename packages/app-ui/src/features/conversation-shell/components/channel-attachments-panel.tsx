@@ -95,11 +95,9 @@ interface ChannelAttachmentsPanelProps {
    *  same primitive as thread "View in channel" so a thread-scoped source
    *  lands in the right place. */
   onJumpToMessage: (target: MessageJumpTarget) => void;
-  /** Open an md/html row in the primary pane's in-app previewer tab (#task:2122)
-   *  rather than open-with-OS. The panel is a sibling pane with no reach into that
-   *  pane's tab controller, so it hands the attachment up to App, which relays it.
-   *  Only md/html route here (the panel decides via {@link attachmentPreviewKind});
-   *  images open the local lightbox and other files still open-with-OS. */
+  /** Preview an md/html row in-app rather than open-with-OS. Only md/html route
+   *  here (the panel decides via {@link attachmentPreviewKind}); images open the
+   *  local lightbox and other files still open-with-OS. */
   onOpenAttachment?: (attachment: AttachmentDto) => void;
   /** Injected in tests to pin day-boundary math to a fixed clock; production
    *  defaults to `Date.now()`. */

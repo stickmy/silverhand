@@ -396,11 +396,6 @@ describe("conversation pane coordination", () => {
     expect(model.threadJumpMessageId).toBe("reply");
     expect(model.threadJumpPhase).toBe("committed");
     expect(model.parentJumpTarget).toBeNull();
-    model.setPaneAttachmentRequest({
-      conversationId: "origin",
-      attachment: { id: "a", filename: "a.md", size: 1, content_type: "text/markdown" },
-    });
-    expect(render().paneAttachmentRequest?.conversationId).toBe("origin");
     const other = render(undefined, {
       ...jump,
       jumpTarget: { channelId: "other", threadRootId: "root", messageId: "reply" },

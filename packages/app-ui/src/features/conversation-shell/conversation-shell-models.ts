@@ -11,22 +11,12 @@ import type {
   SecondaryDescriptor,
 } from "@/features/conversation-shell/model/secondary-pane";
 import type { ChatView, RouteState, useNav } from "@/router";
-import type {
-  AgentDto,
-  AttachmentSnapshot,
-  AttentionBadgeRollupDto,
-  SavedMessageDto,
-} from "@silverhand/shared";
+import type { AgentDto, AttentionBadgeRollupDto, SavedMessageDto } from "@silverhand/shared";
 import type { ConversationPanesModel } from "./pane-render-models";
 
 export interface ConversationShellSignals {
   attentionBadges: AttentionBadgeRollupDto | undefined;
   unreadCounts: UnreadCounts | undefined;
-}
-
-export interface PaneAttachmentRequest {
-  conversationId: string;
-  attachment: AttachmentSnapshot;
 }
 
 export interface PaneReadModel {

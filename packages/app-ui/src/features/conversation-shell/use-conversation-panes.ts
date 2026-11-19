@@ -10,12 +10,8 @@ import {
   selectSidebarSelectedConversationId,
 } from "@/features/conversation-shell/model/secondary-pane";
 import { useNav, useRouteState } from "@/router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type {
-  PaneAttachmentRequest,
-  PaneJumpModel,
-  PaneReadModel,
-} from "./conversation-shell-models";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import type { PaneJumpModel, PaneReadModel } from "./conversation-shell-models";
 
 /** Owns pane-local state and visible-conversation effects across Chat/Activity presentations. */
 export function useConversationPanes(
@@ -61,24 +57,19 @@ export function useConversationPanes(
 
   const taskPaneId = resolveTaskDetailSurface(route) === "pane" ? taskDetailId : null;
   const surface = selectSecondarySurface({
-    agent: Boolean(route.agentPanelId),
-    human: Boolean(route.humanPanelId),
-    settings: Boolean(route.channelSettingsId && selectedChannelId),
-    files: Boolean(filesListMounted && selectedChannelId),
-    attachment: Boolean(route.attachmentPanelId && selectedChannelId),
-    task: Boolean(taskPaneId && selectedChannelId),
-    conversation: Boolean(secondaryDescriptor),
-    thread: Boolean(threadRootId && selectedChannelId),
-    threads: Boolean(threadsListMounted && selectedChannelId),
+    ...route,
+    filesListMounted,
+    taskPaneId,
+    secondaryDescriptor,
+    threadsListMounted,
   });
   const compactSecondary = compact && surface !== "none";
   const visiblePrimary = compactSecondary ? null : visibleConversations.primary;
-  const visibleSecondary =
-    compact && surface !== "conversation" ? null : visibleConversations.secondary;
+  const visibleSecondary = compact && surface !== "side" ? null : visibleConversations.secondary;
   const notificationFocus =
-    compactSecondary && surface !== "conversation" && surface !== "thread"
+    compactSecondary && surface !== "side" && surface !== "thread"
       ? null
-      : compact && surface === "conversation" && !visibleSecondary
+      : compact && surface === "side" && !visibleSecondary
         ? null
         : focusedConversation;
 
@@ -133,10 +124,6 @@ export function useConversationPanes(
     }
     nav.closeTask();
   }, [nav]);
-
-  const [paneAttachmentRequest, setPaneAttachmentRequest] = useState<PaneAttachmentRequest | null>(
-    null,
-  );
 
   useContextualCloseResponder(
     { ...route, filesListOpen: filesListMounted, threadsListOpen: threadsListMounted },
@@ -226,8 +213,6 @@ export function useConversationPanes(
     taskPaneId,
     setTaskPaneEditing,
     requestCloseTaskPane,
-    paneAttachmentRequest,
-    setPaneAttachmentRequest,
     closeSecondary,
     secondaryViewInputs,
     secondaryConversationDescriptor,

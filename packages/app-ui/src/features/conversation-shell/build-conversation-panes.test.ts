@@ -12,6 +12,9 @@ import type {
 import type { SecondaryPaneModel } from "./pane-render-models";
 import { buildConversationPanes, resolveSecondaryPane } from "./build-conversation-panes";
 
+const openConversationTab = vi.hoisted(() => vi.fn());
+vi.mock("@/features/conversations/use-conversation-tabs", () => ({ openConversationTab }));
+
 const descriptor: ConversationPaneDescriptor = {
   id: "foreign",
   title: "Foreign",
@@ -30,6 +33,7 @@ const calls: string[] = [];
 
 beforeEach(() => {
   calls.length = 0;
+  openConversationTab.mockReset();
   route = {
     workspaceId: "w",
     channelId: "c",
@@ -60,7 +64,6 @@ beforeEach(() => {
     filesListMounted: false,
     threadsListMounted: false,
     taskPaneId: null,
-    paneAttachmentRequest: null,
     secondaryViewInputs: selectSecondaryViewInputs({
       secondary: null,
       primaryHasChannelNamespace: false,
@@ -83,7 +86,6 @@ beforeEach(() => {
     openTaskInPane: vi.fn(),
     setTaskPaneEditing: vi.fn(),
     requestCloseTaskPane: vi.fn(),
-    setPaneAttachmentRequest: vi.fn(),
     handleOpenChannelByName: vi.fn(),
     handleJumpToMessage: vi.fn(() => true),
     closeSecondary: vi.fn(),
@@ -258,13 +260,31 @@ describe("branch-specific data and commands", () => {
     expect(commands.closeAttachmentPanel).toHaveBeenCalledTimes(1);
     model.preview.onClose();
     expect(commands.closeFilesList).toHaveBeenCalledTimes(1);
-    const attachment = { id: "a", filename: "a.md", size: 1, content_type: "text/markdown" };
-    model.preview.onExpand?.(attachment);
-    expect(commands.setPaneAttachmentRequest).toHaveBeenCalledExactlyOnceWith({
-      conversationId: "c",
-      attachment,
+    expect(model.preview.onExpand).toBeUndefined();
+  });
+  it("expands into the primary pane's tab only while it shows the issuing conversation as a member", () => {
+    route.attachmentPanelId = "a";
+    read.primaryPaneDescriptor = { ...descriptor, id: "c", workspace_id: "w" };
+    read.parentMembership = { membership: "member", gate: channelGateFor("member") };
+    const model = secondary();
+    if (model.kind !== "attachment" || !model.props.onExpand) {
+      throw new Error("Expected expandable attachment");
+    }
+    model.props.onExpand({ id: "a", filename: "a.md", size: 1, content_type: "text/markdown" });
+    expect(openConversationTab).toHaveBeenCalledExactlyOnceWith("c", {
+      kind: "attachment",
+      attachmentId: "a",
+      filename: "a.md",
+      contentType: "text/markdown",
     });
-    expect(commands.closeFilesList).toHaveBeenCalledTimes(2);
+    expect(commands.closeAttachmentPanel).toHaveBeenCalledTimes(1);
+    read.parentMembership = { membership: "nonmember", gate: channelGateFor("nonmember") };
+    const browsing = secondary();
+    expect(browsing.kind === "attachment" && browsing.props.onExpand).toBeFalsy();
+    read.parentMembership = { membership: "member", gate: channelGateFor("member") };
+    read.primaryPaneDescriptor = { ...descriptor, id: "elsewhere", workspace_id: "w" };
+    const elsewhere = secondary();
+    expect(elsewhere.kind === "attachment" && elsewhere.props.onExpand).toBeFalsy();
   });
   it("shows a standalone attachment preview that closes only itself", () => {
     route.attachmentPanelId = "a";
@@ -320,11 +340,7 @@ describe("branch-specific data and commands", () => {
     };
     model.props.onOpenAttachment?.(attachment);
     expect(commands.openAttachmentPanel).toHaveBeenCalledExactlyOnceWith("a");
-    model.props.onExpandAttachment?.(attachment);
-    expect(commands.setPaneAttachmentRequest).toHaveBeenCalledExactlyOnceWith({
-      conversationId: "dm",
-      attachment,
-    });
+    expect(model.props.onExpandAttachment).toBeUndefined();
   });
   it("routes task closing through the editing guard and lists through their own close/open commands", () => {
     state.taskPaneId = "task";

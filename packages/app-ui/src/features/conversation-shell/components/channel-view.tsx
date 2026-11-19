@@ -15,15 +15,11 @@ import { Composer } from "@/features/messages/components/composer";
 import { SelectionQuoteToolbar } from "@/features/messages/components/selection-quote-toolbar";
 import { ChannelJoinBar } from "@/features/messages/components/channel-join-bar";
 import { QuotedMessagePreview } from "@/features/messages/components/quoted-message-preview";
-import { openAttachmentExternally } from "@/features/messages/model/open-attachment";
-import {
-  attachmentPreviewKind,
-  resolveAttachmentOpenRoute,
-} from "@/features/attachments/attachment-preview";
 import { ConversationViewSkeleton } from "@/features/conversation-shell/components/conversation-view-skeleton";
 import { AddConversationMemberPopover } from "@/features/conversations/add-conversation-member-popover";
 import { TaskRefContextProvider } from "@/features/tasks/components/task-ref-context";
 import { useNav, useRouteState } from "@/router";
+import { hostsViewTabs } from "@/features/conversation-shell/model/view-tabs";
 import { useAgents } from "@/features/agents/hooks/hooks";
 import { useAgentAvatarObjectUrls } from "@/features/agents/hooks/avatar-hooks";
 import {
@@ -224,23 +220,6 @@ interface ChannelViewProps {
   /** Preview a md/html attachment in the right pane. Only the primary pane has
    *  one beside it; elsewhere md/html open in a tab or with the system. */
   onOpenAttachmentPanel?: (attachmentId: string) => void;
-  /** One-shot request to open an attachment from a SIBLING pane (the Attachments
-   *  list, #task:2122) into THIS primary pane. The list can't reach this pane's
-   *  tab controller directly, so it hands the attachment up to App, which relays
-   *  it here. The request carries the conversation it was ISSUED from; the
-   *  consumer runs `resolveAttachmentOpenRoute` against the conversation actually
-   *  mounted now, so a request from A that lands after a switch to B is DROPPED,
-   *  never routed into B's tabs or OS-opened on B. Where the source matches it
-   *  uses the SAME rule the message card does — `attachmentPreviewKind` + the
-   *  tab-strip gate — so md/html land in the previewer tab where this pane hosts
-   *  tabs, and everything else falls back to open-with-OS. A fresh object per
-   *  click (App wraps it) so re-clicking the same file re-fires. */
-  openAttachmentRequest?: {
-    conversationId: string;
-    attachment: AttachmentSnapshot;
-  } | null;
-  /** Clear the one-shot above once consumed. */
-  onAttachmentRequestConsumed?: () => void;
 }
 
 export const ChannelView = memo(function ChannelView(props: ChannelViewProps): JSX.Element {
@@ -337,8 +316,6 @@ function ActiveChannelView({
   onOpenAdvancedSearch,
   viewTabsEnabled = false,
   onOpenAttachmentPanel,
-  openAttachmentRequest,
-  onAttachmentRequestConsumed,
 }: ChannelViewProps & { conversation: ConversationPaneDescriptor }): JSX.Element {
   // Per-viewer membership gate. A PUBLIC channel is readable by a
   // workspace user who has not joined it: they browse (message history + thread
@@ -404,7 +381,7 @@ function ActiveChannelView({
       }),
     [paneMode, conversation.id],
   );
-  const viewTabsShown = viewTabsEnabled && gate.allowMemberEffects && taskBoardContainer !== null;
+  const viewTabsShown = viewTabsEnabled && hostsViewTabs(conversation, gate.allowMemberEffects);
   const tasksTabActive = viewTabsShown && tabController.activeKey === "tasks";
   // Chat owns the surface when there is no tab strip at all, or its tab is the
   // front one. A front Tasks/attachment tab is an opaque overlay over the still-
@@ -471,40 +448,16 @@ function ActiveChannelView({
     },
     [tabController.openTab],
   );
-
-  // Consume a sibling pane's one-shot request to open an attachment here
-  // (#task:2122): the Attachments list can't reach this pane's tab controller, so
-  // it relays the file up through App. `resolveAttachmentOpenRoute` decides the
-  // destination against the conversation MOUNTED NOW versus the one the request
-  // was issued from — a request from A that lands after a switch to B resolves to
-  // `reject`, so we clear it WITHOUT acting (never route A's file into B's tabs,
-  // never OS-open A's file on B; the OS-open fallback is only for the matching
-  // source). Where the source matches it's the same rule the message card makes:
-  // previewable md/html + a hosting tab strip → previewer tab; else open-with-OS
-  // (its own toast on failure). Clearing is signalled back so a re-click re-fires.
-  useEffect(() => {
-    const req = openAttachmentRequest;
-    if (!req) return;
-    const att = req.attachment;
-    const route = resolveAttachmentOpenRoute({
-      requestConversationId: req.conversationId,
-      currentConversationId: conversation.id,
-      previewKind: attachmentPreviewKind(att.content_type, att.filename),
-      tabStripShown: viewTabsShown,
-    });
-    if (route === "preview") {
-      handleOpenAttachment(att);
-    } else if (route === "os-open") {
-      void openAttachmentExternally(att);
-    }
-    onAttachmentRequestConsumed?.();
-  }, [
-    openAttachmentRequest,
-    conversation.id,
-    viewTabsShown,
-    handleOpenAttachment,
-    onAttachmentRequestConsumed,
-  ]);
+  // A card previews beside the conversation when this pane has a side panel,
+  // else in a tab; Expand is offered only when both destinations exist.
+  const previewInPanel = useMemo(
+    () =>
+      onOpenAttachmentPanel
+        ? (attachment: AttachmentSnapshot) => onOpenAttachmentPanel(attachment.id)
+        : undefined,
+    [onOpenAttachmentPanel],
+  );
+  const previewInTab = viewTabsShown ? handleOpenAttachment : undefined;
 
   // Per-viewer server-scored unread for this conversation's reply-clusters
   // (#task:1226). The SINGLE source of the chip's "N new" + first-unread —
@@ -1226,16 +1179,8 @@ function ActiveChannelView({
                 threadUnreadByRoot={threadUnreadByRoot}
                 conversationRefsById={conversationRefsById}
                 onOpenConversationRef={onOpenConversationRef}
-                onOpenAttachment={
-                  onOpenAttachmentPanel
-                    ? (attachment) => onOpenAttachmentPanel(attachment.id)
-                    : viewTabsShown
-                      ? handleOpenAttachment
-                      : undefined
-                }
-                onExpandAttachment={
-                  onOpenAttachmentPanel && viewTabsShown ? handleOpenAttachment : undefined
-                }
+                onOpenAttachment={previewInPanel ?? previewInTab}
+                onExpandAttachment={previewInPanel && previewInTab}
                 onOpenChannelRef={
                   // A `#channel` chip resolves inside a workspace, so a
                   // workspace-less pane offers no navigation for one (it still

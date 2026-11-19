@@ -33,6 +33,13 @@ export interface ConversationTabsController {
   reorder: (fromIndex: number, toIndex: number) => void;
 }
 
+/** Open (or focus) a tab in a conversation from outside its pane. The store is
+ *  module-level, so a sibling pane writes here directly instead of relaying. */
+export function openConversationTab(conversationId: string, tab: Tab): void {
+  recordConversationTabs(conversationId, addTab(getConversationTabs(conversationId), tab));
+  recordConversationActiveTab(conversationId, tabKey(tab));
+}
+
 /** Shared preferences carry no channel data; each consumer still reads its own target. */
 export function useConversationTabs(conversationId: string): ConversationTabsController {
   const version = useSyncExternalStore(subscribeConversationTabs, getConversationTabsVersion);
@@ -42,10 +49,7 @@ export function useConversationTabs(conversationId: string): ConversationTabsCon
     [conversationId],
   );
   const openTab = useCallback(
-    (tab: Tab) => {
-      recordConversationTabs(conversationId, addTab(getConversationTabs(conversationId), tab));
-      recordConversationActiveTab(conversationId, tabKey(tab));
-    },
+    (tab: Tab) => openConversationTab(conversationId, tab),
     [conversationId],
   );
   const closeTab = useCallback(

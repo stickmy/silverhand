@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { attachmentPreviewKind, resolveAttachmentOpenRoute } from "./attachment-preview";
+import { attachmentPreviewKind } from "./attachment-preview";
 
 describe("attachmentPreviewKind", () => {
   it("classifies an explicit text/markdown type", () => {
@@ -40,78 +40,5 @@ describe("attachmentPreviewKind", () => {
 
   it("is null for a generic type with an unknown suffix", () => {
     expect(attachmentPreviewKind("application/octet-stream", "archive.bin")).toBeNull();
-  });
-});
-
-describe("resolveAttachmentOpenRoute", () => {
-  const CONV = "conv-a";
-
-  it("previews when the source matches, the strip is live, and the kind is previewable", () => {
-    expect(
-      resolveAttachmentOpenRoute({
-        requestConversationId: CONV,
-        currentConversationId: CONV,
-        previewKind: "markdown",
-        tabStripShown: true,
-      }),
-    ).toBe("preview");
-  });
-
-  it("OS-opens when the source matches but the strip is not shown", () => {
-    expect(
-      resolveAttachmentOpenRoute({
-        requestConversationId: CONV,
-        currentConversationId: CONV,
-        previewKind: "html",
-        tabStripShown: false,
-      }),
-    ).toBe("os-open");
-  });
-
-  it("OS-opens when the source matches but the kind is not previewable", () => {
-    expect(
-      resolveAttachmentOpenRoute({
-        requestConversationId: CONV,
-        currentConversationId: CONV,
-        previewKind: null,
-        tabStripShown: true,
-      }),
-    ).toBe("os-open");
-  });
-
-  it("rejects when the mounted conversation is a DIFFERENT one", () => {
-    // The relay was issued from conv-a but conv-b is mounted now (route switched
-    // between panel click and primary-pane render). Never route A's attachment
-    // into B's tab controller, and never OS-open A's attachment on B.
-    expect(
-      resolveAttachmentOpenRoute({
-        requestConversationId: CONV,
-        currentConversationId: "conv-b",
-        previewKind: "markdown",
-        tabStripShown: true,
-      }),
-    ).toBe("reject");
-  });
-
-  it("rejects when no conversation is mounted", () => {
-    expect(
-      resolveAttachmentOpenRoute({
-        requestConversationId: CONV,
-        currentConversationId: null,
-        previewKind: "markdown",
-        tabStripShown: true,
-      }),
-    ).toBe("reject");
-  });
-
-  it("rejects a source-less request even against a mounted conversation", () => {
-    expect(
-      resolveAttachmentOpenRoute({
-        requestConversationId: "",
-        currentConversationId: "",
-        previewKind: "markdown",
-        tabStripShown: true,
-      }),
-    ).toBe("reject");
   });
 });

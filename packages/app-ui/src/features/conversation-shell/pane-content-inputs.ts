@@ -15,7 +15,6 @@ import type {
   SecondaryViewInputs,
 } from "@/features/conversation-shell/model/secondary-pane";
 import type { RouteState } from "@/router";
-import type { PaneAttachmentRequest } from "./conversation-shell-models";
 
 export interface PaneContentRead {
   workspaceNameById: (wid: string | null) => string | null;
@@ -39,7 +38,6 @@ export interface PaneContentState {
   filesListMounted: boolean;
   threadsListMounted: boolean;
   taskPaneId: string | null;
-  paneAttachmentRequest: PaneAttachmentRequest | null;
   secondaryViewInputs: SecondaryViewInputs;
   secondaryConversationDescriptor: ConversationPaneDescriptor | null;
   parentJumpTarget: { channelId: string; messageId: string } | null;
@@ -58,7 +56,6 @@ export interface PaneContentCommands {
   openTaskInPane: (taskId: string) => void;
   setTaskPaneEditing: (editing: boolean) => void;
   requestCloseTaskPane: () => void;
-  setPaneAttachmentRequest: (request: PaneAttachmentRequest | null) => void;
   handleOpenChannelByName: (workspaceId: string, channelId: string) => void;
   handleJumpToMessage: (target: MessageJumpTarget) => boolean;
   closeSecondary: () => void;

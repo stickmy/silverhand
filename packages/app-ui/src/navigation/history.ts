@@ -1,3 +1,5 @@
+import { SECONDARY_PANE_ORDER } from "./secondary-panes";
+
 export type MainTab = "chat" | "activity" | "tasks" | "me";
 export const MAIN_TABS: readonly MainTab[] = ["chat", "activity", "tasks", "me"];
 
@@ -14,20 +16,7 @@ export function mainTab(url: string): MainTab | null {
 export function parentUrl(url: string): string | null {
   const [path = "/chat", search = ""] = url.split("?");
   const query = new URLSearchParams(search);
-  for (const key of [
-    "settingsPage",
-    "side",
-    "agent",
-    "human",
-    "task",
-    "attachment",
-    "files",
-    "settings",
-    "thread",
-    "threads",
-    "computer",
-    "settingsSection",
-  ]) {
+  for (const key of ["settingsPage", ...SECONDARY_PANE_ORDER, "computer", "settingsSection"]) {
     if (!query.has(key)) continue;
     query.delete(key);
     query.delete("fullscreen");
