@@ -209,15 +209,14 @@
   --task-ref-activity-margin: 0;
   --task-ref-activity-marker: var(--poster-yellow);
   --task-ref-activity-padding: 0;
-  --task-ref-color: var(--poster-ink);
+  --task-ref-cube-radius: 0;
   --task-ref-font: var(--appearance-prose-font, var(--font-sans));
-  --task-ref-hover-decoration: none;
-  --task-ref-line-height: 1.24;
-  --task-ref-marker: color-mix(in srgb, var(--poster-yellow) 66%, transparent);
-  --task-ref-marker-hover: var(--poster-yellow);
+  --task-ref-hover-mix: 12%;
+  --task-ref-mix: 7%;
   --task-ref-number-font: var(--font-display);
   --task-ref-number-tracking: 0.01em;
   --task-ref-number-weight: 700;
+  --task-ref-radius: 0;
   --task-ref-weight: 400;
 
   /* Task status */

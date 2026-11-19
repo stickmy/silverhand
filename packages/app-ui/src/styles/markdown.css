@@ -147,13 +147,92 @@
   align-items: baseline;
 }
 [data-task-ref] {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  align-items: center;
   font-family: var(--task-ref-font, inherit);
   font-weight: var(--task-ref-weight);
+}
+[data-task-ref] [data-task-ref-label] {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 [data-task-ref] [data-task-ref-num] {
   font-family: var(--task-ref-number-font, inherit);
   font-weight: var(--task-ref-number-weight, inherit);
   letter-spacing: var(--task-ref-number-tracking, inherit);
+}
+/* Event rows state the status next to the reference, so only prose shows it. */
+[data-task-ref] [data-task-ref-status] {
+  display: none;
+}
+
+/* In prose the reference is a quiet neutral chip: a leading status cube (the
+   only colour), number, and title capped with a CSS ellipsis. The status label
+   and full title live in the hover card. */
+.markdown-body [data-task-ref] {
+  --task-ref-inset: 2px;
+  max-width: min(26em, 100%);
+  align-items: center;
+  gap: 0.45em;
+  padding: var(--task-ref-inset) 0.55em;
+  font-size: calc(var(--appearance-markdown-font-size, var(--md-prose-size, 14px)) * 0.86);
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--text-primary);
+  white-space: nowrap;
+  vertical-align: baseline;
+  background-color: color-mix(in srgb, var(--text-primary) var(--task-ref-mix), transparent);
+  border-radius: var(--task-ref-radius);
+  transition: background-color 120ms ease;
+}
+.markdown-body [data-task-ref][data-task-ref-state="resolved"]:hover {
+  background-color: color-mix(in srgb, var(--text-primary) var(--task-ref-hover-mix), transparent);
+}
+/* The cube is 9px, so its button stretches over the chip's leading edge and
+   full height to stay an easy target. */
+.markdown-body [data-task-ref] [data-task-ref-status] {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-self: stretch;
+  align-items: center;
+  margin: calc(var(--task-ref-inset) * -1) 0 calc(var(--task-ref-inset) * -1) -0.55em;
+  padding: var(--task-ref-inset) 0.1em var(--task-ref-inset) 0.55em;
+  background: none;
+  border: none;
+  border-radius: var(--task-ref-radius) 0 0 var(--task-ref-radius);
+}
+.markdown-body [data-task-ref] [data-task-ref-cube] {
+  width: 0.7em;
+  height: 0.7em;
+  background-color: var(--task-ref-tone, var(--text-muted));
+  border-radius: var(--task-ref-cube-radius);
+  transition: transform 120ms ease;
+}
+.markdown-body [data-task-ref] button[data-task-ref-status]:hover [data-task-ref-cube] {
+  transform: scale(1.2);
+}
+.markdown-body [data-task-ref][data-task-ref-tone="todo"] [data-task-ref-cube] {
+  background-color: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--task-ref-tone);
+}
+[data-task-ref-tone="todo"] {
+  --task-ref-tone: var(--task-status-todo-solid);
+}
+[data-task-ref-tone="in_progress"] {
+  --task-ref-tone: var(--task-status-in-progress-solid);
+}
+[data-task-ref-tone="in_review"] {
+  --task-ref-tone: var(--task-status-in-review-solid);
+}
+[data-task-ref-tone="done"] {
+  --task-ref-tone: var(--task-status-done-solid);
+}
+[data-task-ref-tone="closed"] {
+  --task-ref-tone: var(--task-status-closed-solid);
 }
 
 @property --task-ref-marker-color {
@@ -161,14 +240,6 @@
   inherits: false;
   initial-value: transparent;
 }
-.markdown-body [data-task-ref][data-task-ref-state="resolved"] {
-  font-size: calc(var(--appearance-markdown-font-size, var(--md-prose-size, 14px)) - 0px);
-  color: var(--task-ref-color);
-  line-height: var(--task-ref-line-height, inherit);
-  background: transparent;
-  border: none;
-}
-.markdown-body [data-task-ref][data-task-ref-state="resolved"] > span,
 .system-activity-cluster [data-task-ref] > span {
   background-image: linear-gradient(var(--task-ref-marker-color), var(--task-ref-marker-color));
   background-repeat: no-repeat;
@@ -176,16 +247,6 @@
   transition:
     --task-ref-marker-color 130ms ease,
     background-size 130ms ease;
-}
-.markdown-body [data-task-ref][data-task-ref-state="resolved"] > span {
-  --task-ref-marker-color: var(--task-ref-marker);
-  background-size: 100% 42%;
-}
-.markdown-body [data-task-ref][data-task-ref-state="resolved"]:hover > span {
-  --task-ref-marker-color: var(--task-ref-marker-hover);
-  text-decoration: var(--task-ref-hover-decoration);
-  text-underline-offset: 0.5px;
-  text-decoration-thickness: 2px;
 }
 .system-activity-cluster [data-task-ref] > span {
   --task-ref-marker-color: var(--task-ref-activity-marker);
@@ -444,6 +505,11 @@
   color: var(--text-muted);
 }
 
+/* The in-review hue is the own bubble's fill, so that cube turns white there. */
+[data-own-bubble] [data-task-ref][data-task-ref-tone="in_review"] [data-task-ref-cube] {
+  background-color: #fff;
+}
+
 @keyframes msg-jump-flash {
   0%,
   100% {
@@ -478,9 +544,6 @@
   --accent: #fff;
   --accent-hover: rgb(255 255 255 / 0.85);
   --accent-soft: rgb(255 255 255 / 0.2);
-  --task-ref-color: #fff;
-  --task-ref-marker: transparent;
-  --task-ref-marker-hover: transparent;
   --text-inline-code: #fff;
   --bg-inline-code: rgb(255 255 255 / 0.2);
   --border-inline-code: none;

@@ -636,6 +636,7 @@ export function snapshotStaticTaskRefs(
     out.set(taskNumber, {
       task_number: task.task_number,
       title: task.title,
+      status: task.status,
     });
   }
   return out;

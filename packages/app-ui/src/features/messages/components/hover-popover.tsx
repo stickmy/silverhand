@@ -45,6 +45,10 @@ export interface HoverPopoverProps {
    *  and unmount the picker mid-interaction). The caller flips this on
    *  while that nested layer is open. */
   keepOpen?: boolean;
+  /** When true, the card is closed and stays closed until the pointer next
+   *  enters the trigger; a control inside the trigger that opens its own
+   *  layer sets this, so the two never show together. */
+  suppressed?: boolean;
 }
 
 export function HoverPopover({
@@ -54,6 +58,7 @@ export function HoverPopover({
   isContentReady,
   openDelayMs = 500,
   keepOpen = false,
+  suppressed = false,
 }: HoverPopoverProps): JSX.Element {
   // Controlled so `keepOpen` can pin the card open while a nested
   // interactive layer (status picker) is active. Hover/focus still
@@ -71,10 +76,16 @@ export function HoverPopover({
     if (prevKeepOpen.current && !keepOpen) setHoverOpen(false);
     prevKeepOpen.current = keepOpen;
   }, [keepOpen]);
+  useEffect(() => {
+    if (suppressed) setHoverOpen(false);
+  }, [suppressed]);
   return (
     <HoverCard.Root
-      open={hoverOpen || keepOpen}
-      onOpenChange={setHoverOpen}
+      open={!suppressed && (hoverOpen || keepOpen)}
+      onOpenChange={(next) => {
+        if (next && suppressed) return;
+        setHoverOpen(next);
+      }}
       openDelay={openDelayMs}
       closeDelay={120}
     >

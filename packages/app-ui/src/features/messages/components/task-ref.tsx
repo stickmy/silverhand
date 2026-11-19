@@ -1,10 +1,14 @@
 import { taskChannelLabel } from "@/features/tasks/model/task-place";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ClockIcon } from "@/icons";
 import { useTaskByNumber } from "@/features/tasks/hooks/use-task-by-number";
 import { useTaskRefContext } from "@/features/tasks/components/task-ref-context";
 import { useUpdateTaskStatus } from "@/features/tasks/hooks/hooks";
-import { TaskStatusBadge } from "@/features/tasks/components/task-status-badge";
+import {
+  StatusPicker,
+  TaskStatusBadge,
+  taskStatusLabel,
+} from "@/features/tasks/components/task-status-badge";
 import { HoverPopover } from "./hover-popover";
 import { useRelativeTime } from "../hooks/use-relative-time";
 import type { TaskSummaryDto, TaskStatus } from "@silverhand/shared";
@@ -18,6 +22,87 @@ interface TaskRefProps {
 export interface StaticTaskRefSummary {
   task_number: number;
   title: string;
+  status?: TaskStatus;
+}
+
+/** Leading status cube + number + title (truncated by CSS, `markdown.css`).
+ *  The cube's colour comes from `data-task-ref-tone`; the status label lives in
+ *  the hover card. Event rows hide the cube because the row already states it. */
+function TaskRefContent({
+  taskNumber,
+  title,
+  status,
+  onStatusChange,
+  onStatusActiveChange,
+}: {
+  taskNumber: number;
+  title: string;
+  status?: TaskStatus;
+  onStatusChange?: (next: TaskStatus) => void;
+  onStatusActiveChange?: (active: boolean) => void;
+}): JSX.Element {
+  return (
+    <>
+      {status ? (
+        <TaskRefStatus
+          status={status}
+          onChange={onStatusChange}
+          onActiveChange={onStatusActiveChange}
+        />
+      ) : null}
+      <span data-task-ref-label>
+        <span data-task-ref-num>#{taskNumber}</span> {title}
+      </span>
+    </>
+  );
+}
+
+/** `onActiveChange` reports while the pointer is on the status or its picker is
+ *  open, so the host can keep the task hover card out of the way. */
+function TaskRefStatus({
+  status,
+  onChange,
+  onActiveChange,
+}: {
+  status: TaskStatus;
+  onChange?: (next: TaskStatus) => void;
+  onActiveChange?: (active: boolean) => void;
+}): JSX.Element {
+  const [hovered, setHovered] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  useEffect(() => {
+    onActiveChange?.(hovered || pickerOpen);
+  }, [hovered, pickerOpen, onActiveChange]);
+
+  const label = taskStatusLabel(status);
+  const cube = <span data-task-ref-cube aria-hidden />;
+
+  if (!onChange) {
+    return (
+      <span data-task-ref-status={status} title={label}>
+        {cube}
+        <span className="sr-only">{label}</span>
+      </span>
+    );
+  }
+  return (
+    <StatusPicker current={status} onChange={onChange} onOpenChange={setPickerOpen}>
+      <button
+        type="button"
+        data-task-ref-status={status}
+        aria-label={t("tasks.changeStatusCurrent", { status: label })}
+        // The chip itself opens the task; the status only opens the picker.
+        onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
+        onPointerEnter={() => setHovered(true)}
+        onPointerLeave={() => setHovered(false)}
+        className="cursor-pointer focus-outline"
+      >
+        {cube}
+      </button>
+    </StatusPicker>
+  );
 }
 
 /** Static references retain raw text until metadata is available. */
@@ -29,19 +114,14 @@ export function TaskRefStaticChip({
   if (!task) {
     return <>{inertLabel}</>;
   }
-  // Same silhouette as the live `interactiveChip`: borderless accent link, no
-  // fill, no dead side padding. poster repaints it to ink + gold marker via the
-  // shared `state='resolved'` hook — no export-specific styling exists.
   return (
     <span
-      className="inline-flex max-w-55 items-center gap-1 rounded-(--chip-radius) font-medium text-accent"
       title={t("messages.taskTitled", { number: task.task_number, title: task.title })}
       data-task-ref={String(taskNumber)}
       data-task-ref-state="resolved"
+      data-task-ref-tone={task.status}
     >
-      <span className="truncate">
-        <span data-task-ref-num>#{task.task_number}</span> {task.title}
-      </span>
+      <TaskRefContent taskNumber={task.task_number} title={task.title} status={task.status} />
     </span>
   );
 }
@@ -59,6 +139,7 @@ export function TaskRef({ taskNumber, bare = false }: TaskRefProps): JSX.Element
   const inertLabel = `#task:${taskNumber}`;
 
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [statusActive, setStatusActive] = useState(false);
   const updateStatus = useUpdateTaskStatus();
 
   if (!conversationId || result.isLoading || !task) {
@@ -69,22 +150,24 @@ export function TaskRef({ taskNumber, bare = false }: TaskRefProps): JSX.Element
   const tooltip = t("messages.taskLabel", { label });
 
   const chipContent = (
-    <>
-      <span className="truncate">
-        <span data-task-ref-num>#{task.task_number}</span> {task.title}
-      </span>
-    </>
+    <TaskRefContent
+      taskNumber={task.task_number}
+      title={task.title}
+      status={task.status}
+      onStatusChange={(next) => updateStatus.mutate({ taskId: task.id, status: next })}
+      onStatusActiveChange={setStatusActive}
+    />
   );
 
   const inertChip = (
     <span
-      className="inline-flex max-w-55 items-center gap-0.5 rounded-(--chip-radius) bg-bg-elevated px-1.5 -mx-0.5 font-medium text-text-muted"
       // Wrapped in HoverPopover below — `aria-label` instead of the
       // native `title` attribute (see loading branch comment above
       // for the flicker rationale).
       aria-label={tooltip}
       data-task-ref={String(taskNumber)}
       data-task-ref-state="resolved-no-handler"
+      data-task-ref-tone={task.status}
     >
       {chipContent}
     </span>
@@ -94,10 +177,11 @@ export function TaskRef({ taskNumber, bare = false }: TaskRefProps): JSX.Element
     <span
       role="button"
       tabIndex={0}
-      className="inline-flex max-w-55 cursor-pointer items-center gap-1 rounded-(--chip-radius) font-medium text-accent focus-outline"
+      className="cursor-pointer focus-outline"
       aria-label={tooltip}
       data-task-ref={String(taskNumber)}
       data-task-ref-state="resolved"
+      data-task-ref-tone={task.status}
       onClick={(event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -131,6 +215,7 @@ export function TaskRef({ taskNumber, bare = false }: TaskRefProps): JSX.Element
       }
       isContentReady={true}
       keepOpen={pickerOpen}
+      suppressed={statusActive}
     />
   );
 }

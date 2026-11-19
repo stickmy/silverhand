@@ -53,7 +53,11 @@ describe("snapshotStaticTaskRefs", () => {
       client,
     );
 
-    expect(snapshot.get(42)).toEqual({ task_number: 42, title: "Ship the board" });
+    expect(snapshot.get(42)).toEqual({
+      task_number: 42,
+      title: "Ship the board",
+      status: "todo",
+    });
   });
 
   it("reads a DM (workspaceId null) from its pair scope, not a dropped title", () => {
@@ -75,7 +79,7 @@ describe("snapshotStaticTaskRefs", () => {
 
     // The old workspace-only chain projected a null scope for a DM and dropped
     // every title; the pair scope keeps it.
-    expect(snapshot.get(7)).toEqual({ task_number: 7, title: "DM task" });
+    expect(snapshot.get(7)).toEqual({ task_number: 7, title: "DM task", status: "todo" });
   });
 
   it("snapshots nothing for a coordinate that names no board — a SEAM property, unreachable from the modal", () => {

@@ -196,15 +196,14 @@
   --task-ref-activity-margin: -0.125rem;
   --task-ref-activity-marker: transparent;
   --task-ref-activity-padding: 0.375rem;
-  --task-ref-color: var(--accent);
+  --task-ref-cube-radius: 2px;
   --task-ref-font: initial;
-  --task-ref-hover-decoration: underline;
-  --task-ref-line-height: initial;
-  --task-ref-marker: transparent;
-  --task-ref-marker-hover: transparent;
+  --task-ref-hover-mix: 10%;
+  --task-ref-mix: 6%;
   --task-ref-number-font: initial;
   --task-ref-number-tracking: initial;
-  --task-ref-number-weight: initial;
+  --task-ref-number-weight: 500;
+  --task-ref-radius: 8px;
   --task-ref-weight: 500;
 
   /* Task status */
