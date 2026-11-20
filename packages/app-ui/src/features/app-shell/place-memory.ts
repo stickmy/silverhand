@@ -326,16 +326,28 @@ const activeTabByConversation = new Map<string, string>(
   }),
 );
 const tabListeners = new Set<() => void>();
-let tabsVersion = 0;
-export const getConversationTabsVersion = (): number => tabsVersion;
+// Shared order and open state reach every conversation; an active-tab choice or
+// a file tab reaches only its own, so the other panes' snapshots stay equal and
+// React skips them.
+let sharedTabsVersion = 0;
+const tabsVersionByConversation = new Map<string, number>();
+export const getConversationTabsVersion = (conversationId: string): string =>
+  `${sharedTabsVersion}.${tabsVersionByConversation.get(conversationId) ?? 0}`;
 export function subscribeConversationTabs(listener: () => void): () => void {
   tabListeners.add(listener);
   return () => {
     tabListeners.delete(listener);
   };
 }
-function notifyConversationTabs(): void {
-  tabsVersion += 1;
+function notifyConversationTabs(conversationId?: string): void {
+  if (conversationId === undefined) {
+    sharedTabsVersion += 1;
+  } else {
+    tabsVersionByConversation.set(
+      conversationId,
+      (tabsVersionByConversation.get(conversationId) ?? 0) + 1,
+    );
+  }
   for (const listener of tabListeners) listener();
 }
 
@@ -382,7 +394,7 @@ export function recordConversationActiveTab(conversationId: string, key: string)
   if (!getConversationTabs(conversationId).some((tab) => tabKey(tab) === key)) return;
   if (activeTabByConversation.get(conversationId) === key) return;
   activeTabByConversation.set(conversationId, key);
-  notifyConversationTabs();
+  notifyConversationTabs(conversationId);
 }
 
 /** Persist shared functional order/open state and this conversation's file positions. */
@@ -390,10 +402,10 @@ export function recordConversationTabs(conversationId: string, tabs: Tab[]): voi
   const normalized = normalizeTabs(tabs);
   const nextFunctional = normalized.filter((tab) => tab.kind !== "attachment");
   const prev = tabsByConversation.get(conversationId);
-  const changed =
-    JSON.stringify(functionalTabs) !== JSON.stringify(nextFunctional) ||
+  const sharedChanged = JSON.stringify(functionalTabs) !== JSON.stringify(nextFunctional);
+  const localChanged =
     JSON.stringify(prev ?? []) !== JSON.stringify(isDefaultTabs(normalized) ? [] : normalized);
-  if (!changed) return;
+  if (!sharedChanged && !localChanged) return;
   functionalTabs = nextFunctional;
   if (isDefaultTabs(normalized)) tabsByConversation.delete(conversationId);
   else tabsByConversation.set(conversationId, normalized);
@@ -401,7 +413,7 @@ export function recordConversationTabs(conversationId: string, tabs: Tab[]): voi
     activeTabByConversation.set(id, resolveActiveTabKey(getConversationTabs(id), key));
   }
   persistConversationTabs();
-  notifyConversationTabs();
+  notifyConversationTabs(sharedChanged ? undefined : conversationId);
 }
 
 /**

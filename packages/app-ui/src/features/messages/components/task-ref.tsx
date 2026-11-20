@@ -10,7 +10,7 @@ import {
   taskStatusLabel,
 } from "@/features/tasks/components/task-status-badge";
 import { HoverPopover } from "./hover-popover";
-import { useRelativeTime } from "../hooks/use-relative-time";
+import { absoluteTime, RelativeTime } from "./relative-time";
 import type { TaskSummaryDto, TaskStatus } from "@silverhand/shared";
 import { t } from "@/lib/i18n";
 
@@ -237,7 +237,6 @@ function TaskPopoverBody({
   onStatusChange: (next: TaskStatus) => void;
   onPickerOpenChange: (open: boolean) => void;
 }): JSX.Element {
-  const { relative, absolute } = useRelativeTime(task.created_at);
   const channelLabel = taskChannelLabel(task);
   return (
     <div className="space-y-2">
@@ -264,9 +263,14 @@ function TaskPopoverBody({
             {t("messages.inChannel", { channel: channelLabel })}
           </span>
         ) : null}
-        <span className="inline-flex shrink-0 items-center gap-1" title={absolute}>
+        <span
+          className="inline-flex shrink-0 items-center gap-1"
+          title={absoluteTime(task.created_at)}
+        >
           <ClockIcon className="size-3 shrink-0" aria-hidden />
-          <span>{relative}</span>
+          <span>
+            <RelativeTime epochMs={task.created_at} />
+          </span>
         </span>
       </p>
     </div>

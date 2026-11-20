@@ -78,21 +78,25 @@ export const CONVERSATION_MEMBERS_KEY_PREFIX = ["conversation-members"] as const
  * Non-403/404 errors fall through to `loading`; the hook's `retry`
  * policy keeps trying those, so `loading` is honest.
  */
+// One shared empty list, so a pending or failed read keeps a stable identity and
+// does not invalidate what consumers memoize on `members`.
+const NO_MEMBERS: MemberDto[] = [];
+
 export function mapConversationMembersResult(
   id: string | null,
   query: Pick<UseQueryResult<ConversationMembersResponse, Error>, "data" | "error" | "isError">,
 ): ConversationMembersResult {
-  if (!id) return { status: "loading", members: [] };
+  if (!id) return { status: "loading", members: NO_MEMBERS };
   if (query.isError) {
     const err = query.error;
     if (err instanceof ApiError) {
-      if (err.status === 404) return { status: "not_found", members: [] };
-      if (err.status === 403) return { status: "unauthorized", members: [] };
+      if (err.status === 404) return { status: "not_found", members: NO_MEMBERS };
+      if (err.status === 403) return { status: "unauthorized", members: NO_MEMBERS };
     }
-    return { status: "loading", members: [] };
+    return { status: "loading", members: NO_MEMBERS };
   }
   if (query.data) return { status: "resolved", members: query.data.members };
-  return { status: "loading", members: [] };
+  return { status: "loading", members: NO_MEMBERS };
 }
 
 /**

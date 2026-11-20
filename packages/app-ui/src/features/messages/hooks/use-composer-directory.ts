@@ -9,6 +9,7 @@ import {
   useChannelsForWorkspace,
   useWorkspaceMemberLists,
   useWorkspaces,
+  type ChannelListItem,
   type WorkspaceHumanMember,
 } from "@/features/workspaces/hooks";
 import type { ComposerDirectory, MentionAgent } from "@/features/conversations/pane-mode";
@@ -38,6 +39,7 @@ import {
 // Stable empties keep the source memos from re-firing while a query loads.
 const EMPTY_AGENTS: AgentDto[] = [];
 const EMPTY_HUMANS: WorkspaceHumanMember[] = [];
+const EMPTY_CHANNELS: ChannelListItem[] = [];
 
 export interface ComposerDirectorySources {
   /** Read by the picker, the send-time shorthand rewrite and its settle gate,
@@ -73,11 +75,12 @@ export function useComposerDirectory(
   const agents = memberLists.data?.agents ?? EMPTY_AGENTS;
   const workspaceHumans = memberLists.data?.humans ?? EMPTY_HUMANS;
   const conversationMembers = useConversationMembers(isWorkspaceArm ? conversationId : null);
-  const { data: workspaceChannels = [], status: workspaceChannelsStatus } = useChannelsForWorkspace(
-    armWorkspaceId,
-    // A channel namespace only exists for a resolved workspace placement.
-    armHasChannelNamespace,
-  );
+  const { data: workspaceChannels = EMPTY_CHANNELS, status: workspaceChannelsStatus } =
+    useChannelsForWorkspace(
+      armWorkspaceId,
+      // A channel namespace only exists for a resolved workspace placement.
+      armHasChannelNamespace,
+    );
 
   // A DM offers the counterpart agent, even one the viewer does not own, with
   // the viewer's owned agents. The backend narrows ownership.

@@ -42,7 +42,9 @@ export function openConversationTab(conversationId: string, tab: Tab): void {
 
 /** Shared preferences carry no channel data; each consumer still reads its own target. */
 export function useConversationTabs(conversationId: string): ConversationTabsController {
-  const version = useSyncExternalStore(subscribeConversationTabs, getConversationTabsVersion);
+  const version = useSyncExternalStore(subscribeConversationTabs, () =>
+    getConversationTabsVersion(conversationId),
+  );
   const tabs = useMemo(() => getConversationTabs(conversationId), [conversationId, version]);
   const setActive = useCallback(
     (key: string) => recordConversationActiveTab(conversationId, key),

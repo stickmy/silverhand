@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   apiPaths,
@@ -24,6 +24,25 @@ export function usePresence() {
     staleTime: STALE_MS,
     gcTime: GC_MS,
   });
+}
+
+/**
+ * One person's presence. Selects that person's row out of the shared snapshot,
+ * so a change to anyone else (the upsert keeps other rows' identity) does not
+ * re-render the reader. A miss reads as offline.
+ */
+export function usePresenceOf(userId: string): UserPresenceDto | undefined {
+  const select = useCallback(
+    (res: PresenceResponse) => res.users.find((u) => u.user_id === userId),
+    [userId],
+  );
+  return useQuery<PresenceResponse, Error, UserPresenceDto | undefined>({
+    queryKey: presenceKey,
+    queryFn: () => api<PresenceResponse>(apiPaths.presence),
+    select,
+    staleTime: STALE_MS,
+    gcTime: GC_MS,
+  }).data;
 }
 
 /**

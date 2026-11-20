@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { UserIcon } from "@/icons";
-import { humanPresenceText, presenceDotStatus, usePresenceById } from "@/features/users/presence";
+import { humanPresenceText, presenceDotStatus, usePresenceOf } from "@/features/users/presence";
 
 dayjs.extend(relativeTime);
 
@@ -183,7 +183,7 @@ const PRESENCE_DOT: Record<"active" | "idle", string> = {
  * content is open, matching the agent popover's per-instance read.
  */
 function HumanPresenceInline({ userId }: { userId: string }): JSX.Element {
-  const presence = usePresenceById().get(userId);
+  const presence = usePresenceOf(userId);
   const dot = presenceDotStatus(presence?.presence);
   const lastSeenAt = presence?.last_seen_at ?? null;
   const label = humanPresenceText(

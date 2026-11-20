@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import type { InfiniteData, QueryClient } from "@tanstack/react-query";
 import {
@@ -225,6 +226,8 @@ export function mergeThreadsListEntry(
  * All on a later page. The S1 merge still writes ONLY page 0 of the All cache and
  * never guesses cross-page membership (see {@link mergeThreadsListEntry}).
  */
+const NO_THREADS: ThreadSummary[] = [];
+
 export function useChannelThreads(
   channelId: string | null,
   filter: ChannelThreadsFilter = "all",
@@ -280,9 +283,13 @@ export function useChannelThreads(
   // `enabled` is not a correctness boundary.
   useInterest(channelId ? wsConversationScope(channelId) : null);
 
+  // Flattened once per page set, so consumers memoizing on the list keep their
+  // result between renders.
+  const pages = query.data?.pages;
+  const threads = useMemo(() => pages?.flatMap((p) => p.threads) ?? NO_THREADS, [pages]);
+
   return {
-    // Flatten pages once so consumers never reach into the InfiniteData shape.
-    threads: query.data?.pages.flatMap((p) => p.threads) ?? [],
+    threads,
     isLoading: query.isLoading,
     isError: query.isError,
     isFetchingNextPage: query.isFetchingNextPage,

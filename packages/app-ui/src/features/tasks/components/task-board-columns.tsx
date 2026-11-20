@@ -18,7 +18,7 @@ import {
 import { useColumnEndSentinel } from "@/features/tasks/hooks/use-column-window";
 import type { ColumnWindow } from "@/features/tasks/model/column-window";
 import { isTaskDrag, readTaskDrag, writeTaskDrag } from "@/features/tasks/model/task-dnd";
-import { useRelativeTime } from "@/features/messages/hooks/use-relative-time";
+import { absoluteTime, RelativeTime } from "@/features/messages/components/relative-time";
 import { ChannelIcon } from "@/components/channel-icon";
 import {
   TaskStatusBadge,
@@ -337,7 +337,6 @@ function TaskCard({
   onStatusChange: (next: TaskStatus) => void;
   cardClassName: string;
 }): JSX.Element {
-  const { relative, absolute } = useRelativeTime(task.created_at);
   const [dragging, setDragging] = useState(false);
   const channelLabel = taskChannelLabel(task);
   return (
@@ -421,9 +420,12 @@ function TaskCard({
                 <span className="min-w-0 truncate">{channelLabel}</span>
               </span>
             ) : null}
-            <span className="ml-auto inline-flex shrink-0 items-center gap-0.5" title={absolute}>
+            <span
+              className="ml-auto inline-flex shrink-0 items-center gap-0.5"
+              title={absoluteTime(task.created_at)}
+            >
               <ClockIcon className="size-3 shrink-0" />
-              {relative}
+              <RelativeTime epochMs={task.created_at} />
             </span>
           </div>
         </div>

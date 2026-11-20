@@ -16,7 +16,7 @@ import { projectMemberRuntimeStatus } from "@/features/agents/model/member-runti
 import { PRESENCE_TONE_DOT, projectPresence } from "@/features/agents/model/presence-projection";
 import { useUserAvatarObjectUrls } from "@/features/users/avatar-hooks";
 import { useUsersById } from "@/features/users/hooks";
-import { usePresenceById, presenceDotStatus } from "@/features/users/presence";
+import { usePresenceOf, presenceDotStatus } from "@/features/users/presence";
 import {
   isBackendUnreachable,
   isRegistrationRequired,
@@ -218,7 +218,7 @@ function HumanMemberChip({
   avatarObjectUrl: string | null;
 }): JSX.Element {
   const nav = useNav();
-  const presence = usePresenceById().get(human.user_id);
+  const presence = usePresenceOf(human.user_id);
   const dot = presenceDotStatus(presence?.presence);
   return (
     <HumanInfoPopover

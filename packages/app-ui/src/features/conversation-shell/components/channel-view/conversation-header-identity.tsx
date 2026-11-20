@@ -14,7 +14,7 @@ import { focusAgentSideSection } from "@/features/agents/components/agent-view";
 import { useAgentAvatarObjectUrls } from "@/features/agents/hooks/avatar-hooks";
 import { useAgent, useAgentPresence } from "@/features/agents/hooks/hooks";
 import { PRESENCE_TONE_DOT, projectPresence } from "@/features/agents/model/presence-projection";
-import { usePresenceById } from "@/features/users/presence";
+import { usePresenceOf } from "@/features/users/presence";
 import { useUserAvatarObjectUrls } from "@/features/users/avatar-hooks";
 import {
   collectCounterpartAvatarSources,
@@ -241,7 +241,7 @@ function AgentPresenceDot({ agentId }: { agentId: string }): JSX.Element | null 
 }
 
 function HumanPresenceDot({ userId }: { userId: string }): JSX.Element {
-  const presence = usePresenceById().get(userId)?.presence;
+  const presence = usePresenceOf(userId)?.presence;
   const online = presence === "online";
   return (
     <span

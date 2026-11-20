@@ -16,7 +16,7 @@ import { Markdown } from "@/features/messages/components/markdown";
 import { ConversationRef } from "@/features/messages/components/conversation-ref";
 import type { WorkspaceChannelReference } from "@/features/messages/components/conversation-ref";
 import type { ChannelReference } from "@/features/messages/components/channel-ref";
-import { useRelativeTime } from "@/features/messages/hooks/use-relative-time";
+import { RelativeTime } from "@/features/messages/components/relative-time";
 import { type RendererProps, useUserResolver, firstLine } from "./shared";
 import { t } from "@/lib/i18n";
 
@@ -70,11 +70,12 @@ const CONTEXT_KIND_TAG_ICON: Record<ContextCardKind, JSX.Element> = {
   spawned: <SpawnedIcon className="size-3" />,
 };
 
-/** Tiny wrapper so `useRelativeTime` only fires when there's a real
- *  timestamp to render — keeps the hook call site unconditional. */
 function ContextCardRelativeTime({ epochMs }: { epochMs: number }): JSX.Element {
-  const { relative } = useRelativeTime(epochMs);
-  return <span className="text-text-muted">{relative}</span>;
+  return (
+    <span className="text-text-muted">
+      <RelativeTime epochMs={epochMs} />
+    </span>
+  );
 }
 
 /** Shared chrome for the three context-card subtypes. Renders

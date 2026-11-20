@@ -72,13 +72,20 @@ export interface MessageRenderContext {
   archivedChannels: ChannelListItem[];
 }
 
+// Fallbacks for a query with no data (a disabled one, e.g. the channel lists of
+// a conversation outside any workspace): a fresh `[]` each render would give
+// every lookup map a new identity and re-render, and re-parse, every row.
+const NO_AGENTS: AgentDto[] = [];
+const NO_USERS: UserDto[] = [];
+const NO_CHANNELS: ChannelListItem[] = [];
+
 export function useMessageRenderContext(
   workspaceId: string | null,
   conversationId: string,
   membersEnabled = true,
 ): MessageRenderContext {
-  const { data: agents = [] } = useAgents();
-  const { data: users = [] } = useUsers();
+  const { data: agents = NO_AGENTS } = useAgents();
+  const { data: users = NO_USERS } = useUsers();
   const { data: workspaces = [] } = useWorkspaces();
   // Resolve `#<channel_name>` against the message's workspace (not the
   // primary-selected one) so cross-workspace panes resolve their own
@@ -88,8 +95,11 @@ export function useMessageRenderContext(
   // `direct_pair` has no channel namespace, so `#name` refs there render as inert
   // text, exactly as an unresolvable one does.
   const workspaceResolved = workspaces.some((w) => w.id === workspaceId);
-  const { data: liveChannels = [] } = useChannelsForWorkspace(workspaceId, workspaceResolved);
-  const { data: archivedChannels = [] } = useArchivedChannelsForWorkspace(
+  const { data: liveChannels = NO_CHANNELS } = useChannelsForWorkspace(
+    workspaceId,
+    workspaceResolved,
+  );
+  const { data: archivedChannels = NO_CHANNELS } = useArchivedChannelsForWorkspace(
     workspaceId,
     workspaceResolved,
   );

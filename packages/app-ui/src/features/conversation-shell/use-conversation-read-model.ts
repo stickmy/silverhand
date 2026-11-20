@@ -18,6 +18,7 @@ import {
   useChannelsForWorkspace,
   useWorkspaces,
   type ChannelListItem,
+  type WorkspaceListPayload,
 } from "@/features/workspaces/hooks";
 import { isAgentSpace } from "@/features/workspaces/workspace-ownership";
 import {
@@ -31,6 +32,11 @@ import { isWorkspacePlaced } from "@silverhand/shared";
 import { useCallback, useDeferredValue, useMemo } from "react";
 import { useCompactLayout } from "@/navigation/layout";
 
+// Shared fallbacks for reads with no data (a DM has no workspace, so its channel
+// reads stay disabled): a fresh `[]` per render would recompute every memo below.
+const NO_WORKSPACES: WorkspaceListPayload["items"] = [];
+const NO_CHANNELS: ChannelListItem[] = [];
+
 /** Carrier authority only; navigation and read-cursor writes belong to the coordinators. */
 export function useConversationReadModel() {
   const {
@@ -41,7 +47,7 @@ export function useConversationReadModel() {
     panes,
   } = useRouteState();
 
-  const { data: workspaces = [], isLoading: workspacesLoading } = useWorkspaces();
+  const { data: workspaces = NO_WORKSPACES, isLoading: workspacesLoading } = useWorkspaces();
 
   const visibleWorkspaceIds = useMemo(
     () => workspaces.map((workspace) => workspace.id),
@@ -76,14 +82,14 @@ export function useConversationReadModel() {
   const workspaceResolved = !!selectedWorkspace;
 
   const {
-    data: activeChannels = [] as ChannelListItem[],
+    data: activeChannels = NO_CHANNELS,
     isLoading: activeChannelsLoading,
     status: activeChannelsStatus,
     fetchStatus: activeChannelsFetchStatus,
   } = useChannelsForWorkspace(selectedWorkspaceId, workspaceResolved);
 
   const {
-    data: archivedChannels = [] as ChannelListItem[],
+    data: archivedChannels = NO_CHANNELS,
     status: archivedChannelsStatus,
     fetchStatus: archivedChannelsFetchStatus,
   } = useArchivedChannelsForWorkspace(selectedWorkspaceId, workspaceResolved);

@@ -5,7 +5,7 @@ import { useMessage } from "@/features/messages/hooks";
 import { useUsersById, makeUserNameResolver } from "@/features/users/hooks";
 import { formatUserDisplayName } from "@/features/session/current-user";
 import { Markdown } from "./markdown";
-import { useRelativeTime } from "../hooks/use-relative-time";
+import { absoluteTime, RelativeTime } from "./relative-time";
 import { t } from "@/lib/i18n";
 
 interface QuotedMessagePreviewProps {
@@ -84,10 +84,6 @@ export function QuotedMessagePreview({
     };
   }
 
-  // Call useRelativeTime unconditionally — pass 0 when fields aren't
-  // ready so we don't change hook count between renders. The result
-  // gets thrown away on the early-return paths below.
-  const { relative, absolute } = useRelativeTime(fields?.createdAt ?? 0);
   // Resolver for the snapshot's user_id — quoted snapshots store the
   // raw uuid even when the original message was viewable, so we lean on
   // the global directory here too (multi-human audit 2026-06-03
@@ -142,10 +138,10 @@ export function QuotedMessagePreview({
         </span>
         <time
           dateTime={new Date(fields.createdAt).toISOString()}
-          title={absolute}
+          title={absoluteTime(fields.createdAt)}
           className="ml-2 text-text-muted"
         >
-          {relative}
+          <RelativeTime epochMs={fields.createdAt} />
         </time>
       </header>
       <div className="text-sm text-text-primary">

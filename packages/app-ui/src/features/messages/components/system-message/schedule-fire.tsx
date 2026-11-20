@@ -1,6 +1,6 @@
 import { AlarmIcon } from "@/icons";
 import { readScheduleFireMetadata } from "@silverhand/shared";
-import { useRelativeTime } from "@/features/messages/hooks/use-relative-time";
+import { absoluteTime } from "@/features/messages/components/relative-time";
 import type { RendererProps } from "./shared";
 import { localeTag, t, tRich } from "@/lib/i18n";
 
@@ -8,7 +8,6 @@ export function ScheduleFireRow({ message }: RendererProps): JSX.Element {
   const meta = readScheduleFireMetadata(message.metadata);
   const title = meta?.title?.trim() || t("messages.scheduledWake");
   const firedAt = meta?.actual_fire_at ?? message.created_at;
-  const { absolute } = useRelativeTime(firedAt);
   const time = new Date(firedAt).toLocaleTimeString(localeTag, {
     hour: "2-digit",
     minute: "2-digit",
@@ -31,7 +30,7 @@ export function ScheduleFireRow({ message }: RendererProps): JSX.Element {
         <time
           className="text-(length:--text-meta) tabular-nums"
           dateTime={new Date(firedAt).toISOString()}
-          title={absolute}
+          title={absoluteTime(firedAt)}
         >
           {time}
         </time>

@@ -13,7 +13,7 @@ import {
   presentAuthor,
 } from "@/features/messages/model/author-presentation";
 import { useAuthorAvatarObjectUrls } from "@/features/messages/hooks/author-avatar-hooks";
-import { useRelativeTime } from "@/features/messages/hooks/use-relative-time";
+import { absoluteTime, RelativeTime } from "@/features/messages/components/relative-time";
 import { useConversationUnread } from "@/features/channels/hooks";
 import {
   useChannelThreads,
@@ -317,7 +317,6 @@ function ThreadRow({
   // Last-reply time lives in the activity band (reply recency, not root
   // metadata). The root's own creation time isn't surfaced — in a thread list
   // "latest activity" is the time that matters.
-  const lastReplyTime = useRelativeTime(summary.last_reply_at);
   const replyLabel = `${summary.reply_count} ${summary.reply_count === 1 ? "reply" : "replies"}`;
   const overflow = summary.replier_total - summary.repliers.length;
   const unreadCount = unread?.unread_count ?? 0;
@@ -401,10 +400,10 @@ function ThreadRow({
               <ClockIcon className="size-3 shrink-0" aria-hidden />
               <time
                 dateTime={new Date(summary.last_reply_at).toISOString()}
-                title={lastReplyTime.absolute}
+                title={absoluteTime(summary.last_reply_at)}
                 className="text-xs"
               >
-                {lastReplyTime.relative}
+                <RelativeTime epochMs={summary.last_reply_at} />
               </time>
             </span>
           </span>
