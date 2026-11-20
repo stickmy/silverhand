@@ -137,7 +137,6 @@ export function HumanInfoPopover({
                 data-avatar-ground
                 className="inline-block size-9 shrink-0 overflow-hidden rounded-(--avatar-radius)"
               >
-                {/* eslint-disable-next-line jsx-a11y/img-redundant-alt */}
                 <img src={avatarObjectUrl} alt="" className="size-full object-cover" />
               </span>
             ) : (

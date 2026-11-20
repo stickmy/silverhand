@@ -246,7 +246,6 @@ function HumanMemberChip({
         className="relative inline-flex size-6 shrink-0 items-center justify-center rounded-(--avatar-radius) border border-border-subtle p-0 transition-transform hover:scale-105 focus-outline"
       >
         {avatarObjectUrl ? (
-          // eslint-disable-next-line jsx-a11y/img-redundant-alt
           <img src={avatarObjectUrl} alt="" className="size-full object-cover" draggable={false} />
         ) : (
           // Neutral person glyph, never the display-name initial: a letter is a

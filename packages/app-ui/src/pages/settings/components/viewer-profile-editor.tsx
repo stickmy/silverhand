@@ -93,7 +93,6 @@ export function ViewerProfileEditor({ user }: { user: UserDto }): JSX.Element {
           >
             <span data-avatar-ground className="grid size-full place-items-center">
               {avatarObjectUrl ? (
-                // eslint-disable-next-line jsx-a11y/img-redundant-alt
                 <img
                   src={avatarObjectUrl}
                   alt={t("settings.profile.yourAvatar")}

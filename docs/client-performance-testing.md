@@ -5,6 +5,20 @@ It separates diagnosis from acceptance: `pnpm dev` is the convenient CDP/HMR
 lane, while production-bundle and packaged runs are the only baseline-eligible
 lanes.
 
+## Frontend lint
+
+Run `pnpm lint:frontend` for the shared React UI and the Desktop and iOS renderer entry points.
+PRs, pushes to main, and the full and app-ui test commands run this check.
+It checks the Rules of Hooks, dependency arrays, and array/object destructuring defaults
+used directly as hook dependencies. For example, `const { data: channels = [] } = query`
+creates a fresh array on every render while the query is disabled. A module-level
+empty array keeps a memo depending on `channels` stable.
+
+ESLint records existing findings by file and rule in `eslint-suppressions.json`.
+After fixing a finding, run `pnpm lint:frontend --prune-suppressions` and include the
+reduced counts in your change. New findings above those counts fail the check.
+Use the renderer scenarios below to measure the interaction that prompted a change.
+
 ## Three lanes
 
 | Lane | Purpose | CDP | Baseline eligible |

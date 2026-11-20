@@ -1,0 +1,244 @@
+{
+  "packages/app-ui/src/features/agents/components/agent-activity-pane.tsx": {
+    "react-hooks/exhaustive-deps": {
+      "count": 2
+    }
+  },
+  "packages/app-ui/src/features/agents/hooks/avatar-hooks.ts": {
+    "react-hooks/exhaustive-deps": {
+      "count": 1
+    }
+  },
+  "packages/app-ui/src/features/app-shell/app-status-banner.tsx": {
+    "react-hooks/exhaustive-deps": {
+      "count": 1
+    }
+  },
+  "packages/app-ui/src/features/app-shell/selection-persistence.ts": {
+    "react-hooks/exhaustive-deps": {
+      "count": 2
+    }
+  },
+  "packages/app-ui/src/features/app-shell/use-chat-route-recovery.ts": {
+    "react-hooks/exhaustive-deps": {
+      "count": 3
+    }
+  },
+  "packages/app-ui/src/features/channels/use-channel-attachments.ts": {
+    "react-hooks/exhaustive-deps": {
+      "count": 1
+    }
+  },
+  "packages/app-ui/src/features/conversation-shell/components/channel-view.tsx": {
+    "react-hooks/exhaustive-deps": {
+      "count": 4
+    }
+  },
+  "packages/app-ui/src/features/conversation-shell/components/channel-view/channel-attachment-tab.tsx": {
+    "react-hooks/exhaustive-deps": {
+      "count": 1
+    }
+  },
+  "packages/app-ui/src/features/conversation-shell/components/channel-view/channel-members-content.tsx": {
+    "react-hooks/exhaustive-deps": {
+      "count": 1
+    }
+  },
+  "packages/app-ui/src/features/conversation-shell/components/channel-view/member-strip.tsx": {
+    "silverhand/stable-hook-default": {
+      "count": 1
+    }
+  },
+  "packages/app-ui/src/features/conversation-shell/components/channel-view/message-list.tsx": {
+    "react-hooks/exhaustive-deps": {
+      "count": 1
+    }
+  },
+  "packages/app-ui/src/features/conversation-shell/components/thread-panel.tsx": {
+    "react-hooks/exhaustive-deps": {
+      "count": 1
+    }
+  },
+  "packages/app-ui/src/features/conversation-shell/use-channel-message-window.ts": {
+    "silverhand/stable-hook-default": {
+      "count": 2
+    }
+  },
+  "packages/app-ui/src/features/conversation-shell/use-conversation-invalidation.ts": {
+    "react-hooks/exhaustive-deps": {
+      "count": 1
+    }
+  },
+  "packages/app-ui/src/features/conversation-shell/use-conversation-read-model.ts": {
+    "react-hooks/exhaustive-deps": {
+      "count": 1
+    }
+  },
+  "packages/app-ui/src/features/conversation-shell/use-conversation-shell.ts": {
+    "react-hooks/exhaustive-deps": {
+      "count": 3
+    },
+    "silverhand/stable-hook-default": {
+      "count": 1
+    }
+  },
+  "packages/app-ui/src/features/conversations/add-conversation-member-popover.tsx": {
+    "react-hooks/exhaustive-deps": {
+      "count": 3
+    }
+  },
+  "packages/app-ui/src/features/conversations/use-conversation-tabs.ts": {
+    "react-hooks/exhaustive-deps": {
+      "count": 1
+    }
+  },
+  "packages/app-ui/src/features/messages/components/composer-activity-header.tsx": {
+    "silverhand/stable-hook-default": {
+      "count": 3
+    }
+  },
+  "packages/app-ui/src/features/messages/components/composer.tsx": {
+    "react-hooks/exhaustive-deps": {
+      "count": 1
+    }
+  },
+  "packages/app-ui/src/features/messages/components/image-preview-modal.tsx": {
+    "react-hooks/exhaustive-deps": {
+      "count": 2
+    }
+  },
+  "packages/app-ui/src/features/messages/components/lightbox.tsx": {
+    "react-hooks/exhaustive-deps": {
+      "count": 1
+    }
+  },
+  "packages/app-ui/src/features/messages/hooks/use-message-action-surface.ts": {
+    "react-hooks/exhaustive-deps": {
+      "count": 1
+    }
+  },
+  "packages/app-ui/src/features/messages/hooks/use-native-composer-activity.ts": {
+    "silverhand/stable-hook-default": {
+      "count": 2
+    }
+  },
+  "packages/app-ui/src/features/messages/saved.ts": {
+    "silverhand/stable-hook-default": {
+      "count": 1
+    }
+  },
+  "packages/app-ui/src/features/search/titlebar-search.tsx": {
+    "silverhand/stable-hook-default": {
+      "count": 1
+    }
+  },
+  "packages/app-ui/src/features/search/use-inline-find.ts": {
+    "react-hooks/exhaustive-deps": {
+      "count": 1
+    }
+  },
+  "packages/app-ui/src/features/tasks/components/person-avatar.tsx": {
+    "silverhand/stable-hook-default": {
+      "count": 1
+    }
+  },
+  "packages/app-ui/src/features/tasks/components/task-filter-bar.tsx": {
+    "react-hooks/exhaustive-deps": {
+      "count": 1
+    }
+  },
+  "packages/app-ui/src/features/tasks/hooks/use-board.ts": {
+    "silverhand/stable-hook-default": {
+      "count": 1
+    }
+  },
+  "packages/app-ui/src/features/tasks/hooks/use-task-filter-options.ts": {
+    "silverhand/stable-hook-default": {
+      "count": 3
+    }
+  },
+  "packages/app-ui/src/features/users/avatar-hooks.ts": {
+    "react-hooks/exhaustive-deps": {
+      "count": 1
+    }
+  },
+  "packages/app-ui/src/features/workspaces/agent-picker.tsx": {
+    "react-hooks/exhaustive-deps": {
+      "count": 1
+    }
+  },
+  "packages/app-ui/src/features/workspaces/create-workspace-dialog.tsx": {
+    "silverhand/stable-hook-default": {
+      "count": 2
+    }
+  },
+  "packages/app-ui/src/features/workspaces/manage-members-popover.tsx": {
+    "react-hooks/exhaustive-deps": {
+      "count": 5
+    },
+    "silverhand/stable-hook-default": {
+      "count": 3
+    }
+  },
+  "packages/app-ui/src/features/workspaces/use-list-drag-sort.ts": {
+    "react-hooks/exhaustive-deps": {
+      "count": 1
+    }
+  },
+  "packages/app-ui/src/features/workspaces/workspace-filter-select.tsx": {
+    "silverhand/stable-hook-default": {
+      "count": 1
+    }
+  },
+  "packages/app-ui/src/pages/activity/activity-view.tsx": {
+    "react-hooks/exhaustive-deps": {
+      "count": 3
+    }
+  },
+  "packages/app-ui/src/pages/agent/agent-shell.tsx": {
+    "react-hooks/exhaustive-deps": {
+      "count": 1
+    },
+    "silverhand/stable-hook-default": {
+      "count": 2
+    }
+  },
+  "packages/app-ui/src/pages/agent/agent-sidebar-shell.tsx": {
+    "silverhand/stable-hook-default": {
+      "count": 1
+    }
+  },
+  "packages/app-ui/src/pages/chat/archived-channels-panel.tsx": {
+    "silverhand/stable-hook-default": {
+      "count": 1
+    }
+  },
+  "packages/app-ui/src/pages/chat/saved-list-view.tsx": {
+    "silverhand/stable-hook-default": {
+      "count": 1
+    }
+  },
+  "packages/app-ui/src/pages/chat/search-panel.tsx": {
+    "react-hooks/exhaustive-deps": {
+      "count": 2
+    },
+    "silverhand/stable-hook-default": {
+      "count": 1
+    }
+  },
+  "packages/app-ui/src/pages/chat/sidebar/workspace-channels.tsx": {
+    "silverhand/stable-hook-default": {
+      "count": 1
+    }
+  },
+  "packages/app-ui/src/pages/computer/computer-shell.tsx": {
+    "react-hooks/exhaustive-deps": {
+      "count": 1
+    }
+  },
+  "packages/app-ui/src/pages/task/task-board.tsx": {
+    "react-hooks/exhaustive-deps": {
+      "count": 1
+    }
+  }
+}

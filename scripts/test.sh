@@ -12,6 +12,9 @@ case "${1:-}" in
   --scope) scope="${2:?--scope requires a package}"; shift 2 ;;
   --scope=*) scope="${1#--scope=}"; shift ;;
 esac
+if [[ "$scope" == all || "$scope" == app-ui ]]; then
+  pnpm lint:frontend
+fi
 if [[ "$scope" != all ]]; then
   for known in "${PACKAGES[@]}"; do
     if [[ "$known" == "$scope" ]]; then
