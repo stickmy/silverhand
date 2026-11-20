@@ -32,18 +32,12 @@ export function useConversationPanes(
     taskDetailId,
     threadRootId,
   } = route;
-  const { primaryPointer, hasChannelNamespace, deferredChannelId } = read;
-  // Channel-scoped right panes (thread, threads, attachments) belong to one
-  // column at a time; without a split view that is the route's conversation.
-  const paneContext = read.paneContext ?? {
-    column: "primary" as PaneColumn,
-    channelId: selectedChannelId,
-    workspaceId: selectedWorkspaceId,
-    membership: read.parentChannelMembership,
-  };
-  const contextChannelId = paneContext.channelId;
+  const { primaryPointer, hasChannelNamespace, deferredChannelId, paneOwner } = read;
+  // The right panes (thread, threads, files, attachment) resolve against the
+  // column that owns them.
+  const ownerChannelId = paneOwner?.id ?? null;
   const splitDescriptor = read.split?.descriptor ?? null;
-  const { jumpTarget, isPrimePendingFor, primePhaseFor, handleJumpToMessage } = jump;
+  const { jumpTarget, primePhaseFor, handleJumpToMessage } = jump;
 
   const lastSelectedMessageReadKey = useRef<string | null>(null);
 
@@ -63,10 +57,10 @@ export function useConversationPanes(
   const channelIndexesAvailable = selectedChannelId !== null;
 
   const filesListMounted =
-    contextChannelId !== null && mountsMemberOnlyPanel(filesListOpen, paneContext.membership);
+    paneOwner !== null && mountsMemberOnlyPanel(filesListOpen, paneOwner.membership.membership);
 
   const threadsListMounted =
-    contextChannelId !== null && mountsMemberOnlyPanel(threadsListOpen, paneContext.membership);
+    paneOwner !== null && mountsMemberOnlyPanel(threadsListOpen, paneOwner.membership.membership);
 
   const taskPaneId = resolveTaskDetailSurface(route) === "pane" ? taskDetailId : null;
   const surface = selectSecondarySurface({
@@ -185,57 +179,31 @@ export function useConversationPanes(
     primaryWorkspaceId: selectedWorkspaceId,
   });
 
-  const parentJumpTarget = useMemo(
-    () =>
-      jumpTarget && !jumpTarget.threadRootId && jumpTarget.channelId === deferredChannelId
-        ? { channelId: jumpTarget.channelId, messageId: jumpTarget.messageId }
-        : null,
-    [jumpTarget, deferredChannelId],
-  );
+  const parentJump = useColumnJump(jump, deferredChannelId);
 
   const secondaryJumpTarget: { channelId: string; messageId: string } | null = null;
 
   const secondaryJumpPrimePending = false;
 
-  const splitJumpTarget = useMemo(
-    () =>
-      jumpTarget && !jumpTarget.threadRootId && jumpTarget.channelId === splitDescriptor?.id
-        ? { channelId: jumpTarget.channelId, messageId: jumpTarget.messageId }
-        : null,
-    [jumpTarget, splitDescriptor?.id],
-  );
-
-  const splitJumpPrimePending = useMemo(
-    () =>
-      splitJumpTarget !== null &&
-      isPrimePendingFor(splitJumpTarget.channelId, splitJumpTarget.messageId),
-    [isPrimePendingFor, splitJumpTarget],
-  );
+  const splitJump = useColumnJump(jump, splitDescriptor?.id ?? null);
 
   const threadJumpMessageId = useMemo(
     () =>
       jumpTarget &&
       jumpTarget.threadRootId &&
       jumpTarget.threadRootId === threadRootId &&
-      jumpTarget.channelId === contextChannelId
+      jumpTarget.channelId === ownerChannelId
         ? jumpTarget.messageId
         : null,
-    [jumpTarget, threadRootId, contextChannelId],
-  );
-
-  const parentJumpPrimePending = useMemo(
-    () =>
-      parentJumpTarget !== null &&
-      isPrimePendingFor(parentJumpTarget.channelId, parentJumpTarget.messageId),
-    [isPrimePendingFor, parentJumpTarget],
+    [jumpTarget, threadRootId, ownerChannelId],
   );
 
   const threadJumpPhase = useMemo(
     () =>
-      threadJumpMessageId !== null && contextChannelId !== null
-        ? primePhaseFor(contextChannelId, threadJumpMessageId)
+      threadJumpMessageId !== null && ownerChannelId !== null
+        ? primePhaseFor(ownerChannelId, threadJumpMessageId)
         : null,
-    [primePhaseFor, threadJumpMessageId, contextChannelId],
+    [primePhaseFor, threadJumpMessageId, ownerChannelId],
   );
 
   const handleOpenThreadFromChannel = (
@@ -284,16 +252,35 @@ export function useConversationPanes(
     secondaryViewInputs,
     secondaryConversationDescriptor,
     sidebarSelectedConversationId,
-    parentJumpTarget,
+    parentJumpTarget: parentJump.target,
     secondaryJumpTarget,
     secondaryJumpPrimePending,
     threadJumpMessageId,
-    parentJumpPrimePending,
+    parentJumpPrimePending: parentJump.primePending,
     threadJumpPhase,
-    splitJumpTarget,
-    splitJumpPrimePending,
+    splitJumpTarget: splitJump.target,
+    splitJumpPrimePending: splitJump.primePending,
     handleOpenThreadFromChannel,
     closeColumn,
     visibleSplitId: visibleSplit?.id ?? null,
   };
+}
+
+/** The main-stream jump aimed at the column showing `channelId`, if any, and
+ *  whether its target is still being primed. */
+function useColumnJump(jump: PaneJumpModel, channelId: string | null) {
+  const { jumpTarget, isPrimePendingFor } = jump;
+  const target = useMemo(
+    () =>
+      jumpTarget && !jumpTarget.threadRootId && jumpTarget.channelId === channelId
+        ? { channelId: jumpTarget.channelId, messageId: jumpTarget.messageId }
+        : null,
+    [jumpTarget, channelId],
+  );
+  const primePending = useMemo(
+    () => target !== null && isPrimePendingFor(target.channelId, target.messageId),
+    [isPrimePendingFor, target],
+  );
+
+  return { target, primePending };
 }

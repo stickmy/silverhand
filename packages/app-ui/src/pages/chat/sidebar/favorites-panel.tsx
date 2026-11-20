@@ -22,19 +22,24 @@ import { SortModeMenu } from "@/components/layout/sort-mode-menu";
 import {
   SortableGroup,
   animateLayoutChanges,
-  sortableItemStyle,
+  useSortableRowChrome,
 } from "@/components/layout/list-drag-sort";
 import { useListDragSort } from "@/features/workspaces/use-list-drag-sort";
 import { SidebarSection, SidebarEmptyRow } from "../../../components/layout/sidebar-shared";
 import { useAgentAvatarObjectUrls } from "@/features/agents/hooks/avatar-hooks";
 import { useUserAvatarObjectUrls } from "@/features/users/avatar-hooks";
 import { collectCounterpartAvatarSources } from "@/features/direct-pairs/counterpart-presentation";
+import { DirectLineRowView, DirectPairStarMenuItem, directPairHalf } from "./direct-messages-panel";
+import { SplitDragMonitor, useRowSplitActions, useSidebarSplit } from "./sidebar-split";
+import { SidebarPairRow } from "./pair-row";
 import {
-  DirectLineRowView,
-  DirectPairStarMenuItem,
-  OpenOnRightMenuItem,
-} from "./direct-messages-panel";
-import { useSidebarSplit, wantsSplit } from "./sidebar-split";
+  foldPairs,
+  unfoldOrder,
+  useRegisterRowFaces,
+  useRowFaces,
+  type RowFace,
+} from "./sidebar-faces";
+import { ChannelIcon } from "@/components/channel-icon";
 import { directRowBadge } from "@/features/attention/row-badges";
 import { t } from "@/lib/i18n";
 
@@ -125,22 +130,68 @@ export function FavoritesGroup(props: {
   });
   const ordered = orderedGroups[FAVORITES_GROUP];
   const mode = sortModeOf(viewerSort);
+  const split = useSidebarSplit();
+  const splitPairs = split?.pairs ?? [];
+  const conversationByKey = new Map(ordered.map((row) => [row.key, conversationOf(row)]));
+  const keyOf = new Map(ordered.map((row) => [conversationOf(row), row.key]));
+
+  const badgeOf = (row: StarredRow) =>
+    row.kind === "channel"
+      ? favoriteRowBadge(row.item, byChannel.get(row.item.entity_id))
+      : directRowBadge(row.pair.unread_count);
+
+  const faceOf = (row: StarredRow): RowFace =>
+    row.kind === "channel"
+      ? {
+          glyph: (
+            <ChannelIcon
+              variant="sticker"
+              visibility={row.item.roster_policy === "open" ? row.item.visibility : undefined}
+            />
+          ),
+          glyphKey: row.item.roster_policy === "open" ? row.item.visibility : "fixed",
+          title: row.item.title,
+          badge: badgeOf(row),
+        }
+      : directPairHalf(
+          { counterpart: row.pair.counterpart, unread: row.pair.unread_count },
+          { agentAvatarUrls: avatars.agents, humanAvatarUrls: avatars.humans },
+        );
+  const ownFaces = new Map(ordered.map((row) => [conversationOf(row), faceOf(row)]));
+  useRegisterRowFaces("starred", ownFaces);
+  const lines = foldPairs(ordered, conversationOf, splitPairs, useRowFaces());
 
   // Revealed rows keep the full-list order, but cannot reorder a partial set.
-  const revealed = collapsedRevealRows(ordered, {
+  const revealed = collapsedRevealRows(lines, {
     pokeUnread: true,
-    isSelected: (row) =>
-      (row.kind === "channel" ? row.item.entity_id : row.pair.conversation_id) ===
-      props.selectedChannelId,
-    isLoud: (row) =>
-      (row.kind === "channel"
-        ? favoriteRowBadge(row.item, byChannel.get(row.item.entity_id))
-        : directRowBadge(row.pair.unread_count)
-      )?.tier === "loud",
+    isSelected: ({ row, pair }) =>
+      conversationOf(row) === props.selectedChannelId ||
+      pair?.pair.right === props.selectedChannelId,
+    isLoud: ({ row, pair }) => badgeOf(row)?.tier === "loud" || pair?.right.badge?.tier === "loud",
   });
 
-  const renderRow = (row: StarredRow, draggable: boolean): JSX.Element =>
-    row.kind === "channel" ? (
+  const renderLine = ({ row, pair }: (typeof lines)[number], draggable: boolean): JSX.Element =>
+    pair ? (
+      <SidebarPairRow
+        pair={pair.pair}
+        workspaceId={row.kind === "channel" ? row.item.workspace_id : null}
+        draggable={draggable}
+        left={ownFaces.get(conversationOf(row))!}
+        right={pair.right}
+        menu={
+          row.kind === "channel" ? (
+            <FavoriteMenuItems
+              item={row.item}
+              attention={byChannel.get(row.item.entity_id)}
+              workspaceMuted={mutedByWorkspace.get(row.item.workspace_id)}
+              onUnstar={() => unstar.mutate(row.item)}
+            />
+          ) : (
+            <DirectPairStarMenuItem conversationId={row.pair.conversation_id} starred />
+          )
+        }
+      />
+    ) : row.kind === "channel" ? (
       <FavoriteRow
         item={row.item}
         selectedChannelId={props.selectedChannelId}
@@ -171,8 +222,8 @@ export function FavoritesGroup(props: {
       persistId="starred"
       collapsedContent={
         <SidebarReveal>
-          {revealed.map((row) => (
-            <SidebarRevealRow key={row.key}>{renderRow(row, false)}</SidebarRevealRow>
+          {revealed.map((line) => (
+            <SidebarRevealRow key={line.row.key}>{renderLine(line, false)}</SidebarRevealRow>
           ))}
         </SidebarReveal>
       }
@@ -193,18 +244,37 @@ export function FavoritesGroup(props: {
         )
       ) : null}
       <SortableGroup
-        ids={ordered.map((r) => r.key)}
-        onReorder={(o) => onReorder(FAVORITES_GROUP, o)}
+        ids={lines.map(({ row }) => row.key)}
+        onReorder={(next) => {
+          // Sort ids are favorite keys; pairs are kept by conversation id.
+          const ids = next.map((key) => conversationByKey.get(key) ?? key);
+          onReorder(
+            FAVORITES_GROUP,
+            unfoldOrder(ids, ordered.map(conversationOf), splitPairs).map(
+              (id) => keyOf.get(id) ?? id,
+            ),
+          );
+        }}
       >
-        {ordered.map((row) => (
-          <SortableStarredRow key={row.key} id={row.key}>
-            {renderRow(row, true)}
+        <SplitDragMonitor
+          conversationIdOf={(key) =>
+            lines.some(({ row, pair }) => row.key === key && pair)
+              ? null
+              : (conversationByKey.get(key) ?? null)
+          }
+        />
+        {lines.map((line) => (
+          <SortableStarredRow key={line.row.key} id={line.row.key}>
+            {renderLine(line, true)}
           </SortableStarredRow>
         ))}
       </SortableGroup>
     </SidebarSection>
   );
 }
+
+const conversationOf = (row: StarredRow): string =>
+  row.kind === "channel" ? row.item.entity_id : row.pair.conversation_id;
 
 interface FavoriteRowProps {
   item: FavoriteRowDto;
@@ -234,15 +304,9 @@ function SortableStarredRow(props: { id: string; children: JSX.Element }): JSX.E
     id: props.id,
     animateLayoutChanges,
   });
+  const chrome = useSortableRowChrome({ transform, transition, isDragging });
   return (
-    <li
-      ref={setNodeRef}
-      data-sidebar-sort-dragging={isDragging || undefined}
-      style={sortableItemStyle({ transform, transition, isDragging })}
-      className="touch-manipulation"
-      {...attributes}
-      {...listeners}
-    >
+    <li ref={setNodeRef} {...chrome} className="touch-manipulation" {...attributes} {...listeners}>
       {props.children}
     </li>
   );
@@ -261,8 +325,8 @@ function DirectFavoriteRow({
   onSelectDirectPair: (conversationId: string) => void;
   draggable: boolean;
 }): JSX.Element {
-  const split = useSidebarSplit();
   const selected = conversationSelectionTier(pair.conversation_id, selectedChannelId) === "primary";
+  const splitActions = useRowSplitActions(pair.conversation_id, selected);
   const row = (
     <DirectLineRowView
       counterpart={pair.counterpart}
@@ -271,18 +335,12 @@ function DirectFavoriteRow({
       draggable={draggable}
       agentAvatarUrls={avatars.agents}
       humanAvatarUrls={avatars.humans}
-      onSelect={(event) =>
-        wantsSplit(event, split)
-          ? split!.openInSplit(pair.conversation_id)
-          : onSelectDirectPair(pair.conversation_id)
-      }
+      onSelect={splitActions.select(() => onSelectDirectPair(pair.conversation_id))}
     />
   );
   return (
     <AppContextMenu trigger={row}>
-      {split?.canOpen && !selected ? (
-        <OpenOnRightMenuItem onSelect={() => split.openInSplit(pair.conversation_id)} />
-      ) : null}
+      {splitActions.menuItem}
       <DirectPairStarMenuItem conversationId={pair.conversation_id} starred />
     </AppContextMenu>
   );
@@ -298,11 +356,7 @@ function FavoriteRow({
   draggable,
 }: FavoriteRowProps): JSX.Element {
   const isPrimary = conversationSelectionTier(item.entity_id, selectedChannelId) === "primary";
-  const archive = useArchiveChannel(item.workspace_id);
-  const split = useSidebarSplit();
-
-  const badge = favoriteRowBadge(item, attention);
-  const isSilenced = attention?.mode === "mute";
+  const splitActions = useRowSplitActions(item.entity_id, isPrimary);
 
   const row = (
     <ChannelRow
@@ -310,32 +364,22 @@ function FavoriteRow({
       column="nested"
       draggable={draggable}
       title={`${item.title} — ${item.parent_title}`}
-      onSelect={(event) =>
-        wantsSplit(event, split)
-          ? split!.openInSplit(item.entity_id)
-          : onSelectConversation(item.workspace_id, item.entity_id)
-      }
+      onSelect={splitActions.select(() => onSelectConversation(item.workspace_id, item.entity_id))}
       channelTitle={item.title}
       visibility={item.roster_policy === "open" ? item.visibility : undefined}
-      muted={isSilenced}
-      badge={badge}
+      muted={attention?.mode === "mute"}
+      badge={favoriteRowBadge(item, attention)}
     />
   );
 
   return (
     <AppContextMenu trigger={row}>
+      {splitActions.menuItem}
       <FavoriteMenuItems
         item={item}
         attention={attention}
         workspaceMuted={workspaceMuted}
         onUnstar={onUnstar}
-        archivePending={archive.isPending}
-        onArchive={(archived) =>
-          archive.mutate({ channelId: item.entity_id, archived, workspaceId: item.workspace_id })
-        }
-        onOpenInSplit={
-          split?.canOpen && !isPrimary ? () => split.openInSplit(item.entity_id) : undefined
-        }
       />
     </AppContextMenu>
   );
@@ -347,15 +391,9 @@ function FavoriteMenuItems({
   attention,
   workspaceMuted,
   onUnstar,
-  onArchive,
-  archivePending,
-  onOpenInSplit,
-}: Pick<FavoriteRowProps, "item" | "attention" | "workspaceMuted" | "onUnstar"> & {
-  onArchive: (archived: boolean) => void;
-  archivePending: boolean;
-  onOpenInSplit?: () => void;
-}): JSX.Element {
+}: Pick<FavoriteRowProps, "item" | "attention" | "workspaceMuted" | "onUnstar">): JSX.Element {
   const { data } = useChannelDetail(item.entity_id);
+  const archive = useArchiveChannel(item.workspace_id);
   const isArchived = data?.channel.archived_at != null;
   return (
     <ChannelRowMenuItems
@@ -368,9 +406,14 @@ function FavoriteMenuItems({
       attention={attention}
       workspaceMuted={workspaceMuted}
       onStar={onUnstar}
-      onArchive={() => onArchive(!isArchived)}
-      archivePending={archivePending}
-      onOpenInSplit={onOpenInSplit}
+      onArchive={() =>
+        archive.mutate({
+          channelId: item.entity_id,
+          archived: !isArchived,
+          workspaceId: item.workspace_id,
+        })
+      }
+      archivePending={archive.isPending}
     />
   );
 }

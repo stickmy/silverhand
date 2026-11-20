@@ -151,7 +151,7 @@ describe("resolveJumpRoute", () => {
   it("normalizes a main-line target to a null cluster on BOTH pane kinds", () => {
     // `undefined` (no cluster named) and `null` (the main line — what the
     // caller's own param actually carries) must be one value downstream, since
-    // it is fed straight to `withThreadQuery`, whose null arm serializes to the
+    // it is fed straight to `paneUrl`, whose null field serializes to the
     // bare path.
     for (const threadRootId of [undefined, null]) {
       expect(

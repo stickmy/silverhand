@@ -6,7 +6,7 @@ import {
   resolveJumpRoute,
   jumpBasePath,
 } from "@/features/conversation-shell/model/message-jump-nav";
-import { withThreadQuery } from "@/router";
+import { paneUrl } from "@/navigation/pane-query";
 
 export interface MessageJumpEnvironment {
   section: AppSection;
@@ -45,6 +45,6 @@ export function executeMessageJump(
   }
 
   env.prime(target);
-  env.navigate(withThreadQuery(jumpBasePath(env.section, route), "", route.threadRootId));
+  env.navigate(paneUrl(jumpBasePath(env.section, route), { thread: route.threadRootId }));
   return true;
 }

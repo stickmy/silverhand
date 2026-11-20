@@ -1,5 +1,5 @@
 import { useListSortSensors } from "./list-sort-sensors";
-import { dragLandsOnStage } from "./split-drop";
+import { dragLeftList, useRowLifted } from "./split-drop";
 import type { CSSProperties, ReactNode } from "react";
 import { DndContext, closestCenter } from "@dnd-kit/core";
 import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers";
@@ -23,6 +23,30 @@ export function sortableItemStyle(args: {
     cursor: args.isDragging ? "grabbing" : undefined,
     zIndex: args.isDragging ? 1 : undefined,
     position: args.isDragging ? "relative" : undefined,
+  };
+}
+
+/**
+ * A sortable row's motion and drag state. While a held row has left the list
+ * for the conversation area (split drop), the list stands still: every row
+ * returns to its slot and the held one fades, so it reads as taken out rather
+ * than still being sorted.
+ */
+export function useSortableRowChrome(args: {
+  transform: { y: number } | null;
+  transition: string | undefined;
+  isDragging: boolean;
+}): { style: CSSProperties; "data-sidebar-sort-dragging": true | undefined } {
+  const lifted = useRowLifted();
+  if (!lifted) {
+    return {
+      style: sortableItemStyle(args),
+      "data-sidebar-sort-dragging": args.isDragging || undefined,
+    };
+  }
+  return {
+    style: { opacity: args.isDragging ? 0.4 : undefined },
+    "data-sidebar-sort-dragging": undefined,
   };
 }
 
@@ -55,7 +79,7 @@ export function SortableGroup({
       collisionDetection={closestCenter}
       modifiers={[restrictToVerticalAxis, restrictToParentElement]}
       onDragEnd={({ active, over }) => {
-        if (!over || active.id === over.id || dragLandsOnStage()) return;
+        if (!over || active.id === over.id || dragLeftList()) return;
         const oldIndex = ids.indexOf(String(active.id));
         const newIndex = ids.indexOf(String(over.id));
         if (oldIndex < 0 || newIndex < 0) return;

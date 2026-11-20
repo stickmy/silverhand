@@ -2,13 +2,12 @@ import { SidebarRowsSkeleton } from "@/components/layout/sidebar-skeleton";
 import { SidebarReveal, SidebarRevealRow } from "@/components/layout/sidebar-reveal";
 import { forwardRef, useMemo, type HTMLAttributes, type MouseEvent } from "react";
 import type { DirectPairCounterpart } from "@silverhand/shared";
-import { DirectMessageIcon, SplitRightIcon, StarIcon } from "@/icons";
-import {
-  AppContextMenu,
-  AppContextMenuItem,
-  AppContextMenuSeparator,
-} from "@/components/menus/app-context-menu";
-import { useSidebarSplit, wantsSplit } from "./sidebar-split";
+import { DirectMessageIcon, StarIcon } from "@/icons";
+import { AppContextMenu, AppContextMenuItem } from "@/components/menus/app-context-menu";
+import { useConversationDragSource, useRowSplitActions, useSidebarSplit } from "./sidebar-split";
+import { foldPairs, useRegisterRowFaces, useRowFaces, type RowFace } from "./sidebar-faces";
+import { SidebarPairRow } from "./pair-row";
+import type { SplitPair } from "@/features/conversation-shell/split-pairs";
 import {
   starredConversationIds,
   useFavoritesList,
@@ -82,10 +81,29 @@ export function DirectMessagesGroup(props: {
   const agentAvatarUrls = useAgentAvatarObjectUrls(agents);
   const humanAvatarUrls = useUserAvatarObjectUrls(users);
 
-  const revealed = collapsedRevealRows(rows, {
+  const split = useSidebarSplit();
+  const idOf = (row: DirectLineRow) => (row.kind === "pair" ? row.conversationId : row.key);
+  const ownFaces = new Map(
+    rows.flatMap((row) =>
+      row.kind === "pair"
+        ? [[row.conversationId, directPairHalf(row, { agentAvatarUrls, humanAvatarUrls })] as const]
+        : [],
+    ),
+  );
+  useRegisterRowFaces("direct-messages", ownFaces);
+  const lines = foldPairs(rows, idOf, split?.pairs ?? [], useRowFaces());
+  const lineProps = {
+    agentAvatarUrls,
+    humanAvatarUrls,
+    onSelectDirectPair: props.onSelectDirectPair,
+    onSelectDirectDraft: props.onSelectDirectDraft,
+  };
+  const revealed = collapsedRevealRows(lines, {
     pokeUnread: true,
-    isSelected: (row) => row.selected,
-    isLoud: (row) => directRowBadge(row.unread)?.tier === "loud",
+    isSelected: ({ row, pair }) =>
+      row.selected || (pair !== null && pair.pair.right === props.selectedChannelId),
+    isLoud: ({ row, pair }) =>
+      directRowBadge(row.unread)?.tier === "loud" || pair?.right.badge?.tier === "loud",
   });
 
   return (
@@ -101,15 +119,9 @@ export function DirectMessagesGroup(props: {
       persistId="direct-messages"
       collapsedContent={
         <SidebarReveal>
-          {revealed.map((row) => (
+          {revealed.map(({ row, pair }) => (
             <SidebarRevealRow key={row.key}>
-              <DirectMessageRow
-                row={row}
-                agentAvatarUrls={agentAvatarUrls}
-                humanAvatarUrls={humanAvatarUrls}
-                onSelectDirectPair={props.onSelectDirectPair}
-                onSelectDirectDraft={props.onSelectDirectDraft}
-              />
+              <DirectMessageLine row={row} pair={pair} {...lineProps} />
             </SidebarRevealRow>
           ))}
         </SidebarReveal>
@@ -124,19 +136,68 @@ export function DirectMessagesGroup(props: {
           <SidebarEmptyRow>{t("chat.noDirectMessages")}</SidebarEmptyRow>
         )
       ) : null}
-      {rows.map((row) => (
+      {lines.map(({ row, pair }) => (
         <li key={row.key}>
-          <DirectMessageRow
-            row={row}
-            agentAvatarUrls={agentAvatarUrls}
-            humanAvatarUrls={humanAvatarUrls}
-            onSelectDirectPair={props.onSelectDirectPair}
-            onSelectDirectDraft={props.onSelectDirectDraft}
-          />
+          <DirectMessageLine row={row} pair={pair} {...lineProps} />
         </li>
       ))}
     </SidebarSection>
   );
+}
+
+type LineProps = {
+  agentAvatarUrls: ReadonlyMap<string, string | null>;
+  humanAvatarUrls: ReadonlyMap<string, string | null>;
+  onSelectDirectPair: (conversationId: string) => void;
+  onSelectDirectDraft?: (target: DirectMessageTarget) => void;
+};
+
+/** A direct line, or a kept pair of two direct lines folded into one row. */
+function DirectMessageLine({
+  row,
+  pair,
+  ...props
+}: {
+  row: DirectLineRow;
+  pair: { pair: SplitPair; right: RowFace } | null;
+} & LineProps): JSX.Element {
+  if (pair && row.kind === "pair") {
+    return (
+      <SidebarPairRow
+        pair={pair.pair}
+        workspaceId={null}
+        left={directPairHalf(row, props)}
+        right={pair.right}
+        menu={<DirectPairStarMenuItem conversationId={row.conversationId} starred={false} />}
+      />
+    );
+  }
+  return <DirectMessageRow row={row} {...props} />;
+}
+
+/** One half of a pair row drawn from a direct line. */
+export function directPairHalf(
+  line: { counterpart: DirectPairCounterpart; unread: number },
+  urls: Pick<LineProps, "agentAvatarUrls" | "humanAvatarUrls">,
+): RowFace {
+  const counterpart = presentCounterpart(line.counterpart);
+  const avatarId = line.counterpart.status === "active" ? line.counterpart.id : "";
+  return {
+    glyphKey: `${line.counterpart.status}:${
+      urls.agentAvatarUrls.get(avatarId) ?? urls.humanAvatarUrls.get(avatarId) ?? ""
+    }`,
+    glyph: (
+      <AuthorAvatarView
+        avatar={counterpart.avatar}
+        size={16}
+        label={counterpart.label}
+        agentAvatarUrls={urls.agentAvatarUrls}
+        humanAvatarUrls={urls.humanAvatarUrls}
+      />
+    ),
+    title: counterpart.label,
+    badge: directRowBadge(line.unread),
+  };
 }
 
 /** One line's row. The counterpart IS the row: its avatar, its name, and — when the
@@ -152,26 +213,24 @@ function DirectMessageRow({
   humanAvatarUrls,
   onSelectDirectPair,
   onSelectDirectDraft,
-}: {
-  row: DirectLineRow;
-  agentAvatarUrls: ReadonlyMap<string, string | null>;
-  humanAvatarUrls: ReadonlyMap<string, string | null>;
-  onSelectDirectPair: (conversationId: string) => void;
-  onSelectDirectDraft?: (target: DirectMessageTarget) => void;
-}): JSX.Element {
-  const split = useSidebarSplit();
+}: { row: DirectLineRow } & LineProps): JSX.Element {
+  const splitActions = useRowSplitActions(
+    row.kind === "pair" ? row.conversationId : row.key,
+    row.selected || row.kind === "draft",
+  );
+  const dragSource = useConversationDragSource(
+    row.kind === "pair" ? row.conversationId : row.key,
+    row.selected || row.kind === "draft",
+  );
   const face = (
     <DirectLineRowView
+      {...dragSource}
       counterpart={row.counterpart}
       unread={row.unread}
       selected={row.selected}
       agentAvatarUrls={agentAvatarUrls}
       humanAvatarUrls={humanAvatarUrls}
-      onSelect={(event) => {
-        if (row.kind === "pair" && wantsSplit(event, split)) {
-          split!.openInSplit(row.conversationId);
-          return;
-        }
+      onSelect={splitActions.select(() => {
         // A draft row stays on the draft even when a pair for the same agent
         // exists: that is what makes it one row instead of two.
         if (row.kind === "draft") {
@@ -179,33 +238,18 @@ function DirectMessageRow({
           return;
         }
         onSelectDirectPair(row.conversationId);
-      }}
+      })}
     />
   );
   if (row.kind === "draft") return face;
   return (
     <AppContextMenu trigger={face}>
-      {split?.canOpen && !row.selected ? (
-        <OpenOnRightMenuItem onSelect={() => split.openInSplit(row.conversationId)} />
-      ) : null}
+      {splitActions.menuItem}
       <DirectPairStarMenuItem conversationId={row.conversationId} starred={false} />
     </AppContextMenu>
   );
 }
 
-/** "Open on right": the conversation joins the open one as a second column. */
-export function OpenOnRightMenuItem({ onSelect }: { onSelect: () => void }): JSX.Element {
-  return (
-    <>
-      <AppContextMenuItem icon={<SplitRightIcon className="size-3.5" />} onSelect={onSelect}>
-        {t("conversationShell.openOnRight")}
-      </AppContextMenuItem>
-      <AppContextMenuSeparator />
-    </>
-  );
-}
-
-/** The Star / Unstar item of a direct pair's row menu. */
 export function DirectPairStarMenuItem(props: {
   conversationId: string;
   starred: boolean;

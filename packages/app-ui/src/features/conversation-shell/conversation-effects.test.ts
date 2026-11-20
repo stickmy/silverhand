@@ -1,19 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChannelListItem, WorkspaceListItem } from "@/features/workspaces/hooks";
+import type { RouteState } from "@/router";
+import { makeRouteState } from "@/test-support/route-state";
 
 const h = vi.hoisted(() => ({
   compact: false,
-  route: {
-    section: "chat",
-    chatView: "channel",
-    workspaceId: "w",
-    channelId: "c" as string | null,
-    directConversationId: null,
-    directDraftTarget: null,
-    sideConversationId: null,
-    threadRootId: null,
-    threadsListOpen: false,
-  },
+  route: {} as RouteState,
+
   effects: [] as Array<() => void>,
   removal: undefined as undefined | ((id: string) => void),
   go: vi.fn(),
@@ -118,13 +111,7 @@ beforeEach(() => {
   h.effects = [];
   h.removal = undefined;
   h.memory.clear();
-  Object.assign(h.route, {
-    section: "chat",
-    chatView: "channel",
-    workspaceId: "w",
-    channelId: "c" as string | null,
-    directConversationId: null,
-  });
+  Object.assign(h.route, makeRouteState("/chat/w/w/c/c"));
 });
 
 describe("shared conversation invalidation", () => {

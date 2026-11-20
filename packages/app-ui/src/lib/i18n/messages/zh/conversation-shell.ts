@@ -4,6 +4,7 @@ import type { Translation } from "../../translate";
 export const conversationShell: Translation<typeof en> = {
   closeColumn: "关闭此列",
   openOnRight: "在右侧打开",
+  openOnRightHint: "⌥ 点击",
   closeHalf: "关闭 {name}",
   closeSidePane: "关闭侧边面板",
   attachments: "附件",

@@ -1,27 +1,51 @@
-import { routes, withAttachmentQuery, withHumanQuery } from "./router";
 import { describe, expect, it } from "vitest";
 import {
-  buildAgentPanelOpenUrl,
   buildChannelLayoutUrl,
-  buildChannelPathPreservingAgent,
-  buildChannelPathPreservingSide,
-  buildSideOpenUrl,
-  buildTaskOpenUrl,
-  buildThreadOpenUrl,
+  channelUrlKeeping,
+  closePaneUrl,
   layoutMemoryFromRoute,
+  openPaneUrl,
   parseRouteState,
-  withAgentQuery,
-  withSideQuery,
-  withTaskQuery,
-  withThreadQuery,
-  withThreadsQuery,
-  withFilesQuery,
-  withChannelSettingsQuery,
-  withSplitPromoted,
-  withSplitQuery,
-  buildSplitUrl,
+  promotedSplitUrl,
   resolveNavigationTarget,
+  routes,
+  splitUrl,
 } from "./router";
+import { paneUrl } from "./navigation/pane-query";
+import type { SecondaryPane } from "./navigation/secondary-panes";
+
+// Each pane's open/close as the nav actions write it.
+const paneWriter =
+  (pane: SecondaryPane) =>
+  (pathname: string, search: string, value: string | boolean | null): string =>
+    value === null || value === false
+      ? closePaneUrl(pathname, search, pane)
+      : openPaneUrl(pathname, search, pane, value === true ? true : value);
+const withSideQuery = paneWriter("side");
+const withTaskQuery = paneWriter("task");
+const withThreadQuery = paneWriter("thread");
+const withThreadsQuery = paneWriter("threads");
+const withFilesQuery = paneWriter("files");
+const withAgentQuery = paneWriter("agent");
+const withHumanQuery = paneWriter("human");
+const withChannelSettingsQuery = paneWriter("settings");
+const buildSideOpenUrl = withSideQuery;
+const buildTaskOpenUrl = withTaskQuery;
+const buildThreadOpenUrl = withThreadQuery;
+const buildAgentPanelOpenUrl = withAgentQuery;
+const withAttachmentQuery = (
+  pathname: string,
+  search: string,
+  id: string | null,
+  inFiles = false,
+): string =>
+  id === null
+    ? closePaneUrl(pathname, search, "attachment")
+    : openPaneUrl(pathname, search, "attachment", id, { inFiles });
+const buildChannelPathPreservingSide = (w: string, c: string, side: string) =>
+  channelUrlKeeping(w, c, { side });
+const buildChannelPathPreservingAgent = (w: string, c: string, agent: string) =>
+  channelUrlKeeping(w, c, { agent });
 import type { SecondaryRouteFields } from "./router";
 
 // Tests focus on the URL → state matrix: the base path is
@@ -1137,18 +1161,20 @@ describe("split view — ?split second column and ?ctx pane owner", () => {
   });
 
   it("closing or replacing the second column takes its panes with it", () => {
-    expect(withSplitQuery(path, "?split=c2&ctx=split&thread=r2", null)).toBe(path);
-    expect(withSplitQuery(path, "?split=c2&thread=r1", "c3")).toBe(`${path}?split=c3&thread=r1`);
+    expect(splitUrl(path, "?split=c2&ctx=split&thread=r2", null)).toBe(path);
+    expect(splitUrl(path, "?split=c2&thread=r1", "c3")).toBe(`${path}?split=c3&thread=r1`);
   });
 
   it("closing the first column keeps the second column's panes on it", () => {
-    expect(withSplitPromoted("?split=c2&ctx=split&thread=r2", "/chat/w/w1/c/c2")).toBe(
+    expect(promotedSplitUrl(path, "?split=c2&ctx=split&thread=r2", "/chat/w/w1/c/c2")).toBe(
       "/chat/w/w1/c/c2?thread=r2",
     );
-    expect(withSplitPromoted("?split=c2&thread=r1", "/chat/w/w1/c/c2")).toBe("/chat/w/w1/c/c2");
+    expect(promotedSplitUrl(path, "?split=c2&thread=r1", "/chat/w/w1/c/c2")).toBe(
+      "/chat/w/w1/c/c2",
+    );
   });
 
   it("builds a pair's URL", () => {
-    expect(buildSplitUrl(path, "c2")).toBe(`${path}?split=c2`);
+    expect(paneUrl(path, { split: "c2" })).toBe(`${path}?split=c2`);
   });
 });

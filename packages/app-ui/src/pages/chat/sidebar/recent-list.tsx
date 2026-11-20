@@ -46,8 +46,8 @@ import {
 } from "@/features/workspaces/hooks";
 import { AppContextMenu } from "@/components/menus/app-context-menu";
 import { starredConversationIds, useFavoritesList } from "@/features/workspaces/favorites";
-import { DirectPairStarMenuItem, OpenOnRightMenuItem } from "./direct-messages-panel";
-import { useSidebarSplit, wantsSplit } from "./sidebar-split";
+import { DirectPairStarMenuItem } from "./direct-messages-panel";
+import { useConversationDragSource, useRowSplitActions } from "./sidebar-split";
 import { useViewerUser } from "@/features/session/hooks";
 import { channelNodeBadge, directRowBadge } from "@/features/attention/row-badges";
 import {
@@ -195,7 +195,6 @@ export function RecentList(props: {
 
   const viewerId = viewer.data && "id" in viewer.data ? viewer.data.id : null;
   const now = Date.now();
-  const split = useSidebarSplit();
   const loading =
     rows.length === 0 && (pairsQuery.isLoading || channelLists.some((list) => list.isLoading));
 
@@ -248,47 +247,42 @@ export function RecentList(props: {
             <RecentRowMenu
               row={row}
               pinned={pinned.has(row.id)}
-              onOpenInSplit={
-                split?.canOpen && row.id !== props.selectedConversationId
-                  ? () => split.openInSplit(row.id)
-                  : undefined
-              }
+              selected={row.id === props.selectedConversationId}
             >
-              <RecentRow
-                row={row}
-                selected={row.id === props.selectedConversationId}
-                pinned={pinned.has(row.id)}
-                divider={
-                  index < visible.length - 1 &&
-                  row.id !== props.selectedConversationId &&
-                  visible[index + 1]!.id !== props.selectedConversationId
-                }
-                viewerId={viewerId}
-                now={now}
-                agentAvatarUrls={agentAvatarUrls}
-                humanAvatarUrls={humanAvatarUrls}
-                onSelect={(event) => {
-                  if (wantsSplit(event, split)) {
-                    split!.openInSplit(row.id);
-                    return;
+              {(wrapSelect, dragSource) => (
+                <RecentRow
+                  {...dragSource}
+                  row={row}
+                  selected={row.id === props.selectedConversationId}
+                  pinned={pinned.has(row.id)}
+                  divider={
+                    index < visible.length - 1 &&
+                    row.id !== props.selectedConversationId &&
+                    visible[index + 1]!.id !== props.selectedConversationId
                   }
-                  const workspaceId = row.kind === "channel" ? row.workspaceId : null;
-                  if (row.latest?.thread_root_id) {
-                    props.onOpenThread({
-                      workspaceId,
-                      conversationId: row.id,
-                      threadRootId: row.latest.thread_root_id,
-                      messageId: row.latest.message_id,
-                    });
-                    return;
-                  }
-                  if (row.kind === "channel") {
-                    props.onSelectChannel(row.id, row.workspaceId);
-                  } else {
-                    props.onSelectDirectPair(row.id);
-                  }
-                }}
-              />
+                  viewerId={viewerId}
+                  now={now}
+                  agentAvatarUrls={agentAvatarUrls}
+                  humanAvatarUrls={humanAvatarUrls}
+                  onSelect={wrapSelect(() => {
+                    const workspaceId = row.kind === "channel" ? row.workspaceId : null;
+                    if (row.latest?.thread_root_id) {
+                      props.onOpenThread({
+                        workspaceId,
+                        conversationId: row.id,
+                        threadRootId: row.latest.thread_root_id,
+                        messageId: row.latest.message_id,
+                      });
+                      return;
+                    }
+                    if (row.kind === "channel") {
+                      props.onSelectChannel(row.id, row.workspaceId);
+                    } else {
+                      props.onSelectDirectPair(row.id);
+                    }
+                  })}
+                />
+              )}
             </RecentRowMenu>
           </li>
         ))}
@@ -521,57 +515,61 @@ const RecentRow = forwardRef<HTMLButtonElement, RecentRowProps>(function RecentR
 });
 
 /** The tree's row menu on the same conversation here: the channel menu, or a
- *  direct pair's Star item. */
+ *  direct pair's Star item, behind the shared split actions. */
 function RecentRowMenu(props: {
   row: RecentListRow;
   pinned: boolean;
-  onOpenInSplit?: () => void;
-  children: ReactElement;
+  selected: boolean;
+  children: (
+    wrapSelect: (open: () => void) => (event: MouseEvent) => void,
+    dragSource: ReturnType<typeof useConversationDragSource>,
+  ) => ReactElement;
 }): JSX.Element {
+  const { row } = props;
+  const splitActions = useRowSplitActions(row.id, props.selected);
+  const dragSource = useConversationDragSource(row.id, props.selected);
+  const trigger = props.children(splitActions.select, dragSource);
+
   if (props.row.kind !== "channel") {
     return (
-      <AppContextMenu trigger={props.children}>
-        {props.onOpenInSplit ? <OpenOnRightMenuItem onSelect={props.onOpenInSplit} /> : null}
+      <AppContextMenu trigger={trigger}>
+        {splitActions.menuItem}
         <DirectPairStarMenuItem conversationId={props.row.id} starred={props.pinned} />
       </AppContextMenu>
     );
   }
 
   return (
-    <RecentChannelMenu row={props.row} pinned={props.pinned} onOpenInSplit={props.onOpenInSplit}>
-      {props.children}
-    </RecentChannelMenu>
+    <AppContextMenu trigger={trigger}>
+      {splitActions.menuItem}
+      <RecentChannelMenuItems row={props.row} pinned={props.pinned} />
+    </AppContextMenu>
   );
 }
 
-function RecentChannelMenu(props: {
+function RecentChannelMenuItems(props: {
   row: Extract<RecentListRow, { kind: "channel" }>;
   pinned: boolean;
-  onOpenInSplit?: () => void;
-  children: ReactElement;
 }): JSX.Element {
   const { row, pinned } = props;
   const star = useStarChannel(row.workspaceId);
   const archive = useArchiveChannel(row.workspaceId);
 
   return (
-    <AppContextMenu trigger={props.children}>
-      <ChannelRowMenuItems
-        channelId={row.id}
-        title={row.title}
-        rosterPolicy={row.rosterPolicy}
-        isMember
-        isArchived={false}
-        starred={pinned}
-        attention={row.attention}
-        workspaceMuted={row.workspaceMuted}
-        onStar={() => star.mutate({ channelId: row.id, starred: !pinned })}
-        onOpenInSplit={props.onOpenInSplit}
-        onArchive={() =>
-          archive.mutate({ channelId: row.id, archived: true, workspaceId: row.workspaceId })
-        }
-        archivePending={archive.isPending}
-      />
-    </AppContextMenu>
+    <ChannelRowMenuItems
+      channelId={row.id}
+      title={row.title}
+      rosterPolicy={row.rosterPolicy}
+      isMember
+      isArchived={false}
+      starred={pinned}
+      attention={row.attention}
+      workspaceMuted={row.workspaceMuted}
+      onStar={() => star.mutate({ channelId: row.id, starred: !pinned })}
+      onArchive={() =>
+        archive.mutate({ channelId: row.id, archived: true, workspaceId: row.workspaceId })
+      }
+      archivePending={archive.isPending}
+    />
   );
 }

@@ -8,6 +8,10 @@ import {
   sidebarRowStateClass,
 } from "@/components/layout/sidebar-shared";
 import { t } from "@/lib/i18n";
+import { AppContextMenu } from "@/components/menus/app-context-menu";
+import type { SplitPair } from "@/features/conversation-shell/split-pairs";
+import { useSidebarSplit } from "./sidebar-split";
+import type { RowFace } from "./sidebar-faces";
 
 /** One half of a pair row: the conversation's own glyph and title. */
 export interface PairHalf {
@@ -15,6 +19,41 @@ export interface PairHalf {
   title: string;
   badge: RowBadge | null;
   onClose: () => void;
+}
+
+/**
+ * A kept pair as a sidebar row, wired to the split view: selected while the
+ * pair is on screen, reopens it on click, and each half's close removes that
+ * half. `menu` is the left conversation's own row menu.
+ */
+export function SidebarPairRow({
+  pair,
+  workspaceId,
+  left,
+  right,
+  menu,
+  draggable,
+}: {
+  pair: SplitPair;
+  /** The left conversation's workspace; null for a direct pair. */
+  workspaceId: string | null;
+  left: RowFace;
+  right: RowFace;
+  menu: ReactNode;
+  draggable?: boolean;
+}): JSX.Element | null {
+  const split = useSidebarSplit();
+  if (!split) return null;
+  const row = (
+    <PairRow
+      selected={split.active?.left === pair.left && split.active.right === pair.right}
+      draggable={draggable}
+      left={{ ...left, onClose: () => split.closeHalf(pair, "left") }}
+      right={{ ...right, onClose: () => split.closeHalf(pair, "right") }}
+      onSelect={() => split.openPair(pair, workspaceId)}
+    />
+  );
+  return <AppContextMenu trigger={row}>{menu}</AppContextMenu>;
 }
 
 /**

@@ -1,15 +1,20 @@
 import { SidebarRowsSkeleton } from "@/components/layout/sidebar-skeleton";
 import { SidebarReveal, SidebarRevealRow } from "@/components/layout/sidebar-reveal";
-import { useMemo, useRef, type MouseEvent, type ReactNode } from "react";
+import { useMemo, useRef, type ReactNode } from "react";
 import { type ChannelAttentionModeRowDto, type ConversationVisibility } from "@silverhand/shared";
 import { useSortable } from "@dnd-kit/sortable";
 import { ChannelRow } from "./channel-row";
 import { ChannelIcon } from "@/components/channel-icon";
-import { PairRow } from "./pair-row";
-import { rowPairRole, useSidebarSplit, wantsSplit, type SidebarSplit } from "./sidebar-split";
-import type { SplitPair } from "@/features/conversation-shell/split-pairs";
-import { beginConversationDrag, endConversationDrag } from "@/components/layout/split-drop";
-import { useDndMonitor } from "@dnd-kit/core";
+import { SidebarPairRow } from "./pair-row";
+import { SplitDragMonitor, useRowSplitActions, useSidebarSplit } from "./sidebar-split";
+import {
+  foldPairs,
+  unfoldOrder,
+  useRegisterRowFaces,
+  useRowFaces,
+  type FoldedRow,
+  type RowFace,
+} from "./sidebar-faces";
 import { AppContextMenu } from "@/components/menus/app-context-menu";
 import { ChannelRowMenuItems } from "./channel-row-menu-items";
 import { SidebarEmptyRow } from "@/components/layout/sidebar-shared";
@@ -17,7 +22,7 @@ import { SortModeMenu } from "@/components/layout/sort-mode-menu";
 import {
   SortableGroup,
   animateLayoutChanges,
-  sortableItemStyle,
+  useSortableRowChrome,
 } from "@/components/layout/list-drag-sort";
 import { useListDragSort } from "@/features/workspaces/use-list-drag-sort";
 import {
@@ -147,53 +152,64 @@ export function WorkspaceChannels({
     getCreatedAt: (c) => c.created_at,
   });
   const ordered = orderedGroups.channels;
-  // A pair takes its left channel's slot; its right channel's own row folds
-  // into it. Both halves must be rows of this list, else each stays a row.
-  const byId = new Map(ordered.map((c) => [c.id, c]));
-  const pairFor = (c: ChannelNode): { pair: SplitPair; partner: ChannelNode } | null => {
-    const hit = split ? rowPairRole(split.pairs, c.id) : null;
-    if (!hit) return null;
-    const partner = byId.get(hit.role === "left" ? hit.pair.right : hit.pair.left);
-    return partner ? { pair: hit.pair, partner } : null;
-  };
-  const isFolded = (c: ChannelNode): boolean => {
-    const hit = split ? rowPairRole(split.pairs, c.id) : null;
-    return hit?.role === "right" && byId.has(hit.pair.left);
-  };
-  const rows = ordered.filter((c) => !isFolded(c));
+  const pairs = split?.pairs ?? [];
 
-  const loud = (c: ChannelNode): boolean =>
-    channelNodeBadge(c, attentionByChannel.get(c.id), unreadByChannel[c.id] ?? 0)?.tier === "loud";
+  const loud = (face: RowFace | undefined): boolean => face?.badge?.tier === "loud";
+  const faceOf = (c: ChannelNode): RowFace => ({
+    glyph: (
+      <ChannelIcon
+        variant="sticker"
+        visibility={c.roster_policy === "open" ? c.visibility : undefined}
+      />
+    ),
+    glyphKey: c.roster_policy === "open" ? c.visibility : "fixed",
+    title: c.title,
+    badge: channelNodeBadge(c, attentionByChannel.get(c.id), unreadByChannel[c.id] ?? 0),
+  });
+  const ownFaces = new Map(ordered.map((c) => [c.id, faceOf(c)]));
+  // A collapsed branch lists only the rows it reveals; a pair whose left half
+  // is hidden must not take its right half's row elsewhere.
+  const listedFaces = collapsed
+    ? new Map(
+        [...ownFaces].filter(
+          ([id, face]) => id === selectedChannelId || (pokeUnread && loud(face)),
+        ),
+      )
+    : ownFaces;
+  useRegisterRowFaces(`channels:${workspaceId}`, listedFaces);
+  const rows = foldPairs(ordered, (c) => c.id, pairs, useRowFaces());
+
+  const rowProps = {
+    workspaceId,
+    selectedChannelId,
+    onSelect: (channelId: string) => onSelectChannel(channelId, workspaceId),
+    onStar: (channelId: string, starred: boolean) => starChannel.mutate({ channelId, starred }),
+    onArchive: (channelId: string, archived: boolean) =>
+      archiveChannel.mutate({ channelId, archived, workspaceId }),
+    archivePending: archiveChannel.isPending,
+    unreadByChannel,
+    attentionByChannel,
+    workspaceMuted,
+  };
 
   if (collapsed) {
     const revealed = collapsedRevealRows(rows, {
       pokeUnread,
-      isSelected: (c) => c.id === selectedChannelId || pairFor(c)?.partner.id === selectedChannelId,
-      isLoud: (c) => loud(c) || (pairFor(c) !== null && loud(pairFor(c)!.partner)),
+      isSelected: ({ row, pair }) =>
+        row.id === selectedChannelId || pair?.pair.right === selectedChannelId,
+      isLoud: ({ row, pair }) => loud(ownFaces.get(row.id)) || loud(pair?.right),
     });
     return (
       <>
         {revealed.length > 0 ? revealCaption : null}
         <SidebarReveal initial={mountedCollapsed.current}>
-          {revealed.map((c) => (
-            <SidebarRevealRow key={c.id}>
+          {revealed.map(({ row, pair }) => (
+            <SidebarRevealRow key={row.id}>
               <WorkspaceChannelRow
-                channel={c}
-                selected={c.id === selectedChannelId}
-                onClick={() => onSelectChannel(c.id, workspaceId)}
-                split={split}
-                pair={pairFor(c)}
-                workspaceId={workspaceId}
-                unreadByChannel={unreadByChannel}
-                attentionByChannel={attentionByChannel}
-                onStar={(channelId, starred) => starChannel.mutate({ channelId, starred })}
-                onArchive={(channelId, archived) =>
-                  archiveChannel.mutate({ channelId, archived, workspaceId })
-                }
-                archivePending={archiveChannel.isPending}
-                unreadCount={unreadByChannel[c.id] ?? 0}
-                attention={attentionByChannel.get(c.id)}
-                workspaceMuted={workspaceMuted}
+                channel={row}
+                pair={pair}
+                face={ownFaces.get(row.id)!}
+                {...rowProps}
               />
             </SidebarRevealRow>
           ))}
@@ -214,39 +230,29 @@ export function WorkspaceChannels({
     return <SidebarEmptyRow>{t("chat.noChannels")}</SidebarEmptyRow>;
   }
 
-  const rowProps = {
-    selectedChannelId,
-    onSelect: (channelId: string) => onSelectChannel(channelId, workspaceId),
-    onStar: (channelId: string, starred: boolean) => starChannel.mutate({ channelId, starred }),
-    onArchive: (channelId: string, archived: boolean) =>
-      archiveChannel.mutate({ channelId, archived, workspaceId }),
-    archivePending: archiveChannel.isPending,
-    unreadByChannel,
-    attentionByChannel,
-    workspaceMuted,
-  };
-
   return (
     <SortableGroup
-      ids={rows.map((c) => c.id)}
+      ids={rows.map(({ row }) => row.id)}
       onReorder={(next) =>
         onReorder(
           "channels",
-          next.flatMap((id) => {
-            const partner = pairFor(byId.get(id)!)?.partner;
-            return partner ? [id, partner.id] : [id];
-          }),
+          unfoldOrder(
+            next,
+            ordered.map((c) => c.id),
+            pairs,
+          ),
         )
       }
     >
-      <SplitDragMonitor split={split} />
-      {rows.map((channel) => (
+      <SplitDragMonitor
+        conversationIdOf={(id) => (rows.some(({ row, pair }) => row.id === id && pair) ? null : id)}
+      />
+      {rows.map(({ row, pair }) => (
         <SortableChannelItem
-          key={channel.id}
-          channel={channel}
-          pair={pairFor(channel)}
-          split={split}
-          workspaceId={workspaceId}
+          key={row.id}
+          channel={row}
+          pair={pair}
+          face={ownFaces.get(row.id)!}
           {...rowProps}
         />
       ))}
@@ -254,25 +260,10 @@ export function WorkspaceChannels({
   );
 }
 
-/** Lets a sortable row drag out of the sidebar onto the stage's right half.
- *  The sort itself stays confined to the list; the drop is the stage's. */
-function SplitDragMonitor({ split }: { split: SidebarSplit | null }): null {
-  useDndMonitor({
-    onDragStart: ({ active }) => {
-      if (split?.canOpen) beginConversationDrag(String(active.id));
-    },
-    onDragEnd: () => {
-      const dropped = endConversationDrag();
-      if (dropped) split?.openInSplit(dropped);
-    },
-    onDragCancel: () => {
-      endConversationDrag();
-    },
-  });
-  return null;
-}
+type ChannelPair = FoldedRow<ChannelNode>["pair"];
 
 interface RowChildProps {
+  workspaceId: string;
   selectedChannelId: string | null;
   onSelect: (id: string) => void;
   onStar: (channelId: string, starred: boolean) => void;
@@ -291,178 +282,120 @@ interface RowChildProps {
 function SortableChannelItem({
   channel,
   pair,
-  split,
-  workspaceId,
-  selectedChannelId,
-  onSelect,
-  onStar,
-  onArchive,
-  archivePending,
-  unreadByChannel,
-  attentionByChannel,
-  workspaceMuted,
-}: {
-  channel: ChannelNode;
-  pair: { pair: SplitPair; partner: ChannelNode } | null;
-  split: SidebarSplit | null;
-  workspaceId: string;
-} & RowChildProps): JSX.Element {
+  face,
+  ...rowProps
+}: { channel: ChannelNode; pair: ChannelPair; face: RowFace } & RowChildProps): JSX.Element {
   const { setNodeRef, transform, transition, isDragging, attributes, listeners } = useSortable({
     id: channel.id,
     animateLayoutChanges,
   });
+  const chrome = useSortableRowChrome({ transform, transition, isDragging });
   return (
-    <li
-      ref={setNodeRef}
-      data-sidebar-sort-dragging={isDragging || undefined}
-      style={sortableItemStyle({ transform, transition, isDragging })}
-      className="touch-manipulation"
-      {...attributes}
-      {...listeners}
-    >
-      <WorkspaceChannelRow
-        channel={channel}
-        selected={channel.id === selectedChannelId}
-        onClick={() => onSelect(channel.id)}
-        onStar={onStar}
-        onArchive={onArchive}
-        archivePending={archivePending}
-        unreadCount={unreadByChannel[channel.id] ?? 0}
-        attention={attentionByChannel.get(channel.id)}
-        workspaceMuted={workspaceMuted}
-        draggable
-        split={split}
-        pair={pair}
-        workspaceId={workspaceId}
-        unreadByChannel={unreadByChannel}
-        attentionByChannel={attentionByChannel}
-      />
+    <li ref={setNodeRef} {...chrome} className="touch-manipulation" {...attributes} {...listeners}>
+      <WorkspaceChannelRow channel={channel} pair={pair} face={face} draggable {...rowProps} />
     </li>
   );
 }
 
 function WorkspaceChannelRow({
   channel,
-  selected,
-  onClick,
-  onStar,
-  onArchive,
-  archivePending,
-  unreadCount,
-  attention,
-  workspaceMuted,
-  draggable,
-  split,
   pair,
+  face,
+  draggable,
   workspaceId,
-  unreadByChannel,
-  attentionByChannel,
+  ...rowProps
+}: {
+  channel: ChannelNode;
+  pair: ChannelPair;
+  face: RowFace;
+  draggable?: boolean;
+} & RowChildProps): JSX.Element {
+  const { selectedChannelId } = rowProps;
+
+  if (pair) {
+    return (
+      <SidebarPairRow
+        pair={pair.pair}
+        workspaceId={workspaceId}
+        draggable={draggable}
+        left={face}
+        right={pair.right}
+        menu={<ChannelMenu channel={channel} selected {...rowProps} />}
+      />
+    );
+  }
+
+  return (
+    <SingleChannelRow
+      channel={channel}
+      selected={channel.id === selectedChannelId}
+      draggable={draggable}
+      {...rowProps}
+    />
+  );
+}
+
+function SingleChannelRow({
+  channel,
+  selected,
+  draggable,
+  ...rowProps
 }: {
   channel: ChannelNode;
   selected: boolean;
-  onClick: () => void;
-  split: SidebarSplit | null;
-  pair: { pair: SplitPair; partner: ChannelNode } | null;
-  workspaceId: string;
-  unreadByChannel: Record<string, number>;
-  attentionByChannel: ReadonlyMap<string, ChannelAttentionModeRowDto>;
-  onStar: (channelId: string, starred: boolean) => void;
-  onArchive: (channelId: string, archived: boolean) => void;
-  archivePending: boolean;
-  unreadCount: number;
-  attention?: ChannelAttentionModeRowDto;
-  workspaceMuted: boolean | undefined;
   draggable?: boolean;
-}): JSX.Element {
-  const isArchived = channel.archived_at !== null;
-
-  const badge = channelNodeBadge(channel, attention, unreadCount);
-
-  const isSilenced = attention?.mode === "mute";
-
-  const select = (event: MouseEvent<HTMLButtonElement>): void => {
-    if (wantsSplit(event, split)) {
-      split!.openInSplit(channel.id);
-      return;
-    }
-    onClick();
-  };
-
-  if (pair && split) {
-    const left = pair.pair.left === channel.id ? channel : pair.partner;
-    const right = pair.pair.left === channel.id ? pair.partner : channel;
-    const half = (c: ChannelNode, side: "left" | "right") => ({
-      glyph: (
-        <ChannelIcon
-          variant="sticker"
-          visibility={c.roster_policy === "open" ? c.visibility : undefined}
-        />
-      ),
-      title: c.title,
-      badge: channelNodeBadge(c, attentionByChannel.get(c.id), unreadByChannel[c.id] ?? 0),
-      onClose: () => split.closeHalf(pair.pair, side),
-    });
-    const active = split.active;
-    const pairRow = (
-      <PairRow
-        selected={active?.left === left.id && active.right === right.id}
-        draggable={draggable}
-        left={half(left, "left")}
-        right={half(right, "right")}
-        onSelect={() => split.openPair(pair.pair, workspaceId)}
-      />
-    );
-    return (
-      <AppContextMenu trigger={pairRow}>
-        <ChannelRowMenuItems
-          channelId={channel.id}
-          title={channel.title}
-          rosterPolicy={channel.roster_policy}
-          isMember={channel.is_member === true}
-          isArchived={isArchived}
-          starred={false}
-          attention={attention}
-          workspaceMuted={workspaceMuted}
-          onStar={() => onStar(channel.id, true)}
-          onArchive={() => onArchive(channel.id, !isArchived)}
-          archivePending={archivePending}
-        />
-      </AppContextMenu>
-    );
-  }
+} & Omit<RowChildProps, "workspaceId">): JSX.Element {
+  const { onSelect, unreadByChannel, attentionByChannel } = rowProps;
+  const splitActions = useRowSplitActions(channel.id, selected);
+  const attention = attentionByChannel.get(channel.id);
 
   const row = (
     <ChannelRow
       selected={selected}
       column="nested"
       draggable={draggable}
-      onSelect={select}
+      onSelect={splitActions.select(() => onSelect(channel.id))}
       channelTitle={channel.title}
       visibility={channel.roster_policy === "open" ? channel.visibility : undefined}
-      muted={isSilenced}
-      badge={badge}
+      muted={attention?.mode === "mute"}
+      badge={channelNodeBadge(channel, attention, unreadByChannel[channel.id] ?? 0)}
     />
   );
 
   return (
     <AppContextMenu trigger={row}>
-      <ChannelRowMenuItems
-        channelId={channel.id}
-        title={channel.title}
-        rosterPolicy={channel.roster_policy}
-        isMember={channel.is_member === true}
-        isArchived={isArchived}
-        starred={false}
-        attention={attention}
-        workspaceMuted={workspaceMuted}
-        onStar={() => onStar(channel.id, true)}
-        onArchive={() => onArchive(channel.id, !isArchived)}
-        archivePending={archivePending}
-        onOpenInSplit={
-          split?.canOpen && !selected ? () => split.openInSplit(channel.id) : undefined
-        }
-      />
+      {splitActions.menuItem}
+      <ChannelMenu channel={channel} selected={selected} {...rowProps} />
     </AppContextMenu>
+  );
+}
+
+function ChannelMenu({
+  channel,
+  attentionByChannel,
+  workspaceMuted,
+  onStar,
+  onArchive,
+  archivePending,
+}: {
+  channel: ChannelNode;
+  selected: boolean;
+} & Omit<RowChildProps, "workspaceId">): JSX.Element {
+  const isArchived = channel.archived_at !== null;
+  return (
+    <ChannelRowMenuItems
+      channelId={channel.id}
+      title={channel.title}
+      rosterPolicy={channel.roster_policy}
+      isMember={channel.is_member === true}
+      isArchived={isArchived}
+      starred={false}
+      attention={attentionByChannel.get(channel.id)}
+      workspaceMuted={workspaceMuted}
+      onStar={() => onStar(channel.id, true)}
+      onArchive={() => onArchive(channel.id, !isArchived)}
+      archivePending={archivePending}
+    />
   );
 }
 

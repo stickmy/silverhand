@@ -89,7 +89,7 @@ export function ChatBrowseSidebar({
   );
 
   const openInSplitStable = useEventCallback(openInSplit);
-  const openPairStable = useEventCallback((pair: SplitPair, workspaceId: string) =>
+  const openPairStable = useEventCallback((pair: SplitPair, workspaceId: string | null) =>
     openPair(workspaceId, pair.left, pair.right),
   );
   const closeHalf = useEventCallback((pair: SplitPair, half: "left" | "right") => {
@@ -112,11 +112,21 @@ export function ChatBrowseSidebar({
             pairs,
             active,
             canOpen,
+            openId: model.route.channelId,
             openInSplit: openInSplitStable,
             openPair: openPairStable,
             closeHalf,
           },
-    [compact, pairs, active, canOpen, openInSplitStable, openPairStable, closeHalf],
+    [
+      compact,
+      pairs,
+      active,
+      canOpen,
+      model.route.channelId,
+      openInSplitStable,
+      openPairStable,
+      closeHalf,
+    ],
   );
 
   return (

@@ -562,16 +562,14 @@ describe("the pane gates its roster reads on the capability (the wiring half)", 
     expect(appSource.slice(open, close)).toContain("<ThreadPanel");
   });
 
-  it("inherits from the descriptor the primary pane renders, not a re-guess", () => {
+  it("inherits from the column's own descriptor, not a re-guess", () => {
     // Acceptance #3: no `workspaceId === null`, no route sniffing, no local
-    // boolean. The capability is projected from `primaryPaneDescriptor` — the same
-    // object passed to `ChannelView` as `conversation` — so the two panes read one
-    // source of truth for the placement.
+    // boolean. Each column projects its capabilities from the descriptor it
+    // resolved, and the split column's view renders that same descriptor.
     const appSource =
-      read("../conversation-shell/secondary-pane-content.tsx") +
-      read("../conversation-shell/build-conversation-panes.ts") +
-      read("../conversation-shell/use-conversation-read-model.ts");
-    expect(appSource).toContain("inheritedPaneCapabilities(primaryPaneDescriptor)");
-    expect(appSource).toContain("conversation: read.primaryPaneDescriptor");
+      read("../conversation-shell/conversation-column.ts") +
+      read("../conversation-shell/build-conversation-panes.ts");
+    expect(appSource).toContain("inheritedPaneCapabilities(descriptor)");
+    expect(appSource).toContain("conversation: split.descriptor");
   });
 });

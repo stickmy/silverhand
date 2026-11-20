@@ -10,6 +10,7 @@ import type {
   PaneContentCommands,
 } from "./pane-content-inputs";
 import type { SecondaryPaneModel } from "./pane-render-models";
+import type { ConversationColumn } from "./conversation-column";
 import { buildConversationPanes, resolveSecondaryPane } from "./build-conversation-panes";
 
 const openConversationTab = vi.hoisted(() => vi.fn());
@@ -43,20 +44,17 @@ beforeEach(() => {
     humanPanelId: null,
     attachmentPanelId: null,
   };
+  const primary = column("c", "w");
   read = {
     workspaceNameById: (id) => id,
-    directPair: null,
     directPairLoadFailed: false,
     directPairNotFound: false,
-    selectedChannel: null,
-    parentMembership: { membership: "unknown", gate: channelGateFor("unknown") },
     parentChannelResolving: false,
     conversationRefsById: new Map(),
-    selectedChannelDescriptor: null,
     primaryPaneDescriptor: null,
-    primaryPaneCapabilities: inheritedPaneCapabilities(null),
-    primaryPaneHasChannelNamespace: false,
-    primaryThreadComposerDirectory: { kind: "withheld" },
+    primary,
+    split: null,
+    paneOwner: primary,
   };
   state = {
     secondaryDescriptor: null,
@@ -76,6 +74,8 @@ beforeEach(() => {
     threadJumpMessageId: null,
     parentJumpPrimePending: false,
     threadJumpPhase: null,
+    splitJumpTarget: null,
+    splitJumpPrimePending: false,
   };
   commands = {
     departPrimaryPane: vi.fn(),
@@ -109,6 +109,33 @@ beforeEach(() => {
     openThread: vi.fn(),
   };
 });
+
+/** A column showing `id`, not yet resolved, with unknown membership. */
+function column(id: string, workspaceId: string | null): ConversationColumn {
+  return {
+    column: "primary",
+    id,
+    descriptor: null,
+    status: "loading",
+    workspaceId,
+    paneTitle: null,
+    membership: { membership: "unknown", gate: channelGateFor("unknown") },
+    hasChannelNamespace: workspaceId !== null,
+    capabilities: inheritedPaneCapabilities(null),
+    threadComposerDirectory: { kind: "withheld" },
+    pair: null,
+  };
+}
+
+/** Make the pane-owning column a member showing `descriptor`. */
+function ownerShows(d: ConversationPaneDescriptor, membership: "member" | "nonmember") {
+  read.paneOwner = {
+    ...read.paneOwner!,
+    id: d.id,
+    descriptor: d,
+    membership: { membership, gate: channelGateFor(membership) },
+  };
+}
 
 const secondary = () => resolveSecondaryPane(route, read, state, commands);
 function resolveSide() {
@@ -263,10 +290,9 @@ describe("branch-specific data and commands", () => {
     expect(commands.closeFilesList).toHaveBeenCalledTimes(1);
     expect(model.preview.onExpand).toBeUndefined();
   });
-  it("expands into the primary pane's tab only while it shows the issuing conversation as a member", () => {
+  it("expands into the owning column's tab only while the viewer is a member there", () => {
     route.attachmentPanelId = "a";
-    read.primaryPaneDescriptor = { ...descriptor, id: "c", workspace_id: "w" };
-    read.parentMembership = { membership: "member", gate: channelGateFor("member") };
+    ownerShows({ ...descriptor, id: "c", workspace_id: "w" }, "member");
     const model = secondary();
     if (model.kind !== "attachment" || !model.props.onExpand) {
       throw new Error("Expected expandable attachment");
@@ -279,13 +305,9 @@ describe("branch-specific data and commands", () => {
       contentType: "text/markdown",
     });
     expect(commands.closeAttachmentPanel).toHaveBeenCalledTimes(1);
-    read.parentMembership = { membership: "nonmember", gate: channelGateFor("nonmember") };
+    ownerShows({ ...descriptor, id: "c", workspace_id: "w" }, "nonmember");
     const browsing = secondary();
     expect(browsing.kind === "attachment" && browsing.props.onExpand).toBeFalsy();
-    read.parentMembership = { membership: "member", gate: channelGateFor("member") };
-    read.primaryPaneDescriptor = { ...descriptor, id: "elsewhere", workspace_id: "w" };
-    const elsewhere = secondary();
-    expect(elsewhere.kind === "attachment" && elsewhere.props.onExpand).toBeFalsy();
   });
   it("shows a standalone attachment preview that closes only itself", () => {
     route.attachmentPanelId = "a";
@@ -302,6 +324,7 @@ describe("branch-specific data and commands", () => {
   it("keeps DM thread coordinates, inherited permissions and prime-before-close ordering", () => {
     route.workspaceId = null;
     route.channelId = "dm";
+    read.paneOwner = column("dm", null);
     route.threadRootId = "root";
     state.threadJumpMessageId = "reply";
     state.threadJumpPhase = "committed";
@@ -309,9 +332,9 @@ describe("branch-specific data and commands", () => {
     if (model.kind !== "thread") {
       throw new Error("Expected thread");
     }
-    expect(model.capabilities).toBe(read.primaryPaneCapabilities);
-    expect(model.props.gate).toBe(read.parentMembership.gate);
-    expect(model.props.directory).toBe(read.primaryThreadComposerDirectory);
+    expect(model.capabilities).toBe(read.paneOwner!.capabilities);
+    expect(model.props.gate).toBe(read.paneOwner!.membership.gate);
+    expect(model.props.directory).toBe(read.paneOwner!.threadComposerDirectory);
     expect(model.props).toMatchObject({
       channelId: "dm",
       workspaceId: null,
@@ -403,4 +426,59 @@ it("binds settings to the explicit channel and clears them on ordinary navigatio
   route.channelSettingsId = null;
   route.threadRootId = null;
   expect(secondary()).toEqual({ kind: "none" });
+});
+
+describe("split view columns", () => {
+  const splitDescriptor = { ...descriptor, id: "s", workspace_id: "w2", title: "Second" };
+  beforeEach(() => {
+    read.primaryPaneDescriptor = { ...descriptor, id: "c", workspace_id: "w" };
+    read.split = {
+      ...column("s", "w2"),
+      column: "split",
+      descriptor: splitDescriptor,
+      status: "resolved",
+      paneTitle: "Second",
+    };
+  });
+
+  it("gives both columns a close button and opens each column's panes in that column", () => {
+    const model = buildConversationPanes(route, read, state, commands);
+    if (model.primary.kind !== "conversation" || model.split?.kind !== "conversation") {
+      throw new Error("Expected two columns");
+    }
+    model.split.props.onOpenThread?.("root");
+    expect(commands.handleOpenThreadFromChannel).toHaveBeenCalledWith("root", undefined, "split");
+    model.split.props.onOpenAttachmentPanel?.("a");
+    expect(commands.openAttachmentPanel).toHaveBeenCalledWith("a", false, "split");
+    model.primary.props.onCloseChild?.();
+    model.split.props.onCloseChild?.();
+    expect(vi.mocked(commands.closeColumn).mock.calls).toEqual([["primary"], ["split"]]);
+  });
+
+  it("marks the open index pane active only on the column that owns it", () => {
+    state.threadsListMounted = true;
+    read.paneOwner = read.split;
+    const model = buildConversationPanes(route, read, state, commands);
+    if (model.primary.kind !== "conversation" || model.split?.kind !== "conversation") {
+      throw new Error("Expected two columns");
+    }
+    expect(model.primary.props.threadsListActive).toBe(false);
+    expect(model.split.props.threadsListActive).toBe(true);
+  });
+
+  it("resolves the right pane against the owning column", () => {
+    route.threadRootId = "root";
+    read.paneOwner = read.split;
+    const model = secondary();
+    if (model.kind !== "thread") {
+      throw new Error("Expected thread");
+    }
+    expect(model.props).toMatchObject({ channelId: "s", workspaceId: "w2", parentTitle: "Second" });
+  });
+
+  it("shows a placeholder for a second column that has not resolved", () => {
+    read.split = { ...read.split!, descriptor: null, status: "not_found" };
+    const model = buildConversationPanes(route, read, state, commands).split;
+    expect(model).toMatchObject({ kind: "unresolved", props: { status: "not_found" } });
+  });
 });

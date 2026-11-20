@@ -1,52 +1,28 @@
 import type { WorkspaceChannelReference } from "@/features/messages/components/conversation-ref";
 import type { JumpPhase } from "@/features/channels/message-jump-phase";
-import type { ResolvedChannelMembership } from "@/features/channels/use-channel-membership";
 import type { MessageJumpTarget } from "@/features/channels/use-message-jump-controller";
 import type { ConversationPaneDescriptor } from "@/features/conversations/pane-descriptor";
-import type {
-  ComposerDirectory,
-  ConversationPaneCapabilities,
-} from "@/features/conversations/pane-mode";
-import type { DirectPairPaneProps } from "@/features/direct-pairs/hooks";
 import type { AdvancedSearchSeed } from "@/features/search/advanced-search-seed";
-import type { ChannelListItem } from "@/features/workspaces/hooks";
 import type {
   SecondaryDescriptor,
   SecondaryViewInputs,
 } from "@/features/conversation-shell/model/secondary-pane";
 import type { PaneColumn, RouteState } from "@/router";
-import type { ConversationIdentityStatus } from "@/features/conversations/conversation-identity";
-import type { DirectPairListItem } from "@silverhand/shared";
-
-/** The second column of a split view, resolved. */
-export interface SplitColumnRead {
-  id: string | null;
-  status: ConversationIdentityStatus | null;
-  descriptor: ConversationPaneDescriptor | null;
-  pair: DirectPairListItem | null;
-  membership: ResolvedChannelMembership;
-  hasChannelNamespace: boolean;
-  capabilities: ConversationPaneCapabilities;
-  threadComposerDirectory: ComposerDirectory;
-}
+import type { ConversationColumn } from "./conversation-column";
 
 export interface PaneContentRead {
   workspaceNameById: (wid: string | null) => string | null;
-  directPair: DirectPairPaneProps["pair"];
   directPairLoadFailed: boolean;
   directPairNotFound: boolean;
-  selectedChannel: ChannelListItem | null;
-  parentMembership: ResolvedChannelMembership;
   parentChannelResolving: boolean;
   conversationRefsById: Map<string, WorkspaceChannelReference>;
-  selectedChannelDescriptor: ConversationPaneDescriptor | null;
+  /** What the first column's own view shows: deferred across a channel switch
+   *  so the previous channel stays until the next one is ready. */
   primaryPaneDescriptor: ConversationPaneDescriptor | null;
-  primaryPaneCapabilities: ConversationPaneCapabilities;
-  primaryPaneHasChannelNamespace: boolean;
-  primaryThreadComposerDirectory: ComposerDirectory;
-  split?: SplitColumnRead;
-  /** The column the channel-scoped right panes belong to. */
-  paneContext?: { column: PaneColumn };
+  primary: ConversationColumn | null;
+  split: ConversationColumn | null;
+  /** The column the right panes resolve against. */
+  paneOwner: ConversationColumn | null;
 }
 
 export interface PaneContentState {
@@ -63,8 +39,8 @@ export interface PaneContentState {
   threadJumpMessageId: string | null;
   parentJumpPrimePending: boolean;
   threadJumpPhase: JumpPhase | null;
-  splitJumpTarget?: { channelId: string; messageId: string } | null;
-  splitJumpPrimePending?: boolean;
+  splitJumpTarget: { channelId: string; messageId: string } | null;
+  splitJumpPrimePending: boolean;
 }
 
 export interface PaneContentCommands {

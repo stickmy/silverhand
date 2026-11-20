@@ -1,4 +1,5 @@
 import { hasCollapsibleSidebar } from "@/components/layout/sidebar-slot";
+import { paneUrl } from "@/navigation/pane-query";
 import { useCompactLayout } from "@/navigation/layout";
 import { buildConversationPanes } from "./build-conversation-panes";
 import { senderFilterToParam } from "@/features/search/sender-filter-select";
@@ -13,14 +14,7 @@ import type { AdvancedSearchSeed } from "@/features/search/advanced-search-seed"
 import { useLayoutSettings } from "@/features/conversation-shell/use-layout-settings";
 import { resolveChannelOpen } from "@/features/conversation-shell/model/channel-open";
 import { getChannelLayout, getCloseWatermark } from "@/features/app-shell/place-memory";
-import {
-  buildChannelLayoutUrl,
-  buildChannelPathPreservingAgent,
-  buildSplitUrl,
-  routes,
-  useNav,
-  useRouteState,
-} from "@/router";
+import { buildChannelLayoutUrl, channelUrlKeeping, routes, useNav, useRouteState } from "@/router";
 import { useCallback, useDeferredValue, useEffect, useMemo } from "react";
 import { recordSplitPair } from "./split-pairs";
 import type { ConversationShellModel, ConversationShellSignals } from "./conversation-shell-models";
@@ -135,7 +129,7 @@ export function useConversationShell({
   // A split view on screen is a pair the sidebar keeps until the viewer closes
   // a column. Recorded once the second column resolves, so a dead id never
   // lands in the sidebar.
-  const splitResolvedId = read.split.descriptor ? read.split.id : null;
+  const splitResolvedId = read.split?.descriptor ? read.split.id : null;
   useEffect(() => {
     if (appSection !== "chat" || !selectedChannelId || !splitResolvedId) return;
     recordSplitPair({ left: selectedChannelId, right: splitResolvedId });
@@ -147,8 +141,9 @@ export function useConversationShell({
       : null;
 
   /** Reopen a sidebar pair: its first conversation with the second beside it. */
-  const openPair = (workspaceId: string, left: string, right: string): void => {
-    nav.go(buildSplitUrl(routes.chatChannel(workspaceId, left), right));
+  const openPair = (workspaceId: string | null, left: string, right: string): void => {
+    const path = workspaceId ? routes.chatChannel(workspaceId, left) : routes.chatDirect(left);
+    nav.go(paneUrl(path, { split: right }));
   };
 
   const openInSplit = (conversationId: string): void => {
@@ -205,7 +200,7 @@ export function useConversationShell({
     // same-workspace: a cross-workspace open switches workspace anyway and the
     // docked agent panel can't follow it.
     if (sameWorkspace && agentPanelId) {
-      nav.go(buildChannelPathPreservingAgent(workspaceId, id, agentPanelId));
+      nav.go(channelUrlKeeping(workspaceId, id, { agent: agentPanelId }));
       return;
     }
     // Pane visibility effects advance read cursors. Keeping
@@ -238,7 +233,7 @@ export function useConversationShell({
       // stays consistent: clicking a channel ref re-points the panel's Activity
       // context instead of closing it (#task:1189).
       if (agentPanelId) {
-        nav.go(buildChannelPathPreservingAgent(workspaceId, channelId, agentPanelId));
+        nav.go(channelUrlKeeping(workspaceId, channelId, { agent: agentPanelId }));
         return;
       }
       nav.toChannel(workspaceId, channelId);

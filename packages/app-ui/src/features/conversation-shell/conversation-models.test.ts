@@ -1,28 +1,17 @@
+import { channelGateFor } from "@/features/channels/membership";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DirectPairListItem } from "@silverhand/shared";
 import type { ChannelListItem, WorkspaceListItem } from "@/features/workspaces/hooks";
 import type { ConversationIdentityResolution } from "@/features/conversations/conversation-identity";
 import type { PaneJumpModel, PaneReadModel } from "./conversation-shell-models";
+import type { RouteState } from "@/router";
+import { makeRouteState } from "@/test-support/route-state";
 
 const h = vi.hoisted(() => ({
   compact: false,
   leaveGuard: undefined as (() => boolean) | undefined,
-  route: {
-    section: "chat",
-    chatView: "channel",
-    workspaceId: "w" as string | null,
-    channelId: "c" as string | null,
-    directConversationId: null as string | null,
-    sideConversationId: null as string | null,
-    fullscreen: false,
-    filesListOpen: false,
-    threadsListOpen: false,
-    taskDetailId: null as string | null,
-    threadRootId: null as string | null,
-    humanPanelId: null as string | null,
-    agentPanelId: null as string | null,
-    channelSettingsId: null as string | null,
-  },
+  route: {} as RouteState,
+
   workspaces: [] as WorkspaceListItem[],
   active: [] as ChannelListItem[],
   archived: [] as ChannelListItem[],
@@ -187,12 +176,22 @@ const jump: PaneJumpModel = {
   primePhaseFor: () => null,
   handleJumpToMessage: vi.fn(() => true),
 };
+/** A first column showing `c` that owns the right panes. */
+function ownedBy(membership: "member" | "unknown") {
+  const primary = {
+    column: "primary" as const,
+    id: "c",
+    descriptor: null,
+    membership: { membership, gate: channelGateFor(membership) },
+  };
+  return { primary, split: null, paneOwner: primary };
+}
 function render(
   read: PaneReadModel = {
     primaryPointer: { id: "c", rosterPolicy: "open" },
-    parentChannelMembership: "member",
     hasChannelNamespace: true,
     deferredChannelId: "c",
+    ...ownedBy("member"),
   },
   nextJump = jump,
 ) {
@@ -204,24 +203,7 @@ function render(
 beforeEach(() => {
   h.compact = false;
   vi.clearAllMocks();
-  Object.assign(h.route, {
-    section: "chat",
-    workspaceId: "w",
-    channelId: "c",
-    directConversationId: null,
-    sideConversationId: null,
-    splitConversationId: null,
-    paneColumn: "primary",
-    fullscreen: false,
-    filesListOpen: false,
-    threadsListOpen: false,
-    taskDetailId: null,
-    threadRootId: null,
-    humanPanelId: null,
-    agentPanelId: null,
-    channelSettingsId: null,
-    chatView: "channel",
-  });
+  Object.assign(h.route, makeRouteState("/chat/w/w/c/c"));
   h.workspaces = [
     {
       id: "w",
@@ -272,8 +254,8 @@ describe("conversation authority read model", () => {
     const model = useConversationReadModel();
     expect(model.primaryPointer).toEqual({ id: "dm", rosterPolicy: "fixed" });
     expect(model.primaryPaneDescriptor?.workspace_id).toBeNull();
-    expect(model.primaryPaneHasChannelNamespace).toBe(false);
-    expect(model.primaryThreadComposerDirectory.kind).toBe("viewer");
+    expect(model.primary?.hasChannelNamespace).toBe(false);
+    expect(model.primary?.threadComposerDirectory.kind).toBe("viewer");
     expect(model.parentMembership.gate).toEqual({
       allowMutations: false,
       allowMemberEffects: true,
@@ -367,9 +349,9 @@ describe("conversation pane coordination", () => {
     h.route.taskDetailId = "task";
     const model = render({
       primaryPointer: null,
-      parentChannelMembership: "unknown",
       hasChannelNamespace: false,
       deferredChannelId: "c",
+      ...ownedBy("unknown"),
     });
     expect(model.filesListMounted).toBe(false);
     expect(model.threadsListMounted).toBe(false);

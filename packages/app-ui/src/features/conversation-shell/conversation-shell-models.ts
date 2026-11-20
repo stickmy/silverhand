@@ -1,6 +1,5 @@
 import type { DirectMessageTarget } from "@/features/direct-pairs/target";
 import type { AppSection } from "@/components/layout/nav-rail";
-import type { MembershipState } from "@/features/channels/membership";
 import type { JumpPhase } from "@/features/channels/message-jump-phase";
 import type { MessageJumpTarget } from "@/features/channels/use-message-jump-controller";
 import type { UnreadCounts } from "@/features/attention/notifications";
@@ -13,6 +12,7 @@ import type {
 import type { ChatView, PaneColumn, RouteState, useNav } from "@/router";
 import type { AgentDto, AttentionBadgeRollupDto, SavedMessageDto } from "@silverhand/shared";
 import type { ConversationPanesModel } from "./pane-render-models";
+import type { ConversationColumn } from "./conversation-column";
 
 export interface ConversationShellSignals {
   attentionBadges: AttentionBadgeRollupDto | undefined;
@@ -21,22 +21,21 @@ export interface ConversationShellSignals {
 
 export interface PaneReadModel {
   primaryPointer: ConversationPointer | null;
-  parentChannelMembership: MembershipState;
   hasChannelNamespace: boolean;
   deferredChannelId: string | null;
-  /** The second column of a split view, once resolved. */
-  split?: {
-    id: string | null;
-    descriptor: { id: string; roster_policy: "open" | "fixed"; workspace_id: string | null } | null;
-  };
-  /** The column owning the channel-scoped right panes, with its coordinates. */
-  paneContext?: {
-    column: PaneColumn;
-    channelId: string | null;
-    workspaceId: string | null;
-    membership: MembershipState;
-  };
+  /** The first column; null with no conversation open. */
+  primary: ConversationColumnFacts | null;
+  /** The second column of a split view. */
+  split: ConversationColumnFacts | null;
+  /** The column the right panes (thread, threads, files, attachment) belong to. */
+  paneOwner: ConversationColumnFacts | null;
 }
+
+/** The slice of a {@link ConversationColumn} the pane coordinator reads. */
+export type ConversationColumnFacts = Pick<
+  ConversationColumn,
+  "column" | "id" | "descriptor" | "membership"
+>;
 
 export interface PaneJumpModel {
   jumpTarget: MessageJumpTarget | null;
@@ -72,7 +71,9 @@ export interface ChatShellModel {
   /** Open `conversationId` in the second column beside the current one. */
   openInSplit: (conversationId: string) => void;
   /** Reopen a pair kept in the sidebar. */
-  openPair: (workspaceId: string, left: string, right: string) => void;
+  /** Reopen a kept pair; `workspaceId` is the left conversation's, null for a
+   *  direct pair. */
+  openPair: (workspaceId: string | null, left: string, right: string) => void;
   /** Close one column of the split view on screen. */
   closeSplitColumn: (column: PaneColumn) => void;
 }
