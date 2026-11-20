@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { decodeMessageSeq } from "@silverhand/shared";
 import type { MessageUnreadPointerDto } from "@silverhand/shared";
-import type { ChannelLayout } from "@/router";
+import type { Panes } from "@/navigation/panes";
 import { resolveRestoreNavigation, type RestoreNavigationInputs } from "./restore-navigation";
 
 function pointer(
@@ -28,7 +28,7 @@ function inputs(overrides: Partial<RestoreNavigationInputs> = {}): RestoreNaviga
     rememberedChannelId: null,
     rememberedUnreadPointer: undefined,
     rememberedCloseWatermark: null,
-    rememberedLayout: null,
+    rememberedPanes: null,
     ...overrides,
   };
 }
@@ -77,7 +77,7 @@ describe("resolveRestoreNavigation — honored jump wins", () => {
   it("a jump target that no longer exists is ignored (falls through)", () => {
     expect(
       resolveRestoreNavigation(inputs({ jumpTargetChannelId: "gone", rememberedChannelId: "c-2" })),
-    ).toEqual({ kind: "open-remembered", channelId: "c-2", layout: null });
+    ).toEqual({ kind: "open-remembered", channelId: "c-2", panes: null });
   });
 
   it("an EXPLICIT jump may still land on an archived channel (#task:1413)", () => {
@@ -97,20 +97,20 @@ describe("resolveRestoreNavigation — honored jump wins", () => {
 });
 
 describe("resolveRestoreNavigation — remembered channel", () => {
-  const layout: ChannelLayout = { kind: "threads-list" };
+  const panes: Panes = [{ kind: "threads", of: "c-2", thread: null }];
 
-  it("restores the remembered layout when no fresh unread", () => {
+  it("restores the remembered panes when no fresh unread", () => {
     expect(
-      resolveRestoreNavigation(inputs({ rememberedChannelId: "c-2", rememberedLayout: layout })),
-    ).toEqual({ kind: "open-remembered", channelId: "c-2", layout });
+      resolveRestoreNavigation(inputs({ rememberedChannelId: "c-2", rememberedPanes: panes })),
+    ).toEqual({ kind: "open-remembered", channelId: "c-2", panes });
   });
 
-  it("surfaces a fresh unread thread over the remembered layout", () => {
+  it("surfaces a fresh unread thread over the remembered panes", () => {
     expect(
       resolveRestoreNavigation(
         inputs({
           rememberedChannelId: "c-2",
-          rememberedLayout: layout,
+          rememberedPanes: panes,
           rememberedUnreadPointer: pointer({ seq: 101 }),
           rememberedCloseWatermark: decodeMessageSeq(100),
         }),
@@ -123,17 +123,17 @@ describe("resolveRestoreNavigation — remembered channel", () => {
     });
   });
 
-  it("a just-closed unread (seq at watermark) degrades to layout memory", () => {
+  it("a just-closed unread (seq at watermark) degrades to pane memory", () => {
     expect(
       resolveRestoreNavigation(
         inputs({
           rememberedChannelId: "c-2",
-          rememberedLayout: layout,
+          rememberedPanes: panes,
           rememberedUnreadPointer: pointer({ seq: 100 }),
           rememberedCloseWatermark: decodeMessageSeq(100),
         }),
       ),
-    ).toEqual({ kind: "open-remembered", channelId: "c-2", layout });
+    ).toEqual({ kind: "open-remembered", channelId: "c-2", panes });
   });
 
   it("skips the remembered channel when it is the just-archived primary", () => {
@@ -174,7 +174,7 @@ describe("resolveRestoreNavigation — remembered channel", () => {
           rememberedChannelId: "c-arch",
           allChannels: [{ id: "c-1" }, { id: "c-arch" }],
           activeTopLevel: [{ id: "c-1" }],
-          rememberedLayout: layout,
+          rememberedPanes: panes,
           rememberedUnreadPointer: pointer({ conversation_id: "c-arch", seq: 101 }),
           rememberedCloseWatermark: decodeMessageSeq(100),
         }),

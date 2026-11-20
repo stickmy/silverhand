@@ -134,15 +134,14 @@ export function isMemberChannel(carrier: MembershipCarrier): boolean {
 }
 
 /**
- * Whether a member-only aggregate side panel (channel Attachments `?files=1`,
- * Threads-list `?threads=1`) may MOUNT for a viewer with this membership. The
- * route flag alone is not a mount guard: a non-member can hand-write / restore
- * the query flag, or a member's status can be revoked while the pane is open.
+ * Whether a member-only aggregate pane (a channel's Files or Threads list) may
+ * MOUNT for a viewer with this membership. The URL alone is not a mount guard:
+ * a non-member can hand-write / restore the pane, or a member's status can be revoked while the pane is open.
  * The pane fires member-only readers, so it mounts ONLY for a resolved
- * `member` — `nonmember` and `unknown` both fail closed even when the flag is
- * set. (The single `?thread=` pane and inline attachment preview are NOT gated
+ * `member` — `nonmember` and `unknown` both fail closed even when the pane is
+ * in the URL. (A single thread and inline attachment preview are NOT gated
  * this way — reading an existing thread is allowed for a non-member.) Pure so
- * the secondary-view owner's gate is unit-testable without rendering App.
+ * the pane owner's gate is unit-testable without rendering App.
  */
 export function mountsMemberOnlyPanel(flagOpen: boolean, state: MembershipState): boolean {
   return flagOpen && state === "member";

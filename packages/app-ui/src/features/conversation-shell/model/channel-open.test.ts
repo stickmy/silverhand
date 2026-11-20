@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { resolveChannelOpen } from "./channel-open";
 import type { MessageUnreadPointerDto } from "@silverhand/shared";
 import { decodeMessageSeq } from "@silverhand/shared";
-import type { ChannelLayout } from "@/router";
+import type { Panes } from "@/navigation/panes";
 
 function pointer(
   overrides: Partial<Omit<MessageUnreadPointerDto, "seq">> & { seq?: number } = {},
@@ -17,11 +17,11 @@ function pointer(
   };
 }
 
-describe("resolveChannelOpen — unread-target > layout-memory > main stream", () => {
-  const layout: ChannelLayout = { kind: "threads-list" };
+describe("resolveChannelOpen — unread-target > pane memory > main stream", () => {
+  const panes: Panes = [{ kind: "threads", of: "c-1", thread: null }];
 
   it("surfaces the unread thread when the pointer targets a thread and no watermark", () => {
-    expect(resolveChannelOpen(pointer(), null, layout)).toEqual({
+    expect(resolveChannelOpen(pointer(), null, panes)).toEqual({
       kind: "unread-thread",
       threadRootId: "root-1",
       messageId: "m-1",
@@ -29,45 +29,45 @@ describe("resolveChannelOpen — unread-target > layout-memory > main stream", (
   });
 
   it("surfaces the unread thread when the pointer seq is newer than the watermark", () => {
-    expect(resolveChannelOpen(pointer({ seq: 101 }), decodeMessageSeq(100), layout)).toEqual({
+    expect(resolveChannelOpen(pointer({ seq: 101 }), decodeMessageSeq(100), panes)).toEqual({
       kind: "unread-thread",
       threadRootId: "root-1",
       messageId: "m-1",
     });
   });
 
-  it("falls back to layout memory when the pointer seq is at the watermark (just-closed batch)", () => {
-    expect(resolveChannelOpen(pointer({ seq: 100 }), decodeMessageSeq(100), layout)).toEqual({
-      kind: "layout",
-      layout,
+  it("falls back to pane memory when the pointer seq is at the watermark (just-closed batch)", () => {
+    expect(resolveChannelOpen(pointer({ seq: 100 }), decodeMessageSeq(100), panes)).toEqual({
+      kind: "panes",
+      panes,
     });
   });
 
-  it("falls back to layout memory when the pointer seq is below the watermark", () => {
-    expect(resolveChannelOpen(pointer({ seq: 50 }), decodeMessageSeq(100), layout)).toEqual({
-      kind: "layout",
-      layout,
+  it("falls back to pane memory when the pointer seq is below the watermark", () => {
+    expect(resolveChannelOpen(pointer({ seq: 50 }), decodeMessageSeq(100), panes)).toEqual({
+      kind: "panes",
+      panes,
     });
   });
 
-  it("falls back to layout memory for a main-line unread (no thread_root_id)", () => {
-    expect(resolveChannelOpen(pointer({ thread_root_id: null }), null, layout)).toEqual({
-      kind: "layout",
-      layout,
+  it("falls back to pane memory for a main-line unread (no thread_root_id)", () => {
+    expect(resolveChannelOpen(pointer({ thread_root_id: null }), null, panes)).toEqual({
+      kind: "panes",
+      panes,
     });
   });
 
-  it("falls back to layout memory when there is no unread pointer", () => {
-    expect(resolveChannelOpen(undefined, null, layout)).toEqual({
-      kind: "layout",
-      layout,
+  it("falls back to pane memory when there is no unread pointer", () => {
+    expect(resolveChannelOpen(undefined, null, panes)).toEqual({
+      kind: "panes",
+      panes,
     });
   });
 
-  it("passes through a null layout (main stream) when nothing else applies", () => {
+  it("passes through null panes (main stream) when nothing else applies", () => {
     expect(resolveChannelOpen(undefined, null, null)).toEqual({
-      kind: "layout",
-      layout: null,
+      kind: "panes",
+      panes: null,
     });
   });
 });

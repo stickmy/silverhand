@@ -8,9 +8,7 @@ interface VerticalSplitterProps {
 /**
  * Declarative wrapper over {@link SplitterTrack} for the resize seams whose
  * parents re-render on drag (sidebar↔conversation, activity-list↔channel): the
- * `active` boolean flows straight through to the track's active paint. The
- * imperative sibling — `SplitPane` — instead drives the same track by ref +
- * `data-active` so its rAF drag never triggers a re-render. Paint, geometry and
+ * `active` boolean flows straight through to the track's active paint. Paint, geometry and
  * a11y all live in `SplitterTrack`; this stays a 3-call-site convenience so those
  * sites don't repeat the prop-to-`active` plumbing.
  */

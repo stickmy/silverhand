@@ -429,7 +429,7 @@ final class NetworkAcceptanceTests: XCTestCase {
         "window.threadRowId = Array.from(document.querySelectorAll('button[aria-label=\"Thread\"]')).find(b => { const row = b.closest('[data-message-row]').getBoundingClientRect(); const viewport = document.querySelector('[data-message-scroller]').getBoundingClientRect(); return row.top >= viewport.top && row.bottom <= viewport.bottom; }).closest('[data-message-row]').id; document.getElementById(window.threadRowId).querySelector('button[aria-label=\"Thread\"]').click()"
       )
       try await waitFor(
-        "location.hash.includes('thread=') && document.querySelectorAll('textarea').length === 1")
+        "location.hash.includes('pane=threads.') && document.querySelectorAll('textarea').length === 1")
       let threadDraft =
         try await view.evaluateJavaScript("document.querySelector('textarea').value") as? String
       XCTAssertEqual(threadDraft, "", "A thread must not inherit its parent's unsent draft")

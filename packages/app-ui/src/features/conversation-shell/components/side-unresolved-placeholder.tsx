@@ -1,3 +1,4 @@
+import { PaneGrip } from "@/components/layout/side-panel-header";
 import { MessageRowsSkeleton } from "./conversation-view-skeleton";
 import { CloseIcon } from "@/icons";
 import { paneChrome } from "../../../components/layout/pane-chrome";
@@ -6,18 +7,13 @@ import { t } from "@/lib/i18n";
 export type SidePlaceholderStatus = "loading" | "unauthorized" | "not_found" | "unresolved";
 
 interface SidePlaceholderProps {
-  /** The conversation id that came in via `?side=<id>`. Shown verbatim
-   *  (truncated) so the user can correlate the reference with whatever
-   *  they clicked. */
+  /** The conversation pane's id. Shown verbatim (truncated) so the user can
+   *  correlate the reference with whatever they clicked. */
   conversationId: string;
-  /** PR-2: distinguishes the non-resolved states surfaced by the
-   *  identity resolution. The render branches per status to give the
-   *  user actionable feedback rather than the original PR-1 single
-   *  "unresolved" message. */
+  /** Which non-resolved state the identity resolution reached; each gets its
+   *  own copy so the user knows what to do. */
   status: SidePlaceholderStatus;
-  /** Dispatched close handler — same one the resolved secondary pane
-   *  uses, so the X button behaves identically (clears `?side` and any
-   *  paired `?fullscreen` from the URL). */
+  /** The same close the resolved pane uses, so the X behaves identically. */
   onClose: () => void;
 }
 
@@ -55,16 +51,10 @@ const statusCopy = (): Record<
 });
 
 /**
- * Placeholder pane shown for non-resolved `?side=<id>` states. Cindy
- * review point 6 of PR-1: never silently strip the URL — the user
- * should see that the reference can't be loaded right now and have an
- * explicit Close affordance.
- *
- * PR-2: unified placeholder for the non-resolved statuses surfaced by
- * the `?side` identity resolution (loading / unauthorized / not_found /
- * unresolved). The component is intentionally state-only — it doesn't
- * read the route or the descriptor; the parent passes the status
- * derived from the secondary descriptor.
+ * A conversation pane whose conversation hasn't resolved (loading /
+ * unauthorized / not_found / unresolved). Never silently strip the URL: the
+ * user sees that the reference can't load and has an explicit Close. State
+ * only — the parent passes the status derived from the pane's descriptor.
  */
 export function SideUnresolvedPlaceholder({
   conversationId,
@@ -83,6 +73,7 @@ export function SideUnresolvedPlaceholder({
         data-conversation-header
         className="flex h-(--titlebar-height,44px) shrink-0 items-center justify-between border-b border-border px-3"
       >
+        <PaneGrip />
         <div className="min-w-0 flex-1 truncate text-sm font-medium text-text-muted">
           {copy.header}
         </div>

@@ -43,9 +43,9 @@ vi.mock("@/features/app-shell/place-memory", () => ({
   persistLastChannel: h.persist,
   getLastWorkspaceId: () => null,
   getLastChatPlace: () => null,
-  getChannelLayout: () => null,
+  getChannelPanes: () => null,
   getCloseWatermark: () => null,
-  recordChannelLayout: vi.fn(),
+  recordChannelPanes: vi.fn(),
   recordCloseWatermark: vi.fn(),
 }));
 import { useConversationInvalidation } from "./use-conversation-invalidation";

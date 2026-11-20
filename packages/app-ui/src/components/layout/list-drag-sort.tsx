@@ -1,5 +1,5 @@
 import { useListSortSensors } from "./list-sort-sensors";
-import { dragLeftList, useRowLifted } from "./split-drop";
+import { dragLeftList, useRowLifted } from "./pane-drop";
 import type { CSSProperties, ReactNode } from "react";
 import { DndContext, closestCenter } from "@dnd-kit/core";
 import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers";

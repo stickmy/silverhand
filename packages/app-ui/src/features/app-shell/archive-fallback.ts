@@ -12,7 +12,7 @@
  *      clears selection to the workspace empty state.
  *
  * Only the PRIMARY selection follows this rule. Archiving from the
- * secondary pane, or restoring, must NOT steal primary selection — those
+ * conversation pane, or restoring, must NOT steal primary selection — those
  * callers don't invoke this.
  *
  * Pure so the precedence is unit-tested independent of React/nav wiring;

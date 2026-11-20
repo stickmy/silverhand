@@ -1,24 +1,24 @@
 import type { MainTab } from "@/navigation/history";
-import type { SecondaryPane } from "@/navigation/secondary-panes";
 import {
+  movePane,
   closePane,
-  editPaneUrl,
+  conversationPanes,
+  editPanesUrl,
   openPane,
-  paneOpenIn,
-  paneUrl,
-  parsePaneQuery,
-  promoteSplit,
-  setSplit,
-  type PaneColumn,
-} from "@/navigation/pane-query";
+  ownedPane,
+  paneKey,
+  paneParent,
+  panesUrl,
+  parsePanes,
+  type Pane,
+  type Panes,
+} from "@/navigation/panes";
 import { useNavigationDriver, useNavigationReader, type Driver } from "@/navigation/provider";
 import type { DirectMessageTarget } from "@/features/direct-pairs/target";
 import { useCallback, useMemo } from "react";
 import { matchPath, useLocation } from "react-router-dom";
 import type { AppSection } from "@/components/layout/nav-rail";
 import type { LocatorTarget } from "@/features/conversations/locator-target";
-
-export type { PaneColumn } from "@/navigation/pane-query";
 
 /**
  * Single source of truth for our URL scheme. Keep all path templates
@@ -28,22 +28,9 @@ export type { PaneColumn } from "@/navigation/pane-query";
  * Naming: workspace (outer container) → channel (conversation). The base
  * path is `/chat/w/:workspaceId/c/:channelId`. There is no path-level
  * thread segment — the legacy isolated-thread `/t/<threadId>` fossil pane
- * was retired (the reply-cluster model replaces it). The right-hand
- * "secondary" pane is driven entirely by query params:
- *
- *   1. `?side=<conversation_id>`  — opens that conversation in the right
- *      pane as an *overlay* on top of the current base path. The base
- *      path is NOT touched, so closing the side pane simply removes
- *      `?side`.
- *   2. `?thread=<root_message_id>`  — opens that main-line message's
- *      thread (reply cluster) in the right pane.
- *   3. `?threads=1`  — opens the channel Threads-list pane.
- *   4. `?fullscreen=1`  — applies to whichever pane is "secondary" by the
- *      priority side > thread > threads-list. When fullscreen is set with
- *      no secondary pane, it is a no-op (primary already fills the viewport).
- *
- * Closing the secondary pane clears its query param (and `?fullscreen`);
- * the base path is untouched.
+ * was retired (the reply-cluster model replaces it). Everything beside the
+ * route's conversation is the pane list in repeated `?pane=` params
+ * (`navigation/panes.ts`); the base path is untouched by any pane.
  */
 export const routes = {
   home: () => "/",
@@ -95,8 +82,8 @@ export const routes = {
    * on `chatChannel`: an optional segment would make "which container is this
    * pane in" a runtime question at every consumer, whereas two patterns let
    * `parseRouteState` answer it once (`directConversationId`) and let the
-   * secondary-pane query writers — which operate on the current pathname, never
-   * on a rebuilt one — carry over untouched.
+   * pane query writers — which operate on the current pathname, never on a
+   * rebuilt one — carry over untouched.
    */
   chatDirect: (conversationId: string) => `/chat/d/${conversationId}`,
   /**
@@ -125,9 +112,9 @@ export const routes = {
   // `/activity/w/:wid` route: a workspace with no channel would be a selection
   // state with a titlebar/ws-scoped queries but no Activity item behind it
   // (Cindy, #task:1394 review). The DM route names a whole conversation, so it
-  // does not reintroduce that empty-selection problem. Secondary panes
-  // (`?thread=<root>`) ride the shared query helpers, which operate on the
-  // current pathname and thus stay in-section automatically.
+  // does not reintroduce that empty-selection problem. Panes ride the shared
+  // query helpers, which operate on the current pathname and thus stay
+  // in-section automatically.
   activity: () => "/activity",
   activityChannel: (workspaceId: string, channelId: string) =>
     `/activity/w/${workspaceId}/c/${channelId}`,
@@ -216,7 +203,7 @@ export interface RouteState {
    * their first workspace. Without a positive marker, landing on a pair would be
    * indistinguishable from landing nowhere and would be redirected away
    * immediately. `channelId` is populated as usual, so every consumer that only
-   * needs "which conversation is open" (the secondary panes, read cursors,
+   * needs "which conversation is open" (the panes, read cursors,
    * notification suppression) needs no new branch.
    */
   directConversationId: string | null;
@@ -227,102 +214,19 @@ export interface RouteState {
    *
    * A sibling discriminator to `directConversationId`, never live at the same
    * time: this arm has no conversation at all, so `channelId` stays null and
-   * every conversation-keyed consumer (read cursors, secondary panes,
+   * every conversation-keyed consumer (read cursors, panes,
    * notification suppression) needs no new branch. What it DOES need to reach is
    * the workspace auto-restore effect, which reads "chat section + no workspace"
    * as a gap to fill and would otherwise navigate the draft away.
    */
   directDraftTarget: DirectMessageTarget | null;
-  /** Generic side-pane pointer (`?side=<conversation_id>`). May be any
-   *  conversation id (channel/thread/dm). PR-1 only resolves ids that
-   *  exist in the current workspace's channels union; cross-workspace
-   *  resolution lands in PR-2 with `useConversationById`. */
-  sideConversationId: string | null;
-  /** The conversation open in the second column of a split view
-   *  (`?split=<conversation_id>`). The route's own conversation is the first
-   *  column. Ignored when it names the route's conversation. */
-  splitConversationId: string | null;
-  /** Which column owns the channel-scoped right panes (thread, threads,
-   *  attachments): `split` when `?ctx=split`, otherwise the route's own
-   *  conversation. */
-  paneColumn: PaneColumn;
-  /** Reply-cluster (thread) pane pointer (`?thread=<root_message_id>`).
-   *  When set, the right pane shows that main-line message's thread (root +
-   *  replies sharing the parent channel context). A thread is NOT a
-   *  conversation, so this is a message id, not a conversation id — it is
-   *  resolved against the current channel (`channelId`), never the
-   *  workspace conversation union. Mutually exclusive with
-   *  `sideConversationId` at the nav layer (opening one clears the other);
-   *  `?side` wins if both somehow coexist. (Internally the message group
-   *  is still a "reply cluster"; the URL/router speaks the user-facing
-   *  "thread" word — `?cluster=` was retired with the legacy `/t/` viewer.) */
-  threadRootId: string | null;
-  /** Channel Threads-list pane flag (`?threads=1`). When set, the right
-   *  pane shows the list of every thread in the current channel (newest
-   *  activity first) so threaded messages are discoverable without
-   *  scrolling the whole stream (#task:1073, P2). Like a single thread it
-   *  is NOT a conversation — it is a channel-scoped index resolved against
-   *  `channelId` — and it is mutually exclusive with `sideConversationId`
-   *  and `threadRootId` at the nav layer (opening any one clears the
-   *  others). */
-  threadsListOpen: boolean;
-  /** Channel Attachments panel flag (`?files=1`). An OVERLAY utility pane,
-   *  NOT a mutually-exclusive secondary-family peer: opening it clears
-   *  `?side` / `?agent` / `?fullscreen` but PRESERVES `?thread` /
-   *  `?threads`, so closing it (deleting `?files`) reveals whatever
-   *  conversation pane was underneath — the URL itself is the restore
-   *  stack, no memory needed (same model as `?agent`, #task:1433). The
-   *  render layer honours priority `agent > files > task > side > thread >
-   *  threads`. `?side` is cleared on open because a secondary CONVERSATION
-   *  feeds notification suppression and must not stay "visible" while
-   *  covered. It is NOT a conversation — a channel-scoped index resolved
-   *  against `channelId` — and is deliberately absent from `ChannelLayout`
-   *  persistence: a transient overlay should not resurrect on channel
-   *  re-entry (only the underlying thread/threads pane persists). The URL
-   *  uses `?files` (matching `?threads=1`) rather than the product-facing
-   *  word "Attachments" for symmetry; the panel title is "Attachments". */
-  filesListOpen: boolean;
-  /** Settings is channel-keyed, including when opened from a secondary channel. */
-  channelSettingsId?: string | null;
-  channelSettingsPage?: "members" | "add" | null;
-  /** Open task-detail pointer (`?task=<task_id>`). When set, the app-level
-   *  detail modal is open on that task (#task:1715).
-   *
-   *  The value is a task ID, not the `#<n>` the user reads in chat: a
-   *  task_number is only unique inside a workspace, so it would need a
-   *  second workspace axis to resolve — and the route's own workspace can't
-   *  supply it (the global Tasks section is a cross-workspace aggregate, so a
-   *  card it shows may belong to another workspace). One id is the whole
-   *  coordinate: `GET /api/tasks/:taskId` gates a human read on
-   *  conversation access alone, with no workspace term. Same shape as
-   *  `?side=<conversation_id>` / `?agent=<agent_id>`; `task_number` stays a
-   *  display name. */
-  taskDetailId: string | null;
-  /** Raw `?fullscreen=1` flag. Applies to whichever pane is secondary
-   *  by the side > thread > threads-list priority. */
-  fullscreen: boolean;
   agentId: string | null;
   /** Set when the URL is `/members/u/:userId`. Mutually exclusive with
    *  `agentId` (the patterns are disjoint by segment count). The
    *  members section's right-pane branches on whichever is non-null. */
   userId: string | null;
-  /** Agent side-panel pointer (`?agent=<agentId>`). Opens that agent's
-   *  compact panel in the chat section's right pane so a channel and an
-   *  agent's Activity can be read side-by-side (#task:1189). It is NOT a
-   *  conversation — it is an agent id rendered by `AgentView variant="side"`.
-   *  It OVERLAYS the thread panes rather than excluding them: `?agent` can
-   *  coexist with `?thread` / `?threads` in the URL (App renders the agent
-   *  ahead of them by precedence, and closing it restores the covered pane
-   *  — #task:1433). Only `?side` is cleared on open, because a secondary
-   *  conversation enters the focus/notification-suppression model and must
-   *  not stay "visible" while covered. Distinct from `agentId`, which is the
-   *  `/members/:agentId` *full-page* route segment. */
-  agentPanelId: string | null;
-  humanPanelId: string | null;
-  /** Attachment previewed in the right pane (`?attachment=<id>`). With
-   *  `?files=1` it previews inside the Attachments panel, which keeps its list
-   *  underneath for Back; alone it is its own overlay pane. */
-  attachmentPanelId: string | null;
+  /** The pane list in display order. */
+  panes: Panes;
 }
 
 /**
@@ -384,7 +288,7 @@ export function parseRouteState(pathname: string, search: string): RouteState {
       : null;
   const channelId = mChannel?.params.channelId ?? directConversationId ?? null;
   const searchParams = new URLSearchParams(search);
-  const panes = parsePaneQuery(searchParams, channelId);
+  const panes = parsePanes(searchParams, channelId);
 
   // Advanced-search prefill query (`?q=`); empty treated as unset.
   const rawSearchQuery = searchParams.get("q");
@@ -426,123 +330,15 @@ export function parseRouteState(pathname: string, search: string): RouteState {
     channelId: channelId ?? null,
     directConversationId,
     directDraftTarget,
-    sideConversationId: panes.side,
-    splitConversationId: panes.split,
-    paneColumn: panes.owner,
-    threadRootId: panes.thread,
-    threadsListOpen: panes.threads,
-    filesListOpen: panes.files,
-    channelSettingsId: panes.settings,
-    channelSettingsPage: panes.settingsPage,
-    taskDetailId: panes.task,
-    fullscreen: panes.fullscreen,
     agentId: mAgent?.params.agentId ?? null,
     userId: mUser?.params.userId ?? null,
-    agentPanelId: panes.agent,
-    humanPanelId: panes.human,
-    attachmentPanelId: panes.attachment,
+    panes,
   };
 }
 
 export function useRouteState(): RouteState {
   const { pathname, search } = useLocation();
   return useMemo(() => parseRouteState(pathname, search), [pathname, search]);
-}
-
-/**
- * The remembered secondary-pane layout of a single channel. The right
- * pane is driven by three mutually-exclusive query params (`?side` /
- * `?thread` / `?threads`); this captures whichever one is open so a
- * channel can be re-entered with the same layout.
- *
- * `none` is a first-class value, NOT "no memory": when a user explicitly
- * closes the secondary pane we record `none` so re-entering the channel
- * keeps it closed rather than resurrecting a stale pane.
- *
- * The Attachments panel (`?files=1`) is deliberately ABSENT here: it is a
- * transient OVERLAY (see `RouteState.filesListOpen`), and resurrecting a
- * utility overlay on channel re-entry is not the intent. When it covers a
- * thread/threads pane, that underlying pane is what persists.
- *
- * Fullscreen is deliberately NOT part of this model: no UI affordance
- * writes `?fullscreen=1` today (the `/t/` viewer that owned the only
- * fullscreen toggle was retired), and the render gate only honours
- * fullscreen for a resolved `?side`. Persisting a fullscreen bit would be
- * speculative generality ahead of the product — re-add it together with a
- * real unified secondary-fullscreen affordance when that lands.
- */
-export type ChannelLayout =
-  | { kind: "none" }
-  | { kind: "threads-list" }
-  | { kind: "thread"; rootId: string }
-  | { kind: "side"; id: string };
-
-/**
- * The secondary-pane slice of a RouteState that determines a channel's
- * layout. Narrower than the full RouteState so callers (and the layout
- * write-effect) depend only on these primitives, not route identity.
- * `filesListOpen` is intentionally NOT here — the Attachments overlay does
- * not persist (see {@link ChannelLayout}).
- */
-export type SecondaryRouteFields = Pick<
-  RouteState,
-  "sideConversationId" | "threadRootId" | "threadsListOpen"
->;
-
-/**
- * Project the secondary-pane fields of a RouteState down to the persisted
- * {@link ChannelLayout}. The three persisted panes are mutually exclusive
- * at the nav layer, but we resolve in the same priority the render layer
- * uses (side > thread > threads-list) so a malformed URL with more than
- * one set maps deterministically. The Attachments overlay (`?files`) is
- * not projected here: when it covers a thread/threads pane, that pane's
- * query param is still present and wins; when it is open alone the layout
- * is `none`, so a bare channel + Files does not resurrect on re-entry.
- */
-export function layoutMemoryFromRoute(route: SecondaryRouteFields): ChannelLayout {
-  if (route.sideConversationId) {
-    return { kind: "side", id: route.sideConversationId };
-  }
-  if (route.threadRootId) {
-    return { kind: "thread", rootId: route.threadRootId };
-  }
-  if (route.threadsListOpen) {
-    return { kind: "threads-list" };
-  }
-  return { kind: "none" };
-}
-
-/**
- * Build the channel URL that restores a remembered {@link ChannelLayout}.
- * `none`/absent memory yields the bare channel path; an open pane appends
- * its query param. Mirrors the `withSide/Thread/ThreadsQuery` writers but
- * composes the layout from scratch onto a fresh path so it is independent
- * of whatever query the previous channel carried.
- *
- * `workspaceId` is NON-NULL by contract: layout memory is a channel-restore
- * mechanism, and the workspace-less `direct_pair` route (#task:2035) is
- * deliberately outside it — nothing records layout for a pair (see App's
- * layout-memory effect), so there is no null caller to serve here. Do NOT widen
- * this to `string | null` to make a test compile. A pair is opened with
- * `routes.chatDirect`, and the one pane it does restore by URL is written by
- * {@link buildLocatorTargetUrl}.
- */
-export function buildChannelLayoutUrl(
-  workspaceId: string,
-  channelId: string,
-  layout: ChannelLayout | null | undefined,
-): string {
-  const base = routes.chatChannel(workspaceId, channelId);
-  switch (layout?.kind ?? "none") {
-    case "threads-list":
-      return paneUrl(base, { threads: true });
-    case "thread":
-      return paneUrl(base, { thread: (layout as { rootId: string }).rootId });
-    case "side":
-      return paneUrl(base, { side: (layout as { id: string }).id });
-    default:
-      return base;
-  }
 }
 
 /**
@@ -560,10 +356,10 @@ export function buildChannelLayoutUrl(
  * resolver returns `null` for everything else), so a new arm has to answer this
  * question rather than inherit a guess.
  *
- * The thread leaf appends `?thread=` on both container routes, including the
+ * The thread leaf opens the Threads pane on both container routes, including the
  * workspace-less pair route — a pair's reply cluster resolves through the same
  * channel-like index and its pane mounts with a null workspace (#task:2096), so
- * `/chat/d/:id?thread=<root>` is a real destination. Whether that root message
+ * `/chat/d/:id?pane=threads.<root>` is a real destination. Whether that root message
  * exists is the pane's answer, not this writer's.
  */
 export function buildLocatorTargetUrl(target: LocatorTarget): string {
@@ -571,71 +367,77 @@ export function buildLocatorTargetUrl(target: LocatorTarget): string {
     case "workspace":
       return routes.chatWorkspace(target.workspaceId);
     case "channel":
-      return buildChannelLayoutUrl(
-        target.workspaceId,
-        target.conversationId,
-        target.threadRootId === null
-          ? { kind: "none" }
-          : { kind: "thread", rootId: target.threadRootId },
-      );
     case "direct_pair": {
-      const base = routes.chatDirect(target.conversationId);
-      return paneUrl(base, { thread: target.threadRootId });
+      const base =
+        target.kind === "channel"
+          ? routes.chatChannel(target.workspaceId, target.conversationId)
+          : routes.chatDirect(target.conversationId);
+      return target.threadRootId
+        ? paneUrl(base, [
+            { kind: "threads", of: target.conversationId, thread: target.threadRootId },
+          ])
+        : base;
     }
   }
 }
 
-/** The conversation a URL path opens, which a `?split` must differ from. */
+/** The conversation a URL path opens: the one its panes stand beside. */
 function pathChannelId(pathname: string): string | null {
   return parseRouteState(pathname, "").channelId;
 }
 
-/**
- * The URL with `pane` opened — the one writer behind every pane open. Mode,
- * clear-list and restore stack are the registry's (`openPane`); unrelated query
- * params are kept verbatim.
- */
-export function openPaneUrl(
+/** `pathname` with exactly `panes`. */
+export function paneUrl(pathname: string, panes: Panes): string {
+  return panesUrl(pathname, pathChannelId(pathname), panes);
+}
+
+/** The URL with its pane list rewritten through `edit`; other params stay. */
+export function editPaneUrl(
   pathname: string,
   search: string,
-  pane: SecondaryPane,
-  value: string | true,
-  options?: { column?: PaneColumn; inFiles?: boolean },
+  edit: (panes: Panes, routeId: string | null) => Panes,
 ): string {
-  return editPaneUrl(pathname, search, pathChannelId(pathname), (q) =>
-    openPane(q, pane, value as never, options),
-  );
+  const routeId = pathChannelId(pathname);
+  return editPanesUrl(pathname, search, routeId, (panes) => edit(panes, routeId));
 }
 
-/** The URL with `pane` closed; the stack beneath it shows next. */
-export function closePaneUrl(pathname: string, search: string, pane: SecondaryPane): string {
-  return editPaneUrl(pathname, search, pathChannelId(pathname), (q) => closePane(q, pane));
+/** The URL with the pane `pane` names closed, conversation panes taking their
+ *  own along. */
+export function closePaneUrl(pathname: string, search: string, key: string): string {
+  return editPaneUrl(pathname, search, (panes) => closePane(panes, key));
 }
 
-/** The URL with the second column set to `splitId`, or closed. */
-export function splitUrl(pathname: string, search: string, splitId: string | null): string {
-  return editPaneUrl(pathname, search, pathChannelId(pathname), (q) => setSplit(q, splitId));
+/** The URL with conversation `id` beside the route's, or `null` to close the
+ *  first conversation pane. */
+export function besideUrl(pathname: string, search: string, id: string | null): string {
+  return editPaneUrl(pathname, search, (panes) => {
+    const [beside] = conversationPanes(panes);
+    if (id === null) return beside ? closePane(panes, `conversation:${beside}`) : panes;
+    return openPane(panes, { kind: "conversation", id });
+  });
 }
 
-/** Close the first column: the second column's conversation (at `path`)
- *  becomes the route's, keeping the panes it owned. */
-export function promotedSplitUrl(pathname: string, search: string, path: string): string {
-  const url = editPaneUrl(pathname, search, pathChannelId(pathname), promoteSplit);
-  return path + url.slice(pathname.length);
+/** Close the route's conversation: the conversation pane at `path` takes the
+ *  route's place, keeping its panes; the closed one's panes go. */
+export function promotedPaneUrl(pathname: string, search: string, path: string): string {
+  const url = editPaneUrl(pathname, search, (panes) => panes);
+  const query = url.slice(pathname.length);
+  return path + editPaneUrl(path, query, (panes) => panes).slice(path.length);
 }
 
 /**
  * A channel URL that keeps one pane open across a channel switch: the agent
  * panel follows the new channel, and "View in channel" from a side pane keeps
- * the side conversation. Nothing else carries over — no remembered layout, no
- * fullscreen.
+ * the side conversation. Nothing else carries over.
  */
 export function channelUrlKeeping(
   workspaceId: string,
   channelId: string,
   keep: { agent: string } | { side: string },
 ): string {
-  return paneUrl(routes.chatChannel(workspaceId, channelId), keep);
+  const pane: Pane =
+    "agent" in keep ? { kind: "agent", id: keep.agent } : { kind: "conversation", id: keep.side };
+  return paneUrl(routes.chatChannel(workspaceId, channelId), [pane]);
 }
 
 /**
@@ -653,20 +455,21 @@ export type NavigationTarget =
       rootMessageId: string;
       conversationId?: string;
       workspaceId?: string;
-      column?: PaneColumn;
+      /** The conversation whose Threads pane opens it; the route's by default. */
+      of?: string;
     }
   | { kind: "conversation-settings"; conversationId: string }
   | { kind: "conversation-members"; conversationId: string; add?: boolean }
-  | { kind: "attachments"; column?: PaneColumn }
-  | { kind: "attachment"; attachmentId: string; inFiles?: boolean; column?: PaneColumn }
-  | { kind: "threads"; column?: PaneColumn }
+  | { kind: "attachments"; of?: string }
+  | { kind: "attachment"; attachmentId: string; of?: string }
+  | { kind: "threads"; of?: string }
   | { kind: "task"; taskId: string }
   | { kind: "agent"; agentId: string }
   | { kind: "human"; userId: string }
-  | { kind: "side-conversation"; conversationId: string };
+  | { kind: "conversation-pane"; conversationId: string };
 
 /** Business destinations resolve through the existing URL schema. The shell,
- * never the caller, decides whether a secondary destination fills a page. */
+ * never the caller, decides whether a pane destination fills a page. */
 export function resolveNavigationTarget(
   target: NavigationTarget,
   pathname: string,
@@ -682,11 +485,13 @@ export function resolveNavigationTarget(
       : routes.chatDirect(target.conversationId);
     search = "";
   }
-  const open = (
-    pane: SecondaryPane,
-    value: string | true,
-    options?: Parameters<typeof openPaneUrl>[4],
-  ) => openPaneUrl(pathname, search, pane, value, options);
+  const open = (pane: (routeId: string | null, panes: Panes) => Pane | null) =>
+    editPaneUrl(pathname, search, (panes, routeId) => {
+      const next = pane(routeId, panes);
+      return next ? openPane(panes, next) : panes;
+    });
+  const of = (id: string | undefined) => (routeId: string | null, panes: Panes) =>
+    paneConversation(panes, routeId, id);
   switch (target.kind) {
     case "tab":
     case "section":
@@ -698,32 +503,54 @@ export function resolveNavigationTarget(
         ? routes.chatChannel(target.workspaceId, target.conversationId)
         : routes.chatDirect(target.conversationId);
     case "thread":
-      return open("thread", target.rootMessageId, { column: target.column });
-    case "conversation-members":
-      return editPaneUrl(pathname, search, pathChannelId(pathname), (q) => ({
-        ...openPane(q, "settings", target.conversationId),
-        settingsPage: target.add ? "add" : "members",
-      }));
-    case "conversation-settings":
-      return open("settings", target.conversationId);
-    case "attachments":
-      return open("files", true, { column: target.column });
-    case "attachment":
-      return open("attachment", target.attachmentId, {
-        column: target.column,
-        inFiles: target.inFiles,
+      return open((routeId, panes) => {
+        const id = of(target.of)(routeId, panes);
+        return id ? { kind: "threads", of: id, thread: target.rootMessageId } : null;
       });
     case "threads":
-      return open("threads", true, { column: target.column });
+      return open((routeId, panes) => {
+        const id = of(target.of)(routeId, panes);
+        return id ? { kind: "threads", of: id, thread: null } : null;
+      });
+    case "attachments":
+      return open((routeId, panes) => {
+        const id = of(target.of)(routeId, panes);
+        return id ? { kind: "files", of: id, attachment: null } : null;
+      });
+    case "attachment":
+      return open((routeId, panes) => {
+        const id = of(target.of)(routeId, panes);
+        return id ? { kind: "files", of: id, attachment: target.attachmentId } : null;
+      });
+    case "conversation-settings":
+      return open(() => ({ kind: "settings", of: target.conversationId, page: null }));
+    case "conversation-members":
+      return open(() => ({
+        kind: "settings",
+        of: target.conversationId,
+        page: target.add ? "add" : "members",
+      }));
     case "task":
-      return open("task", target.taskId);
+      return open(() => ({ kind: "task", id: target.taskId }));
     case "agent":
-      return open("agent", target.agentId);
+      return open(() => ({ kind: "agent", id: target.agentId }));
     case "human":
-      return open("human", target.userId);
-    case "side-conversation":
-      return open("side", target.conversationId);
+      return open(() => ({ kind: "human", id: target.userId }));
+    case "conversation-pane":
+      return open(() => ({ kind: "conversation", id: target.conversationId }));
   }
+}
+
+/** The conversation a Threads or Files pane opens for: `of` when named,
+ *  otherwise the one whose Threads or Files pane is last, else the route's. */
+function paneConversation(
+  panes: Panes,
+  routeId: string | null,
+  of: string | undefined,
+): string | null {
+  if (of !== undefined) return of;
+  const owned = panes.findLast((p) => p.kind === "threads" || p.kind === "files");
+  return owned && "of" in owned ? owned.of : routeId;
 }
 
 function navigateWith(
@@ -789,12 +616,35 @@ export function useNav() {
     (url: string, opts?: { replace?: boolean }) => navigate({ kind: "url", url }, opts),
     [navigate],
   );
-  const close = useCallback(
-    (pane: SecondaryPane) => drive(closePaneUrl(pathname, search, pane), { replace: true }),
+  const edit = useCallback(
+    (change: (panes: Panes, routeId: string | null) => Panes) =>
+      drive(editPaneUrl(pathname, search, change), { replace: true }),
     [drive, pathname, search],
   );
-  const openIn = (pane: SecondaryPane, column: PaneColumn) =>
-    paneOpenIn(parsePaneQuery(new URLSearchParams(search), pathChannelId(pathname)), pane, column);
+  // Close the last pane `match` picks, or step it back to its list.
+  const close = useCallback(
+    (match: (pane: Pane) => boolean, back = false) =>
+      edit((panes) => {
+        const pane = panes.findLast(match);
+        if (!pane) return panes;
+        const parent = back ? paneParent(pane) : null;
+        return parent ? openPane(panes, parent) : closePane(panes, paneKey(pane));
+      }),
+    [edit],
+  );
+  const openIn = (kind: "threads" | "files", of: string | undefined): boolean => {
+    const routeId = pathChannelId(pathname);
+    const panes = parsePanes(new URLSearchParams(search), routeId);
+    const id = paneConversation(panes, routeId, of);
+    return id !== null && ownedPane(panes, kind, id) !== null;
+  };
+  const ofKind =
+    <K extends Pane["kind"]>(
+      kind: K,
+      test: (pane: Extract<Pane, { kind: K }>) => boolean = () => true,
+    ) =>
+    (pane: Pane) =>
+      pane.kind === kind && test(pane as Extract<Pane, { kind: K }>);
   return useMemo(
     () => ({
       navigate,
@@ -818,39 +668,52 @@ export function useNav() {
       toUtilitySection: (section: "members" | "computers" | "settings") =>
         navigate({ kind: "section", tab: "me", root: routes[section]() }),
       toSettings: () => go(routes.settings()),
-      openSide: (conversationId: string) => navigate({ kind: "side-conversation", conversationId }),
-      openSplit: (conversationId: string) => go(splitUrl(pathname, search, conversationId)),
-      closeSplit: () => drive(splitUrl(pathname, search, null), { replace: true }),
-      promoteSplit: (path: string) =>
-        drive(promotedSplitUrl(pathname, search, path), { replace: true }),
-      closeSide: () => close("side"),
-      openThread: (rootMessageId: string, column?: PaneColumn) =>
-        navigate({ kind: "thread", rootMessageId, column }),
-      closeThread: () => close("thread"),
+      openConversationPane: (conversationId: string) =>
+        navigate({ kind: "conversation-pane", conversationId }),
+      openBeside: (conversationId: string) => go(besideUrl(pathname, search, conversationId)),
+      promotePane: (path: string) =>
+        drive(promotedPaneUrl(pathname, search, path), { replace: true }),
+      /** Close the pane with `key`; a conversation pane takes its own along. */
+      closePane: (key: string) => edit((panes) => closePane(panes, key)),
+      /** Move the pane with `key` to `index` in the row. */
+      movePane: (key: string, index: number) => edit((panes) => movePane(panes, key, index)),
+      /** Step the pane with `key` back one page, closing it from its first. */
+      backPane: (key: string) => close((pane) => paneKey(pane) === key, true),
+      openThread: (rootMessageId: string, of?: string) =>
+        navigate({ kind: "thread", rootMessageId, of }),
+      closeThread: () => close(ofKind("threads", (p) => p.thread !== null)),
       openThreadsList: () => navigate({ kind: "threads" }),
-      closeThreadsList: () => close("threads"),
-      toggleThreadsList: (column: PaneColumn = "primary") =>
-        openIn("threads", column) ? close("threads") : navigate({ kind: "threads", column }),
+      closeThreadsList: () => close(ofKind("threads")),
+      toggleThreadsList: (of?: string) =>
+        openIn("threads", of)
+          ? close(ofKind("threads", (p) => of === undefined || p.of === of))
+          : navigate({ kind: "threads", of }),
       openFilesList: () => navigate({ kind: "attachments" }),
-      closeFilesList: () => close("files"),
-      toggleFilesList: (column: PaneColumn = "primary") =>
-        openIn("files", column) ? close("files") : navigate({ kind: "attachments", column }),
-      openAttachmentPanel: (attachmentId: string, inFiles = false, column?: PaneColumn) =>
-        navigate({ kind: "attachment", attachmentId, inFiles, column }),
-      closeAttachmentPanel: () => close("attachment"),
+      closeFilesList: () => close(ofKind("files")),
+      toggleFilesList: (of?: string) =>
+        openIn("files", of)
+          ? close(ofKind("files", (p) => of === undefined || p.of === of))
+          : navigate({ kind: "attachments", of }),
+      openAttachmentPanel: (attachmentId: string, of?: string) =>
+        navigate({ kind: "attachment", attachmentId, of }),
+      closeAttachmentPanel: () =>
+        close(
+          ofKind("files", (p) => p.attachment !== null),
+          true,
+        ),
       openChannelSettings: (conversationId: string) =>
         navigate({ kind: "conversation-settings", conversationId }),
       openChannelMembers: (conversationId: string, add = false) =>
         navigate({ kind: "conversation-members", conversationId, add }),
-      closeChannelSettings: () => close("settings"),
+      closeChannelSettings: () => close(ofKind("settings")),
       openTask: (taskId: string) => navigate({ kind: "task", taskId }),
-      closeTask: () => close("task"),
+      closeTask: () => close(ofKind("task")),
       openAgentPanel: (agentId: string) => navigate({ kind: "agent", agentId }),
-      closeAgentPanel: () => close("agent"),
+      closeAgentPanel: () => close(ofKind("agent")),
       openHumanPanel: (userId: string) => navigate({ kind: "human", userId }),
-      closeHumanPanel: () => close("human"),
+      closeHumanPanel: () => close(ofKind("human")),
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [navigate, go, close, back, drive, pathname, search],
+    [navigate, go, edit, close, back, drive, pathname, search],
   );
 }

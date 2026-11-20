@@ -8,7 +8,7 @@ import { TaskDetailPanel } from "@/features/tasks/components/task-detail-panel";
 import { useNav, useRouteState } from "@/router";
 import { TaskDetailDialog } from "@/pages/task/components/task-detail-dialog";
 import type { MessageJumpTarget } from "@/features/channels/use-message-jump-controller";
-import { resolveTaskDetailSurface } from "@/features/tasks/model/task-detail-surface";
+import { resolveTaskDetail } from "@/features/tasks/model/task-detail-surface";
 import { TaskBoard } from "./task-board";
 
 export function TaskShell({
@@ -31,7 +31,8 @@ export function TaskShell({
   openTaskRef.current = nav.openTask;
 
   const openTask = useCallback((taskId: string) => openTaskRef.current(taskId), []);
-  const taskId = resolveTaskDetailSurface(route) === "dialog" ? route.taskDetailId : null;
+  const task = resolveTaskDetail(route);
+  const taskId = task?.surface === "dialog" ? task.id : null;
   const compact = useCompactLayout();
   const { registerLeaveGuard } = useNavigationDriver();
   const editingRef = useRef(false);

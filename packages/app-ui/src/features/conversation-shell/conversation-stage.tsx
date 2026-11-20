@@ -1,81 +1,236 @@
-import { useCallback, useLayoutEffect, useRef, type ReactNode } from "react";
-import { useCompactLayout } from "@/navigation/layout";
-import { SplitPane } from "@/components/layout/split-pane";
-import { PANE_BG } from "@/components/layout/pane-chrome";
-import { createPortal } from "react-dom";
 import {
-  registerSplitDropStage,
-  splitDropTarget,
-  useSplitDragGhost,
-  useSplitDropState,
-} from "@/components/layout/split-drop";
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  type PointerEventHandler,
+  type ReactNode,
+} from "react";
+import { useReducedMotion } from "motion/react";
+import { createPortal } from "react-dom";
+import { DndContext, closestCenter } from "@dnd-kit/core";
+import { restrictToHorizontalAxis } from "@dnd-kit/modifiers";
+import { SortableContext, horizontalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
+import { animateLayoutChanges } from "@/components/layout/list-drag-sort";
+import { useCompactLayout } from "@/navigation/layout";
+import { paneKey, type Pane } from "@/navigation/panes";
+import { PANE_BG } from "@/components/layout/pane-chrome";
+import { PaneMovableProvider, type PaneMovable } from "@/components/layout/side-panel-header";
+import { SplitterTrack } from "@/components/layout/splitter-track";
+import {
+  registerPaneDropStage,
+  paneDropTarget,
+  usePaneDragGhost,
+  usePaneDropState,
+} from "@/components/layout/pane-drop";
+import { useResizableWidth } from "@/hooks/use-resizable-width";
 import { ConversationViewSkeleton } from "@/features/conversation-shell/components/conversation-view-skeleton";
 import { SplitRightIcon } from "@/icons";
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
+import { AttachedPane } from "./attached-pane";
 import type { ConversationContent } from "./conversation-content";
+import { PrimaryPaneContent } from "./primary-pane-content";
+import { restrictToAttachedPanes, usePaneSortSensors } from "./pane-sort";
 
 export function ConversationStage({
   content,
   ready,
-  fullscreen,
   storageKey,
-  acceptsSplitDrop = false,
+  acceptsPaneDrop = false,
 }: {
   content: ConversationContent;
   ready: boolean;
-  fullscreen: boolean;
   storageKey: string;
-  /** Dragging a sidebar row onto the right half opens it as a second column. */
-  acceptsSplitDrop?: boolean;
+  /** Dragging a sidebar row onto the stage opens it as a conversation pane. */
+  acceptsPaneDrop?: boolean;
 }) {
   const compact = useCompactLayout();
+  const sensors = usePaneSortSensors();
+  const keys = useMemo(() => content.panes.map(paneKey), [content.panes]);
+  const mounted = useMountOrder(keys);
   if (!ready) {
-    return (
-      <ConversationViewSkeleton
-        showTabs={content.loadingTabs && !(content.secondary && fullscreen)}
-      />
+    return <ConversationViewSkeleton showTabs={content.loadingTabs} />;
+  }
+  const last = content.panes.at(-1);
+  if (compact) {
+    return last ? (
+      <AttachedPane key={paneKey(last)} pane={last} ctx={content.ctx} />
+    ) : (
+      <PrimaryPaneContent model={content.primary} />
     );
   }
-  if (content.secondary && (fullscreen || compact)) {
-    return content.secondary;
-  }
-  if (compact) return content.primary;
-  // Always mounted, so opening or closing the second column never remounts the
-  // first (its scroll position and draft survive).
-  const columns = (
-    <div data-split-columns className="flex h-full min-w-0 flex-1">
-      <SplitPane
-        left={content.primary}
-        right={content.split}
-        storageKey={`${storageKey}.columns`}
-        minRatio={0.3}
-        maxRatio={0.7}
-      />
-    </div>
-  );
+  // The route's conversation stays mounted as panes open and close beside it,
+  // so its scroll position and draft survive.
   return (
-    <SplitDropStage enabled={acceptsSplitDrop}>
-      <SplitPane left={columns} right={content.secondary} storageKey={storageKey} />
-    </SplitDropStage>
+    <PaneDropStage enabled={acceptsPaneDrop}>
+      <div
+        data-pane-row
+        className="flex h-full min-w-0 flex-1 overflow-hidden"
+        style={{ gap: "var(--pane-gap)" }}
+      >
+        <div
+          data-pane-primary
+          className="order-first flex h-full flex-1 overflow-hidden"
+          style={{ minWidth: PRIMARY_MIN_WIDTH }}
+        >
+          <PrimaryPaneContent model={content.primary} />
+        </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          modifiers={[restrictToHorizontalAxis, restrictToAttachedPanes]}
+          onDragStart={() => {
+            // The press began a text selection; a drag must not extend it.
+            window.getSelection()?.removeAllRanges();
+            document.body.style.cursor = "grabbing";
+            document.body.style.userSelect = "none";
+          }}
+          onDragEnd={({ active, over }) => {
+            endPaneDrag();
+            if (!over || active.id === over.id) return;
+            const to = keys.indexOf(String(over.id));
+            if (to >= 0) content.ctx.commands.movePane(String(active.id), to);
+          }}
+          onDragCancel={endPaneDrag}
+        >
+          <SortableContext items={keys} strategy={horizontalListSortingStrategy}>
+            {mounted.map((key) => {
+              const pane = content.panes.find((p) => paneKey(p) === key)!;
+              return (
+                <PaneSlot key={key} pane={pane} storageKey={storageKey} order={keys.indexOf(key)}>
+                  <AttachedPane pane={pane} ctx={content.ctx} />
+                </PaneSlot>
+              );
+            })}
+          </SortableContext>
+        </DndContext>
+      </div>
+    </PaneDropStage>
+  );
+}
+
+function endPaneDrag(): void {
+  document.body.style.cursor = "";
+  document.body.style.userSelect = "";
+}
+
+/** The panes in the order they first opened. Moving a node in the DOM resets
+ *  every scroller inside it, so the row reorders with CSS `order` instead and
+ *  the DOM keeps this order. */
+function useMountOrder(keys: readonly string[]): string[] {
+  const order = useRef<string[]>([]);
+  const kept = order.current.filter((key) => keys.includes(key));
+  const added = keys.filter((key) => !kept.includes(key));
+  order.current = [...kept, ...added];
+  return order.current;
+}
+
+const PRIMARY_MIN_WIDTH = 320;
+
+/** Each kind of pane keeps the width the viewer gave it. */
+const PANE_WIDTH = {
+  conversation: { defaultWidth: 520, min: 360, max: 960 },
+  other: { defaultWidth: 400, min: 300, max: 720 },
+} as const;
+
+/** An attached pane at its own width, resized from its left edge. */
+function PaneSlot({
+  pane,
+  storageKey,
+  order,
+  children,
+}: {
+  pane: Pane;
+  storageKey: string;
+  /** Place in the row. */
+  order: number;
+  children: ReactNode;
+}): JSX.Element {
+  const kind = pane.kind === "conversation" ? "conversation" : "other";
+  const clip = useRef<HTMLDivElement | null>(null);
+  const bounds = useCallback(() => {
+    const own = clip.current;
+    const primary = own?.closest("[data-pane-row]")?.querySelector("[data-pane-primary]");
+    if (!own || !primary) return null;
+    const width = own.getBoundingClientRect().width;
+    return { width, max: width + primary.getBoundingClientRect().width - PRIMARY_MIN_WIDTH };
+  }, []);
+  const {
+    width,
+    startResize,
+    isDragging: resizing,
+  } = useResizableWidth({
+    storageKey: `${storageKey}.pane.${pane.kind}`,
+    ...PANE_WIDTH[kind],
+    edge: "left",
+    bounds,
+  });
+
+  const reducedMotion = useReducedMotion();
+  const sortable = useSortable({
+    id: paneKey(pane),
+    animateLayoutChanges,
+    transition: reducedMotion ? null : { duration: 200, easing: "cubic-bezier(0.2, 0, 0, 1)" },
+  });
+  const { attributes, listeners, setActivatorNodeRef, transform, isDragging } = sortable;
+  const grip = useMemo(
+    () => ({
+      ref: setActivatorNodeRef,
+      attributes,
+      onKeyDown: listeners?.onKeyDown as PaneMovable["onKeyDown"],
+    }),
+    [setActivatorNodeRef, attributes, listeners],
+  );
+
+  // The held pane itself follows the pointer, so it is the pane in every
+  // respect: width, scroll position, content.
+  return (
+    <div
+      ref={sortable.setNodeRef}
+      data-pane-slot={paneKey(pane)}
+      className="relative flex h-full min-w-0 shrink"
+      style={{
+        order,
+        gap: "var(--pane-gap)",
+        transform: transform ? `translate3d(${transform.x}px, 0, 0)` : undefined,
+        transition: sortable.transition,
+        zIndex: isDragging ? 1 : undefined,
+      }}
+    >
+      <SplitterTrack onPointerDown={startResize} active={resizing} />
+      <div
+        ref={clip}
+        data-pane-clip="side"
+        data-attached-pane={pane.kind}
+        onPointerDown={listeners?.onPointerDown as PointerEventHandler | undefined}
+        className={cn(
+          "flex h-full min-w-0 shrink overflow-hidden [&_[data-conversation-header]]:cursor-grab [&_[data-side-panel-header]]:cursor-grab",
+          isDragging && "shadow-lg",
+        )}
+        style={{ width, contain: "layout paint", background: PANE_BG }}
+      >
+        <PaneMovableProvider value={grip}>{children}</PaneMovableProvider>
+      </div>
+    </div>
   );
 }
 
 /** The conversation area is the drop target for a sidebar row. Once a held
  *  row is lifted out of its list, a ghost of it follows the pointer and the
- *  column it would open into shows, filled so nothing under it competes. */
-function SplitDropStage({ enabled, children }: { enabled: boolean; children: ReactNode }) {
-  const state = useSplitDropState();
+ *  pane it would open as shows. */
+function PaneDropStage({ enabled, children }: { enabled: boolean; children: ReactNode }) {
+  const state = usePaneDropState();
   const box = useRef<HTMLDivElement | null>(null);
   const ref = useCallback(
     (node: HTMLDivElement | null) => {
       box.current = node;
-      registerSplitDropStage(enabled ? node : null);
+      registerPaneDropStage(enabled ? node : null);
     },
     [enabled],
   );
   const lifted = enabled && (state === "lifted" || state === "over");
-  const target = lifted ? splitDropTarget() : null;
+  const target = lifted ? paneDropTarget() : null;
   const origin = lifted ? box.current?.getBoundingClientRect() : undefined;
 
   return (
@@ -84,14 +239,13 @@ function SplitDropStage({ enabled, children }: { enabled: boolean; children: Rea
       {target && origin ? (
         <div
           aria-hidden
-          data-split-drop={state}
+          data-pane-drop={state}
           className="pointer-events-none absolute z-30 p-2"
           style={{
             left: target.left - origin.left,
             top: target.top - origin.top,
             width: target.width,
             height: target.height,
-            background: PANE_BG,
           }}
         >
           <div
@@ -119,7 +273,7 @@ function SplitDropStage({ enabled, children }: { enabled: boolean; children: Rea
  *  width and paint, in the same dragging state a reorder shows. Mounted in an
  *  `aside[data-sidebar]` so it keeps the sidebar's theme scope. */
 function DragGhost(): JSX.Element | null {
-  const ghost = useSplitDragGhost();
+  const ghost = usePaneDragGhost();
   const host = useRef<HTMLElement | null>(null);
   const row = ghost?.row ?? null;
 

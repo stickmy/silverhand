@@ -1,3 +1,4 @@
+import { createContext, useContext, type HTMLAttributes, type KeyboardEvent } from "react";
 import { useCompactLayout } from "@/navigation/layout";
 import { MobileNavigationSlot } from "@/components/layout/mobile-header-slot";
 import {
@@ -5,7 +6,7 @@ import {
   type PageBarDeclaration,
   type PageBarHandlers,
 } from "@/components/layout/native-page-bar";
-import { ArrowLeftIcon, CloseIcon } from "@/icons";
+import { ArrowLeftIcon, CloseIcon, DragHandleIcon } from "@/icons";
 import { t } from "@/lib/i18n";
 
 /**
@@ -95,6 +96,7 @@ function SidePanelHeaderRow({
       className="flex h-12 shrink-0 items-center gap-2 border-b border-border-subtle px-3"
     >
       <MobileNavigationSlot />
+      <PaneGrip />
       {!compact && onBack ? (
         <button
           type="button"
@@ -137,6 +139,40 @@ function SidePanelCloseButton({
   );
 }
 
+/** The header of a pane the viewer can reorder: the grip is its keyboard
+ *  handle. Null for a pane that does not move. */
+export interface PaneMovable {
+  ref: (node: HTMLElement | null) => void;
+  attributes: HTMLAttributes<HTMLElement>;
+  onKeyDown: ((event: KeyboardEvent) => void) | undefined;
+}
+
+const PaneMovableContext = createContext<PaneMovable | null>(null);
+export const PaneMovableProvider = PaneMovableContext.Provider;
+
+/** The drag hint on a movable pane's header. The whole header drags with the
+ *  pointer; the grip is where the keyboard picks the pane up. */
+export function PaneGrip(): JSX.Element | null {
+  const movable = useContext(PaneMovableContext);
+  if (!movable) return null;
+  return (
+    <span
+      ref={movable.ref}
+      {...movable.attributes}
+      onKeyDown={movable.onKeyDown}
+      data-pane-grip
+      className="-ml-1 flex shrink-0 cursor-grab items-center rounded-(--control-radius) text-text-muted focus-outline"
+    >
+      <DragHandleIcon className="size-3.5" />
+    </span>
+  );
+}
+
+/** The conversation an attached pane belongs to, named in its header when it
+ *  is not the conversation the stage is showing first; null names none. */
+const PaneOwnerContext = createContext<string | null>(null);
+export const PaneOwnerProvider = PaneOwnerContext.Provider;
+
 /**
  * The icon + title + context idiom shared by the thread, threads-list, and
  * attachments panels: one line, the context muted after the title. The context
@@ -152,13 +188,24 @@ export function SidePanelHeaderTitle({
   title: React.ReactNode;
   subtitle?: React.ReactNode;
 }): JSX.Element {
+  const owner = useContext(PaneOwnerContext);
+
   return (
     <>
       {icon}
-      <div className="flex min-w-0 flex-1 items-baseline gap-2">
+      <div className="flex min-w-0 flex-1 items-center gap-2">
         <div className="min-w-0 shrink truncate text-sm font-medium text-text-primary">{title}</div>
         {subtitle ? (
           <div className="max-w-[45%] shrink-0 truncate text-xs text-text-muted">{subtitle}</div>
+        ) : null}
+        {owner ? (
+          <span
+            data-pane-owner
+            title={owner}
+            className="max-w-[45%] shrink-0 truncate rounded-(--control-radius) bg-bg-hover px-1.5 py-0.5 text-xs text-text-secondary"
+          >
+            {owner}
+          </span>
         ) : null}
       </div>
     </>

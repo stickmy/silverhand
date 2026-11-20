@@ -140,7 +140,6 @@ export function ChannelAttachmentsPanel({
         <SidePanelHeaderTitle
           icon={<AttachmentIcon className="size-3.5 shrink-0 text-text-muted" />}
           title={t("conversationShell.attachments")}
-          subtitle={parentTitle ? `#${parentTitle}` : ""}
         />
       </SidePanelHeader>
       {/* This host's inset. The pane-edge gutter belongs to the container, so

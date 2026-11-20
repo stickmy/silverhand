@@ -97,7 +97,7 @@ function ActivityTimeline({
   }, []);
 
   // Pin immediately and across the next two frames. This covers the side-panel
-  // open path where the scroller/list can mount before SplitPane width/height
+  // open path where the scroller/list can mount before the pane width/height
   // and markdown wrapping have fully settled; ResizeObserver below handles all
   // later size changes.
   const scheduleTailPin = useCallback(() => {

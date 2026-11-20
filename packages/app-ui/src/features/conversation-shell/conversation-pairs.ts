@@ -1,24 +1,24 @@
 import { useSyncExternalStore } from "react";
 
 /**
- * Split-view pairs: two conversations the viewer reads side by side. The first
- * id is the left column (the route's conversation), the second the right
- * column (`?split`). A conversation belongs to at most one pair, so pairing it
- * again moves it out of its old pair.
+ * Conversation pairs: two conversations the viewer reads side by side. `left`
+ * is the route's conversation, `right` its first conversation pane. A
+ * conversation belongs to at most one pair, so pairing it again moves it out
+ * of its old pair. The storage key keeps its first name so kept pairs survive.
  *
  * Viewer-local and identity-bound like the rest of place memory: kept in
  * localStorage, wiped on logout by `clearPlaceMemory`.
  */
-export interface SplitPair {
+export interface ConversationPair {
   left: string;
   right: string;
 }
 
-export const SPLIT_PAIRS_KEY = "silverhand:layout.split-pairs";
+export const CONVERSATION_PAIRS_KEY = "silverhand:layout.split-pairs";
 
-function parsePairs(raw: unknown): SplitPair[] {
+function parsePairs(raw: unknown): ConversationPair[] {
   if (!Array.isArray(raw)) return [];
-  const out: SplitPair[] = [];
+  const out: ConversationPair[] = [];
   for (const entry of raw) {
     if (!entry || typeof entry !== "object") continue;
     const { left, right } = entry as Record<string, unknown>;
@@ -29,25 +29,25 @@ function parsePairs(raw: unknown): SplitPair[] {
   return out;
 }
 
-function load(): SplitPair[] {
+function load(): ConversationPair[] {
   try {
-    const raw = localStorage.getItem(SPLIT_PAIRS_KEY);
+    const raw = localStorage.getItem(CONVERSATION_PAIRS_KEY);
     return raw ? parsePairs(JSON.parse(raw)) : [];
   } catch {
     return [];
   }
 }
 
-let pairs: readonly SplitPair[] = load();
+let pairs: readonly ConversationPair[] = load();
 const listeners = new Set<() => void>();
 
-function commit(next: readonly SplitPair[]): void {
+function commit(next: readonly ConversationPair[]): void {
   pairs = next;
   try {
-    if (next.length === 0) localStorage.removeItem(SPLIT_PAIRS_KEY);
+    if (next.length === 0) localStorage.removeItem(CONVERSATION_PAIRS_KEY);
     else
       localStorage.setItem(
-        SPLIT_PAIRS_KEY,
+        CONVERSATION_PAIRS_KEY,
         JSON.stringify(next.map(({ left, right }) => ({ left, right }))),
       );
   } catch {
@@ -58,11 +58,14 @@ function commit(next: readonly SplitPair[]): void {
 
 /** `pairs` with `left`/`right` paired. An existing pair holding either id is
  *  replaced in place, so re-pairing keeps the row where the viewer left it. */
-export function withPair(current: readonly SplitPair[], pair: SplitPair): readonly SplitPair[] {
+export function withPair(
+  current: readonly ConversationPair[],
+  pair: ConversationPair,
+): readonly ConversationPair[] {
   const { left, right } = pair;
   if (left === right) return current;
   if (current.some((p) => p.left === left && p.right === right)) return current;
-  const next: SplitPair[] = [];
+  const next: ConversationPair[] = [];
   let placed = false;
   for (const p of current) {
     const overlaps = p.left === left || p.right === left || p.left === right || p.right === right;
@@ -79,39 +82,39 @@ export function withPair(current: readonly SplitPair[], pair: SplitPair): readon
 
 /** The pair holding `conversationId`, if any. */
 export function pairOf(
-  current: readonly SplitPair[],
+  current: readonly ConversationPair[],
   conversationId: string | null,
-): SplitPair | null {
+): ConversationPair | null {
   if (!conversationId) return null;
   return current.find((p) => p.left === conversationId || p.right === conversationId) ?? null;
 }
 
 /** `pairs` without any pair holding `conversationId`. */
 export function withoutConversation(
-  current: readonly SplitPair[],
+  current: readonly ConversationPair[],
   conversationId: string,
-): readonly SplitPair[] {
+): readonly ConversationPair[] {
   const next = current.filter(
     (pair) => pair.left !== conversationId && pair.right !== conversationId,
   );
   return next.length === current.length ? current : next;
 }
 
-export function getSplitPairs(): readonly SplitPair[] {
+export function getConversationPairs(): readonly ConversationPair[] {
   return pairs;
 }
 
-export function recordSplitPair(pair: SplitPair): void {
+export function recordConversationPair(pair: ConversationPair): void {
   const next = withPair(pairs, pair);
   if (next !== pairs) commit(next);
 }
 
-export function dissolveSplitPair(conversationId: string): void {
+export function dissolveConversationPair(conversationId: string): void {
   const next = withoutConversation(pairs, conversationId);
   if (next !== pairs) commit(next);
 }
 
-export function clearSplitPairs(): void {
+export function clearConversationPairs(): void {
   commit([]);
 }
 
@@ -122,8 +125,8 @@ function subscribe(listener: () => void): () => void {
   };
 }
 
-const snapshot = (): readonly SplitPair[] => pairs;
+const snapshot = (): readonly ConversationPair[] => pairs;
 
-export function useSplitPairs(): readonly SplitPair[] {
+export function useConversationPairs(): readonly ConversationPair[] {
   return useSyncExternalStore(subscribe, snapshot, snapshot);
 }

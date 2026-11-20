@@ -5,14 +5,16 @@ import type { MessageJumpTarget } from "@/features/channels/use-message-jump-con
 import type { UnreadCounts } from "@/features/attention/notifications";
 import type { WorkspaceListItem } from "@/features/workspaces/hooks";
 import type { SidebarPane } from "@/hooks/use-sidebar-pane";
-import type {
-  ConversationPointer,
-  SecondaryDescriptor,
-} from "@/features/conversation-shell/model/secondary-pane";
-import type { ChatView, PaneColumn, RouteState, useNav } from "@/router";
+import type { ChatView, RouteState, useNav } from "@/router";
 import type { AgentDto, AttentionBadgeRollupDto, SavedMessageDto } from "@silverhand/shared";
-import type { ConversationPanesModel } from "./pane-render-models";
 import type { ConversationColumn } from "./conversation-column";
+import type { ConversationContent } from "./conversation-content";
+
+/** Conversation pointer used by the read-cursor selector. */
+export interface ConversationPointer {
+  id: string;
+  rosterPolicy: "open" | "fixed";
+}
 
 export interface ConversationShellSignals {
   attentionBadges: AttentionBadgeRollupDto | undefined;
@@ -23,19 +25,10 @@ export interface PaneReadModel {
   primaryPointer: ConversationPointer | null;
   hasChannelNamespace: boolean;
   deferredChannelId: string | null;
-  /** The first column; null with no conversation open. */
-  primary: ConversationColumnFacts | null;
-  /** The second column of a split view. */
-  split: ConversationColumnFacts | null;
-  /** The column the right panes (thread, threads, files, attachment) belong to. */
-  paneOwner: ConversationColumnFacts | null;
+  /** The first conversation pane, which takes the route when the route's
+   *  conversation closes. */
+  paired: Pick<ConversationColumn, "id" | "descriptor"> | null;
 }
-
-/** The slice of a {@link ConversationColumn} the pane coordinator reads. */
-export type ConversationColumnFacts = Pick<
-  ConversationColumn,
-  "column" | "id" | "descriptor" | "membership"
->;
 
 export interface PaneJumpModel {
   jumpTarget: MessageJumpTarget | null;
@@ -66,16 +59,16 @@ export interface ChatShellModel {
   handleSelectChannel: (id: string, workspaceId?: string | null) => void;
   handleJumpToMessage: (target: MessageJumpTarget) => boolean;
   sidebarSelectedConversationId: string | null;
-  /** The split view on screen, as the sidebar pairs it. */
-  splitView: { left: string; right: string } | null;
-  /** Open `conversationId` in the second column beside the current one. */
-  openInSplit: (conversationId: string) => void;
+  /** The route conversation and its first conversation pane, as the sidebar pairs them. */
+  activePair: { left: string; right: string } | null;
+  /** Open `conversationId` as a conversation pane beside the route's. */
+  openBeside: (conversationId: string) => void;
   /** Reopen a pair kept in the sidebar. */
   /** Reopen a kept pair; `workspaceId` is the left conversation's, null for a
    *  direct pair. */
   openPair: (workspaceId: string | null, left: string, right: string) => void;
-  /** Close one column of the split view on screen. */
-  closeSplitColumn: (column: PaneColumn) => void;
+  /** Close one half of the pair on screen. */
+  closePairHalf: (half: "left" | "right") => void;
 }
 
 export interface ActivityShellModel {
@@ -101,13 +94,11 @@ export interface ConversationAppModel {
     workspaceId: string | undefined,
     channelId?: string | null,
   ) => string | null;
-  secondaryDescriptor: SecondaryDescriptor | null;
-  routeFullscreen: boolean;
 }
 
 export interface ConversationShellModel {
   chat: ChatShellModel;
   activity: ActivityShellModel;
-  panes: ConversationPanesModel;
+  content: ConversationContent;
   app: ConversationAppModel;
 }

@@ -13,7 +13,6 @@ import { ChatShell, isChatSidebarPage } from "@/pages/chat/chat-shell";
 import { ActivityShell } from "@/pages/activity/activity-shell";
 import { TaskShell } from "@/pages/task/task-shell";
 import { useConversationShell } from "@/features/conversation-shell/use-conversation-shell";
-import { renderConversationPanes } from "@/features/conversation-shell/conversation-content";
 import { useApplicationSignals } from "@/features/app-shell/application-signals";
 import { AgentShell } from "@/pages/agent/agent-shell";
 import { ComputerShell } from "@/pages/computer/computer-shell";
@@ -49,7 +48,6 @@ import { AppStatusBanner } from "@/features/app-shell/app-status-banner";
 import { MenuBarSync } from "@/features/app-shell/menu-bar-sync";
 import { SettingsShell } from "@/pages/settings/settings-shell";
 import { MeShell } from "@/pages/me/me-shell";
-import { shouldSecondaryFullscreen } from "@/features/conversation-shell/model/secondary-pane";
 import { LAST_CHANNEL_KEY, clearPlaceMemory } from "@/features/app-shell/place-memory";
 import { toasterTypedIcons } from "@/lib/toast-icons";
 import { AppUpdateDialog } from "@/features/app-update/app-update-dialog";
@@ -248,7 +246,7 @@ function RegisteredAppShell({
     handleMessageAgent,
     resolveNavWorkspaceId,
   } = conversation.app;
-  const content = renderConversationPanes(conversation.panes);
+  const content = conversation.content;
   const nativeTitlebar = getPlatform().titlebar;
   const chromeMode = appSection === "activity" ? "activity" : "chat";
   const sidebarToggle = hasCollapsibleSidebar(appSection);
@@ -279,10 +277,6 @@ function RegisteredAppShell({
     onOpenDirectDraft: nav.toDirectDraft,
     onOpenAdvanced: (query) => nav.toChatSearch(query ? { q: query } : undefined),
   };
-  const fullscreen = shouldSecondaryFullscreen(
-    conversation.app.secondaryDescriptor,
-    conversation.app.routeFullscreen,
-  );
 
   return (
     <SidebarLayoutProvider
@@ -400,18 +394,10 @@ function RegisteredAppShell({
                     />
                   </MobileHeaderScope>
                   <MobileHeaderScope section="activity">
-                    <ActivityShell
-                      model={conversation.activity}
-                      content={content}
-                      fullscreen={fullscreen}
-                    />
+                    <ActivityShell model={conversation.activity} content={content} />
                   </MobileHeaderScope>
                   <MobileHeaderScope section="chat">
-                    <ChatShell
-                      model={conversation.chat}
-                      content={content}
-                      fullscreen={fullscreen}
-                    />
+                    <ChatShell model={conversation.chat} content={content} />
                   </MobileHeaderScope>
                 </>
               </PageStack>

@@ -47,7 +47,7 @@ import {
 import { AppContextMenu } from "@/components/menus/app-context-menu";
 import { starredConversationIds, useFavoritesList } from "@/features/workspaces/favorites";
 import { DirectPairStarMenuItem } from "./direct-messages-panel";
-import { useConversationDragSource, useRowSplitActions } from "./sidebar-split";
+import { useConversationDragSource, useRowPaneActions } from "./sidebar-pairs";
 import { useViewerUser } from "@/features/session/hooks";
 import { channelNodeBadge, directRowBadge } from "@/features/attention/row-badges";
 import {
@@ -515,7 +515,7 @@ const RecentRow = forwardRef<HTMLButtonElement, RecentRowProps>(function RecentR
 });
 
 /** The tree's row menu on the same conversation here: the channel menu, or a
- *  direct pair's Star item, behind the shared split actions. */
+ *  direct pair's Star item, behind the shared pane actions. */
 function RecentRowMenu(props: {
   row: RecentListRow;
   pinned: boolean;
@@ -526,14 +526,14 @@ function RecentRowMenu(props: {
   ) => ReactElement;
 }): JSX.Element {
   const { row } = props;
-  const splitActions = useRowSplitActions(row.id, props.selected);
+  const paneActions = useRowPaneActions(row.id, props.selected);
   const dragSource = useConversationDragSource(row.id, props.selected);
-  const trigger = props.children(splitActions.select, dragSource);
+  const trigger = props.children(paneActions.select, dragSource);
 
   if (props.row.kind !== "channel") {
     return (
       <AppContextMenu trigger={trigger}>
-        {splitActions.menuItem}
+        {paneActions.menuItem}
         <DirectPairStarMenuItem conversationId={props.row.id} starred={props.pinned} />
       </AppContextMenu>
     );
@@ -541,7 +541,7 @@ function RecentRowMenu(props: {
 
   return (
     <AppContextMenu trigger={trigger}>
-      {splitActions.menuItem}
+      {paneActions.menuItem}
       <RecentChannelMenuItems row={props.row} pinned={props.pinned} />
     </AppContextMenu>
   );

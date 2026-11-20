@@ -79,7 +79,6 @@ export function ChannelThreadsPanel({
         <SidePanelHeaderTitle
           icon={<ThreadIcon className="size-3.5 shrink-0 text-text-muted" />}
           title={t("conversationShell.threads")}
-          subtitle={parentTitle ? `#${parentTitle}` : undefined}
         />
       </SidePanelHeader>
       {/* This host's inset — see the Attachments panel: pane-edge gutter is the
@@ -99,7 +98,7 @@ export function ChannelThreadsPanel({
  *
  * A thread is NOT a conversation (it shares the parent channel's context), so
  * — like the reply-cluster pane — this surface renders outside the
- * conversation-bound `secondaryDescriptor` system and reads its own
+ * conversation-bound descriptor system and reads its own
  * channel-scoped aggregate via `useChannelThreads`.
  *
  * Width-adaptive: `conversation-surface` names the query container, so any width

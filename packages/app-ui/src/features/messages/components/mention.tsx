@@ -91,7 +91,7 @@ function AgentMention({
         type="button"
         onClick={(event) => {
           event.preventDefault();
-          // Agent mention chips open the compact side panel (`?agent=`),
+          // Agent mention chips open the agent pane,
           // identical to clicking an agent avatar in the stream — so the
           // channel stays put and Activity reads beside it (#task:1189).
           nav.openAgentPanel(agent.id);

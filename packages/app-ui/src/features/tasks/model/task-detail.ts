@@ -63,7 +63,7 @@ export function resolveTaskJumpTarget(detail: TaskDetailDto): TaskJumpTarget | n
  *     conversation; the route answers 404 for both). TERMINAL: no retry can fix
  *     it. The modal still stays open with an explanation and an explicit Close —
  *     silently stripping a pointer the user just clicked leaves them with no
- *     account of what happened (the `?side` placeholder settled this).
+ *     account of what happened (the conversation-pane placeholder settled this).
  *   - `unreachable` — the request never reached the backend
  *     (`ApiError.kind === 'backend_unreachable'`). The global `AppStatusBanner`
  *     already owns that signal AND its Retry, so the modal only explains itself

@@ -14,7 +14,7 @@ import { ConversationStage } from "@/features/conversation-shell/conversation-st
 
 export function isChatSidebarPage(model: ChatShellModel, content: ConversationContent): boolean {
   return (
-    !content.secondary &&
+    content.panes.length === 0 &&
     !model.route.channelId &&
     !model.directDraftTarget &&
     model.view === "channel"
@@ -24,11 +24,9 @@ export function isChatSidebarPage(model: ChatShellModel, content: ConversationCo
 export function ChatShell({
   model,
   content,
-  fullscreen,
 }: {
   model: ChatShellModel;
   content: ConversationContent;
-  fullscreen: boolean;
 }) {
   const compact = useCompactLayout();
   const showList = compact && isChatSidebarPage(model, content);
@@ -116,9 +114,8 @@ export function ChatShell({
                   <ConversationStage
                     content={content}
                     ready={deferredSection === "chat"}
-                    fullscreen={fullscreen}
                     storageKey="silverhand.layout.split-ratio"
-                    acceptsSplitDrop={route.channelId !== null && !model.directDraftTarget}
+                    acceptsPaneDrop={route.channelId !== null && !model.directDraftTarget}
                   />
                 </>
               ))}

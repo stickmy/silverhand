@@ -48,17 +48,19 @@ function setState(next: DropState): void {
 }
 
 /**
- * Where the new column will stand: the second column when a split is open (the
- * drop replaces it), else the right half of the conversation area, full height,
- * so the target previews the layout the drop produces.
+ * Where the dropped conversation will stand: over the open conversation pane
+ * (the drop opens beside it), else the right half of the conversation area,
+ * full height, so the target previews the layout the drop produces.
  */
-export function splitDropTarget(): DOMRect | null {
-  const columns = stage?.querySelector<HTMLElement>("[data-split-columns] > div");
-  if (!columns) return null;
-  const second = columns.querySelector<HTMLElement>(':scope > [data-pane-clip="side"]');
-  const box = (second ?? columns).getBoundingClientRect();
+export function paneDropTarget(): DOMRect | null {
+  const row = stage?.querySelector<HTMLElement>("[data-pane-row]");
+  if (!row) return null;
+  const pane = row.querySelector<HTMLElement>(
+    ':scope > [data-pane-slot] > [data-attached-pane="conversation"]',
+  );
+  const box = (pane ?? row).getBoundingClientRect();
   if (box.width === 0) return null;
-  const left = second ? box.left : box.left + box.width / 2;
+  const left = pane ? box.left : box.left + box.width / 2;
   return new DOMRect(left, box.top, box.right - left, box.height);
 }
 
@@ -66,7 +68,7 @@ function stateAt(x: number, y: number): DropState {
   if (!drag || !stage) return "idle";
   const stageLeft = stage.getBoundingClientRect().left;
   if (x - drag.startX <= LIFT_PX && x < stageLeft) return "pending";
-  const target = splitDropTarget();
+  const target = paneDropTarget();
   const over =
     target !== null &&
     x >= target.left &&
@@ -83,7 +85,7 @@ function onPointerMove(event: PointerEvent | MouseEvent): void {
 }
 
 /** The conversation area that accepts drops, or null when none is mounted. */
-export function registerSplitDropStage(element: HTMLElement | null): void {
+export function registerPaneDropStage(element: HTMLElement | null): void {
   stage = element;
 }
 
@@ -198,13 +200,13 @@ function subscribe(listener: () => void): () => void {
 
 const snapshot = (): DropState => state;
 
-export function useSplitDropState(): DropState {
+export function usePaneDropState(): DropState {
   return useSyncExternalStore(subscribe, snapshot, snapshot);
 }
 
 /** Whether a held row has left its list for the conversation area. */
 export function useRowLifted(): boolean {
-  const current = useSplitDropState();
+  const current = usePaneDropState();
   return current === "lifted" || current === "over";
 }
 
@@ -225,7 +227,7 @@ function subscribePointer(listener: () => void): () => void {
 const pointerSnapshot = () => pointer;
 
 /** The held row's copy and where it sits under the pointer. */
-export function useSplitDragGhost(): { row: HTMLElement; left: number; top: number } | null {
+export function usePaneDragGhost(): { row: HTMLElement; left: number; top: number } | null {
   const at = useSyncExternalStore(subscribePointer, pointerSnapshot, pointerSnapshot);
   if (!drag) return null;
   return { row: drag.row, left: at.x - drag.grabX, top: at.y - drag.grabY };

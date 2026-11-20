@@ -101,8 +101,6 @@ export const conversationShell = {
   opensChannelSettings: "Opens channel settings",
   searchThisChannel: "Search this channel",
   threadsUnread: "Threads (unread)",
-  exitFullScreen: "Exit full screen",
-  fullScreen: "Full screen",
   closed: "Closed",
   thread: "Thread",
   more: "More",

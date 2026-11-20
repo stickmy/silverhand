@@ -1,19 +1,20 @@
 import { SidebarRowsSkeleton } from "@/components/layout/sidebar-skeleton";
 import { SidebarReveal, SidebarRevealRow } from "@/components/layout/sidebar-reveal";
-import { forwardRef, useMemo, type HTMLAttributes, type MouseEvent } from "react";
+import { useMemo } from "react";
 import type { DirectPairCounterpart } from "@silverhand/shared";
 import { DirectMessageIcon, StarIcon } from "@/icons";
-import { AppContextMenu, AppContextMenuItem } from "@/components/menus/app-context-menu";
-import { useConversationDragSource, useRowSplitActions, useSidebarSplit } from "./sidebar-split";
-import { foldPairs, useRegisterRowFaces, useRowFaces, type RowFace } from "./sidebar-faces";
-import { SidebarPairRow } from "./pair-row";
-import type { SplitPair } from "@/features/conversation-shell/split-pairs";
+import { AppContextMenuItem } from "@/components/menus/app-context-menu";
+import { useSidebarPairs } from "./sidebar-pairs";
+import {
+  SidebarConversationRow,
+  useSidebarList,
+  type SidebarConversation,
+} from "./sidebar-conversation";
 import {
   starredConversationIds,
   useFavoritesList,
   useStarDirectPair,
 } from "@/features/workspaces/favorites";
-import { cn } from "@/lib/cn";
 import type { DirectMessageTarget } from "@/features/direct-pairs/target";
 import { useDraftCounterpart } from "@/features/direct-pairs/use-draft-counterpart";
 import { useAgentAvatarObjectUrls } from "@/features/agents/hooks/avatar-hooks";
@@ -30,12 +31,7 @@ import {
 import { mergeDirectLineRows, type DirectLineRow } from "@/features/direct-pairs/direct-line-rows";
 import { directRowBadge } from "@/features/attention/row-badges";
 import { collapsedRevealRows } from "../../../features/workspaces/home-grouping";
-import {
-  ConversationRowLayout,
-  SidebarSection,
-  SidebarEmptyRow,
-  UnreadBadge,
-} from "../../../components/layout/sidebar-shared";
+import { SidebarSection, SidebarEmptyRow } from "../../../components/layout/sidebar-shared";
 import { t } from "@/lib/i18n";
 
 export function DirectMessagesGroup(props: {
@@ -81,23 +77,35 @@ export function DirectMessagesGroup(props: {
   const agentAvatarUrls = useAgentAvatarObjectUrls(agents);
   const humanAvatarUrls = useUserAvatarObjectUrls(users);
 
-  const split = useSidebarSplit();
-  const idOf = (row: DirectLineRow) => (row.kind === "pair" ? row.conversationId : row.key);
-  const ownFaces = new Map(
-    rows.flatMap((row) =>
-      row.kind === "pair"
-        ? [[row.conversationId, directPairHalf(row, { agentAvatarUrls, humanAvatarUrls })] as const]
-        : [],
-    ),
+  const pairing = useSidebarPairs();
+  const urls = { agentAvatarUrls, humanAvatarUrls };
+  const conversationOf = (row: DirectLineRow): SidebarConversation =>
+    row.kind === "pair"
+      ? directConversation(row.conversationId, row, urls, false, () =>
+          props.onSelectDirectPair(row.conversationId),
+        )
+      : {
+          // A draft is not a conversation yet; it lists itself but never
+          // folds into a pair or opens beside anything.
+          ...directConversation(row.key, row, urls, false, () =>
+            props.onSelectDirectDraft?.(row.target),
+          ),
+          openable: false,
+        };
+  const { lines, byId } = useSidebarList(
+    "direct-messages",
+    rows,
+    conversationOf,
+    pairing?.pairs ?? [],
+    (c) => c.openable !== false,
   );
-  useRegisterRowFaces("direct-messages", ownFaces);
-  const lines = foldPairs(rows, idOf, split?.pairs ?? [], useRowFaces());
-  const lineProps = {
-    agentAvatarUrls,
-    humanAvatarUrls,
-    onSelectDirectPair: props.onSelectDirectPair,
-    onSelectDirectDraft: props.onSelectDirectDraft,
-  };
+  const line = ({ row, pair }: (typeof lines)[number]): JSX.Element => (
+    <SidebarConversationRow
+      conversation={byId.get(conversationOf(row).id)!}
+      pair={row.kind === "pair" ? pair : null}
+      selected={row.selected}
+    />
+  );
   const revealed = collapsedRevealRows(lines, {
     pokeUnread: true,
     isSelected: ({ row, pair }) =>
@@ -120,9 +128,7 @@ export function DirectMessagesGroup(props: {
       collapsedContent={
         <SidebarReveal>
           {revealed.map(({ row, pair }) => (
-            <SidebarRevealRow key={row.key}>
-              <DirectMessageLine row={row} pair={pair} {...lineProps} />
-            </SidebarRevealRow>
+            <SidebarRevealRow key={row.key}>{line({ row, pair })}</SidebarRevealRow>
           ))}
         </SidebarReveal>
       }
@@ -137,117 +143,57 @@ export function DirectMessagesGroup(props: {
         )
       ) : null}
       {lines.map(({ row, pair }) => (
-        <li key={row.key}>
-          <DirectMessageLine row={row} pair={pair} {...lineProps} />
-        </li>
+        <li key={row.key}>{line({ row, pair })}</li>
       ))}
     </SidebarSection>
   );
 }
 
-type LineProps = {
+type AvatarUrls = {
   agentAvatarUrls: ReadonlyMap<string, string | null>;
   humanAvatarUrls: ReadonlyMap<string, string | null>;
-  onSelectDirectPair: (conversationId: string) => void;
-  onSelectDirectDraft?: (target: DirectMessageTarget) => void;
 };
 
-/** A direct line, or a kept pair of two direct lines folded into one row. */
-function DirectMessageLine({
-  row,
-  pair,
-  ...props
-}: {
-  row: DirectLineRow;
-  pair: { pair: SplitPair; right: RowFace } | null;
-} & LineProps): JSX.Element {
-  if (pair && row.kind === "pair") {
-    return (
-      <SidebarPairRow
-        pair={pair.pair}
-        workspaceId={null}
-        left={directPairHalf(row, props)}
-        right={pair.right}
-        menu={<DirectPairStarMenuItem conversationId={row.conversationId} starred={false} />}
-      />
-    );
-  }
-  return <DirectMessageRow row={row} {...props} />;
-}
-
-/** One half of a pair row drawn from a direct line. */
-export function directPairHalf(
+/** A direct line as a sidebar conversation, shared by DIRECT MESSAGES and
+ *  STARRED. The counterpart IS the row: its avatar, its name, and — when the
+ *  principal is gone — the same quiet deleted marker a byline shows, which is
+ *  also the ONLY on-row explanation for the pane's read-only composer. */
+export function directConversation(
+  id: string,
   line: { counterpart: DirectPairCounterpart; unread: number },
-  urls: Pick<LineProps, "agentAvatarUrls" | "humanAvatarUrls">,
-): RowFace {
+  urls: AvatarUrls,
+  starred: boolean,
+  open: () => void,
+): SidebarConversation {
+  // The label is also the pane's title, and both come from the same
+  // presentation rule (see `presentCounterpart`) — so the draft row's face and
+  // name are already the ones the minted pair will wear.
   const counterpart = presentCounterpart(line.counterpart);
   const avatarId = line.counterpart.status === "active" ? line.counterpart.id : "";
   return {
-    glyphKey: `${line.counterpart.status}:${
-      urls.agentAvatarUrls.get(avatarId) ?? urls.humanAvatarUrls.get(avatarId) ?? ""
-    }`,
-    glyph: (
-      <AuthorAvatarView
-        avatar={counterpart.avatar}
-        size={16}
-        label={counterpart.label}
-        agentAvatarUrls={urls.agentAvatarUrls}
-        humanAvatarUrls={urls.humanAvatarUrls}
-      />
-    ),
-    title: counterpart.label,
-    badge: directRowBadge(line.unread),
+    id,
+    workspaceId: null,
+    face: {
+      glyphKey: `${line.counterpart.status}:${
+        urls.agentAvatarUrls.get(avatarId) ?? urls.humanAvatarUrls.get(avatarId) ?? ""
+      }`,
+      glyph: (
+        <AuthorAvatarView
+          avatar={counterpart.avatar}
+          size={16}
+          label={counterpart.label}
+          agentAvatarUrls={urls.agentAvatarUrls}
+          humanAvatarUrls={urls.humanAvatarUrls}
+        />
+      ),
+      title: counterpart.label,
+      badge: directRowBadge(line.unread),
+    },
+    muted: false,
+    marker: counterpart.isDeleted ? <DeletedActorMarker /> : undefined,
+    open,
+    menu: <DirectPairStarMenuItem conversationId={id} starred={starred} />,
   };
-}
-
-/** One line's row. The counterpart IS the row: its avatar, its name, and — when the
- *  principal is gone — the same quiet deleted marker a byline shows, which is also
- *  the ONLY on-row explanation for the pane's read-only composer.
- *
- *  A pair and a draft differ in exactly one thing — WHAT opening it navigates to —
- *  so they share one component instead of a second row species with its own
- *  painting. */
-function DirectMessageRow({
-  row,
-  agentAvatarUrls,
-  humanAvatarUrls,
-  onSelectDirectPair,
-  onSelectDirectDraft,
-}: { row: DirectLineRow } & LineProps): JSX.Element {
-  const splitActions = useRowSplitActions(
-    row.kind === "pair" ? row.conversationId : row.key,
-    row.selected || row.kind === "draft",
-  );
-  const dragSource = useConversationDragSource(
-    row.kind === "pair" ? row.conversationId : row.key,
-    row.selected || row.kind === "draft",
-  );
-  const face = (
-    <DirectLineRowView
-      {...dragSource}
-      counterpart={row.counterpart}
-      unread={row.unread}
-      selected={row.selected}
-      agentAvatarUrls={agentAvatarUrls}
-      humanAvatarUrls={humanAvatarUrls}
-      onSelect={splitActions.select(() => {
-        // A draft row stays on the draft even when a pair for the same agent
-        // exists: that is what makes it one row instead of two.
-        if (row.kind === "draft") {
-          onSelectDirectDraft?.(row.target);
-          return;
-        }
-        onSelectDirectPair(row.conversationId);
-      })}
-    />
-  );
-  if (row.kind === "draft") return face;
-  return (
-    <AppContextMenu trigger={face}>
-      {splitActions.menuItem}
-      <DirectPairStarMenuItem conversationId={row.conversationId} starred={false} />
-    </AppContextMenu>
-  );
 }
 
 export function DirectPairStarMenuItem(props: {
@@ -266,50 +212,3 @@ export function DirectPairStarMenuItem(props: {
     </AppContextMenuItem>
   );
 }
-
-/** A direct line's sidebar face, shared by DIRECT MESSAGES and STARRED. Forwards
- *  its ref and extra props so it can be a context-menu trigger. */
-export const DirectLineRowView = forwardRef<
-  HTMLDivElement,
-  Omit<HTMLAttributes<HTMLDivElement>, "children" | "onSelect" | "title"> & {
-    counterpart: DirectPairCounterpart;
-    unread: number;
-    selected: boolean;
-    draggable?: boolean;
-    agentAvatarUrls: ReadonlyMap<string, string | null>;
-    humanAvatarUrls: ReadonlyMap<string, string | null>;
-    onSelect: (event: MouseEvent<HTMLButtonElement>) => void;
-  }
->(function DirectLineRowView(
-  { counterpart: raw, unread, agentAvatarUrls, humanAvatarUrls, ...layout },
-  ref,
-): JSX.Element {
-  // The label is also the pane's title, and both must come from the same
-  // presentation rule (see `presentCounterpart`) — so the draft row's face and
-  // name are already the ones the minted pair will wear.
-  const counterpart = presentCounterpart(raw);
-  const badge = directRowBadge(unread);
-
-  return (
-    <ConversationRowLayout ref={ref} column="nested" {...layout}>
-      <div className="flex size-5.5 shrink-0 items-center justify-center">
-        <AuthorAvatarView
-          avatar={counterpart.avatar}
-          size={16}
-          label={counterpart.label}
-          agentAvatarUrls={agentAvatarUrls}
-          humanAvatarUrls={humanAvatarUrls}
-        />
-      </div>
-      <span className={cn("min-w-0 truncate", layout.selected && "font-medium")}>
-        {counterpart.label}
-      </span>
-      {counterpart.isDeleted ? (
-        <span className="flex shrink-0 items-center">
-          <DeletedActorMarker />
-        </span>
-      ) : null}
-      {badge ? <UnreadBadge count={badge.count} tier={badge.tier} className="ml-auto" /> : null}
-    </ConversationRowLayout>
-  );
-});

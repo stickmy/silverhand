@@ -631,11 +631,11 @@ export function heldChannelIdsInWorkspace(qc: QueryClient, workspaceId: string):
  * seen a workspace-carrying DTO for is not enumerable here. Every carrier the
  * renderer has TODAY states the workspace — the selected workspace's two lists,
  * channel-detail, the cross-workspace archived index, the one shared
- * conversation-ref read point (`?side` panes and inline `#conv:` chips), and a
+ * conversation-ref read point (conversation panes and inline `#conv:` chips), and a
  * notification's own `(workspace_id, conversation_id)` pair — and the two
  * carrier-side enumerations in `channel-workspace-index.ts` are what keep a new
  * ref producer from landing without the write-through. A REFUSED carrier leaves
- * nothing behind either: a `?side` ref that 403s resolves to `unauthorized`, and
+ * nothing behind either: a conversation pane that 403s resolves to `unauthorized`, and
  * that descriptor renders `SideUnresolvedPlaceholder` instead of mounting
  * `ChannelView`, so the path that cannot learn the workspace is the same path
  * that writes no channel-keyed cache. What remains open is a FUTURE carrier of a

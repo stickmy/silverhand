@@ -16,7 +16,7 @@
  *    may degrade to inert text.
  *
  * Composing them here — once — is what keeps the `#conv:<id>` chip and the
- * `?side=<id>` pane from drifting: before this, both read the workspace face
+ * conversation pane from drifting: before this, both read the workspace face
  * alone, so every private line rendered as "deleted or never existed" while
  * sitting in the viewer's own DIRECT MESSAGES list.
  *

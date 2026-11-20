@@ -104,8 +104,6 @@ export const conversationShell: Translation<typeof en> = {
   opensChannelSettings: "打开频道设置",
   searchThisChannel: "在这个频道中搜索",
   threadsUnread: "话题(有未读)",
-  exitFullScreen: "退出全屏",
-  fullScreen: "全屏",
   closed: "已关闭",
   thread: "话题",
   more: "更多",

@@ -231,11 +231,11 @@ export function useRenameChannel(workspaceId: string | null) {
       // mirrored into several read models, so refresh all of them rather
       // than only the active list — a rename on an archived channel (the
       // header settings menu is reachable while archived) or in a foreign
-      // secondary pane would otherwise show a stale title until an
+      // conversation pane would otherwise show a stale title until an
       // unrelated WS event happened to refetch:
       //   - active + archived channel lists (sidebar groups)
       //   - the global archived-channels index
-      //   - the conversation-ref cache (#conv:<id> chips / secondary pane)
+      //   - the conversation-ref cache (#conv:<id> chips / conversation panes)
       if (targetWorkspaceId) {
         qc.invalidateQueries({ queryKey: channelsKey(targetWorkspaceId) });
         qc.invalidateQueries({ queryKey: archivedChannelsKey(targetWorkspaceId) });
@@ -334,7 +334,7 @@ export function applyChannelLeaveToList(
  * membership convergence; we invalidate the read models that mirror the
  * private/public glyph + discovery membership: the channel lists, the global
  * archived index, the channel-detail carrier, and the conversation-ref cache
- * (`#conv:` chips / secondary pane).
+ * (`#conv:` chips / conversation panes).
  */
 export function useSetChannelVisibility(workspaceId: string | null) {
   const qc = useQueryClient();

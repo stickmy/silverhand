@@ -7,21 +7,14 @@ import { useMessageUnreadCounts } from "@/features/channels/hooks";
 
 import { type MessageJumpTarget } from "@/features/channels/use-message-jump-controller";
 
+import { paneUrl, routes, useNav, useRouteState } from "@/router";
 import {
-  buildChannelLayoutUrl,
-  layoutMemoryFromRoute,
-  routes,
-  useNav,
-  useRouteState,
-  type ChannelLayout,
-} from "@/router";
-import {
-  getChannelLayout,
+  getChannelPanes,
   getCloseWatermark,
   getLastChatPlace,
   getLastWorkspaceId,
   lastChannelByWorkspace,
-  recordChannelLayout,
+  recordChannelPanes,
   recordCloseWatermark,
 } from "@/features/app-shell/place-memory";
 import {
@@ -66,9 +59,7 @@ export function useChatRouteRecovery({
     channelId: selectedChannelId,
     directConversationId,
     directDraftTarget,
-    sideConversationId,
-    threadRootId,
-    threadsListOpen,
+    panes,
   } = route;
   const handleJumpToMessage = onJump;
   const lastSelectedWorkspaceId = useRef<string | null>(getLastWorkspaceId());
@@ -160,7 +151,7 @@ export function useChatRouteRecovery({
         : null;
     // On the restore path the remembered channel's unread pointer is consulted
     // best-effort — if the workspace's unread data hasn't loaded yet it
-    // degrades to layout memory rather than waiting (#task:1082).
+    // degrades to pane memory rather than waiting (#task:1082).
     const rememberedChannelId = lastChannelByWorkspace.get(selectedWorkspaceId) ?? null;
     const action = resolveRestoreNavigation({
       workspaceId: selectedWorkspaceId,
@@ -174,7 +165,7 @@ export function useChatRouteRecovery({
         ? messageUnreadData?.latest_by_conversation?.[rememberedChannelId]
         : undefined,
       rememberedCloseWatermark: rememberedChannelId ? getCloseWatermark(rememberedChannelId) : null,
-      rememberedLayout: rememberedChannelId ? getChannelLayout(rememberedChannelId) : null,
+      rememberedPanes: rememberedChannelId ? getChannelPanes(rememberedChannelId) : null,
     });
     switch (action.kind) {
       case "none":
@@ -185,9 +176,12 @@ export function useChatRouteRecovery({
         });
         return;
       case "open-remembered":
-        nav.go(buildChannelLayoutUrl(selectedWorkspaceId, action.channelId, action.layout), {
-          replace: true,
-        });
+        nav.go(
+          paneUrl(routes.chatChannel(selectedWorkspaceId, action.channelId), action.panes ?? []),
+          {
+            replace: true,
+          },
+        );
         return;
       case "jump-unread":
         handleJumpToMessage({
@@ -220,41 +214,22 @@ export function useChatRouteRecovery({
     lastSelectedWorkspaceId,
   });
 
-  const prevLayoutRef = useRef<{
-    channelId: string;
-    kind: ChannelLayout["kind"];
-  } | null>(null);
+  const prevPanesRef = useRef<{ channelId: string; open: boolean } | null>(null);
 
   useEffect(() => {
     if (!selectedChannelId || directConversationId !== null) {
-      prevLayoutRef.current = null;
+      prevPanesRef.current = null;
       return;
     }
-    const layout = layoutMemoryFromRoute({
-      sideConversationId,
-      threadRootId,
-      threadsListOpen,
-    });
-    recordChannelLayout(selectedChannelId, layout);
-    const prev = prevLayoutRef.current;
-    if (
-      prev &&
-      prev.channelId === selectedChannelId &&
-      prev.kind !== "none" &&
-      layout.kind === "none"
-    ) {
+    recordChannelPanes(selectedChannelId, panes);
+    const open = panes.length > 0;
+    const prev = prevPanesRef.current;
+    if (prev && prev.channelId === selectedChannelId && prev.open && !open) {
       const seq = messageUnreadData?.latest_by_conversation?.[selectedChannelId]?.seq;
       if (seq != null) {
         recordCloseWatermark(selectedChannelId, seq);
       }
     }
-    prevLayoutRef.current = { channelId: selectedChannelId, kind: layout.kind };
-  }, [
-    selectedChannelId,
-    directConversationId,
-    sideConversationId,
-    threadRootId,
-    threadsListOpen,
-    messageUnreadData,
-  ]);
+    prevPanesRef.current = { channelId: selectedChannelId, open };
+  }, [selectedChannelId, directConversationId, panes, messageUnreadData]);
 }

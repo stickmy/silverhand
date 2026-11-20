@@ -550,7 +550,7 @@ describe("the pane gates its roster reads on the capability (the wiring half)", 
     // panel has to sit between the provider's tags, since a provider that merely
     // appears in the file is the bug all over again.
     const appSource =
-      read("../conversation-shell/secondary-pane-content.tsx") +
+      read("../conversation-shell/attached-pane.tsx") +
       read("../conversation-shell/build-conversation-panes.ts") +
       read("../conversation-shell/use-conversation-read-model.ts");
     const open = appSource.indexOf(
@@ -570,6 +570,6 @@ describe("the pane gates its roster reads on the capability (the wiring half)", 
       read("../conversation-shell/conversation-column.ts") +
       read("../conversation-shell/build-conversation-panes.ts");
     expect(appSource).toContain("inheritedPaneCapabilities(descriptor)");
-    expect(appSource).toContain("conversation: split.descriptor");
+    expect(appSource).toContain("conversation: owner.descriptor");
   });
 });

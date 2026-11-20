@@ -10,11 +10,9 @@ import { ConversationStage } from "@/features/conversation-shell/conversation-st
 export function ActivityShell({
   model,
   content,
-  fullscreen,
 }: {
   model: ActivityShellModel;
   content: ConversationContent;
-  fullscreen: boolean;
 }) {
   const compact = useCompactLayout();
   const {
@@ -56,7 +54,6 @@ export function ActivityShell({
               <ConversationStage
                 content={content}
                 ready={appSection === "activity"}
-                fullscreen={fullscreen}
                 storageKey="silverhand.layout.activity-split-ratio"
               />
             </>

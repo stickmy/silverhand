@@ -9,9 +9,9 @@ import {
 } from "@/components/layout/sidebar-shared";
 import { t } from "@/lib/i18n";
 import { AppContextMenu } from "@/components/menus/app-context-menu";
-import type { SplitPair } from "@/features/conversation-shell/split-pairs";
-import { useSidebarSplit } from "./sidebar-split";
-import type { RowFace } from "./sidebar-faces";
+import type { ConversationPair } from "@/features/conversation-shell/conversation-pairs";
+import { useSidebarPairs } from "./sidebar-pairs";
+import type { RowFace } from "./sidebar-conversation";
 
 /** One half of a pair row: the conversation's own glyph and title. */
 export interface PairHalf {
@@ -22,7 +22,7 @@ export interface PairHalf {
 }
 
 /**
- * A kept pair as a sidebar row, wired to the split view: selected while the
+ * A kept pair as a sidebar row, wired to the stage: selected while the
  * pair is on screen, reopens it on click, and each half's close removes that
  * half. `menu` is the left conversation's own row menu.
  */
@@ -34,7 +34,7 @@ export function SidebarPairRow({
   menu,
   draggable,
 }: {
-  pair: SplitPair;
+  pair: ConversationPair;
   /** The left conversation's workspace; null for a direct pair. */
   workspaceId: string | null;
   left: RowFace;
@@ -42,15 +42,15 @@ export function SidebarPairRow({
   menu: ReactNode;
   draggable?: boolean;
 }): JSX.Element | null {
-  const split = useSidebarSplit();
-  if (!split) return null;
+  const pairing = useSidebarPairs();
+  if (!pairing) return null;
   const row = (
     <PairRow
-      selected={split.active?.left === pair.left && split.active.right === pair.right}
+      selected={pairing.active?.left === pair.left && pairing.active.right === pair.right}
       draggable={draggable}
-      left={{ ...left, onClose: () => split.closeHalf(pair, "left") }}
-      right={{ ...right, onClose: () => split.closeHalf(pair, "right") }}
-      onSelect={() => split.openPair(pair, workspaceId)}
+      left={{ ...left, onClose: () => pairing.closeHalf(pair, "left") }}
+      right={{ ...right, onClose: () => pairing.closeHalf(pair, "right") }}
+      onSelect={() => pairing.openPair(pair, workspaceId)}
     />
   );
   return <AppContextMenu trigger={row}>{menu}</AppContextMenu>;
@@ -58,7 +58,7 @@ export function SidebarPairRow({
 
 /**
  * Two conversations open side by side, drawn as ONE sidebar row (Chrome's
- * split-tab face): the row is a single selection, clicking anywhere reopens
+ * paired-tab face): the row is a single selection, clicking anywhere reopens
  * the pair, and neither half highlights on its own. The connector between the
  * halves marks them as joined; on hover each half trades its unread count for
  * a close button that removes that half from the pair.

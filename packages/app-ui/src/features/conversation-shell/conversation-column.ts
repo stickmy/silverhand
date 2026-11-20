@@ -17,16 +17,14 @@ import {
   type ConversationPaneCapabilities,
 } from "@/features/conversations/pane-mode";
 import type { ChannelListItem } from "@/features/workspaces/hooks";
-import type { PaneColumn } from "@/navigation/pane-query";
 
 /**
- * One conversation column of the chat stage, resolved: everything a column's
- * own view and the right panes it owns (thread, threads, files, attachment)
- * read about its conversation. Both columns have this shape, so a pane never
- * asks which column it belongs to — it reads the owning column.
+ * One conversation on the stage, resolved: everything its own view and the
+ * panes it owns (Threads, Files, Settings) read about it. The route's
+ * conversation and every conversation pane have this shape, so a pane never
+ * asks where its conversation stands — it reads the owning one.
  */
 export interface ConversationColumn {
-  column: PaneColumn;
   /** The conversation id the route names. */
   id: string;
   /** Null while the descriptor is still resolving, or when it never will. */
@@ -45,7 +43,6 @@ export interface ConversationColumn {
 
 /** The derived facts of a column, from its descriptor and membership. */
 export function useColumnFacts(input: {
-  column: PaneColumn;
   id: string;
   descriptor: ConversationPaneDescriptor | null;
   status: ConversationIdentityStatus;
@@ -79,11 +76,11 @@ export function useColumnFacts(input: {
 }
 
 /**
- * The second column of a split view. A channel of the open workspace reads
+ * A conversation other than the route's. A channel of the open workspace reads
  * from the list already in hand (it carries `is_member`); anything else —
  * another workspace's channel, a direct pair — resolves by identity.
  */
-export function useSplitColumn(
+export function useConversationColumn(
   id: string | null,
   channels: readonly ChannelListItem[],
   toDescriptor: (channel: ChannelListItem) => ConversationPaneDescriptor | null,
@@ -105,7 +102,6 @@ export function useSplitColumn(
     isDirect ? { readOnly: descriptor?.read_only === true } : null,
   );
   const column = useColumnFacts({
-    column: "split",
     id: id ?? "",
     descriptor,
     status: descriptor ? "resolved" : identity.status,

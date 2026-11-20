@@ -50,7 +50,7 @@ it("hides global navigation in details, retains workspace and filtered task root
   expect(showsTabBar("/me")).toBe(true);
   expect(showsTabBar("/tasks", "?status=open")).toBe(true);
   for (const path of ["/chat/d/c", "/members", "/settings"]) expect(showsTabBar(path)).toBe(false);
-  expect(showsTabBar("/tasks", "?task=t")).toBe(false);
+  expect(showsTabBar("/tasks", "?pane=task.t")).toBe(false);
 });
 
 it("commits at once, and not at all while a leave guard holds", () => {

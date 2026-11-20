@@ -1,16 +1,8 @@
 import { useCompactLayout } from "@/navigation/layout";
 import { MobileNavigationSlot } from "@/components/layout/mobile-header-slot";
+import { PaneGrip } from "@/components/layout/side-panel-header";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  AttachmentIcon,
-  CloseIcon,
-  CollapseIcon,
-  ExpandIcon,
-  MoreIcon,
-  SearchIcon,
-  SettingsIcon,
-  ThreadIcon,
-} from "@/icons";
+import { AttachmentIcon, CloseIcon, MoreIcon, SearchIcon, SettingsIcon, ThreadIcon } from "@/icons";
 import { Composer } from "@/features/messages/components/composer";
 import { SelectionQuoteToolbar } from "@/features/messages/components/selection-quote-toolbar";
 import { ChannelJoinBar } from "@/features/messages/components/channel-join-bar";
@@ -140,34 +132,31 @@ interface ChannelViewProps {
   jumpPrimePending?: boolean;
   onJumped?: () => void;
   /** Called when the user clicks Thread / the reply badge on a main-line
-   *  message — opens that message's thread (reply cluster) in the right
+   *  message — opens that message's thread (reply cluster) in its Threads
    *  pane. Receives the root message id. When undefined the Thread action
-   *  is hidden (secondary panes can't open nested threads). */
+   *  is hidden (a thread view can't open nested threads). */
   onOpenThread?: (rootMessageId: string, jumpToMessageId?: string) => void;
   /** Toggle the channel Threads-list pane (#task:1073) — opens when
    *  closed, closes when open (#task:1126 follow-up). When set, the header
-   *  renders a Threads toggle. Only the primary channel pane passes this —
-   *  thread/dm/side panes have no channel-scoped thread index. */
+   *  renders a Threads toggle. A thread view doesn't pass it — it has no
+   *  thread index of its own. */
   onToggleThreadsList?: () => void;
   /** Whether the Threads-list pane is currently open (drives the toggle's
    *  active styling + aria-pressed). */
   threadsListActive?: boolean;
   /** Toggle the channel Attachments-list pane — opens when
    *  closed, closes when open. When set, the header renders an Attachments
-   *  toggle. Only the primary channel pane passes this — thread/dm/side
-   *  panes have no channel-scoped attachments index. */
+   *  toggle. A thread view doesn't pass it — it has no attachments index of
+   *  its own. */
   onToggleFilesList?: () => void;
   /** Whether the Attachments-list pane is currently open (drives the
    *  toggle's active styling + aria-pressed). */
   filesListActive?: boolean;
   /** When set, renders an X button in the header that calls this back.
-   *  Used by the right-side secondary pane to close itself. */
+   *  An attached pane uses it to close itself. */
   onCloseChild?: () => void;
-  /** Localized aria/title text for the close button. Defaults to
-   *  `'关闭 Thread'` for back-compat. PR-1 secondary pane is generic
-   *  (channel/thread/dm), so the caller decides — `'关闭 Thread'` for
-   *  thread panes, `'关闭侧栏'` for `?side=<channel>` panes. Ignored
-   *  when `onCloseChild` is undefined. */
+  /** Localized aria/title text for the close button. Ignored when
+   *  `onCloseChild` is undefined. */
   closeLabel?: string;
   /** "View in channel" handler — for thread panes, jumps the parent
    *  pane to the original anchor message. Receives the original
@@ -181,12 +170,6 @@ interface ChannelViewProps {
    *  frame — used by the parent pane to surface "the message a thread
    *  is anchored to". */
   highlightedMessageId?: string | null;
-  /** Toggle thread fullscreen (parent pane hidden). Only meaningful
-   *  alongside `onCloseChild` (i.e. when this view is the thread pane). */
-  onToggleFullscreen?: () => void;
-  /** Whether the thread pane is currently fullscreen. Drives the icon
-   *  toggle (Maximize2 ↔ Minimize2). */
-  isFullscreen?: boolean;
   /** Current-workspace top-level conversation id map for inline `#conv:<id>` refs. */
   conversationRefsById?: Map<string, WorkspaceChannelReference>;
   onOpenConversationRef?: (id: string) => void;
@@ -204,7 +187,7 @@ interface ChannelViewProps {
    *  a search-toggle icon that opens the inline find bar below it. The callback
    *  navigates to a prev/next match in THIS channel via App's shared jump/prime
    *  path (`handleJumpToMessage`) — so off-window matches are materialised, not
-   *  skipped. Absent → no find affordance (e.g. secondary panes, which don't
+   *  skipped. Absent → no find affordance (a thread view, which doesn't
    *  support being jumped into). */
   onJumpToMessage?: (params: MessageJumpTarget) => void;
   /** Opens the advanced `SearchPanel` with this pane's own coordinate translated
@@ -217,12 +200,12 @@ interface ChannelViewProps {
    *  inline. Only the PRIMARY pane passes it: a thread / side pane is a child
    *  view of the same container and gets no tab strip of its own. */
   viewTabsEnabled?: boolean;
-  /** Preview a md/html attachment in the right pane. Only the primary pane has
-   *  one beside it; elsewhere md/html open in a tab or with the system. */
+  /** Preview a md/html attachment in this conversation's Files pane. Absent
+   *  in a thread view, where md/html open in a tab or with the system. */
   onOpenAttachmentPanel?: (attachmentId: string) => void;
-  /** Which column of a split view this pane is. Only the first column claims
-   *  ⌘F while focus is nowhere in particular. Absent outside a split view. */
-  column?: "primary" | "split";
+  /** An attached pane beside the route conversation: it takes ⌘F and the tab
+   *  chord only while focus is inside it. */
+  attached?: boolean;
 }
 
 export const ChannelView = memo(function ChannelView(props: ChannelViewProps): JSX.Element {
@@ -309,8 +292,6 @@ function ActiveChannelView({
   onJumpToOriginal,
   onThreadAnchorResolved,
   highlightedMessageId,
-  onToggleFullscreen,
-  isFullscreen,
   conversationRefsById,
   onOpenConversationRef,
   onOpenChannelRef,
@@ -319,7 +300,7 @@ function ActiveChannelView({
   onOpenAdvancedSearch,
   viewTabsEnabled = false,
   onOpenAttachmentPanel,
-  column,
+  attached = false,
 }: ChannelViewProps & { conversation: ConversationPaneDescriptor }): JSX.Element {
   // Per-viewer membership gate. A PUBLIC channel is readable by a
   // workspace user who has not joined it: they browse (message history + thread
@@ -501,7 +482,9 @@ function ActiveChannelView({
     canAddMember(conversation, closed) && gate.allowMutations ? paneCaps.workspaceScope : null;
   const nav = useNav();
   const route = useRouteState();
-  const settingsActive = route.channelSettingsId === conversation.id;
+  const settingsActive = route.panes.some(
+    (pane) => pane.kind === "settings" && pane.of === conversation.id,
+  );
   // The header roster/agent strip reads only member-visible channels.
   // `rosterTarget` is null for a non-member and for a placement with no roster
   // (a `direct_pair`), and a null id disables the query AND the WS interest — so
@@ -552,9 +535,8 @@ function ActiveChannelView({
   }, [effectiveJumpMessageId, tabController.setActive]);
 
   // The reply affordance (open thread + per-root reply badge) is
-  // actionable only on the parent pane, gated by `onOpenThread` being
-  // passed. The secondary `?side` pane passes it undefined
-  // so the action is hidden. Per-root reply counts come from the message
+  // actionable only where `onOpenThread` is passed; a thread view passes it
+  // undefined so the action is hidden. Per-root reply counts come from the message
   // window's cut3-6 sidecar (`replyCountsByRoot`) — there is no separate
   // threads query anymore.
 
@@ -562,8 +544,8 @@ function ActiveChannelView({
   // chips inside this pane resolve their numeric reference against
   // `conversation.id` — the message's conversation, not the primary-selected
   // one. The server derives that conversation's board (workspace OR DirectPair)
-  // and point-reads by number, so cross-workspace `?side` panes and DM panes
-  // both resolve transparently; the click hands up the resolved id, which
+  // and point-reads by number, so cross-workspace conversation panes and DM
+  // panes both resolve transparently; the click hands up the resolved id, which
   // needs no scope. `workspace_id` (null for a DM) is the CACHE-scope coord —
   // it collapses this channel and its siblings onto one by-number cell.
   const taskRefContext = useMemo(
@@ -593,7 +575,7 @@ function ActiveChannelView({
   //     `searchActiveMessageId` (no prime, no list remount → no white flash).
   //   • match off the loaded window → App's jump/prime path materialises it.
   // Offered only when the pane supports being jumped into (`onJumpToMessage`
-  // present) — secondary `?side` panes don't, so they show no find affordance.
+  // present) — a thread view doesn't, so it shows no find affordance.
   const findEnabled = !!onJumpToMessage;
   // In-channel find is a member surface — the allowlist restores it
   // only on join. Gate the toggle, the ⌘F hotkey, and the overlay together.
@@ -638,7 +620,7 @@ function ActiveChannelView({
   useInlineFindHotkey({
     rootRef: findRootRef,
     enabled: findAvailable,
-    isPrimary: column !== "split",
+    isPrimary: !attached,
     onOpen: find.openFind,
   });
 
@@ -709,15 +691,6 @@ function ActiveChannelView({
             selected: filesListActive,
           }
         : null,
-      onToggleFullscreen
-        ? {
-            id: "fullscreen",
-            label: isFullscreen
-              ? t("conversationShell.exitFullScreen")
-              : t("conversationShell.fullScreen"),
-            icon: iconMarkup(isFullscreen ? CollapseIcon : ExpandIcon),
-          }
-        : null,
       onCloseChild ? { id: "close", label: closeLabel, icon: iconMarkup(CloseIcon) } : null,
     ].filter((action) => action !== null);
 
@@ -774,13 +747,11 @@ function ActiveChannelView({
     find.open,
     onToggleThreadsList,
     onToggleFilesList,
-    onToggleFullscreen,
     onCloseChild,
     gate.allowMemberEffects,
     hasFollowedThreadUnread,
     threadsListActive,
     filesListActive,
-    isFullscreen,
     closeLabel,
     isArchived,
     closed,
@@ -811,8 +782,6 @@ function ActiveChannelView({
         onToggleThreadsList?.();
       } else if (id === "files") {
         onToggleFilesList?.();
-      } else if (id === "fullscreen") {
-        onToggleFullscreen?.();
       } else if (id === "close") {
         onCloseChild?.();
       }
@@ -837,7 +806,7 @@ function ActiveChannelView({
     viewTabsShown && !nativeHeader,
     (step) =>
       tabController.setActive(adjacentTabKey(tabController.tabs, tabController.activeKey, step)),
-    column ?? "any",
+    !attached,
   );
 
   return (
@@ -858,6 +827,7 @@ function ActiveChannelView({
                 className="flex h-12 min-w-0 shrink-0 items-center gap-2 border-b border-border-subtle px-4"
               >
                 <MobileNavigationSlot />
+                <PaneGrip />
                 {showThreadHeader ? (
                   <>
                     <ThreadIcon className="size-4 shrink-0 text-text-muted" />
@@ -1054,32 +1024,6 @@ function ActiveChannelView({
                       <SettingsIcon className="size-3.5" />
                     </button>
                   ) : null}
-                  {onToggleFullscreen ? (
-                    <button
-                      type="button"
-                      data-sticker
-                      data-sticker-size="md"
-                      data-sticker-tone="neutral"
-                      onClick={onToggleFullscreen}
-                      aria-label={
-                        isFullscreen
-                          ? t("conversationShell.exitFullScreen")
-                          : t("conversationShell.fullScreen")
-                      }
-                      title={
-                        isFullscreen
-                          ? t("conversationShell.exitFullScreen")
-                          : t("conversationShell.fullScreen")
-                      }
-                      className="flex size-7 shrink-0 items-center justify-center rounded text-text-secondary hover:bg-bg-hover hover:text-text-primary"
-                    >
-                      {isFullscreen ? (
-                        <CollapseIcon className="size-3.5" />
-                      ) : (
-                        <ExpandIcon className="size-3.5" />
-                      )}
-                    </button>
-                  ) : null}
                   {onCloseChild ? (
                     <button
                       type="button"
@@ -1089,7 +1033,7 @@ function ActiveChannelView({
                       onClick={onCloseChild}
                       aria-label={closeLabel}
                       title={closeLabel}
-                      className="flex size-7 shrink-0 items-center justify-center rounded text-text-secondary hover:bg-bg-hover hover:text-text-primary"
+                      className="flex size-7 shrink-0 items-center justify-center rounded-(--control-radius) text-text-secondary hover:bg-bg-hover hover:text-text-primary"
                     >
                       <CloseIcon className="size-3.5" />
                     </button>

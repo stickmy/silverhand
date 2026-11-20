@@ -27,7 +27,7 @@ interface ChannelRefProps {
    *
    *  The conversation's workspace_id is wired in by ChannelView so
    *  the handler can call `nav.toChannel(workspaceId, channelId)`
-   *  on the right workspace, even on a cross-workspace `?side` pane.
+   *  on the right workspace, even on a cross-workspace conversation pane.
    */
   onOpen?: (channelId: string) => void;
 }

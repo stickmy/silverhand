@@ -32,7 +32,7 @@ const {
   LAST_CHANNEL_KEY,
   LAST_WORKSPACE_KEY,
   LAST_CHAT_PLACE_KEY,
-  LAST_LAYOUT_KEY,
+  PANES_KEY,
   CLOSE_WATERMARK_KEY,
   CONVERSATION_TABS_KEY,
   FUNCTIONAL_TABS_KEY,
@@ -42,18 +42,18 @@ const {
   subscribeConversationTabs,
   clearPlaceMemory,
   closeWatermarkByChannel,
-  getChannelLayout,
+  getChannelPanes,
   getCloseWatermark,
   getConversationTabs,
   getLastChatPlace,
   getLastWorkspaceId,
   lastChannelByWorkspace,
-  lastLayoutByChannel,
+  panesByChannel,
   persistLastChannel,
   recordConversationTabs,
   recordLastChatPlace,
   recordLastWorkspace,
-  recordChannelLayout,
+  recordChannelPanes,
   recordCloseWatermark,
   tabsByConversation,
 } = await import("./place-memory");
@@ -174,7 +174,7 @@ describe("place-memory", () => {
       expect(lastChannelByWorkspace.size).toBe(0);
       expect(localStorage.getItem(LAST_CHANNEL_KEY)).toBeNull();
       expect(getLastWorkspaceId()).toBeNull();
-      expect(lastLayoutByChannel.has("c-dm")).toBe(false);
+      expect(panesByChannel.has("c-dm")).toBe(false);
     });
 
     it("clearPlaceMemory wipes the place + its localStorage key", () => {
@@ -223,77 +223,43 @@ describe("place-memory", () => {
     });
   });
 
-  describe("per-channel layout memory", () => {
-    it("recordChannelLayout persists and getChannelLayout reads it back", () => {
-      recordChannelLayout("ch-A", { kind: "threads-list" });
-      expect(getChannelLayout("ch-A")).toEqual({ kind: "threads-list" });
-      expect(JSON.parse(localStorage.getItem(LAST_LAYOUT_KEY)!)).toEqual({
-        "ch-A": { kind: "threads-list" },
-      });
+  describe("per-channel pane memory", () => {
+    it("records panes and reads them back in order", () => {
+      const panes = [
+        { kind: "files", of: "ch-A", attachment: null },
+        { kind: "threads", of: "ch-A", thread: "m-1" },
+      ] as const;
+      recordChannelPanes("ch-A", panes);
+      expect(getChannelPanes("ch-A")).toEqual(panes);
     });
 
-    it("getChannelLayout returns null for an unknown channel", () => {
-      expect(getChannelLayout("nope")).toBeNull();
+    it("returns null for an unknown channel", () => {
+      expect(getChannelPanes("nope")).toBeNull();
     });
 
-    it("recordChannelLayout overwrites a channel with its newest layout", () => {
-      recordChannelLayout("ch-A", { kind: "threads-list" });
-      recordChannelLayout("ch-A", { kind: "side", id: "c-x" });
-      expect(getChannelLayout("ch-A")).toEqual({ kind: "side", id: "c-x" });
+    it("keeps an empty list so a deliberate close survives re-entry", () => {
+      recordChannelPanes("ch-A", [{ kind: "threads", of: "ch-A", thread: null }]);
+      recordChannelPanes("ch-A", []);
+      expect(getChannelPanes("ch-A")).toEqual([]);
     });
 
-    it("records an explicit none so a deliberate close survives re-entry", () => {
-      recordChannelLayout("ch-A", { kind: "none" });
-      expect(getChannelLayout("ch-A")).toEqual({ kind: "none" });
-    });
-
-    it("clearPlaceMemory wipes the layout map + its localStorage key", () => {
-      recordChannelLayout("ch-A", { kind: "thread", rootId: "m-1" });
-      expect(localStorage.getItem(LAST_LAYOUT_KEY)).not.toBeNull();
+    it("clearPlaceMemory wipes the pane map + its localStorage key", () => {
+      recordChannelPanes("ch-A", [{ kind: "threads", of: "ch-A", thread: "m-1" }]);
+      expect(localStorage.getItem(PANES_KEY)).not.toBeNull();
 
       clearPlaceMemory();
 
-      expect(lastLayoutByChannel.size).toBe(0);
-      expect(localStorage.getItem(LAST_LAYOUT_KEY)).toBeNull();
+      expect(panesByChannel.size).toBe(0);
+      expect(localStorage.getItem(PANES_KEY)).toBeNull();
     });
 
-    it("drops malformed entries on load (validated against the layout shape)", async () => {
-      // A thread layout missing its rootId, and a side missing its id,
-      // are corrupt — the loader must drop them rather than hand back a
-      // half-built layout the URL builder would mis-serialize. A valid
-      // entry alongside them survives. Load happens at import time, so we
-      // seed the store and re-import the module with a fresh registry.
-      memoryStore.set(
-        LAST_LAYOUT_KEY,
-        JSON.stringify({
-          "ch-bad-thread": { kind: "thread" },
-          "ch-bad-side": { kind: "side" },
-          "ch-bad-kind": { kind: "wat" },
-          "ch-good": { kind: "side", id: "c-x" },
-        }),
-      );
+    it("drops malformed entries on load through the URL parser", async () => {
+      memoryStore.set(PANES_KEY, JSON.stringify({ "ch-A": "pane=wat&pane=threads.m-1" }));
       vi.resetModules();
       const fresh = await import("./place-memory");
-      expect(fresh.getChannelLayout("ch-bad-thread")).toBeNull();
-      expect(fresh.getChannelLayout("ch-bad-side")).toBeNull();
-      expect(fresh.getChannelLayout("ch-bad-kind")).toBeNull();
-      expect(fresh.getChannelLayout("ch-good")).toEqual({
-        kind: "side",
-        id: "c-x",
-      });
-      vi.resetModules();
-    });
-
-    it("drops a stale persisted files-list entry (Attachments no longer persists)", async () => {
-      // The Attachments panel became a transient overlay — `files-list` was
-      // removed from ChannelLayout. A value written by an older build must be
-      // rejected on load (not laundered into an invalid layout), so the
-      // channel opens bare instead of resurrecting a pane the model no longer
-      // knows how to render.
-      memoryStore.set(LAST_LAYOUT_KEY, JSON.stringify({ "ch-files": { kind: "files-list" } }));
-      vi.resetModules();
-      const fresh = await import("./place-memory");
-      expect(fresh.getChannelLayout("ch-files")).toBeNull();
+      expect(fresh.getChannelPanes("ch-A")).toEqual([
+        { kind: "threads", of: "ch-A", thread: "m-1" },
+      ]);
       vi.resetModules();
     });
   });

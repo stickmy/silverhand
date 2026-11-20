@@ -6,7 +6,7 @@ import {
   directPairPaneDescriptor,
   type ConversationPaneDescriptor,
 } from "@/features/conversations/pane-descriptor";
-import { useColumnFacts, useSplitColumn } from "./conversation-column";
+import { useColumnFacts, useConversationColumn } from "./conversation-column";
 import { presentCounterpart } from "@/features/direct-pairs/counterpart-presentation";
 import {
   directPairPaneProps,
@@ -24,8 +24,9 @@ import {
   directPairAuthorityFromQuery,
   type DirectPairAuthority,
 } from "@/features/app-shell/chat-place-restore";
-import { type ConversationPointer } from "@/features/conversation-shell/model/secondary-pane";
+import type { ConversationPointer } from "./conversation-shell-models";
 import { useRouteState } from "@/router";
+import { conversationPanes } from "@/navigation/panes";
 import { isWorkspacePlaced } from "@silverhand/shared";
 import { useCallback, useDeferredValue, useMemo } from "react";
 import { useCompactLayout } from "@/navigation/layout";
@@ -37,8 +38,7 @@ export function useConversationReadModel() {
     workspaceId: selectedWorkspaceId,
     channelId: selectedChannelId,
     directConversationId,
-    splitConversationId,
-    paneColumn,
+    panes,
   } = useRouteState();
 
   const { data: workspaces = [], isLoading: workspacesLoading } = useWorkspaces();
@@ -238,7 +238,7 @@ export function useConversationReadModel() {
 
   const primaryPaneHasChannelNamespace = directPairDescriptor ? false : hasChannelNamespace;
 
-  // The column reads the CURRENT channel; only the first column's own view
+  // The column reads the CURRENT channel; only the route conversation's own view
   // defers (`primaryPaneDescriptor`), so the panes it owns never show the
   // previous channel's facts.
   const currentDescriptor = useMemo(
@@ -246,7 +246,6 @@ export function useConversationReadModel() {
     [directPairDescriptor, buildChannelDescriptor, selectedChannel],
   );
   const primaryColumn = useColumnFacts({
-    column: "primary",
     id: selectedChannelId ?? "",
     descriptor: currentDescriptor,
     status: currentDescriptor ? "resolved" : "loading",
@@ -258,16 +257,14 @@ export function useConversationReadModel() {
   });
   const primary = selectedChannelId ? primaryColumn : null;
 
-  const split = useSplitColumn(
-    section === "chat" && selectedChannelId ? splitConversationId : null,
+  // The first conversation pane: the right half of the sidebar's pair row.
+  const [firstConversationPane = null] = conversationPanes(panes);
+  const paired = useConversationColumn(
+    section === "chat" && selectedChannelId ? firstConversationPane : null,
     channels,
     buildChannelDescriptor,
     workspaceNameById,
   );
-
-  // The column the right panes resolve against; the first column until the
-  // second one resolves.
-  const paneOwner = paneColumn === "split" && split?.descriptor ? split : primary;
 
   return {
     workspaces,
@@ -296,8 +293,8 @@ export function useConversationReadModel() {
     primaryPaneDescriptor,
     hasChannelNamespace,
     primary,
-    split,
-    paneOwner,
+    paired,
+    buildChannelDescriptor,
     resolveNavWorkspaceId,
     activeSettled: activeChannelsStatus === "success" && activeChannelsFetchStatus === "idle",
     archivedSettled: archivedChannelsStatus === "success" && archivedChannelsFetchStatus === "idle",

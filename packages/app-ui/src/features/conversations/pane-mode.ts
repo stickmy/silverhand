@@ -190,7 +190,7 @@ export function paneCapabilities(mode: ConversationPaneMode): ConversationPaneCa
  * DM thread came to paint a channel's `Not here` for an online agent.
  *
  * A `null` parent is the pane rendering before its parent conversation has
- * resolved — a cold deep link to `?thread=<root>` whose thread stream has its own
+ * resolved — a cold deep link to a thread pane whose thread stream has its own
  * query and can settle first. It withholds, rather than inheriting the
  * channel-shaped context default: during that window the surface shows no presence
  * line at all, which is the same thing it already does while a roster read is

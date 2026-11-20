@@ -68,95 +68,50 @@ describe("dispatchNavSection — routes a section to its nav call", () => {
 
 describe("resolveContextualClose — the ⌘W ladder", () => {
   const NOTHING_OPEN: ContextualCloseState = {
-    agentPanelId: null,
-    filesListOpen: false,
+    panes: [],
     taskPaneOpen: false,
-    sideConversationId: null,
-    threadRootId: null,
-    threadsListOpen: false,
     activityChannelOpen: false,
   };
 
-  it("layer 1: ?agent is the topmost overlay — peels before every other pane", () => {
-    expect(
-      resolveContextualClose({
-        ...NOTHING_OPEN,
-        agentPanelId: "a1",
-        filesListOpen: true,
-        taskPaneOpen: true,
-        threadRootId: "root1",
-        activityChannelOpen: true,
-      }),
-    ).toEqual({ outcome: "closed-panel", target: "agent" });
-  });
-
-  it("layer 2: ?files peels above the task pane and secondary pane", () => {
-    expect(
-      resolveContextualClose({
-        ...NOTHING_OPEN,
-        filesListOpen: true,
-        taskPaneOpen: true,
-        threadRootId: "root1",
-        sideConversationId: "c1",
-      }),
-    ).toEqual({ outcome: "closed-panel", target: "files" });
-  });
-
-  it("layer 3: the ?task pane peels above side/thread/threads (files already closed)", () => {
-    // task overlays thread/threads (it preserves them as the restore stack), so
-    // ⌘W peels the task pane before the conversation pane beneath it.
-    expect(
-      resolveContextualClose({
-        ...NOTHING_OPEN,
-        taskPaneOpen: true,
-        threadRootId: "root1",
-        threadsListOpen: true,
-      }),
-    ).toEqual({ outcome: "closed-panel", target: "task" });
-  });
-
-  it("layer 4: secondary pane resolves side > thread > threads (render-layer priority)", () => {
-    // All three set (malformed URL) → side wins, matching layoutMemoryFromRoute.
-    expect(
-      resolveContextualClose({
-        ...NOTHING_OPEN,
-        sideConversationId: "c1",
-        threadRootId: "root1",
-        threadsListOpen: true,
-      }),
-    ).toEqual({ outcome: "closed-panel", target: "side" });
-    // thread wins over threads-list
-    expect(
-      resolveContextualClose({
-        ...NOTHING_OPEN,
-        threadRootId: "root1",
-        threadsListOpen: true,
-      }),
-    ).toEqual({ outcome: "closed-panel", target: "thread" });
-    // threads-list alone
-    expect(resolveContextualClose({ ...NOTHING_OPEN, threadsListOpen: true })).toEqual({
+  it("closes the last pane, whatever its kind", () => {
+    const panes: ContextualCloseState["panes"] = [
+      { kind: "threads", of: "c", thread: "root" },
+      { kind: "conversation", id: "c2" },
+      { kind: "agent", id: "a1" },
+    ];
+    expect(resolveContextualClose({ ...NOTHING_OPEN, panes, activityChannelOpen: true })).toEqual({
       outcome: "closed-panel",
-      target: "threads",
+      target: { pane: panes[2] },
+    });
+    expect(resolveContextualClose({ ...NOTHING_OPEN, panes: panes.slice(0, 2) })).toEqual({
+      outcome: "closed-panel",
+      target: { pane: panes[1] },
     });
   });
 
-  it("layer 5: an Activity channel detail is peeled only after every overlay above it", () => {
-    // thread sits above the activity channel → peel the thread first
-    expect(
-      resolveContextualClose({
-        ...NOTHING_OPEN,
-        activityChannelOpen: true,
-        threadRootId: "root1",
-      }),
-    ).toEqual({ outcome: "closed-panel", target: "thread" });
-    // nothing above it → pop back to the Activity list
+  it("skips a task shown as the modal, which owns its own dismissal", () => {
+    const panes: ContextualCloseState["panes"] = [
+      { kind: "files", of: "c", attachment: null },
+      { kind: "task", id: "t1" },
+    ];
+    expect(resolveContextualClose({ ...NOTHING_OPEN, panes })).toEqual({
+      outcome: "closed-panel",
+      target: { pane: panes[0] },
+    });
+    expect(resolveContextualClose({ ...NOTHING_OPEN, panes, taskPaneOpen: true })).toEqual({
+      outcome: "closed-panel",
+      target: { pane: panes[1] },
+    });
+  });
+
+  it("pops an Activity channel detail only after every pane is closed", () => {
     expect(resolveContextualClose({ ...NOTHING_OPEN, activityChannelOpen: true })).toEqual({
       outcome: "closed-panel",
       target: "activity-channel",
     });
   });
 
-  it("layer 6: nothing to peel → background the app (macOS Hide)", () => {
+  it("with nothing to close, backgrounds the app (macOS Hide)", () => {
     // Also covers the Chat main channel: it never sets activityChannelOpen, so
     // when only it remains ⌘W falls through to backgrounding, not a close.
     expect(resolveContextualClose(NOTHING_OPEN)).toEqual({
@@ -164,69 +119,6 @@ describe("resolveContextualClose — the ⌘W ladder", () => {
       target: null,
     });
   });
-
-  it("one layer per press: files closes before the underlying thread", () => {
-    const first = resolveContextualClose({
-      ...NOTHING_OPEN,
-      filesListOpen: true,
-      threadRootId: "root1",
-    });
-    expect(first).toEqual({ outcome: "closed-panel", target: "files" });
-    // next press (files now closed) peels the thread beneath it
-    const second = resolveContextualClose({
-      ...NOTHING_OPEN,
-      filesListOpen: false,
-      threadRootId: "root1",
-    });
-    expect(second).toEqual({ outcome: "closed-panel", target: "thread" });
-  });
-});
-
-it("closes a human inspector before its preserved thread", () => {
-  expect(
-    resolveContextualClose({
-      agentPanelId: null,
-      humanPanelId: "user-b",
-      filesListOpen: false,
-      taskPaneOpen: false,
-      sideConversationId: null,
-      threadRootId: "root",
-      threadsListOpen: false,
-      activityChannelOpen: false,
-    }),
-  ).toEqual({ outcome: "closed-panel", target: "human" });
-});
-
-it("closes an attachment preview before the files list under it", () => {
-  expect(
-    resolveContextualClose({
-      agentPanelId: null,
-      humanPanelId: null,
-      attachmentPanelId: "att",
-      filesListOpen: true,
-      taskPaneOpen: false,
-      sideConversationId: null,
-      threadRootId: null,
-      threadsListOpen: false,
-      activityChannelOpen: false,
-    }),
-  ).toEqual({ outcome: "closed-panel", target: "attachment" });
-});
-
-it("closes channel settings before the preserved thread", () => {
-  expect(
-    resolveContextualClose({
-      agentPanelId: null,
-      humanPanelId: null,
-      channelSettingsId: "channel-a",
-      filesListOpen: false,
-      taskPaneOpen: false,
-      sideConversationId: null,
-      threadRootId: "root",
-      threadsListOpen: false,
-      activityChannelOpen: false,
-    }),
-  ).toEqual({ outcome: "closed-panel", target: "settings" });
 });
 
 describe("tabCycleStep", () => {

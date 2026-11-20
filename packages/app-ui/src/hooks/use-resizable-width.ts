@@ -11,6 +11,13 @@ interface Options {
    *  the width into. Set on `document.documentElement` so existing
    *  `var(--name)` styles in unrelated components stay reactive. */
   cssVar?: string;
+  /** The edge the splitter sits on; a left-edge splitter widens leftward. */
+  edge?: "left" | "right";
+  /** Read when a drag starts: the width actually laid out and the most the
+   *  column can take there. A flex row may have shrunk it below its stored
+   *  width, and growing past what the neighbours can give would push it the
+   *  other way. */
+  bounds?: () => { width: number; max: number } | null;
 }
 
 export interface ResizableWidth {
@@ -36,6 +43,8 @@ export function useResizableWidth({
   min,
   max,
   cssVar,
+  edge = "right",
+  bounds,
 }: Options): ResizableWidth {
   const readStored = (): number => {
     try {
@@ -116,13 +125,15 @@ export function useResizableWidth({
   const startResize = useCallback(
     (e: React.PointerEvent) => {
       e.preventDefault();
+      const laid = bounds?.() ?? null;
+      const ceiling = laid ? Math.max(min, Math.min(max, laid.max)) : max;
       dragOriginX.current = e.clientX;
-      dragOriginWidth.current = widthRef.current;
+      dragOriginWidth.current = laid ? Math.min(widthRef.current, laid.width) : widthRef.current;
       setDragging(true);
 
       const onMove = (ev: PointerEvent): void => {
-        const dx = ev.clientX - dragOriginX.current;
-        const next = Math.max(min, Math.min(max, dragOriginWidth.current + dx));
+        const dx = (ev.clientX - dragOriginX.current) * (edge === "left" ? -1 : 1);
+        const next = Math.max(min, Math.min(ceiling, dragOriginWidth.current + dx));
         scheduleCssWidth(next);
       };
       const onUp = (): void => {
@@ -144,7 +155,7 @@ export function useResizableWidth({
       document.body.style.cursor = "col-resize";
       document.body.style.userSelect = "none";
     },
-    [flushCssWidth, max, min, persistWidth, scheduleCssWidth],
+    [bounds, edge, flushCssWidth, max, min, persistWidth, scheduleCssWidth],
   );
 
   return { width, startResize, isDragging: dragging };

@@ -31,7 +31,7 @@
 // carriers in {@link CHANNEL_WORKSPACE_ATTRIBUTION_SOURCES}, each of which
 // states the workspace: the primary pane resolves its carrier out of the
 // selected workspace's two lists (or, when the id is in neither, out of
-// channel-detail); the `?side` pane and every inline `#conv:<id>` chip resolve
+// channel-detail); conversation panes and every inline `#conv:<id>` chip resolve
 // theirs through the ONE shared conversation-ref read point; and a notification
 // jump records the pair the notification itself carries, which is what covers
 // the reply-cluster branch that returns without fetching a ref at all.
@@ -68,7 +68,7 @@ export const CHANNEL_WORKSPACE_ATTRIBUTION_SOURCES = [
   // The selected workspace's two authoritative lists + channel-detail + the
   // cross-workspace archived index.
   "workspaces/hooks.ts",
-  // THE conversation-ref read point: `?side` panes and inline `#conv:` chips.
+  // THE conversation-ref read point: conversation panes and inline `#conv:` chips.
   "conversations/conversation-ref-query.ts",
   // Notification jumps, including the reply-cluster branch that never fetches a
   // ref — the notification's own `(workspace_id, conversation_id)` is the carrier.

@@ -15,10 +15,8 @@
  * Besides the last workspace and last channel per workspace, we also remember
  * which ARM the Chat rail was last on ({@link getLastChatPlace}) so leaving the
  * rail and coming back restores a DIRECT line as faithfully as a workspace
- * channel, plus the last **secondary-pane layout per channel**
- * ({@link lastLayoutByChannel})
- * so switching away from a channel and back restores its threads-list /
- * thread / side overlay instead of dropping to a bare channel, plus a
+ * channel, plus the **open panes per channel** ({@link panesByChannel}) so
+ * switching away from a channel and back restores them, plus a
  * per-channel **explicit-close watermark**
  * ({@link closeWatermarkByChannel}) that lets an unread thread auto-surface
  * without immediately re-surfacing a batch the user just closed. All
@@ -29,7 +27,7 @@
  * dependency on the App module.
  */
 
-import type { ChannelLayout } from "@/router";
+import { parsePanes, writePanes, type Panes } from "@/navigation/panes";
 import type { MessageSeq } from "@silverhand/shared";
 import { decodeMessageSeq } from "@silverhand/shared";
 import {
@@ -42,12 +40,12 @@ import {
   tabKey,
   type Tab,
 } from "../conversation-shell/model/conversation-tabs";
-import { clearSplitPairs } from "../conversation-shell/split-pairs";
+import { clearConversationPairs } from "../conversation-shell/conversation-pairs";
 
 export const LAST_CHANNEL_KEY = "silverhand:layout.last-channel-by-workspace";
 export const LAST_WORKSPACE_KEY = "silverhand:layout.last-workspace";
 export const LAST_CHAT_PLACE_KEY = "silverhand:layout.last-chat-place";
-export const LAST_LAYOUT_KEY = "silverhand:layout.last-layout-by-channel";
+export const PANES_KEY = "silverhand:layout.panes-by-channel";
 export const CLOSE_WATERMARK_KEY = "silverhand:layout.close-watermark-by-channel";
 export const CONVERSATION_TABS_KEY = "silverhand:layout.conversation-tabs";
 export const FUNCTIONAL_TABS_KEY = "silverhand:layout.functional-tabs";
@@ -207,83 +205,31 @@ export function recordLastChatPlace(place: ChatPlace): void {
 }
 
 /**
- * Per-channel secondary-pane layout. Hydrated from localStorage at import
- * time and written through on every change so the layout survives both a
- * channel switch and an app restart. Values are validated on load —
- * anything that doesn't match the {@link ChannelLayout} shape is dropped
- * rather than trusted.
+ * Per-channel open panes, stored as the channel URL's pane query so a stored
+ * value is read back through the same parser as a URL.
  */
-function loadLayoutMap(key: string): Map<string, ChannelLayout> {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return new Map();
-    const obj = JSON.parse(raw) as Record<string, unknown>;
-    if (!obj || typeof obj !== "object") return new Map();
-    const out = new Map<string, ChannelLayout>();
-    for (const [k, v] of Object.entries(obj)) {
-      if (typeof k !== "string") continue;
-      const parsed = parseLayout(v);
-      if (parsed) out.set(k, parsed);
-    }
-    return out;
-  } catch {
-    return new Map();
-  }
+export const panesByChannel = loadStringMap(PANES_KEY);
+
+/** A channel's remembered panes, or null when none are stored. */
+export function getChannelPanes(channelId: string): Panes | null {
+  const raw = panesByChannel.get(channelId);
+  return raw === undefined ? null : parsePanes(new URLSearchParams(raw), channelId);
 }
 
-/** Validate one persisted layout entry. Returns null for any shape that
- *  doesn't round-trip the {@link ChannelLayout} contract. */
-function parseLayout(value: unknown): ChannelLayout | null {
-  if (!value || typeof value !== "object") return null;
-  const layout = value as { kind?: unknown; rootId?: unknown; id?: unknown };
-  switch (layout.kind) {
-    case "none":
-      return { kind: "none" };
-    case "threads-list":
-      return { kind: "threads-list" };
-    case "thread":
-      return typeof layout.rootId === "string" && layout.rootId.length > 0
-        ? { kind: "thread", rootId: layout.rootId }
-        : null;
-    case "side":
-      return typeof layout.id === "string" && layout.id.length > 0
-        ? { kind: "side", id: layout.id }
-        : null;
-    default:
-      return null;
-  }
-}
-
-export const lastLayoutByChannel = loadLayoutMap(LAST_LAYOUT_KEY);
-
-function persistLastLayout(): void {
-  try {
-    localStorage.setItem(LAST_LAYOUT_KEY, JSON.stringify(Object.fromEntries(lastLayoutByChannel)));
-  } catch {
-    // Quota / disabled storage — fall back to in-memory only.
-  }
-}
-
-/** Read a channel's remembered layout, or null when none is stored. */
-export function getChannelLayout(channelId: string): ChannelLayout | null {
-  return lastLayoutByChannel.get(channelId) ?? null;
-}
-
-/**
- * Record a channel's secondary-pane layout, persisting through to disk.
- * No-ops when the layout is byte-identical to what's already stored so we
- * don't thrash localStorage on every unrelated route change.
- */
-export function recordChannelLayout(channelId: string, layout: ChannelLayout): void {
-  const prev = lastLayoutByChannel.get(channelId);
-  if (prev && JSON.stringify(prev) === JSON.stringify(layout)) return;
-  lastLayoutByChannel.set(channelId, layout);
-  persistLastLayout();
+/** Record a channel's open panes; an empty list is kept, so a deliberate close
+ *  survives re-entry. */
+export function recordChannelPanes(channelId: string, panes: Panes): void {
+  const params = new URLSearchParams();
+  writePanes(params, panes, channelId);
+  const raw = params.toString();
+  if (panesByChannel.get(channelId) === raw) return;
+  panesByChannel.set(channelId, raw);
+  saveStringMap(PANES_KEY, panesByChannel);
 }
 
 /**
  * Per-channel explicit-close watermark (#task:1082). When the user
- * explicitly closes a channel's secondary pane, we stamp the seq of the
+ * explicitly closes a channel's panes, we stamp the seq of the
  * unread pointer they just dismissed. The channel-open precedence
  * ({@link resolveChannelOpen}) only auto-surfaces an unread thread when
  * its pointer `seq` exceeds this watermark — so a just-closed batch isn't
@@ -467,18 +413,18 @@ export function clearPlaceMemory(): void {
   lastWorkspaceId = null;
   lastChatPlace = null;
   lastChannelByWorkspace.clear();
-  lastLayoutByChannel.clear();
+  panesByChannel.clear();
   closeWatermarkByChannel.clear();
   tabsByConversation.clear();
   functionalTabs = [...DEFAULT_TABS];
   activeTabByConversation.clear();
   notifyConversationTabs();
-  clearSplitPairs();
+  clearConversationPairs();
   try {
     localStorage.removeItem(LAST_WORKSPACE_KEY);
     localStorage.removeItem(LAST_CHANNEL_KEY);
     localStorage.removeItem(LAST_CHAT_PLACE_KEY);
-    localStorage.removeItem(LAST_LAYOUT_KEY);
+    localStorage.removeItem(PANES_KEY);
     localStorage.removeItem(CLOSE_WATERMARK_KEY);
     localStorage.removeItem(CONVERSATION_TABS_KEY);
     localStorage.removeItem(FUNCTIONAL_TABS_KEY);

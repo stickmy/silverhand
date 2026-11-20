@@ -35,7 +35,7 @@ describe("notification toast surface — surfaced ≠ eliminated", () => {
 describe("conversation focus surface — must not drain notification read_at", () => {
   const appSource = readFileSync(fileURLToPath(new URL("../../app.tsx", import.meta.url)), "utf8");
   const focusSelectorSource = readFileSync(
-    fileURLToPath(new URL("../conversation-shell/model/secondary-pane.ts", import.meta.url)),
+    fileURLToPath(new URL("../conversation-shell/use-conversation-panes.ts", import.meta.url)),
     "utf8",
   );
   const DRAIN_CALL = "markConversationNotificationsRead.mutate";

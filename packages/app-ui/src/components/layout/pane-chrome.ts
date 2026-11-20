@@ -3,8 +3,7 @@
  * single authority is the panel rule in surfaces.css. Themes override its tokens
  * and selectors without competing with inline border-radius declarations.
  *
- * Layout/overflow stays with each caller; SplitPane's animated shell uses
- * data-pane-clip to share the same geometry without adding a second border.
+ * Layout/overflow stays with each caller.
  */
 export const PANE_SHADOW = "var(--pane-shadow, var(--card-shadow, none))";
 export const PANE_BG = "var(--pane-bg, var(--bg-base))";

@@ -6,12 +6,9 @@ interface SplitterTrackProps {
   onPointerUp?: (e: ReactPointerEvent) => void;
   onPointerCancel?: (e: ReactPointerEvent) => void;
   /**
-   * Active-drag paint, driven declaratively. `VerticalSplitter` passes this
-   * from its `active` prop (the resize consumers re-render on drag anyway).
-   * `SplitPane` OMITS it and instead toggles `data-active` imperatively on the
-   * forwarded ref during its rAF drag, so a re-render never fires mid-drag and
-   * the divider tracks the cursor 1:1. Both paths land on the same
-   * `data-[active=true]:` paint variant below.
+   * Active-drag paint (`data-[active=true]:` below). Omit it to toggle
+   * `data-active` imperatively on the forwarded ref instead, so a rAF drag
+   * never re-renders mid-drag.
    */
   active?: boolean;
 }
@@ -19,7 +16,7 @@ interface SplitterTrackProps {
 /**
  * 4px-wide draggable column divider — the shared paint + geometry for every
  * resizable seam (sidebar↔conversation and activity-list↔channel via
- * `VerticalSplitter`; conversation↔thread/side-pane via `SplitPane`). Owns the
+ * `VerticalSplitter`; between stage panes in `ConversationStage`). Owns the
  * track's LOOK and PLACEMENT only; each parent wires its own drag mechanism and
  * passes pointer handlers (+ optionally `active` / a ref) through.
  *

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { foldPairs, unfoldOrder, type RowFace } from "./sidebar-faces";
+import { foldPairs, unfoldOrder, type RowFace } from "./sidebar-conversation";
 
 const face = (title: string): RowFace => ({ glyph: null, title, badge: null });
 const faces = (...ids: string[]) => new Map(ids.map((id) => [id, face(id)]));

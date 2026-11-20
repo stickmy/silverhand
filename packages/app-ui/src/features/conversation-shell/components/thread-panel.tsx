@@ -81,6 +81,8 @@ interface ThreadPanelProps {
    *  fail open. */
   gate: ChannelGate;
   onClose: () => void;
+  /** Step back to the conversation's thread list. */
+  onBack?: () => void;
   onOpenAttachment: (attachment: AttachmentSnapshot) => void;
   onExpandAttachment?: (attachment: AttachmentSnapshot) => void;
   /** "View in channel": close this panel and scroll-locate + flash the
@@ -162,6 +164,7 @@ export function ThreadPanel({
   archived = false,
   gate,
   onClose,
+  onBack,
   onViewInChannel,
   onOpenAttachment,
   onExpandAttachment,
@@ -414,6 +417,7 @@ export function ThreadPanel({
       >
         <SidePanelHeader
           onClose={onClose}
+          onBack={onBack}
           nativeBar={nativeBar}
           nativeHandlers={{
             action: ({ id }) => {
@@ -504,7 +508,7 @@ export function ThreadPanel({
         >
           <SidePanelHeaderTitle
             icon={<ThreadIcon className="size-3.5 shrink-0 text-text-muted" />}
-            title={parentTitle || t("conversationShell.thread")}
+            title={t("conversationShell.thread")}
             subtitle={t("conversationShell.threadReplies", { count: replyCount })}
           />
         </SidePanelHeader>

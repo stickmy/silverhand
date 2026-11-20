@@ -43,7 +43,7 @@ const NO_ID = "none";
  *      not.
  *   2. Otherwise a held successful ref WINS over a refetch that is in flight or
  *      that settled in failure. A single 500 / dropped socket must not flip an
- *      already-labelled chip or an open `?side` pane from its real title to an
+ *      already-labelled chip or an open conversation pane from its real title to an
  *      error placeholder. This is the same rule the pair face applies to a held
  *      row in `conversation-identity.ts`; the two faces may not disagree on it.
  *   3. With no ref in hand, `isError` IS the settled signal, with no in-flight
@@ -89,7 +89,7 @@ export function mapConversationByIdResult(
 
 /**
  * Resolve a conversation by id (channel / dm_channel / thread) so the
- * secondary pane can render a conversation that lives in a different
+ * conversation pane can render a conversation that lives in a different
  * workspace than the primary pane.
  *
  * Status mapping (see `mapConversationByIdResult`):

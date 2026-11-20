@@ -19,7 +19,7 @@ export interface ResolvedChannelMembership {
  * `ThreadPanel`) so both consume the SAME authority instead of each collapsing
  * it their own way. The carrier's own `is_member` wins when present (a
  * discovery-union list item or a channel-detail response); a carrier that lacks
- * it — a cross-workspace `?side` ref / deep link — is `unknown`, resolved by a
+ * it — a cross-workspace conversation pane / deep link — is `unknown`, resolved by a
  * channel-detail fetch (a read allowed to anyone who can view the channel). The
  * fetch is `enabled`-gated to the `unknown` case only, so a member hot path
  * (carrier already stamped) fires zero extra network and never flickers.

@@ -145,7 +145,7 @@ export function MessageList({
   hasNewerLiveGap?: boolean;
   onResetToLatest?: () => void;
   /** Opens a main-line message's thread (reply cluster) in the right
-   *  pane. Receives the root message id. Undefined on secondary panes
+   *  pane. Receives the root message id. Undefined in a thread view
    *  (no nested threads), which hides the reply affordance. */
   onOpenThread?: (rootMessageId: string, jumpToMessageId?: string) => void;
   /** Per-root reply counts from the message window's cut3-6 sidecar

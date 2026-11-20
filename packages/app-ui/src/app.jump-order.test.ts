@@ -54,7 +54,7 @@ describe("message jump side-effect boundary", () => {
     env.section = "activity";
     expect(executeMessageJump({ ...target, threadRootId: "root" }, env)).toBe(true);
     expect(calls).toEqual(["resolve", "prime", "navigate"]);
-    expect(env.navigate).toHaveBeenCalledWith("/activity/d/c?thread=root");
+    expect(env.navigate).toHaveBeenCalledWith("/activity/d/c?pane=threads.root");
   });
 
   it("inline find only primes, even when authority and workspace are unavailable", () => {

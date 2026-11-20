@@ -2,12 +2,12 @@ import { useMemo } from "react";
 import { useEventCallback } from "@/hooks/use-event-callback";
 import { useCompactLayout } from "@/navigation/layout";
 import { ChatSidebar } from "./sidebar/chat-sidebar";
-import { SidebarSplitContext, type SidebarSplit } from "./sidebar/sidebar-split";
+import { SidebarPairsContext, type SidebarPairs } from "./sidebar/sidebar-pairs";
 import {
-  dissolveSplitPair,
-  useSplitPairs,
-  type SplitPair,
-} from "@/features/conversation-shell/split-pairs";
+  dissolveConversationPair,
+  useConversationPairs,
+  type ConversationPair,
+} from "@/features/conversation-shell/conversation-pairs";
 import type { WorkspaceActions } from "./use-workspace-actions";
 import type { ChatShellModel } from "@/features/conversation-shell/conversation-shell-models";
 
@@ -35,13 +35,13 @@ export function ChatBrowseSidebar({
     handleSelectChannel,
     handleJumpToMessage,
     sidebarSelectedConversationId,
-    splitView,
-    openInSplit,
+    activePair,
+    openBeside,
     openPair,
-    closeSplitColumn,
+    closePairHalf,
   } = model;
   const compact = useCompactLayout();
-  const pairs = useSplitPairs();
+  const pairs = useConversationPairs();
 
   // The sidebar is memoized; the shell rebuilds its model on every
   // navigation, so rows and handlers keep their identities here.
@@ -88,23 +88,23 @@ export function ChatBrowseSidebar({
       }),
   );
 
-  const openInSplitStable = useEventCallback(openInSplit);
-  const openPairStable = useEventCallback((pair: SplitPair, workspaceId: string | null) =>
+  const openBesideStable = useEventCallback(openBeside);
+  const openPairStable = useEventCallback((pair: ConversationPair, workspaceId: string | null) =>
     openPair(workspaceId, pair.left, pair.right),
   );
-  const closeHalf = useEventCallback((pair: SplitPair, half: "left" | "right") => {
-    const onScreen = splitView?.left === pair.left && splitView.right === pair.right;
+  const closeHalf = useEventCallback((pair: ConversationPair, half: "left" | "right") => {
+    const onScreen = activePair?.left === pair.left && activePair.right === pair.right;
     if (onScreen) {
-      closeSplitColumn(half === "left" ? "primary" : "split");
+      closePairHalf(half);
       return;
     }
-    dissolveSplitPair(pair.left);
+    dissolveConversationPair(pair.left);
   });
-  const active = splitView
-    ? (pairs.find((p) => p.left === splitView.left && p.right === splitView.right) ?? null)
+  const active = activePair
+    ? (pairs.find((p) => p.left === activePair.left && p.right === activePair.right) ?? null)
     : null;
   const canOpen = sidebarSelectedConversationId !== null && model.route.channelId !== null;
-  const split = useMemo<SidebarSplit | null>(
+  const pairing = useMemo<SidebarPairs | null>(
     () =>
       compact
         ? null
@@ -113,7 +113,7 @@ export function ChatBrowseSidebar({
             active,
             canOpen,
             openId: model.route.channelId,
-            openInSplit: openInSplitStable,
+            openBeside: openBesideStable,
             openPair: openPairStable,
             closeHalf,
           },
@@ -123,33 +123,29 @@ export function ChatBrowseSidebar({
       active,
       canOpen,
       model.route.channelId,
-      openInSplitStable,
+      openBesideStable,
       openPairStable,
       closeHalf,
     ],
   );
 
   return (
-    <SidebarSplitContext.Provider value={split}>
+    <SidebarPairsContext.Provider value={pairing}>
       <ChatSidebar
         fill={fill}
         workspacesLoading={workspacesLoading}
         workspaces={rows}
         agentsById={agentsById}
         selectedWorkspaceId={selectedWorkspaceId}
-        // The tree's ONE selection object. Carries forward the
-        // secondary-pane preference the retired channel column owned;
-        // `selectSidebarSelectedConversationId` holds the rule (a
-        // resolved secondary owns the highlight only when its row is
+        // The tree's ONE selection object (a
+        // resolved conversation pane owns the highlight only when its row is
         // in this sidebar — always true for a private line, which
         // lives in the workspace-independent DIRECT MESSAGES list).
         selectedChannelId={sidebarSelectedConversationId}
         onSelectChannel={selectChannel}
         // A pair has no workspace to open it in, so it takes the
-        // workspace-less route directly. No remembered-layout
-        // restore: the panes that memory replays (thread /
-        // threads-list / side) are channel-scoped, so there is
-        // nothing recorded for a pair to restore (#task:2035).
+        // workspace-less route directly. Pane memory is recorded per
+        // workspace channel only, so a pair opens bare (#task:2035).
         onSelectDirectPair={selectDirectPair}
         // The transient draft row (#task:2039) re-opens THE DRAFT,
         // never the pair: while the draft route is open that row is
@@ -176,6 +172,6 @@ export function ChatBrowseSidebar({
         savedCount={savedItems?.length}
         onOpenThread={openThread}
       />
-    </SidebarSplitContext.Provider>
+    </SidebarPairsContext.Provider>
   );
 }

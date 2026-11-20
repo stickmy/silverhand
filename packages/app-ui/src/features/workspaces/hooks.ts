@@ -547,7 +547,7 @@ export function useChannelsForWorkspace(workspaceId: string | null, workspaceRes
  * Authoritative per-viewer channel detail from `GET /api/channels/:id`, carrying
  * `is_member`. This is the DEEP-LINK / UNKNOWN fallback: the sidebar list item
  * already carries `is_member`, so this only runs when a channel is reached with
- * no authoritative carrier (e.g. a `#conv:`/`?side=` deep-link) — pass `enabled`
+ * no authoritative carrier (e.g. a `#conv:` chip or conversation-pane deep link) — pass `enabled`
  * = "membership is still unknown" so member channels opened from the list never
  * fire an extra fetch (zero flicker on the hot path).
  */

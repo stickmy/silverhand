@@ -176,22 +176,12 @@ const jump: PaneJumpModel = {
   primePhaseFor: () => null,
   handleJumpToMessage: vi.fn(() => true),
 };
-/** A first column showing `c` that owns the right panes. */
-function ownedBy(membership: "member" | "unknown") {
-  const primary = {
-    column: "primary" as const,
-    id: "c",
-    descriptor: null,
-    membership: { membership, gate: channelGateFor(membership) },
-  };
-  return { primary, split: null, paneOwner: primary };
-}
 function render(
   read: PaneReadModel = {
     primaryPointer: { id: "c", rosterPolicy: "open" },
     hasChannelNamespace: true,
     deferredChannelId: "c",
-    ...ownedBy("member"),
+    paired: null,
   },
   nextJump = jump,
 ) {
@@ -284,81 +274,38 @@ describe("conversation authority read model", () => {
 });
 
 describe("conversation pane coordination", () => {
-  it("keeps pure thread focus but clears it when a higher-priority page covers the thread", () => {
-    h.compact = true;
-    h.route.threadRootId = "root";
-    expect(render().focusedConversation?.id).toBe("c");
-    h.route.filesListOpen = true;
-    expect(render().focusedConversation).toBeNull();
-    h.route.filesListOpen = false;
-    expect(render().focusedConversation?.id).toBe("c");
-  });
-  it("does not read or focus a side conversation covered by a person page", () => {
-    h.compact = true;
-    h.route.sideConversationId = "dm";
-    h.side = { status: "resolved", identity: { placement: "direct_pair", pair } };
-    h.route.humanPanelId = "person";
-    expect(render().focusedConversation).toBeNull();
-    expect(h.reads).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    "filesListOpen",
-    "threadsListOpen",
-    "channelSettingsId",
-    "agentPanelId",
-    "humanPanelId",
-    "taskDetailId",
-  ] as const)("does not read or suppress notifications behind compact %s", (panel) => {
-    h.compact = true;
-    h.route.threadRootId = panel === "threadsListOpen" ? null : "preserved-root";
-    Object.assign(h.route, { [panel]: panel.endsWith("Open") ? true : "panel" });
-    const model = render();
-    expect(h.reads).not.toHaveBeenCalled();
-    expect(model.focusedConversation).toBeNull();
-  });
-
-  it("marks each visible pane once, suppresses the hidden primary, and restores it once", () => {
-    h.route.sideConversationId = "dm";
-    h.side = { status: "resolved", identity: { placement: "direct_pair", pair } };
-    let model = render();
-    expect(h.reads.mock.calls).toEqual([["c"], ["dm"]]);
-    expect(model.focusedConversation?.id).toBe("dm");
-    render();
-    expect(h.reads).toHaveBeenCalledTimes(2);
-    h.route.fullscreen = true;
-    render();
-    expect(h.reads).toHaveBeenCalledTimes(2);
-    h.route.fullscreen = false;
-    model = render();
-    expect(h.reads.mock.calls).toEqual([["c"], ["dm"], ["c"]]);
-    expect(model.secondaryViewInputs.hasChannelNamespace).toBe(false);
-    expect(model.secondaryViewInputs.archiveWorkspaceId).toBeNull();
-  });
-  it("an unresolved side has no read cursor and does not steal primary focus", () => {
-    h.route.sideConversationId = "missing";
-    h.side = { status: "unauthorized" };
-    const model = render();
+  it("shows every conversation pane and open thread side by side", () => {
+    h.route.panes = [
+      { kind: "threads", of: "c", thread: "root" },
+      { kind: "conversation", id: "dm" },
+      { kind: "agent", id: "a" },
+    ];
+    const { screen } = render();
+    expect(screen.conversations).toEqual(["c", "dm"]);
+    expect(screen.threads).toEqual([{ conversationId: "c", rootId: "root" }]);
     expect(h.reads.mock.calls).toEqual([["c"]]);
-    expect(model.focusedConversation?.id).toBe("c");
-    expect(model.secondaryConversationDescriptor).toBeNull();
   });
-  it("withholds member panels and guards task close while editing", () => {
-    h.route.filesListOpen = true;
-    h.route.threadsListOpen = true;
-    h.route.taskDetailId = "task";
-    const model = render({
-      primaryPointer: null,
-      hasChannelNamespace: false,
-      deferredChannelId: "c",
-      ...ownedBy("unknown"),
-    });
-    expect(model.filesListMounted).toBe(false);
-    expect(model.threadsListMounted).toBe(false);
-    expect(h.closeResponder.mock.calls[0]?.[0]).toMatchObject({
-      filesListOpen: false,
-      threadsListOpen: false,
-    });
+
+  it("on compact, only the last pane is on screen", () => {
+    h.compact = true;
+    h.route.panes = [
+      { kind: "threads", of: "c", thread: "root" },
+      { kind: "agent", id: "a" },
+    ];
+    const { screen } = render();
+    expect(screen).toEqual({ conversations: [], threads: [] });
+    expect(h.reads).not.toHaveBeenCalled();
+  });
+
+  it("marks the route conversation once while it stays on screen", () => {
+    render();
+    render();
+    expect(h.reads.mock.calls).toEqual([["c"]]);
+  });
+
+  it("guards task close while editing", () => {
+    h.route.panes = [{ kind: "task", id: "task" }];
+    const model = render();
     model.setTaskPaneEditing(true);
     expect(h.leaveGuard?.()).toBe(false);
     model.requestCloseTaskPane();
@@ -370,27 +317,17 @@ describe("conversation pane coordination", () => {
     h.route.section = "tasks";
     expect(render().taskPaneId).toBeNull();
   });
-  it("keeps attachment origin and matches thread jump by both parent and root", () => {
-    h.route.threadRootId = "root";
-    const model = render(undefined, {
-      ...jump,
-      jumpTarget: { channelId: "c", threadRootId: "root", messageId: "reply" },
-      primePhaseFor: () => "committed",
-    });
-    expect(model.threadJumpMessageId).toBe("reply");
-    expect(model.threadJumpPhase).toBe("committed");
-    expect(model.parentJumpTarget).toBeNull();
-    const other = render(undefined, {
-      ...jump,
-      jumpTarget: { channelId: "other", threadRootId: "root", messageId: "reply" },
-    });
-    expect(other.threadJumpMessageId).toBeNull();
-    other.handleOpenThreadFromChannel("root", "reply");
+
+  it("jumps to a reply of the route conversation, and opens one elsewhere in place", () => {
+    const model = render();
+    model.handleOpenThreadFromChannel("root", "reply", "c");
     expect(jump.handleJumpToMessage).toHaveBeenCalledExactlyOnceWith({
       workspaceId: "w",
       channelId: "c",
       threadRootId: "root",
       messageId: "reply",
     });
+    model.handleOpenThreadFromChannel("root", "reply", "dm");
+    expect(h.openThread).toHaveBeenCalledExactlyOnceWith("root", "dm");
   });
 });

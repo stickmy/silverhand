@@ -143,7 +143,7 @@ export function MemberStrip({
                 type="button"
                 // Same destination an agent's avatar/name in the stream and an
                 // inline `@agent` mention already go to: the compact side panel
-                // (`?agent=`, #task:1189), so the channel stays put and the
+                // (an agent pane, #task:1189), so the channel stays put and the
                 // agent's page reads beside it (shiki #task:2117「点击每个应该可以以
                 // sidepanel 打开该 agent page」). One entity, one click answer —
                 // this strip was the last identity surface where a click did

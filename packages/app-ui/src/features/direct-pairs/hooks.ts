@@ -41,7 +41,7 @@ export function directPairsQueryOptions() {
  * subscription, because the invalidation obligation belongs to the viewer's
  * session and not to whichever surface happens to be reading the list
  * ({@link useDirectPairsSync}). MANY surfaces read it (the sidebar section, App's
- * pane resolution, and — since #task:2038 — every `#conv:` chip and the `?side`
+ * pane resolution, and — since #task:2038 — every `#conv:` chip and the conversation
  * pane), which is why mounting one must be free: {@link DIRECT_PAIRS_QUERY_POLICY}.
  */
 export function useDirectPairsList() {

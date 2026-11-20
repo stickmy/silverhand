@@ -64,7 +64,7 @@ interface ChatSidebarProps {
   onSelectDirectDraft: (target: DirectMessageTarget) => void;
   /** Open a conversation inside a given workspace. STARRED is global, so the
    *  parent workspace is explicit: the handler owns the cross-workspace open
-   *  (remembered layout restore included), STARRED never a second nav model. */
+   *  (remembered pane restore included), STARRED never a second nav model. */
   onSelectConversation: (workspaceId: string, conversationId: string) => void;
   onCreateWorkspace: () => void;
   /** When true, the Saved view is the active main view — channel rows

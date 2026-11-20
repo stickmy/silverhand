@@ -10,6 +10,7 @@ import type { SideUnresolvedPlaceholder } from "@/features/conversation-shell/co
 import type { ThreadPanel } from "@/features/conversation-shell/components/thread-panel";
 import type { ChannelThreadsPanel } from "@/features/conversation-shell/components/channel-threads-panel";
 import type { ConversationPaneCapabilities } from "@/features/conversations/pane-mode";
+import type { ChannelSettingsPanel } from "@/features/conversation-shell/components/channel-settings-panel";
 export type DraftPaneProps = Pick<
   ComponentProps<typeof DirectPairDraftPane>,
   "target" | "onOpenPair"
@@ -42,7 +43,7 @@ export type PrimaryPaneProps = Pick<
   | "onOpenAttachmentPanel"
   | "onCloseChild"
   | "closeLabel"
-  | "column"
+  | "attached"
 >;
 
 export type AgentPaneProps = Pick<
@@ -75,24 +76,6 @@ export type UnresolvedPaneProps = Pick<
   "conversationId" | "status" | "onClose"
 >;
 
-export type SidePaneProps = Pick<
-  ComponentProps<typeof ChannelView>,
-  | "hasChannelNamespace"
-  | "workspaceName"
-  | "conversation"
-  | "parentTitle"
-  | "jumpTarget"
-  | "jumpPrimePending"
-  | "onJumped"
-  | "onCloseChild"
-  | "closeLabel"
-  | "isFullscreen"
-  | "conversationRefsById"
-  | "onOpenConversationRef"
-  | "onOpenChannelRef"
-  | "onOpenTask"
->;
-
 export type ThreadPaneProps = Pick<
   ComponentProps<typeof ThreadPanel>,
   | "channelId"
@@ -107,6 +90,7 @@ export type ThreadPaneProps = Pick<
   | "archived"
   | "gate"
   | "onClose"
+  | "onBack"
   | "onViewInChannel"
   | "conversationRefsById"
   | "onOpenConversationRef"
@@ -128,30 +112,21 @@ export type PrimaryPaneModel =
   | { kind: "draft"; props: DraftPaneProps }
   | { kind: "conversation"; props: PrimaryPaneProps };
 
-export type SecondaryPaneModel =
+export type SettingsPaneProps = Pick<
+  ComponentProps<typeof ChannelSettingsPanel>,
+  "channelId" | "page" | "onDepartChannel" | "onClose" | "onBack" | "onOpenMembers"
+>;
+
+/** One attached pane, resolved against the conversation it belongs to. */
+export type AttachedPaneModel =
+  /** Its conversation is still resolving, or the viewer may not open it there. */
   | { kind: "none" }
-  | {
-      kind: "settings";
-      channelId: string;
-      onDepartChannel: (channelId: string) => void;
-    }
+  | { kind: "settings"; props: SettingsPaneProps }
   | { kind: "agent"; props: AgentPaneProps }
   | { kind: "human"; props: Pick<ComponentProps<typeof HumanView>, "userId" | "onClose"> }
   | { kind: "files"; props: FilesPaneProps; preview: AttachmentPaneProps | null }
-  | { kind: "attachment"; props: AttachmentPaneProps }
   | { kind: "task"; props: TaskPaneProps }
-  | { kind: "conversation"; status: "resolved"; props: SidePaneProps }
+  | { kind: "conversation"; status: "resolved"; props: PrimaryPaneProps }
   | { kind: "conversation"; status: "unresolved"; props: UnresolvedPaneProps }
   | { kind: "thread"; props: ThreadPaneProps; capabilities: ConversationPaneCapabilities }
   | { kind: "threads"; props: ThreadsPaneProps };
-
-/** The second column of a split view. */
-export type SplitPaneModel =
-  | { kind: "conversation"; props: PrimaryPaneProps }
-  | { kind: "unresolved"; props: UnresolvedPaneProps };
-
-export interface ConversationPanesModel {
-  primary: PrimaryPaneModel;
-  split: SplitPaneModel | null;
-  secondary: SecondaryPaneModel;
-}

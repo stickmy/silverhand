@@ -4,7 +4,7 @@ import { useChannelDetail } from "@/features/workspaces/hooks";
 import { onWsFrame, subscribeWsScope } from "@/lib/ws-client";
 import { wsConversationSideScope } from "@/features/realtime/conversation-scope";
 
-/** A settings inspector remains live even when opened from a secondary channel. */
+/** A settings inspector remains live even when opened for a conversation pane. */
 export function refreshesChannelSettings(
   frame: ServerFrame,
   channelId: string,

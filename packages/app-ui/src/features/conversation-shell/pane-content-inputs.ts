@@ -1,14 +1,11 @@
 import type { WorkspaceChannelReference } from "@/features/messages/components/conversation-ref";
-import type { JumpPhase } from "@/features/channels/message-jump-phase";
 import type { MessageJumpTarget } from "@/features/channels/use-message-jump-controller";
 import type { ConversationPaneDescriptor } from "@/features/conversations/pane-descriptor";
 import type { AdvancedSearchSeed } from "@/features/search/advanced-search-seed";
-import type {
-  SecondaryDescriptor,
-  SecondaryViewInputs,
-} from "@/features/conversation-shell/model/secondary-pane";
-import type { PaneColumn, RouteState } from "@/router";
+import type { ChannelListItem } from "@/features/workspaces/hooks";
+import type { RouteState } from "@/router";
 import type { ConversationColumn } from "./conversation-column";
+import type { PaneJumpModel } from "./conversation-shell-models";
 
 export interface PaneContentRead {
   workspaceNameById: (wid: string | null) => string | null;
@@ -16,75 +13,60 @@ export interface PaneContentRead {
   directPairNotFound: boolean;
   parentChannelResolving: boolean;
   conversationRefsById: Map<string, WorkspaceChannelReference>;
-  /** What the first column's own view shows: deferred across a channel switch
-   *  so the previous channel stays until the next one is ready. */
+  /** What the route's own view shows: deferred across a channel switch so the
+   *  previous channel stays until the next one is ready. */
   primaryPaneDescriptor: ConversationPaneDescriptor | null;
+  /** The route's conversation; null with none open. */
   primary: ConversationColumn | null;
-  split: ConversationColumn | null;
-  /** The column the right panes resolve against. */
-  paneOwner: ConversationColumn | null;
+  /** The open workspace's channels, for resolving a conversation pane. */
+  channels: readonly ChannelListItem[];
+  buildChannelDescriptor: (channel: ChannelListItem) => ConversationPaneDescriptor | null;
 }
 
 export interface PaneContentState {
-  secondaryDescriptor: SecondaryDescriptor | null;
   channelIndexesAvailable: boolean;
-  filesListMounted: boolean;
-  threadsListMounted: boolean;
   taskPaneId: string | null;
-  secondaryViewInputs: SecondaryViewInputs;
-  secondaryConversationDescriptor: ConversationPaneDescriptor | null;
+  /** The route conversation's main-stream jump. */
   parentJumpTarget: { channelId: string; messageId: string } | null;
-  secondaryJumpTarget: null;
-  secondaryJumpPrimePending: boolean;
-  threadJumpMessageId: string | null;
   parentJumpPrimePending: boolean;
-  threadJumpPhase: JumpPhase | null;
-  splitJumpTarget: { channelId: string; messageId: string } | null;
-  splitJumpPrimePending: boolean;
+  jump: Pick<PaneJumpModel, "jumpTarget" | "isPrimePendingFor" | "primePhaseFor">;
 }
 
 export interface PaneContentCommands {
   departPrimaryPane: (channelId: string) => void;
   requestJump: (target: MessageJumpTarget) => void;
-
   handleOpenAdvancedSearch: (seed: AdvancedSearchSeed) => void;
   openTaskInPane: (taskId: string) => void;
   setTaskPaneEditing: (editing: boolean) => void;
   requestCloseTaskPane: () => void;
   handleOpenChannelByName: (workspaceId: string, channelId: string) => void;
   handleJumpToMessage: (target: MessageJumpTarget) => boolean;
-  closeSecondary: () => void;
   handleMessageAgent: (agentId: string) => void;
   handleDraftOpenedPair: (conversationId: string) => void;
   handleJumped: () => void;
+  /** Open a thread of conversation `of` from its stream. */
   handleOpenThreadFromChannel: (
     rootMessageId: string,
-    jumpToMessageId?: string,
-    column?: PaneColumn,
+    jumpToMessageId: string | undefined,
+    of: string,
   ) => void;
-  openSide: (id: string) => void;
-  toggleThreadsList: (column?: PaneColumn) => void;
-  toggleFilesList: (column?: PaneColumn) => void;
-  /** Close one column of a split view; the other stays as the only column. */
-  closeColumn: (column: PaneColumn) => void;
-  closeAgentPanel: () => void;
-  closeHumanPanel: () => void;
-  closeFilesList: () => void;
-  openAttachmentPanel: (attachmentId: string, inFiles?: boolean, column?: PaneColumn) => void;
-  closeAttachmentPanel: () => void;
-  closeThread: () => void;
-  closeThreadsList: () => void;
-  openThread: (id: string) => void;
+  openConversationPane: (id: string) => void;
+  openThread: (rootMessageId: string, of: string) => void;
+  toggleThreadsList: (of: string) => void;
+  toggleFilesList: (of: string) => void;
+  openAttachmentPanel: (attachmentId: string, of: string) => void;
+  openChannelMembers: (of: string, add?: boolean) => void;
+  /** Close the pane with `key`; a conversation pane takes its own along. */
+  closePane: (key: string) => void;
+  /** Move the pane with `key` to `index` in the row. */
+  movePane: (key: string, index: number) => void;
+  /** Step the pane with `key` back one page. */
+  backPane: (key: string) => void;
+  /** Close the route's conversation; the first conversation pane takes its place. */
+  closeRouteConversation: () => void;
 }
 
 export type PaneContentRoute = Pick<
   RouteState,
-  | "workspaceId"
-  | "channelId"
-  | "directDraftTarget"
-  | "threadRootId"
-  | "agentPanelId"
-  | "humanPanelId"
-  | "attachmentPanelId"
-  | "channelSettingsId"
+  "workspaceId" | "channelId" | "directDraftTarget" | "panes"
 >;

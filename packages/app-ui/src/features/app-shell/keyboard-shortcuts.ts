@@ -3,7 +3,7 @@ import { useEffect, useRef, type RefObject } from "react";
 import { usePageLive } from "@/navigation/page-stack";
 import type { AppSection } from "@/components/layout/nav-rail";
 import type { RouteState } from "@/router";
-import { topSecondaryPane, type SecondaryPane } from "@/navigation/secondary-panes";
+import { paneKey, type Pane, type Panes } from "@/navigation/panes";
 
 /**
  * App-wide keyboard shortcuts. Deliberately a SMALL, fixed set —
@@ -146,9 +146,9 @@ export function useTabCycleShortcut(
   rootRef: RefObject<HTMLElement | null>,
   enabled: boolean,
   onStep: (step: -1 | 1) => void,
-  /** In a split view only the column holding focus cycles; the first column
-   *  also takes the chord while focus is nowhere in particular. */
-  scope: "any" | "primary" | "split" = "any",
+  /** Only the pane holding focus cycles; the primary pane also takes the chord
+   *  while focus is nowhere in particular. */
+  isPrimary: boolean,
 ): void {
   const live = usePageLive();
   const stepRef = useRef(onStep);
@@ -164,18 +164,16 @@ export function useTabCycleShortcut(
       if (event.key === "Tab" && !event.ctrlKey && bareTabExempt(event.target)) return;
       const root = rootRef.current;
       if (!root || root.getClientRects().length === 0) return;
-      if (scope !== "any") {
-        const active = document.activeElement;
-        const inThisPane = active instanceof Node && root.contains(active);
-        const focusOutside = !active || active === document.body;
-        if (!inThisPane && !(scope === "primary" && focusOutside)) return;
-      }
+      const active = document.activeElement;
+      const inThisPane = active instanceof Node && root.contains(active);
+      const focusOutside = !active || active === document.body;
+      if (!inThisPane && !(isPrimary && focusOutside)) return;
       event.preventDefault();
       stepRef.current(step);
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [rootRef, enabled, live, scope]);
+  }, [rootRef, enabled, live, isPrimary]);
 }
 
 // ── ⌘W contextual close ──────────────────────────────────────────────────────
@@ -193,26 +191,19 @@ export function useTabCycleShortcut(
 export type ContextualCloseOutcome = "closed-panel" | "background-app";
 
 /** Which surface to peel this press, or none. */
-type CloseTarget = SecondaryPane | "activity-channel" | null;
+type CloseTarget = { pane: Pane } | "activity-channel" | null;
 
-/** The authoritative slice of state the ⌘W ladder reads at keypress time. ⌘W
- *  acts purely on this explicit panel allowlist — a surface is closeable only
- *  if it appears here. */
+/** The authoritative slice of state the ⌘W ladder reads at keypress time. */
 export interface ContextualCloseState {
-  agentPanelId: string | null;
-  humanPanelId?: string | null;
-  filesListOpen: boolean;
-  attachmentPanelId?: string | null;
-  channelSettingsId?: string | null;
-  /** Task detail is showing as the side pane (`?task`), not the modal. */
+  /** The open panes in display order. */
+  panes: Panes;
+  /** Task detail is showing as a pane (`?task`), not the modal; the modal is a
+   *  Radix Dialog that owns its own dismissal. */
   taskPaneOpen: boolean;
-  sideConversationId: string | null;
-  threadRootId: string | null;
-  threadsListOpen: boolean;
   /** A channel drilled into from the Activity list (`/activity/.../c/:id`) — a
-   *  closeable detail that ⌘W (once every overlay above is peeled) pops back to
-   *  the full-screen Activity list. The Chat section's main channel is NOT a
-   *  peel target, so callers set this only for the Activity section. */
+   *  closeable detail that ⌘W (once every pane is closed) pops back to the
+   *  full-screen Activity list. The Chat section's main channel is NOT a peel
+   *  target, so callers set this only for the Activity section. */
   activityChannelOpen: boolean;
 }
 
@@ -222,31 +213,15 @@ export interface ContextualCloseResolution {
 }
 
 /**
- * The ⌘W ladder — one layer peeled per press, top surface first. Pure so the
- * layer order is unit-testable without IPC/DOM.
- *
- * Secondary panes peel in the registry's stacking order (`SECONDARY_PANES`),
- * the same order the render layer resolves, so ⌘W peels whichever pane is on
- * top even when a malformed URL sets more than one. Task detail counts only as
- * the side pane; the modal entry is a Radix Dialog that owns its dismissal.
- * Below the panes, an Activity channel detail pops back to the Activity list;
- * with nothing left, ⌘W backgrounds the app. The Chat section's main
- * ChannelView is never a target.
+ * The ⌘W ladder — one pane closed per press, the last one first. Pure so the
+ * order is unit-testable without IPC/DOM. Below the panes, an Activity channel
+ * detail pops back to the Activity list; with nothing left, ⌘W backgrounds the
+ * app. The route's own conversation is never a target.
  */
 export function resolveContextualClose(state: ContextualCloseState): ContextualCloseResolution {
-  const pane = topSecondaryPane({
-    agent: state.agentPanelId != null,
-    human: state.humanPanelId != null,
-    settings: Boolean(state.channelSettingsId),
-    attachment: Boolean(state.attachmentPanelId),
-    files: state.filesListOpen,
-    task: state.taskPaneOpen,
-    side: state.sideConversationId != null,
-    thread: state.threadRootId != null,
-    threads: state.threadsListOpen,
-  });
+  const pane = state.panes.findLast((p) => p.kind !== "task" || state.taskPaneOpen);
   if (pane) {
-    return { outcome: "closed-panel", target: pane };
+    return { outcome: "closed-panel", target: { pane } };
   }
   if (state.activityChannelOpen) {
     return { outcome: "closed-panel", target: "activity-channel" };
@@ -256,33 +231,14 @@ export function resolveContextualClose(state: ContextualCloseState): ContextualC
 
 /** The close half of `useNav()` this feature drives. Structural, as above. */
 export interface ContextualCloseNav {
-  closeAgentPanel: () => void;
-  closeHumanPanel: () => void;
-  closeFilesList: () => void;
-  closeAttachmentPanel: () => void;
-  closeChannelSettings: () => void;
-  /** Clear `?task` — closes the task detail side pane (#task:1721). */
+  closePane: (key: string) => void;
+  /** Clear `?task`, guarded while the task is being edited. */
   closeTask: () => void;
-  closeSide: () => void;
-  closeThread: () => void;
-  closeThreadsList: () => void;
   /** Pop an Activity channel detail back to the full-screen Activity list. */
   toActivity: () => void;
 }
 
-type ContextualCloseRoute = Pick<
-  RouteState,
-  | "section"
-  | "channelId"
-  | "agentPanelId"
-  | "humanPanelId"
-  | "filesListOpen"
-  | "attachmentPanelId"
-  | "channelSettingsId"
-  | "sideConversationId"
-  | "threadRootId"
-  | "threadsListOpen"
->;
+type ContextualCloseRoute = Pick<RouteState, "section" | "channelId" | "panes">;
 
 /**
  * Answer main's per-keypress ⌘W request with the authoritative outcome, peeling
@@ -308,54 +264,20 @@ export function useContextualCloseResponder(
     return api.onContextualClose((reqId) => {
       const { route, nav, taskPaneOpen } = stateRef.current;
       const { outcome, target } = resolveContextualClose({
-        agentPanelId: route.agentPanelId,
-        humanPanelId: route.humanPanelId,
-        filesListOpen: route.filesListOpen,
-        attachmentPanelId: route.attachmentPanelId,
-        channelSettingsId: route.channelSettingsId,
+        panes: route.panes,
         taskPaneOpen,
-        sideConversationId: route.sideConversationId,
-        threadRootId: route.threadRootId,
-        threadsListOpen: route.threadsListOpen,
         // Only the Activity section's drilled-in channel is a peel target; the
         // Chat section's main channel is not (⌘W backgrounds the app there).
         activityChannelOpen: route.section === "activity" && route.channelId != null,
       });
-      switch (target) {
-        case "agent":
-          nav.closeAgentPanel();
-          break;
-        case "human":
-          nav.closeHumanPanel();
-          break;
-        case "settings":
-          nav.closeChannelSettings();
-          break;
-        case "files":
-          nav.closeFilesList();
-          break;
-        case "attachment":
-          nav.closeAttachmentPanel();
-          break;
-        case "task":
-          nav.closeTask();
-          break;
-        case "side":
-          nav.closeSide();
-          break;
-        case "thread":
-          nav.closeThread();
-          break;
-        case "threads":
-          nav.closeThreadsList();
-          break;
-        case "activity-channel":
-          // Base-view drill-in: navigate back to the list, NOT an overlay-param
-          // clear — this is the one rung that changes the path.
-          nav.toActivity();
-          break;
-        case null:
-          break;
+      if (target === "activity-channel") {
+        // Base-view drill-in: navigate back to the list, NOT a pane close —
+        // this is the one rung that changes the path.
+        nav.toActivity();
+      } else if (target?.pane.kind === "task") {
+        nav.closeTask();
+      } else if (target) {
+        nav.closePane(paneKey(target.pane));
       }
       api.respondContextualClose(reqId, outcome);
     });

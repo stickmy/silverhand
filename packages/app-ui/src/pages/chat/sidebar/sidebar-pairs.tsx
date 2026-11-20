@@ -5,62 +5,62 @@ import {
   useRowLiftedFor,
   beginConversationDrag,
   endConversationDrag,
-} from "@/components/layout/split-drop";
+} from "@/components/layout/pane-drop";
 import { AppContextMenuItem, AppContextMenuSeparator } from "@/components/menus/app-context-menu";
-import type { SplitPair } from "@/features/conversation-shell/split-pairs";
+import type { ConversationPair } from "@/features/conversation-shell/conversation-pairs";
 import { SplitRightIcon } from "@/icons";
 import { t } from "@/lib/i18n";
 
 /**
- * The split view as the sidebar sees it, shared by every row source (channel
+ * Conversation pairs as the sidebar sees them, shared by every row source (channel
  * tree, STARRED, DIRECT MESSAGES, Recent) without threading it through each
- * list. Absent (null) where the sidebar cannot open columns: compact layouts.
+ * list. Absent (null) where the sidebar cannot open panes: compact layouts.
  */
-export interface SidebarSplit {
+export interface SidebarPairs {
   /** Every pair the viewer keeps. */
-  pairs: readonly SplitPair[];
-  /** The pair on screen, if a split view is open. */
-  active: SplitPair | null;
-  /** Whether a conversation is open, so a second column can join it. */
+  pairs: readonly ConversationPair[];
+  /** The pair on screen, if one is open. */
+  active: ConversationPair | null;
+  /** Whether a conversation is open, so another can open beside it. */
   canOpen: boolean;
-  /** The conversation open in the first column; it cannot also open beside itself. */
+  /** The route's conversation; it cannot also open beside itself. */
   openId: string | null;
-  openInSplit: (conversationId: string) => void;
+  openBeside: (conversationId: string) => void;
   /** Reopen a pair; `workspaceId` is the left conversation's (null: a direct pair). */
-  openPair: (pair: SplitPair, workspaceId: string | null) => void;
-  /** Remove one half of a pair; closes that column when the pair is on screen. */
-  closeHalf: (pair: SplitPair, half: "left" | "right") => void;
+  openPair: (pair: ConversationPair, workspaceId: string | null) => void;
+  /** Remove one half of a pair; closes that half when the pair is on screen. */
+  closeHalf: (pair: ConversationPair, half: "left" | "right") => void;
 }
 
-export const SidebarSplitContext = createContext<SidebarSplit | null>(null);
+export const SidebarPairsContext = createContext<SidebarPairs | null>(null);
 
-export function useSidebarSplit(): SidebarSplit | null {
-  return useContext(SidebarSplitContext);
+export function useSidebarPairs(): SidebarPairs | null {
+  return useContext(SidebarPairsContext);
 }
 
 /**
- * What every conversation row does about split view, so the four row sources
+ * What every conversation row does about panes, so the four row sources
  * cannot drift: ⌥-click opens the row beside the open conversation, and the
  * row menu offers "Open on right" — except on the conversation already open.
  */
-export function useRowSplitActions(conversationId: string, selected: boolean) {
-  const split = useSidebarSplit();
-  const canOpen = split?.canOpen === true && !selected;
+export function useRowPaneActions(conversationId: string, selected: boolean) {
+  const pairing = useSidebarPairs();
+  const canOpen = pairing?.canOpen === true && !selected;
 
   return {
-    /** Wrap a row's own select: ⌥-click goes to the second column instead. */
+    /** Wrap a row's own select: ⌥-click opens it beside instead. */
     select:
       (open: () => void) =>
       (event: MouseEvent): void => {
         if (canOpen && event.altKey && !event.metaKey && !event.ctrlKey) {
-          split!.openInSplit(conversationId);
+          pairing!.openBeside(conversationId);
           return;
         }
         open();
       },
     /** The row menu's "Open on right" entry; null when it does not apply. */
     menuItem: canOpen ? (
-      <OpenOnRightMenuItem onSelect={() => split!.openInSplit(conversationId)} />
+      <OpenOnRightMenuItem onSelect={() => pairing!.openBeside(conversationId)} />
     ) : null,
   };
 }
@@ -82,14 +82,14 @@ function OpenOnRightMenuItem({ onSelect }: { onSelect: () => void }): JSX.Elemen
 
 /** Lets a sortable row drag out of its list onto the conversation area. Within
  *  the list a drag reorders; moving it far enough sideways lifts it out (see
- *  `split-drop`). Mount inside a `SortableGroup`; `conversationIdOf` returns
- *  null for a row that cannot open in a column (a pair row). */
-export function SplitDragMonitor({
+ *  `pane-drop`). Mount inside a `SortableGroup`; `conversationIdOf` returns
+ *  null for a row that cannot open beside (a pair row). */
+export function PaneDragMonitor({
   conversationIdOf,
 }: {
   conversationIdOf: (sortId: string) => string | null;
 }): null {
-  const split = useSidebarSplit();
+  const pairing = useSidebarPairs();
   useDndMonitor({
     onDragStart: ({ active, activatorEvent }) => {
       const id = conversationIdOf(String(active.id));
@@ -98,9 +98,9 @@ export function SplitDragMonitor({
         activatorEvent.target instanceof Element ? activatorEvent.target.closest("li") : null;
       const row = item?.firstElementChild;
       if (
-        !split?.canOpen ||
+        !pairing?.canOpen ||
         !id ||
-        id === split.openId ||
+        id === pairing.openId ||
         !(row instanceof HTMLElement) ||
         !(activatorEvent instanceof MouseEvent)
       ) {
@@ -110,7 +110,7 @@ export function SplitDragMonitor({
     },
     onDragEnd: () => {
       const dropped = endConversationDrag();
-      if (dropped) split?.openInSplit(dropped);
+      if (dropped) pairing?.openBeside(dropped);
     },
     onDragCancel: () => {
       endConversationDrag();
@@ -120,7 +120,7 @@ export function SplitDragMonitor({
 }
 
 /**
- * Drag-to-split for a row that is not in a sortable list (DIRECT MESSAGES,
+ * Drag-to-open-beside for a row that is not in a sortable list (DIRECT MESSAGES,
  * Recent): spread the returned handler on the row. Mouse only; on touch a long
  * press belongs to the row menu.
  */
@@ -131,9 +131,9 @@ export function useConversationDragSource(
   onPointerDown?: (event: PointerEvent<HTMLElement>) => void;
   style?: { opacity: number };
 } {
-  const split = useSidebarSplit();
+  const pairing = useSidebarPairs();
   const lifted = useRowLiftedFor(conversationId);
-  if (!split?.canOpen || selected) return {};
+  if (!pairing?.canOpen || selected) return {};
   return {
     style: lifted ? { opacity: 0.4 } : undefined,
     onPointerDown: (event) => {
@@ -142,7 +142,7 @@ export function useConversationDragSource(
         event.nativeEvent,
         event.currentTarget,
         conversationId,
-        split.openInSplit,
+        pairing.openBeside,
       );
     },
   };

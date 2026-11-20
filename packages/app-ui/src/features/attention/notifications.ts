@@ -1,3 +1,4 @@
+import type { OnScreen } from "@/navigation/panes";
 import { getPlatform } from "@/platform";
 import { useCallback, useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -282,16 +283,11 @@ export function useNotificationToasts(
   }, [qc, dismissAlerts]);
 
   // Opening a conversation in a focused window takes its alerts down.
+  const shownKey = viewing.conversations.join(" ");
   useEffect(() => {
-    if (viewing.conversationId && document.hasFocus()) {
-      dismissAlerts(viewing.conversationId);
-    }
-  }, [viewing.conversationId, dismissAlerts]);
-  useEffect(() => {
-    if (viewing.splitConversationId && document.hasFocus()) {
-      dismissAlerts(viewing.splitConversationId);
-    }
-  }, [viewing.splitConversationId, dismissAlerts]);
+    if (!document.hasFocus()) return;
+    for (const id of viewingRef.current.conversations) dismissAlerts(id);
+  }, [shownKey, dismissAlerts]);
 
   // Native-notification click bridge. Main process forwards the
   // `notificationId` originally passed to `showSystemNotification`
@@ -401,25 +397,18 @@ export function useNotificationToasts(
   }, [data, qc, handleClickById, markRead]);
 }
 
-/** What the window shows: the focused conversation with its open thread, and
- *  the second column of a split view, which shows its main stream only. */
-export interface NotificationViewing {
-  conversationId: string | null;
-  threadRootId: string | null;
-  splitConversationId?: string | null;
-}
+/** What the window shows: the conversations whose main stream is on screen,
+ *  and the open threads. */
+export type NotificationViewing = OnScreen;
 
-/** Whether the alert's message is on screen: its conversation is the focused
- *  one and, for a reply, that reply's thread is open; or it is a main-stream
- *  message of the split column. */
+/** Whether the alert's message is on screen: a main-stream message of a shown
+ *  conversation, or a reply in an open thread. */
 function isOnScreen(alert: MessageAlert, viewing: NotificationViewing): boolean {
-  if (alert.conversation_id === viewing.splitConversationId && !alert.thread_root_id) {
-    return true;
-  }
-  if (alert.conversation_id !== viewing.conversationId) {
-    return false;
-  }
-  return !alert.thread_root_id || alert.thread_root_id === viewing.threadRootId;
+  if (!alert.thread_root_id) return viewing.conversations.includes(alert.conversation_id);
+  return viewing.threads.some(
+    (thread) =>
+      thread.conversationId === alert.conversation_id && thread.rootId === alert.thread_root_id,
+  );
 }
 
 /** Where an alert's click lands: the message itself, inside its thread for a reply. */
@@ -554,7 +543,7 @@ async function resolveTargetFromConversationId(
     };
   }
   // THE shared conversation-ref read point — same key and same fetcher as
-  // `useConversationById`, so a recently-resolved cross-workspace `?side` ref is
+  // `useConversationById`, so a recently-resolved cross-workspace conversation pane is
   // reused for free AND the attribution write-through happens exactly once,
   // wherever the fetch originates.
   const data = await qc.fetchQuery(conversationRefQueryOptions(conversationId)).catch(() => null);

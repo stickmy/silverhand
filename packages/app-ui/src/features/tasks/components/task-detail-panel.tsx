@@ -120,7 +120,7 @@ export function TaskDetailPanel({
 
   return (
     // `.task-pane` names the container query the metadata grid reads. `w-full`
-    // makes it fill the SplitPane's right wrapper — without it the pane is a flex
+    // makes it fill its pane slot — without it the pane is a flex
     // row child that shrinks to its intrinsic content width (a thin strip); the
     // inner body's `flex-1` can only fill this root, not widen it (#task:1721).
     <div

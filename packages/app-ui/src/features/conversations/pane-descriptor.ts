@@ -34,7 +34,7 @@ export interface ConversationPaneDescriptor {
    *  search, task refs — is gated on this being non-null. */
   workspace_id: string | null;
   /** Per-viewer membership, when the carrier (discovery-union list item)
-   *  provides it. Absent on a cross-workspace `?side` ref / deep link →
+   *  provides it. Absent on a cross-workspace conversation pane / deep link →
    *  the view resolves it via a channel-detail fetch (see the membership
    *  derivation in `ChannelView`). Drives the read-only-browse + Join gate for
    *  a public channel the viewer hasn't joined. Never set for a `direct_pair`:

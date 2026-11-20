@@ -6,7 +6,6 @@ import { AnimatePresence } from "motion/react";
 import { PageSwapTransition } from "@/components/layout/page-swap";
 import { ChevronRightIcon, HashIcon, LockIcon, PowerIcon, RefreshIcon } from "@/icons";
 import type { ChannelDetailResponse } from "@silverhand/shared";
-import { useNav, useRouteState } from "@/router";
 import { paneChrome } from "@/components/layout/pane-chrome";
 import { SidePanelHeader, SidePanelHeaderTitle } from "@/components/layout/side-panel-header";
 import { Button } from "@/components/ui/button";
@@ -35,13 +34,21 @@ import { t } from "@/lib/i18n";
 
 export function ChannelSettingsPanel({
   channelId,
+  page: membersPage,
   onDepartChannel,
+  onClose,
+  onBack,
+  onOpenMembers,
 }: {
-  onDepartChannel: (channelId: string) => void;
   channelId: string;
+  /** The members page on top of the overview, or null for the overview. */
+  page: "members" | "add" | null;
+  onDepartChannel: (channelId: string) => void;
+  onClose: () => void;
+  onBack?: () => void;
+  /** Open the members page; `add` focuses its search. */
+  onOpenMembers: (add?: boolean) => void;
 }): JSX.Element {
-  const nav = useNav();
-  const membersPage = useRouteState().channelSettingsPage;
   const mounted = useRef(false);
 
   useEffect(() => {
@@ -53,7 +60,7 @@ export function ChannelSettingsPanel({
 
   const close = (): void => {
     if (mounted.current) {
-      nav.closeChannelSettings();
+      onClose();
     }
   };
 
@@ -80,8 +87,8 @@ export function ChannelSettingsPanel({
       style={paneChrome}
     >
       <SidePanelHeader
-        onClose={nav.closeChannelSettings}
-        onBack={membersPage ? nav.navigateBack : undefined}
+        onClose={onClose}
+        onBack={onBack}
         nativeBar={{
           title: membersPage
             ? t("conversationShell.members")
@@ -136,7 +143,7 @@ export function ChannelSettingsPanel({
           detail={detail.data}
           membersPage={membersPage !== null}
           focusMemberSearch={membersPage === "add"}
-          onOpenMembers={(focusSearch) => nav.openChannelMembers(channelId, focusSearch)}
+          onOpenMembers={onOpenMembers}
           onArchived={onArchived}
           onLeft={onLeft}
         />

@@ -1,15 +1,15 @@
-import { selectSecondarySurface } from "./model/secondary-surface";
 import { hostsViewTabs } from "./model/view-tabs";
 import { openConversationTab } from "@/features/conversations/use-conversation-tabs";
+import { mountsMemberOnlyPanel } from "@/features/channels/membership";
 import type { AttachmentSnapshot } from "@silverhand/shared";
 import { directPairSenderSeed } from "@/features/search/advanced-search-seed";
+import { paneKey, paneOwner, type Pane } from "@/navigation/panes";
 import type {
+  AttachedPaneModel,
   AttachmentPaneProps,
-  ConversationPanesModel,
-  SecondaryPaneModel,
-  SplitPaneModel,
+  PrimaryPaneModel,
+  PrimaryPaneProps,
 } from "./pane-render-models";
-import type { PaneColumn } from "@/router";
 import type { ConversationColumn } from "./conversation-column";
 import type {
   PaneContentRoute,
@@ -19,324 +19,280 @@ import type {
 } from "./pane-content-inputs";
 import { t } from "@/lib/i18n";
 
-export function buildConversationPanes(
-  route: PaneContentRoute,
-  read: PaneContentRead,
-  state: PaneContentState,
-  commands: PaneContentCommands,
-): ConversationPanesModel {
-  const split = read.split ? buildSplitPane(read.split, read, state, commands) : null;
+export interface PaneContext {
+  route: PaneContentRoute;
+  read: PaneContentRead;
+  state: PaneContentState;
+  commands: PaneContentCommands;
+}
+
+/** The route's own conversation, first on the stage. */
+export function buildPrimaryPane(ctx: PaneContext): PrimaryPaneModel {
+  const { route, read, state, commands } = ctx;
+  if (route.directDraftTarget) {
+    return {
+      kind: "draft",
+      props: { target: route.directDraftTarget, onOpenPair: commands.handleDraftOpenedPair },
+    };
+  }
+  const id = route.channelId;
+  const indexes = state.channelIndexesAvailable && read.primaryPaneDescriptor != null && id;
+  const besidePane = route.panes.some((p) => p.kind === "conversation");
   return {
-    primary: route.directDraftTarget
-      ? {
-          kind: "draft",
-          props: {
-            target: route.directDraftTarget,
-            onOpenPair: commands.handleDraftOpenedPair,
-          },
-        }
-      : {
-          kind: "conversation",
-          props: {
-            ...columnViewProps("primary", read, state, commands, split !== null),
-            hasChannelNamespace: read.primary?.hasChannelNamespace ?? false,
-            workspaceName: read.workspaceNameById(read.primaryPaneDescriptor?.workspace_id ?? null),
-            conversation: read.primaryPaneDescriptor,
-            resolving: read.parentChannelResolving,
-            loadFailed: read.directPairLoadFailed,
-            notFound: read.directPairNotFound,
-            jumpTarget: state.parentJumpTarget,
-            jumpPrimePending: state.parentJumpPrimePending,
-            onToggleThreadsList:
-              state.channelIndexesAvailable && read.primaryPaneDescriptor != null
-                ? () => commands.toggleThreadsList("primary")
-                : undefined,
-            onToggleFilesList:
-              state.channelIndexesAvailable && read.primaryPaneDescriptor != null
-                ? () => commands.toggleFilesList("primary")
-                : undefined,
-          },
-        },
-    split,
-    secondary: resolveSecondaryPane(route, read, state, commands),
+    kind: "conversation",
+    props: {
+      ...conversationViewProps(id ?? "", ctx, false),
+      hasChannelNamespace: read.primary?.hasChannelNamespace ?? false,
+      workspaceName: read.workspaceNameById(read.primaryPaneDescriptor?.workspace_id ?? null),
+      conversation: read.primaryPaneDescriptor,
+      resolving: read.parentChannelResolving,
+      loadFailed: read.directPairLoadFailed,
+      notFound: read.directPairNotFound,
+      jumpTarget: state.parentJumpTarget,
+      jumpPrimePending: state.parentJumpPrimePending,
+      onToggleThreadsList: indexes ? () => commands.toggleThreadsList(id) : undefined,
+      onToggleFilesList: indexes ? () => commands.toggleFilesList(id) : undefined,
+      // Beside a conversation pane, the route's conversation can close too:
+      // the pane beside it takes the route.
+      ...(besidePane
+        ? {
+            onCloseChild: commands.closeRouteConversation,
+            closeLabel: t("conversationShell.closeColumn"),
+          }
+        : {}),
+    },
   };
 }
 
-/** What a column's view takes the same way in either column: where its
- *  threads and attachments open, whether it owns the open index pane, and —
- *  while split — a close button. */
-function columnViewProps(
-  column: PaneColumn,
-  read: PaneContentRead,
-  state: PaneContentState,
-  commands: PaneContentCommands,
-  split: boolean,
-) {
-  const owns = read.paneOwner?.column === column;
+/** What a conversation's view takes the same way wherever it stands: where its
+ *  threads and attachments open, and whether its Threads or Files pane is open. */
+function conversationViewProps(id: string, ctx: PaneContext, attached: boolean) {
+  const { route, read, commands } = ctx;
+  const open = (kind: "threads" | "files") =>
+    route.panes.some((p) => p.kind === kind && p.of === id);
   return {
     parentTitle: null,
     onJumped: commands.handleJumped,
     onOpenThread: (rootId: string, jumpTo?: string) =>
-      commands.handleOpenThreadFromChannel(rootId, jumpTo, column),
-    threadsListActive: owns && state.threadsListMounted,
-    filesListActive: owns && state.filesListMounted,
+      commands.handleOpenThreadFromChannel(rootId, jumpTo, id),
+    threadsListActive: open("threads"),
+    filesListActive: open("files"),
     conversationRefsById: read.conversationRefsById,
-    onOpenConversationRef: commands.openSide,
+    onOpenConversationRef: commands.openConversationPane,
     onOpenChannelRef: commands.handleOpenChannelByName,
     onOpenTask: commands.openTaskInPane,
     onJumpToMessage: commands.handleJumpToMessage,
     onOpenAdvancedSearch: commands.handleOpenAdvancedSearch,
     viewTabsEnabled: true,
-    onOpenAttachmentPanel: (id: string) => commands.openAttachmentPanel(id, false, column),
-    ...(split
-      ? {
-          onCloseChild: () => commands.closeColumn(column),
-          closeLabel: t("conversationShell.closeColumn"),
-          column,
-        }
-      : {}),
+    onOpenAttachmentPanel: (attachmentId: string) => commands.openAttachmentPanel(attachmentId, id),
+    attached,
   };
 }
 
-/** The second column; it renders a placeholder until its conversation resolves. */
-function buildSplitPane(
-  split: ConversationColumn,
-  read: PaneContentRead,
-  state: PaneContentState,
-  commands: PaneContentCommands,
-): SplitPaneModel {
-  if (!split.descriptor) {
-    return {
-      kind: "unresolved",
-      props: {
-        conversationId: split.id,
-        status: split.status === "resolved" ? "loading" : split.status,
-        onClose: () => commands.closeColumn("split"),
-      },
-    };
+/** The main-stream jump aimed at conversation `id`, if any. */
+function streamJump(id: string, state: PaneContentState) {
+  const target = state.jump.jumpTarget;
+  if (!target || target.threadRootId || target.channelId !== id) {
+    return { jumpTarget: null, jumpPrimePending: false };
   }
   return {
-    kind: "conversation",
-    props: {
-      ...columnViewProps("split", read, state, commands, true),
-      hasChannelNamespace: split.hasChannelNamespace,
-      workspaceName: read.workspaceNameById(split.workspaceId),
-      conversation: split.descriptor,
-      jumpTarget: state.splitJumpTarget,
-      jumpPrimePending: state.splitJumpPrimePending,
-      onToggleThreadsList: () => commands.toggleThreadsList("split"),
-      onToggleFilesList: () => commands.toggleFilesList("split"),
-    },
+    jumpTarget: { channelId: target.channelId, messageId: target.messageId },
+    jumpPrimePending: state.jump.isPrimePendingFor(target.channelId, target.messageId),
   };
 }
 
-/** Overlay precedence is decided here; renderers consume only the selected branch. */
-export function resolveSecondaryPane(
-  route: PaneContentRoute,
-  read: PaneContentRead,
-  state: PaneContentState,
-  commands: PaneContentCommands,
-): SecondaryPaneModel {
-  const surface = selectSecondarySurface({ ...route, ...state });
-  if (surface === "agent" && route.agentPanelId) {
-    return {
-      kind: "agent",
-      props: {
-        agentId: route.agentPanelId,
-        contextConversationId: route.channelId,
-        contextWorkspaceId: route.workspaceId ?? null,
-        onClose: commands.closeAgentPanel,
-        onDeleted: commands.closeAgentPanel,
-        onMessageAgent: commands.handleMessageAgent,
-      },
-    };
+/**
+ * One attached pane. `owner` is the conversation the pane belongs to — itself
+ * for a conversation pane — resolved by the caller; null for a pane that
+ * belongs to none.
+ */
+export function buildAttachedPane(
+  pane: Pane,
+  owner: ConversationColumn | null,
+  ctx: PaneContext,
+): AttachedPaneModel {
+  const { route, read, state, commands } = ctx;
+  const key = paneKey(pane);
+  const close = () => commands.closePane(key);
+  const back = () => commands.backPane(key);
+  if (paneOwner(pane) !== undefined && !owner) return { kind: "none" };
+
+  switch (pane.kind) {
+    case "agent":
+      return {
+        kind: "agent",
+        props: {
+          agentId: pane.id,
+          contextConversationId: route.channelId,
+          contextWorkspaceId: route.workspaceId ?? null,
+          onClose: close,
+          onDeleted: close,
+          onMessageAgent: commands.handleMessageAgent,
+        },
+      };
+    case "human":
+      return { kind: "human", props: { userId: pane.id, onClose: close } };
+    case "task":
+      if (state.taskPaneId !== pane.id) return { kind: "none" };
+      return {
+        kind: "task",
+        props: {
+          taskId: pane.id,
+          onClose: commands.requestCloseTaskPane,
+          onEditingChange: commands.setTaskPaneEditing,
+        },
+      };
+    case "settings":
+      return {
+        kind: "settings",
+        props: {
+          channelId: pane.of,
+          page: pane.page,
+          onDepartChannel: commands.departPrimaryPane,
+          onClose: close,
+          onBack: pane.page ? back : undefined,
+          onOpenMembers: (add) => commands.openChannelMembers(pane.of, add),
+        },
+      };
+    case "conversation": {
+      if (!owner?.descriptor) {
+        return {
+          kind: "conversation",
+          status: "unresolved",
+          props: {
+            conversationId: pane.id,
+            status: !owner || owner.status === "resolved" ? "loading" : owner.status,
+            onClose: close,
+          },
+        };
+      }
+      const props: PrimaryPaneProps = {
+        ...conversationViewProps(pane.id, ctx, true),
+        ...streamJump(pane.id, state),
+        hasChannelNamespace: owner.hasChannelNamespace,
+        workspaceName: read.workspaceNameById(owner.workspaceId),
+        conversation: owner.descriptor,
+        onToggleThreadsList: () => commands.toggleThreadsList(pane.id),
+        onToggleFilesList: () => commands.toggleFilesList(pane.id),
+        onCloseChild: close,
+        closeLabel: t("conversationShell.closeColumn"),
+      };
+      return { kind: "conversation", status: "resolved", props };
+    }
   }
 
-  if (surface === "human" && route.humanPanelId) {
-    return {
-      kind: "human",
-      props: { userId: route.humanPanelId, onClose: commands.closeHumanPanel },
-    };
+  // Threads and Files are member panels of their conversation.
+  if (!owner || !mountsMemberOnlyPanel(true, owner.membership.membership)) {
+    return { kind: "none" };
   }
 
-  if (surface === "settings" && route.channelSettingsId && route.channelId) {
-    return {
-      kind: "settings",
-      channelId: route.channelSettingsId,
-      onDepartChannel: commands.departPrimaryPane,
-    };
-  }
-
-  const owner = read.paneOwner;
-
-  if (surface === "files" && state.filesListMounted && owner) {
-    const channelId = owner.id;
+  if (pane.kind === "files") {
     return {
       kind: "files",
       props: {
-        channelId,
+        channelId: owner.id,
         workspaceId: owner.workspaceId,
         parentTitle: owner.paneTitle,
-        onClose: commands.closeFilesList,
+        onClose: close,
         onJumpToMessage: commands.handleJumpToMessage,
-        onOpenAttachment: (attachment) => commands.openAttachmentPanel(attachment.id, true),
+        onOpenAttachment: (attachment) => commands.openAttachmentPanel(attachment.id, owner.id),
       },
-      preview: route.attachmentPanelId
-        ? attachmentPaneProps(route.attachmentPanelId, owner, {
-            onClose: commands.closeFilesList,
-            onBack: commands.closeAttachmentPanel,
-          })
+      preview: pane.attachment
+        ? attachmentPaneProps(pane.attachment, owner, { onClose: close, onBack: back })
         : null,
     };
   }
 
-  if (surface === "attachment" && route.attachmentPanelId && owner) {
-    return {
-      kind: "attachment",
-      props: attachmentPaneProps(route.attachmentPanelId, owner, {
-        onClose: commands.closeAttachmentPanel,
-      }),
-    };
-  }
-
-  if (surface === "task" && state.taskPaneId && route.channelId) {
-    return {
-      kind: "task",
-      props: {
-        taskId: state.taskPaneId,
-        onClose: commands.requestCloseTaskPane,
-        onEditingChange: commands.setTaskPaneEditing,
-      },
-    };
-  }
-
-  if (surface === "side" && state.secondaryDescriptor) {
-    if (state.secondaryDescriptor.status !== "resolved") {
-      return {
-        kind: "conversation",
-        status: "unresolved",
-        props: {
-          conversationId: state.secondaryDescriptor.id,
-          status: state.secondaryDescriptor.status,
-          onClose: commands.closeSecondary,
-        },
-      };
-    }
-    if (state.secondaryConversationDescriptor) {
-      return {
-        kind: "conversation",
-        status: "resolved",
-        props: {
-          hasChannelNamespace: state.secondaryViewInputs.hasChannelNamespace,
-          workspaceName: read.workspaceNameById(state.secondaryConversationDescriptor.workspace_id),
-          conversation: state.secondaryConversationDescriptor,
-          parentTitle: null,
-          jumpTarget: state.secondaryJumpTarget,
-          jumpPrimePending: state.secondaryJumpPrimePending,
-          onJumped: commands.handleJumped,
-          onCloseChild: commands.closeSecondary,
-          closeLabel: t("conversationShell.closeSidePane"),
-          isFullscreen: false,
-          conversationRefsById: read.conversationRefsById,
-          onOpenConversationRef: commands.openSide,
-          onOpenChannelRef: commands.handleOpenChannelByName,
-          onOpenTask: commands.openTaskInPane,
-        },
-      };
-    }
-    return { kind: "none" };
-  }
-
-  if (surface === "thread" && route.threadRootId && owner) {
-    const threadChannelId = owner.id;
-    const threadWorkspaceId = owner.workspaceId;
-    const threadRoot = route.threadRootId;
-    return {
-      kind: "thread",
-      capabilities: owner.capabilities,
-      props: {
-        channelId: threadChannelId,
-        workspaceId: threadWorkspaceId,
-        directory: owner.threadComposerDirectory,
-        rootMessageId: threadRoot,
-        onOpenAttachment: (attachment) => commands.openAttachmentPanel(attachment.id),
-        onExpandAttachment: expandIntoColumn(owner),
-        parentTitle: owner.paneTitle,
-        parentCounterpart: owner.descriptor?.counterpart ?? null,
-        closed: owner.descriptor?.closed_at != null,
-        archived: owner.descriptor?.archived_at != null,
-        gate: owner.membership.gate,
-        onClose: commands.closeThread,
-        onViewInChannel: () => {
-          // Scroll-locate + flash the root in the main channel stream,
-          // then drop the thread pane so the channel is unobstructed.
-          commands.requestJump({
-            workspaceId: threadWorkspaceId ?? undefined,
-            channelId: threadChannelId,
-            messageId: threadRoot,
-          });
-          commands.closeThread();
-        },
-        conversationRefsById: read.conversationRefsById,
-        onOpenConversationRef: commands.openSide,
-        onOpenChannelRef: commands.handleOpenChannelByName,
-        onOpenTask: commands.openTaskInPane,
-        jumpMessageId: state.threadJumpMessageId,
-        jumpPhase: state.threadJumpPhase,
-        onJumped: commands.handleJumped,
-        onJumpToMessage: commands.handleJumpToMessage,
-        onOpenAdvancedSearch: commands.handleOpenAdvancedSearch,
-        advancedSearchSender: directPairSenderSeed(owner.pair?.counterpart),
-      },
-    };
-  }
-
-  if (surface === "threads" && state.threadsListMounted && owner) {
+  if (!pane.thread) {
     return {
       kind: "threads",
       props: {
         channelId: owner.id,
         parentTitle: owner.paneTitle,
-        onClose: commands.closeThreadsList,
-        onOpenThread: commands.openThread,
+        onClose: close,
+        onOpenThread: (rootId) => commands.openThread(rootId, owner.id),
       },
     };
   }
 
-  return { kind: "none" };
+  const threadRoot = pane.thread;
+  const target = state.jump.jumpTarget;
+  const jumpMessageId =
+    target && target.threadRootId === threadRoot && target.channelId === owner.id
+      ? target.messageId
+      : null;
+  return {
+    kind: "thread",
+    capabilities: owner.capabilities,
+    props: {
+      channelId: owner.id,
+      workspaceId: owner.workspaceId,
+      directory: owner.threadComposerDirectory,
+      rootMessageId: threadRoot,
+      onOpenAttachment: (attachment) => commands.openAttachmentPanel(attachment.id, owner.id),
+      onExpandAttachment: expandIntoConversation(owner),
+      parentTitle: owner.paneTitle,
+      parentCounterpart: owner.descriptor?.counterpart ?? null,
+      closed: owner.descriptor?.closed_at != null,
+      archived: owner.descriptor?.archived_at != null,
+      gate: owner.membership.gate,
+      onClose: close,
+      onBack: back,
+      onViewInChannel: () => {
+        // Scroll-locate + flash the root in its conversation's stream, then
+        // step the pane back to the list so the stream is unobstructed.
+        commands.requestJump({
+          workspaceId: owner.workspaceId ?? undefined,
+          channelId: owner.id,
+          messageId: threadRoot,
+        });
+        back();
+      },
+      conversationRefsById: read.conversationRefsById,
+      onOpenConversationRef: commands.openConversationPane,
+      onOpenChannelRef: commands.handleOpenChannelByName,
+      onOpenTask: commands.openTaskInPane,
+      jumpMessageId,
+      jumpPhase: jumpMessageId ? state.jump.primePhaseFor(owner.id, jumpMessageId) : null,
+      onJumped: commands.handleJumped,
+      onJumpToMessage: commands.handleJumpToMessage,
+      onOpenAdvancedSearch: commands.handleOpenAdvancedSearch,
+      advancedSearchSender: directPairSenderSeed(owner.pair?.counterpart),
+    },
+  };
 }
 
-/** Expanding hands the preview to its column's tab and closes it here, so one
- * attachment is never open in both places. */
+/** Expanding hands the preview to its conversation's tab and closes it here,
+ * so one attachment is never open in both places. */
 function attachmentPaneProps(
   attachmentId: string,
   owner: ConversationColumn,
   exits: Pick<AttachmentPaneProps, "onClose" | "onBack">,
 ): AttachmentPaneProps {
-  const expand = expandIntoColumn(owner);
+  const expand = expandIntoConversation(owner);
   return {
     attachmentId,
     ...exits,
     onExpand: expand
       ? (attachment) => {
           expand(attachment);
-          exits.onClose();
+          exits.onBack?.();
         }
       : undefined,
   };
 }
 
-/** Opens the attachment as a tab of `column`, offered only while that column
- * has its tab strip. */
-function expandIntoColumn(
-  column: ConversationColumn,
+/** Opens the attachment as a tab of `owner`, offered only while that
+ * conversation has its tab strip. */
+function expandIntoConversation(
+  owner: ConversationColumn,
 ): ((attachment: AttachmentSnapshot) => void) | undefined {
-  if (!column.descriptor) return undefined;
-  if (!hostsViewTabs(column.descriptor, column.membership.gate.allowMemberEffects)) {
+  if (!owner.descriptor) return undefined;
+  if (!hostsViewTabs(owner.descriptor, owner.membership.gate.allowMemberEffects)) {
     return undefined;
   }
   return (attachment) =>
-    openConversationTab(column.id, {
+    openConversationTab(owner.id, {
       kind: "attachment",
       attachmentId: attachment.id,
       filename: attachment.filename,
