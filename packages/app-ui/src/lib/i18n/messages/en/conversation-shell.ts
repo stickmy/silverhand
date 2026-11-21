@@ -136,8 +136,6 @@ export const conversationShell = {
   followThread: "Follow thread",
   viewInChannel2: "View in channel",
   thisMessageCantBe: "This message can't be loaded. It may have been deleted.",
-  couldntLoadReplies: "Couldn’t load replies",
-  waitingForRepliesConnection: "Waiting for a connection to load replies…",
   noRepliesYet: "No replies yet",
   unreadNew: "{count} new",
   openActivity: "Open {name} activity",
