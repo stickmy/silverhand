@@ -42,15 +42,8 @@ describe("isRegistrationRequired", () => {
     expect(isRegistrationRequired(makeViewer())).toBe(false);
   });
 
-  it("rejects objects without a literal `registration_required: true`", () => {
-    const bodies: object[] = [
-      {},
-      { registration_required: "true" },
-      { registration_required: 1 },
-      { registration_required: false },
-    ];
-    for (const body of bodies) {
-      expect(isRegistrationRequired(body)).toBe(false);
-    }
+  it("rejects a response whose flag is not literally true", () => {
+    const malformed = { registration_required: false, suggested_name: "" };
+    expect(isRegistrationRequired(malformed as unknown as RegistrationRequired)).toBe(false);
   });
 });

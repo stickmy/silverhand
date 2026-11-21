@@ -1,11 +1,13 @@
 import type { MeResponse, RegistrationRequired, UserDto } from "@silverhand/shared";
+import type { SetupRequired, ViewerState } from "./hooks";
 
 /** Type guard for the setup-required auth state. Lives here, free of React
  *  Query, so pure modules can use it; `./hooks` re-exports it. */
-/** Takes an already-parsed response (`MeResponse`, `ViewerState`), not raw JSON. */
-export function isRegistrationRequired<T extends object>(
-  body: T,
-): body is Extract<T, RegistrationRequired> {
+export function isRegistrationRequired(body: ViewerState): body is SetupRequired;
+export function isRegistrationRequired(body: MeResponse): body is RegistrationRequired;
+export function isRegistrationRequired(
+  body: MeResponse | ViewerState,
+): body is RegistrationRequired | SetupRequired {
   return (
     typeof body === "object" &&
     body !== null &&
