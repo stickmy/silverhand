@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
 import {
   clusterInitialFetchEnabled,
+  clusterWindowLocked,
   threadClusterShowsLoader,
   threadLiveMarkReadSeq,
   threadMarkReadSnapshot,
@@ -471,5 +472,21 @@ describe("threadTailIsVisible (#task:1610 live unread)", () => {
         clientHeight: 400,
       }),
     ).toBe(false);
+  });
+});
+
+describe("clusterWindowLocked", () => {
+  it("holds the lock while priming and while a committed window is cached", () => {
+    expect(clusterWindowLocked("priming", false)).toBe(true);
+    expect(clusterWindowLocked("committed", true)).toBe(true);
+  });
+
+  it("releases a committed lock whose window is gone, so the pane fetches instead of sitting empty", () => {
+    expect(clusterWindowLocked("committed", false)).toBe(false);
+  });
+
+  it("is open when settled or without a jump", () => {
+    expect(clusterWindowLocked("settled", true)).toBe(false);
+    expect(clusterWindowLocked(null, false)).toBe(false);
   });
 });

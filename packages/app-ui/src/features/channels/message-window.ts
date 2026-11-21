@@ -16,7 +16,11 @@ import { isCommittedMessage } from "@/features/channels/pending-message";
 import { api, ApiError } from "@/lib/api";
 import { useInterest } from "@/features/realtime/interest-registry";
 import { wsConversationScope } from "@/features/realtime/conversation-scope";
-import { clusterInitialFetchEnabled } from "@/features/conversation-shell/model/thread-mark-read";
+import {
+  clusterInitialFetchEnabled,
+  clusterWindowLocked,
+} from "@/features/conversation-shell/model/thread-mark-read";
+import type { JumpPhase } from "@/features/channels/message-jump-phase";
 import {
   type CachedMessagesPage,
   type MessagesCache,
@@ -304,16 +308,11 @@ export function useThreadCluster(
   channelId: string | null,
   rootMessageId: string | null,
   opts?: {
-    /** WINDOW LOCK for a jump-open (#task:1317): true while this open's
-     *  `primeAround` around-window must stay protected — the prime is `priming`
-     *  (fetch in flight) OR `committed` (written, awaiting the visual locate).
-     *  While set, the infinite query is held DISABLED so its empty-cache initial
-     *  LATEST fetch cannot race / clobber the around-window, and the committed
-     *  window is not re-enabled (not refetchable) until `clearJump` drops the
-     *  lock. See `jumpWindowLockedForPhase` / `clusterInitialFetchEnabled`. Omit /
-     *  false for a normal open — it then keeps its mount-time latest initial
-     *  fetch unchanged. */
-    jumpWindowLocked?: boolean;
+    /** The jump-open phase for this cluster (#task:1317). While locked (see
+     *  `clusterWindowLocked`) the infinite query is held DISABLED so its
+     *  empty-cache initial LATEST fetch cannot clobber `primeAround`'s
+     *  around-window. Omit / null for a normal open. */
+    jumpPhase?: JumpPhase | null;
   },
 ) {
   const layout = useCompactLayout() ? "compact" : "regular";
@@ -324,11 +323,14 @@ export function useThreadCluster(
   // The stream subscription + epoch carrier below stay on `enabledBase` so live
   // replies and the freshness epoch are still observed while the initial fetch
   // is suppressed.
+  const key = clusterMessagesKey(channelId ?? "none", rootMessageId ?? "none");
   const enabled = clusterInitialFetchEnabled({
     hasChannelAndRoot: enabledBase,
-    jumpWindowLocked: opts?.jumpWindowLocked ?? false,
+    jumpWindowLocked: clusterWindowLocked(
+      opts?.jumpPhase ?? null,
+      qc.getQueryData(key) !== undefined,
+    ),
   });
-  const key = clusterMessagesKey(channelId ?? "none", rootMessageId ?? "none");
 
   // Stage-2 P1b: the central ingestor owns the SET of the cluster live-gap; this
   // hook reads it as a cache fact and keeps only the position-based CLEARs.

@@ -16,11 +16,7 @@ import { threadClusterShowsLoader, threadReplyRows } from "../model/thread-mark-
 import { useThreadMarkRead } from "../use-thread-mark-read";
 import { MessageList } from "./channel-view/message-list";
 import type { WorkspaceChannelReference } from "@/features/messages/components/conversation-ref";
-import {
-  type JumpPhase,
-  jumpWindowLockedForPhase,
-  threadLocateAllowed,
-} from "@/features/channels/message-jump-phase";
+import { type JumpPhase, threadLocateAllowed } from "@/features/channels/message-jump-phase";
 import type { MessageJumpTarget } from "@/features/channels/use-message-jump-controller";
 import { TaskRefContextProvider } from "@/features/tasks/components/task-ref-context";
 import {
@@ -111,7 +107,7 @@ interface ThreadPanelProps {
   /** The jump's `primeAround` lifecycle PHASE for a first-unread jump into
    *  THIS thread (#task:1317), or null when no jump is active. The single
    *  source of truth from which this pane projects three independent signals: the
-   *  shared phase projections `jumpWindowLockedForPhase` (→ holds the
+   *  shared phase projections `clusterWindowLocked` (→ holds the
    *  cluster query disabled so a latest fetch can't clobber the around-window,
    *  through `committed` until `clearJump`) and `threadLocateAllowed` (→ poll only
    *  once `committed`/`settled`, never against a still-priming/stale window), plus
@@ -184,9 +180,7 @@ export function ThreadPanel({
   // composer / Join slot uses the full gate so `unknown` shows NEITHER.
   const canParticipate = gate.allowMemberEffects;
   const rootCtx = useThreadRoot(channelId, rootMessageId);
-  const cluster = useThreadCluster(channelId, rootMessageId, {
-    jumpWindowLocked: jumpWindowLockedForPhase(jumpPhase),
-  });
+  const cluster = useThreadCluster(channelId, rootMessageId, { jumpPhase });
   const messages = cluster.data;
   // A cluster can be mid-history after an around-reply jump, so the list's
   // back-to-bottom resets to the true tail rather than the window's end.

@@ -98,6 +98,16 @@ export function clusterInitialFetchEnabled(input: {
 }
 
 /**
+ * The window lock as the cluster query applies it. A committed lock protects the
+ * primed window; when that window is gone (a live reply removes an unobserved
+ * cluster cache before the pane mounts) it protects nothing, and holding it would
+ * leave the pane empty with no fetch and no locate to release it.
+ */
+export function clusterWindowLocked(phase: JumpPhase | null, windowCached: boolean): boolean {
+  return phase === "priming" || (phase === "committed" && windowCached);
+}
+
+/**
  * Whether ThreadPanel's reply area shows the loader vs. its content (#task:1317).
  * The loader shows ONLY while there is genuinely nothing THIS open can render
  * yet — a real in-flight fetch, OR a jump still `priming` (its around-window has
