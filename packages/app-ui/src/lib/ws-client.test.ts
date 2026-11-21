@@ -867,6 +867,43 @@ describe("EventWsClient — two-watermark content-gated scope (#1255 P2 step-4)"
     ]);
   });
 
+  it("bounds the pending backlog behind a gap that never fills", async () => {
+    const { client, ws, sub } = await connectedGated(SCOPE, 5);
+
+    // 6 never arrives; 7..506 are all satisfied.
+    for (let seq = 7; seq <= 506; seq++) {
+      fireEvent(ws, SCOPE, seq);
+      client.markSatisfied(SCOPE, ts(seq), te("epoch-1"));
+    }
+    const pending = (client as unknown as { satisfiedPending: Map<string, { seqs: Set<number> }> })
+      .satisfiedPending;
+    expect(pending.get(SCOPE)!.seqs.size).toBe(200);
+
+    sub.unsubscribe();
+    ws.sent.length = 0;
+    client.subscribe(SCOPE);
+    expect(resumes(ws)).toEqual([
+      { type: "resume", scopes: { [SCOPE]: { epoch: "epoch-1", lastSeq: 5 } } },
+    ]);
+  });
+
+  it("keeps the seqs nearest the gap so the floor drains through them once it fills", async () => {
+    const { client, ws, sub } = await connectedGated(SCOPE, 5);
+
+    for (let seq = 7; seq <= 306; seq++) {
+      fireEvent(ws, SCOPE, seq);
+      client.markSatisfied(SCOPE, ts(seq), te("epoch-1"));
+    }
+    client.markSatisfied(SCOPE, ts(6), te("epoch-1"));
+
+    sub.unsubscribe();
+    ws.sent.length = 0;
+    client.subscribe(SCOPE);
+    expect(resumes(ws)).toEqual([
+      { type: "resume", scopes: { [SCOPE]: { epoch: "epoch-1", lastSeq: 206 } } },
+    ]);
+  });
+
   it("treats a re-satisfy at or below the floor as an idempotent no-op (#1261)", async () => {
     const { client, ws, sub } = await connectedGated(SCOPE, 5);
 

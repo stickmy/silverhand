@@ -65,8 +65,9 @@ interface EventWsDiagnostic {
  * Upper bound on a scope's pending-satisfaction backlog (#1261). A satisfied-
  * but-non-contiguous set this deep means the gap-filling seq has (or will) age
  * out of the server replay buffer (also 200 entries) — the scope can then only
- * recover its floor via a `snapshot_required` re-cold-start. Crossing it emits a
- * diagnostic; it is never a hard failure (the pin is safe, just inefficient).
+ * recover its floor via a `snapshot_required` re-cold-start. Past it the newest
+ * seq is forgotten: the floor stays pinned below the gap either way, and a
+ * forgotten seq is satisfied again when a resume replays it.
  */
 const SATISFIED_PENDING_CAP = 200;
 
@@ -369,6 +370,7 @@ export class EventWsClient {
       this.resumeFloorPositions.set(scope, { epoch, lastSeq: advancedTo });
     }
     if (pending.size > SATISFIED_PENDING_CAP) {
+      pending.delete(Math.max(...pending) as TransportSeq);
       recordEventWsDiagnostic({
         kind: "satisfied_pending_overflow",
         scope,
