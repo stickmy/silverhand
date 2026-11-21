@@ -560,7 +560,7 @@ describe("viewer-local channel removal contract (#task:1689)", () => {
 
     it("notifications are RETAINED — the server does not membership-filter them", () => {
       const qc = new QueryClient();
-      const listKey = ["notifications", "list", { unread: false }];
+      const listKey = ["notifications", "list", { unread: true, toasts: true }];
       qc.setQueryData(listKey, {
         notifications: [notificationRow("n-1", LOST), notificationRow("n-2", KEPT)],
       });

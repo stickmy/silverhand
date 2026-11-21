@@ -96,16 +96,6 @@ export function useUnreadCounts() {
   });
 }
 
-/** Full notification list — currently unused, but in place for the
- *  upcoming notifications panel. */
-export function useNotifications(unread = false) {
-  return useQuery<{ notifications: NotificationDto[] }>({
-    queryKey: [...listKey, { unread }],
-    queryFn: () =>
-      api<{ notifications: NotificationDto[] }>(`/api/notifications${unread ? "?unread=1" : ""}`),
-  });
-}
-
 export function useMarkNotificationsRead() {
   const qc = useQueryClient();
   return useMutation({
