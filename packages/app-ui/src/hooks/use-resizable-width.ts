@@ -17,7 +17,9 @@ interface Options {
    *  column can take there. A flex row may have shrunk it below its stored
    *  width, and growing past what the neighbours can give would push it the
    *  other way. */
-  bounds?: () => { width: number; max: number } | null;
+  bounds?: () => { width: number; min?: number; max: number } | null;
+  /** Each width the drag produces; `done` on release. */
+  onDrag?: (next: number, done: boolean) => void;
 }
 
 export interface ResizableWidth {
@@ -25,8 +27,8 @@ export interface ResizableWidth {
   /** Attach to a 4px splitter element on the column's right edge. */
   startResize: (e: React.PointerEvent) => void;
   isDragging: boolean;
-  /** Adopt a width for this session without persisting it. */
-  pin: (next: number) => void;
+  /** Adopt a width set from outside; persisted only when `persist`. */
+  pin: (next: number, persist?: boolean) => void;
 }
 
 /**
@@ -47,6 +49,7 @@ export function useResizableWidth({
   cssVar,
   edge = "right",
   bounds,
+  onDrag,
 }: Options): ResizableWidth {
   const readStored = (): number => {
     try {
@@ -133,19 +136,21 @@ export function useResizableWidth({
       dragOriginWidth.current = laid ? Math.min(widthRef.current, laid.width) : widthRef.current;
       // A column the row has already squeezed below `min` must not jump wider
       // on the first move.
-      const floor = Math.min(min, dragOriginWidth.current);
+      const floor = Math.min(Math.max(min, laid?.min ?? min), dragOriginWidth.current);
       setDragging(true);
 
       const onMove = (ev: PointerEvent): void => {
         const dx = (ev.clientX - dragOriginX.current) * (edge === "left" ? -1 : 1);
         const next = Math.max(floor, Math.min(ceiling, dragOriginWidth.current + dx));
         scheduleCssWidth(next);
+        onDrag?.(next, false);
       };
       const onUp = (): void => {
         flushCssWidth();
         const next = widthRef.current;
         setWidth(next);
         persistWidth(next);
+        onDrag?.(next, true);
         setDragging(false);
         document.removeEventListener("pointermove", onMove);
         document.removeEventListener("pointerup", onUp);
@@ -160,13 +165,17 @@ export function useResizableWidth({
       document.body.style.cursor = "col-resize";
       document.body.style.userSelect = "none";
     },
-    [bounds, edge, flushCssWidth, max, min, persistWidth, scheduleCssWidth],
+    [bounds, edge, flushCssWidth, max, min, onDrag, persistWidth, scheduleCssWidth],
   );
 
-  const pin = useCallback((next: number): void => {
-    widthRef.current = next;
-    setWidth(next);
-  }, []);
+  const pin = useCallback(
+    (next: number, persist = false): void => {
+      widthRef.current = next;
+      setWidth(next);
+      if (persist) persistWidth(next);
+    },
+    [persistWidth],
+  );
 
   return { width, startResize, isDragging: dragging, pin };
 }

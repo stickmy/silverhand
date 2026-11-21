@@ -132,12 +132,18 @@ const PRIMARY_MIN_WIDTH = 320;
 
 /** Fired on the pane row when any pane starts a resize. */
 const RESIZE_START = "pane-resize-start";
+/** Fired on an attached pane whose right-hand neighbour's splitter is moving. */
+const NEIGHBOUR_RESIZE = "pane-neighbour-resize";
 
 /** Each kind of pane keeps the width the viewer gave it. */
 const PANE_WIDTH = {
   conversation: { defaultWidth: 520, min: 360, max: 960 },
   other: { defaultWidth: 400, min: 300, max: 720 },
 } as const;
+
+function paneWidthKind(attachedPane: string | undefined): keyof typeof PANE_WIDTH {
+  return attachedPane === "conversation" ? "conversation" : "other";
+}
 
 /** An attached pane at its own width, resized from its left edge. */
 function PaneSlot({
@@ -152,14 +158,37 @@ function PaneSlot({
   order: number;
   children: ReactNode;
 }): JSX.Element {
-  const kind = pane.kind === "conversation" ? "conversation" : "other";
+  const kind = paneWidthKind(pane.kind);
   const clip = useRef<HTMLDivElement | null>(null);
+  // The pane on the splitter's other side, and the widths both started at.
+  const drag = useRef<{ left: HTMLElement | null; leftStart: number; ownStart: number } | null>(
+    null,
+  );
   const bounds = useCallback(() => {
     const own = clip.current;
-    const primary = own?.closest("[data-pane-row]")?.querySelector("[data-pane-primary]");
-    if (!own || !primary) return null;
+    const row = own?.closest("[data-pane-row]");
+    const primary = row?.querySelector("[data-pane-primary]");
+    if (!own || !row || !primary) return null;
     const width = own.getBoundingClientRect().width;
+    const left = drag.current?.left;
+    if (left) {
+      // Between two attached panes the splitter trades width between those two only.
+      const limits = PANE_WIDTH[paneWidthKind(left.dataset.attachedPane)];
+      const leftWidth = left.getBoundingClientRect().width;
+      return {
+        width,
+        min: width - (limits.max - leftWidth),
+        max: width + leftWidth - limits.min,
+      };
+    }
     return { width, max: width + primary.getBoundingClientRect().width - PRIMARY_MIN_WIDTH };
+  }, []);
+  const onDrag = useCallback((next: number, done: boolean) => {
+    const current = drag.current;
+    if (!current?.left) return;
+    const detail = { width: current.leftStart + current.ownStart - next, done };
+    current.left.dispatchEvent(new CustomEvent(NEIGHBOUR_RESIZE, { detail }));
+    if (done) drag.current = null;
   }, []);
   const {
     width,
@@ -171,28 +200,48 @@ function PaneSlot({
     ...PANE_WIDTH[kind],
     edge: "left",
     bounds,
+    onDrag,
   });
 
   // When the row is narrower than the panes' widths, flex shrinks them all
   // together, so changing one pane's width would redistribute the others.
   // Every pane takes its laid-out width when a resize starts; from then on
-  // only the dragged pane and the primary column move.
+  // only the two panes beside the splitter move.
   useEffect(() => {
-    const row = clip.current?.closest("[data-pane-row]");
-    if (!row) return;
+    const own = clip.current;
+    const row = own?.closest("[data-pane-row]");
+    if (!own || !row) return;
     const onStart = (): void => {
-      const laid = clip.current?.getBoundingClientRect().width;
+      const laid = own.getBoundingClientRect().width;
       if (laid) pin(laid);
     };
+    const onNeighbour = (e: Event): void => {
+      const { width: next, done } = (e as CustomEvent<{ width: number; done: boolean }>).detail;
+      pin(next, done);
+    };
     row.addEventListener(RESIZE_START, onStart);
-    return () => row.removeEventListener(RESIZE_START, onStart);
+    own.addEventListener(NEIGHBOUR_RESIZE, onNeighbour);
+    return () => {
+      row.removeEventListener(RESIZE_START, onStart);
+      own.removeEventListener(NEIGHBOUR_RESIZE, onNeighbour);
+    };
   }, [pin]);
   const beginResize = useCallback(
     (e: ReactPointerEvent) => {
-      clip.current?.closest("[data-pane-row]")?.dispatchEvent(new Event(RESIZE_START));
+      const own = clip.current;
+      const row = own?.closest("[data-pane-row]");
+      if (!own || !row) return;
+      row.dispatchEvent(new Event(RESIZE_START));
+      const left =
+        order > 0 ? row.querySelector<HTMLElement>(`[data-pane-order="${order - 1}"]`) : null;
+      drag.current = {
+        left,
+        leftStart: left?.getBoundingClientRect().width ?? 0,
+        ownStart: own.getBoundingClientRect().width,
+      };
       startResize(e);
     },
-    [startResize],
+    [order, startResize],
   );
 
   const reducedMotion = useReducedMotion();
@@ -231,6 +280,7 @@ function PaneSlot({
         ref={clip}
         data-pane-clip="side"
         data-attached-pane={pane.kind}
+        data-pane-order={order}
         onPointerDown={listeners?.onPointerDown as PointerEventHandler | undefined}
         className={cn(
           "flex h-full min-w-0 shrink overflow-hidden [&_[data-conversation-header]]:cursor-grab [&_[data-side-panel-header]]:cursor-grab",
