@@ -32,6 +32,9 @@ export function createInterestRegistry(
   subscribe: (scope: InterestScope) => WsScopeSubscription = subscribeWsScope,
 ): InterestRegistry {
   const scopes = new Map<InterestScope, ScopeEntry>();
+  // Registry-wide, never reset: a holder evicted and retained again must not
+  // get back a generation an old handle still carries.
+  let nextGeneration = 0;
 
   function retain(scope: InterestScope, holder: HolderToken): InterestHandle {
     let entry = scopes.get(scope);
@@ -41,7 +44,7 @@ export function createInterestRegistry(
       entry = { subscription: subscribe(scope), holders: new Map() };
       scopes.set(scope, entry);
     }
-    const generation = (entry.holders.get(holder) ?? 0) + 1;
+    const generation = ++nextGeneration;
     entry.holders.set(holder, generation);
 
     let released = false;

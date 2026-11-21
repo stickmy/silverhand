@@ -123,6 +123,23 @@ describe("InterestRegistry — churn / generation-safety (#task:1260 P1, Cindy Q
     expect(t.unsubscribed).toEqual(["conversation:c1"]);
   });
 
+  it("a stale handle cannot evict a holder re-retained after its eviction", () => {
+    const t = recordingTransport();
+    const reg = createInterestRegistry(t.subscribe);
+
+    const a = reg.retain("conversation:c1", "holder-a");
+    const b = reg.retain("conversation:c1", "holder-a");
+    b.release();
+    const c = reg.retain("conversation:c1", "holder-a");
+
+    a.release();
+    expect(t.unsubscribed).toEqual(["conversation:c1"]);
+    expect(new Set(reg.snapshot().get("conversation:c1"))).toEqual(new Set(["holder-a"]));
+
+    c.release();
+    expect(t.unsubscribed).toEqual(["conversation:c1", "conversation:c1"]);
+  });
+
   it("n→0→n resubscribe uses a FRESH subscription (borrows no old state)", () => {
     // After a full release, re-retaining must call the transport subscribe again
     // (a fresh WsScopeSubscription that resumes from the retained floor) — the
