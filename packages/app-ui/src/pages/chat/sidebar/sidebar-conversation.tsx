@@ -1,4 +1,4 @@
-import { useLayoutEffect, useSyncExternalStore, type ReactNode } from "react";
+import { useId, useLayoutEffect, useSyncExternalStore, type ReactNode } from "react";
 import type { RowBadge } from "@/features/attention/attention-mode";
 import type { ConversationPair } from "@/features/conversation-shell/conversation-pairs";
 import { AppContextMenu } from "@/components/menus/app-context-menu";
@@ -176,8 +176,12 @@ export function SidebarConversationRow({
   );
 }
 
-/** Publish a list's faces for as long as it is mounted. */
-function useRegisterRowFaces(list: string, faces: ReadonlyMap<string, RowFace>): void {
+/** Publish a list's faces for as long as it is mounted. Keyed per mounted copy,
+ *  not per list: the hidden sidebar stays mounted while its peek shows a second
+ *  copy, and two copies sharing one entry would overwrite each other's faces and
+ *  republish forever. */
+function useRegisterRowFaces(name: string, faces: ReadonlyMap<string, RowFace>): void {
+  const list = `${name}:${useId()}`;
   useLayoutEffect(() => {
     const next = signature(faces);
     byList.set(list, faces);
