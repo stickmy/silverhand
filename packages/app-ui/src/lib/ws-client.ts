@@ -370,7 +370,11 @@ export class EventWsClient {
       this.resumeFloorPositions.set(scope, { epoch, lastSeq: advancedTo });
     }
     if (pending.size > SATISFIED_PENDING_CAP) {
-      pending.delete(Math.max(...pending) as TransportSeq);
+      let newest: TransportSeq | null = null;
+      for (const pendingSeq of pending) {
+        if (newest === null || pendingSeq > newest) newest = pendingSeq;
+      }
+      if (newest !== null) pending.delete(newest);
       recordEventWsDiagnostic({
         kind: "satisfied_pending_overflow",
         scope,
