@@ -41,9 +41,7 @@ const {
   recordConversationActiveTab,
   subscribeConversationTabs,
   clearPlaceMemory,
-  closeWatermarkByChannel,
   getChannelPanes,
-  getCloseWatermark,
   getConversationTabs,
   getLastChatPlace,
   getLastWorkspaceId,
@@ -54,7 +52,6 @@ const {
   recordLastChatPlace,
   recordLastWorkspace,
   recordChannelPanes,
-  recordCloseWatermark,
   tabsByConversation,
 } = await import("./place-memory");
 
@@ -260,69 +257,6 @@ describe("place-memory", () => {
       expect(fresh.getChannelPanes("ch-A")).toEqual([
         { kind: "threads", of: "ch-A", thread: "m-1" },
       ]);
-      vi.resetModules();
-    });
-  });
-
-  describe("explicit-close watermark", () => {
-    it("recordCloseWatermark persists and getCloseWatermark reads it back", () => {
-      recordCloseWatermark("ch-A", decodeMessageSeq(42));
-      expect(getCloseWatermark("ch-A")).toBe(42);
-      expect(JSON.parse(localStorage.getItem(CLOSE_WATERMARK_KEY)!)).toEqual({
-        "ch-A": 42,
-      });
-    });
-
-    it("getCloseWatermark returns null for an unknown channel", () => {
-      expect(getCloseWatermark("nope")).toBeNull();
-    });
-
-    it("is monotonic — a newer seq raises the watermark", () => {
-      recordCloseWatermark("ch-A", decodeMessageSeq(10));
-      recordCloseWatermark("ch-A", decodeMessageSeq(25));
-      expect(getCloseWatermark("ch-A")).toBe(25);
-    });
-
-    it("never lowers an existing watermark with a smaller seq", () => {
-      recordCloseWatermark("ch-A", decodeMessageSeq(25));
-      recordCloseWatermark("ch-A", decodeMessageSeq(10));
-      expect(getCloseWatermark("ch-A")).toBe(25);
-    });
-
-    it("clearPlaceMemory wipes the watermark map + its localStorage key", () => {
-      recordCloseWatermark("ch-A", decodeMessageSeq(7));
-      expect(localStorage.getItem(CLOSE_WATERMARK_KEY)).not.toBeNull();
-
-      clearPlaceMemory();
-
-      expect(closeWatermarkByChannel.size).toBe(0);
-      expect(localStorage.getItem(CLOSE_WATERMARK_KEY)).toBeNull();
-    });
-
-    it("drops malformed (non-number) entries on load", async () => {
-      memoryStore.set(CLOSE_WATERMARK_KEY, JSON.stringify({ "ch-bad": "nope", "ch-good": 99 }));
-      vi.resetModules();
-      const fresh = await import("./place-memory");
-      expect(fresh.getCloseWatermark("ch-bad")).toBeNull();
-      expect(fresh.getCloseWatermark("ch-good")).toBe(99);
-      vi.resetModules();
-    });
-
-    it("rejects a numeric-but-invalid stored seq at the decode boundary (#task:1267 §3.4)", async () => {
-      // A negative / fractional value survives JSON + loadNumberMap's
-      // `typeof === number` filter but is NOT a valid MessageSeq. getCloseWatermark
-      // is the renderer's sole runtime decode boundary: it validates through the
-      // shared decodeMessageSeq, so garbage is REJECTED to null (no watermark →
-      // unread still surfaces), never laundered through as a real seq.
-      memoryStore.set(
-        CLOSE_WATERMARK_KEY,
-        JSON.stringify({ "ch-neg": -5, "ch-frac": 3.5, "ch-ok": 12 }),
-      );
-      vi.resetModules();
-      const fresh = await import("./place-memory");
-      expect(fresh.getCloseWatermark("ch-neg")).toBeNull();
-      expect(fresh.getCloseWatermark("ch-frac")).toBeNull();
-      expect(fresh.getCloseWatermark("ch-ok")).toBe(12);
       vi.resetModules();
     });
   });

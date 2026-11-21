@@ -12,15 +12,13 @@ import {
 import { senderFilterToParam } from "@/features/search/sender-filter-select";
 import { useAgents } from "@/features/agents/hooks/hooks";
 import { useLayoutKeyboardShortcuts } from "@/features/app-shell/effects";
-import { useMessageUnreadCounts } from "@/features/channels/hooks";
 import { useChatRouteRecovery } from "@/features/app-shell/use-chat-route-recovery";
 import { findAgentDirectPair } from "@/features/direct-pairs/hooks";
 import { useNotificationToasts } from "@/features/attention/notifications";
 import { useSavedMessages } from "@/features/messages/saved";
 import type { AdvancedSearchSeed } from "@/features/search/advanced-search-seed";
 import { useLayoutSettings } from "@/features/conversation-shell/use-layout-settings";
-import { resolveChannelOpen } from "@/features/conversation-shell/model/channel-open";
-import { getChannelPanes, getCloseWatermark } from "@/features/app-shell/place-memory";
+import { getChannelPanes } from "@/features/app-shell/place-memory";
 import { channelUrlKeeping, paneUrl, routes, useNav, useRouteState } from "@/router";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef } from "react";
 import { dissolveConversationPair, recordConversationPair } from "./conversation-pairs";
@@ -89,11 +87,6 @@ export function useConversationShell({
 
   const { data: savedItems } = useSavedMessages();
 
-  const { data: messageUnreadData } = useMessageUnreadCounts(
-    selectedWorkspaceId,
-    read.workspaceResolved,
-  );
-
   const openAgentConversation = (conversationId: string, workspaceId: string | null): void => {
     if (workspaceId === null) {
       nav.toDirect(conversationId);
@@ -114,10 +107,8 @@ export function useConversationShell({
     workspaces: read.workspaces,
     channels: read.channels,
     memberActiveChannels: read.memberActiveChannels,
-    messageUnreadData,
     directPairAuthority: read.directPairAuthority,
     jumpTarget,
-    onJump: (target) => handleJumpToMessage(target),
     recentlyRemovedPrimaryRef,
     compact,
   });
@@ -237,25 +228,9 @@ export function useConversationShell({
     }
     // Pane visibility effects advance read cursors. Keeping
     // this handler side-effect free avoids duplicate mark-read/refetch storms.
-    // Channel-open precedence (#task:1082): a fresh unread reply in one
-    // of this channel's threads (newer than the explicit-close
-    // watermark) auto-surfaces that thread; otherwise restore the
-    // channel's remembered panes.
-    const intent = resolveChannelOpen(
-      messageUnreadData?.latest_by_conversation?.[id],
-      getCloseWatermark(id),
-      getChannelPanes(id),
-    );
-    if (intent.kind === "unread-thread") {
-      handleJumpToMessage({
-        channelId: id,
-        messageId: intent.messageId,
-        threadRootId: intent.threadRootId,
-        workspaceId,
-      });
-    } else {
-      nav.go(paneUrl(routes.chatChannel(workspaceId, id), intent.panes ?? []));
-    }
+    // A channel opens in the layout it was left in; an unread thread reply is
+    // signalled on its row and the Threads tab, and never reopens a pane.
+    nav.go(paneUrl(routes.chatChannel(workspaceId, id), getChannelPanes(id) ?? []));
   };
 
   const handleOpenChannelByName = useCallback(

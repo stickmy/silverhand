@@ -14,9 +14,8 @@
  *   2. **remembered channel** — the per-workspace last-viewed channel, unless
  *      it's the just-archived primary (`excludeId`), gone, or now ARCHIVED (an
  *      archived last-viewed channel must never be auto-restored — #task:1413).
- *      Its pane intent is resolved by {@link resolveChannelOpen}: a
- *      fresh unread thread (past the close-watermark) surfaces that thread,
- *      otherwise the remembered panes are restored.
+ *      It opens in its remembered panes; an unread thread reply never
+ *      reopens a pane.
  *   3. **default fallback** — the first active top-level channel, excluding a
  *      just-archived primary still lingering in the stale list.
  *   4. **none** — no workspace / a channel is already selected / no channels /
@@ -36,9 +35,7 @@
  * while every side effect stays in the effect.
  */
 
-import type { MessageUnreadPointerDto, MessageSeq } from "@silverhand/shared";
 import type { Panes } from "@/navigation/panes";
-import { resolveChannelOpen } from "@/features/conversation-shell/model/channel-open";
 import { pickDefaultChannel } from "@/features/app-shell/archive-fallback";
 
 export interface RestoreNavigationInputs {
@@ -63,10 +60,6 @@ export interface RestoreNavigationInputs {
   excludeId: string | null;
   /** Per-workspace last-viewed channel (`null` if none remembered). */
   rememberedChannelId: string | null;
-  /** Unread pointer for the remembered channel (for {@link resolveChannelOpen}). */
-  rememberedUnreadPointer: MessageUnreadPointerDto | undefined;
-  /** Explicit-close watermark for the remembered channel. */
-  rememberedCloseWatermark: MessageSeq | null;
   /** Remembered panes of the remembered channel. */
   rememberedPanes: Panes | null;
 }
@@ -77,9 +70,7 @@ export type RestoreNavigation =
    *  builds the same URL either way. */
   | { kind: "open-channel"; channelId: string; reason: "jump" | "fallback" }
   /** Navigate to the remembered channel restoring its panes. */
-  | { kind: "open-remembered"; channelId: string; panes: Panes | null }
-  /** Jump to a fresh unread thread in the remembered channel. */
-  | { kind: "jump-unread"; channelId: string; messageId: string; threadRootId: string };
+  | { kind: "open-remembered"; channelId: string; panes: Panes | null };
 
 export function resolveRestoreNavigation(inputs: RestoreNavigationInputs): RestoreNavigation {
   const {
@@ -90,8 +81,6 @@ export function resolveRestoreNavigation(inputs: RestoreNavigationInputs): Resto
     jumpTargetChannelId,
     excludeId,
     rememberedChannelId,
-    rememberedUnreadPointer,
-    rememberedCloseWatermark,
     rememberedPanes,
   } = inputs;
 
@@ -121,20 +110,7 @@ export function resolveRestoreNavigation(inputs: RestoreNavigationInputs): Resto
     rememberedChannelId !== excludeId &&
     isActiveChannel(rememberedChannelId)
   ) {
-    const intent = resolveChannelOpen(
-      rememberedUnreadPointer,
-      rememberedCloseWatermark,
-      rememberedPanes,
-    );
-    if (intent.kind === "unread-thread") {
-      return {
-        kind: "jump-unread",
-        channelId: rememberedChannelId,
-        messageId: intent.messageId,
-        threadRootId: intent.threadRootId,
-      };
-    }
-    return { kind: "open-remembered", channelId: rememberedChannelId, panes: intent.panes };
+    return { kind: "open-remembered", channelId: rememberedChannelId, panes: rememberedPanes };
   }
 
   // 3. Default: first active top-level, excluding a just-archived primary.

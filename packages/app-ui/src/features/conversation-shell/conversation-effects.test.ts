@@ -44,9 +44,7 @@ vi.mock("@/features/app-shell/place-memory", () => ({
   getLastWorkspaceId: () => null,
   getLastChatPlace: () => null,
   getChannelPanes: () => null,
-  getCloseWatermark: () => null,
   recordChannelPanes: vi.fn(),
-  recordCloseWatermark: vi.fn(),
 }));
 import { useConversationInvalidation } from "./use-conversation-invalidation";
 import { useChatRouteRecovery } from "@/features/app-shell/use-chat-route-recovery";
@@ -97,10 +95,8 @@ function recover(
     workspaces: [workspace],
     channels: ids.map(channel),
     memberActiveChannels: ids.map(channel),
-    messageUnreadData: undefined,
     directPairAuthority: { status: "ready", conversationIds: new Set() },
     jumpTarget: null,
-    onJump: vi.fn(),
     recentlyRemovedPrimaryRef: removed,
     compact: h.compact,
   });

@@ -16,11 +16,8 @@
  * which ARM the Chat rail was last on ({@link getLastChatPlace}) so leaving the
  * rail and coming back restores a DIRECT line as faithfully as a workspace
  * channel, plus the **open panes per channel** ({@link panesByChannel}) so
- * switching away from a channel and back restores them, plus a
- * per-channel **explicit-close watermark**
- * ({@link closeWatermarkByChannel}) that lets an unread thread auto-surface
- * without immediately re-surfacing a batch the user just closed. All
- * place-memory state is wiped together on logout.
+ * switching away from a channel and back restores them. All place-memory
+ * state is wiped together on logout.
  *
  * Lives in `lib/` (not `app.tsx`) so `useLogout` in
  * `features/session/hooks.ts` can import it without taking a circular
@@ -28,8 +25,6 @@
  */
 
 import { parsePanes, writePanes, type Panes } from "@/navigation/panes";
-import type { MessageSeq } from "@silverhand/shared";
-import { decodeMessageSeq } from "@silverhand/shared";
 import {
   DEFAULT_TABS,
   firstTabKey,
@@ -46,6 +41,7 @@ export const LAST_CHANNEL_KEY = "silverhand:layout.last-channel-by-workspace";
 export const LAST_WORKSPACE_KEY = "silverhand:layout.last-workspace";
 export const LAST_CHAT_PLACE_KEY = "silverhand:layout.last-chat-place";
 export const PANES_KEY = "silverhand:layout.panes-by-channel";
+/** No longer written; still cleared on logout so an old value does not linger. */
 export const CLOSE_WATERMARK_KEY = "silverhand:layout.close-watermark-by-channel";
 export const CONVERSATION_TABS_KEY = "silverhand:layout.conversation-tabs";
 export const FUNCTIONAL_TABS_KEY = "silverhand:layout.functional-tabs";
@@ -86,31 +82,6 @@ function loadStringMap(key: string): Map<string, string> {
 }
 
 function saveStringMap(key: string, map: Map<string, string>): void {
-  try {
-    localStorage.setItem(key, JSON.stringify(Object.fromEntries(map)));
-  } catch {
-    // Quota / disabled storage — fall back to in-memory only.
-  }
-}
-
-function loadNumberMap(key: string): Map<string, number> {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return new Map();
-    const obj = JSON.parse(raw) as Record<string, unknown>;
-    if (!obj || typeof obj !== "object") return new Map();
-    return new Map(
-      Object.entries(obj).filter(
-        (entry): entry is [string, number] =>
-          typeof entry[0] === "string" && typeof entry[1] === "number",
-      ),
-    );
-  } catch {
-    return new Map();
-  }
-}
-
-function saveNumberMap(key: string, map: Map<string, number>): void {
   try {
     localStorage.setItem(key, JSON.stringify(Object.fromEntries(map)));
   } catch {
@@ -225,46 +196,6 @@ export function recordChannelPanes(channelId: string, panes: Panes): void {
   if (panesByChannel.get(channelId) === raw) return;
   panesByChannel.set(channelId, raw);
   saveStringMap(PANES_KEY, panesByChannel);
-}
-
-/**
- * Per-channel explicit-close watermark (#task:1082). When the user
- * explicitly closes a channel's panes, we stamp the seq of the
- * unread pointer they just dismissed. The channel-open precedence
- * ({@link resolveChannelOpen}) only auto-surfaces an unread thread when
- * its pointer `seq` exceeds this watermark — so a just-closed batch isn't
- * yanked back, but a genuinely newer reply still re-surfaces.
- */
-export const closeWatermarkByChannel = loadNumberMap(CLOSE_WATERMARK_KEY);
-
-/** Read a channel's explicit-close watermark, or null when none is set.
- *
- *  #task:1267 §3.4: this read is the renderer's SOLE runtime decode boundary —
- *  the raw `number` stored in localStorage crosses back into typed memory here,
- *  so it is validated into a `MessageSeq` through the shared `decodeMessageSeq`
- *  rather than blindly cast. A corrupt stored value (external tampering — the
- *  numbers we WRITE are always valid MessageSeq) is rejected to null ("no
- *  watermark", so unread still surfaces), never laundered through as a real seq. */
-export function getCloseWatermark(channelId: string): MessageSeq | null {
-  const raw = closeWatermarkByChannel.get(channelId);
-  if (raw === undefined) return null;
-  try {
-    return decodeMessageSeq(raw);
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Stamp a channel's explicit-close watermark, persisting through to disk.
- * Monotonic — a smaller seq never lowers an existing watermark, and a
- * byte-identical value no-ops to avoid thrashing localStorage.
- */
-export function recordCloseWatermark(channelId: string, seq: MessageSeq): void {
-  const prev = closeWatermarkByChannel.get(channelId);
-  if (prev !== undefined && prev >= seq) return;
-  closeWatermarkByChannel.set(channelId, seq);
-  saveNumberMap(CLOSE_WATERMARK_KEY, closeWatermarkByChannel);
 }
 
 /** Legacy mixed orders retain attachment positions; functional entries are shared. */
@@ -426,7 +357,6 @@ export function clearPlaceMemory(): void {
   lastChatPlace = null;
   lastChannelByWorkspace.clear();
   panesByChannel.clear();
-  closeWatermarkByChannel.clear();
   tabsByConversation.clear();
   functionalTabs = [...DEFAULT_TABS];
   activeTabByConversation.clear();

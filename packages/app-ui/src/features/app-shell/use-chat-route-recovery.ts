@@ -3,19 +3,15 @@ import { useEffect, useRef } from "react";
 import { useSelectionPersistenceEffects } from "@/features/app-shell/selection-persistence";
 import { type ChannelListItem } from "@/features/workspaces/hooks";
 
-import { useMessageUnreadCounts } from "@/features/channels/hooks";
-
 import { type MessageJumpTarget } from "@/features/channels/use-message-jump-controller";
 
 import { paneUrl, routes, useNav, useRouteState } from "@/router";
 import {
   getChannelPanes,
-  getCloseWatermark,
   getLastChatPlace,
   getLastWorkspaceId,
   lastChannelByWorkspace,
   recordChannelPanes,
-  recordCloseWatermark,
 } from "@/features/app-shell/place-memory";
 import {
   resolveChatPlaceRestore,
@@ -32,20 +28,16 @@ export function useChatRouteRecovery({
   workspaces,
   channels,
   memberActiveChannels,
-  messageUnreadData,
   directPairAuthority,
   jumpTarget,
-  onJump,
   recentlyRemovedPrimaryRef,
   compact,
 }: {
   workspaces: WorkspaceListItem[];
   channels: ChannelListItem[];
   memberActiveChannels: ChannelListItem[];
-  messageUnreadData: ReturnType<typeof useMessageUnreadCounts>["data"];
   directPairAuthority: DirectPairAuthority;
   jumpTarget: MessageJumpTarget | null;
-  onJump: (target: MessageJumpTarget) => boolean;
   recentlyRemovedPrimaryRef: RefObject<RemovedPrimary | null>;
   /** Compact keeps the conversation list as the Chats root, so no selection is restored. */
   compact: boolean;
@@ -61,7 +53,6 @@ export function useChatRouteRecovery({
     directDraftTarget,
     panes,
   } = route;
-  const handleJumpToMessage = onJump;
   const lastSelectedWorkspaceId = useRef<string | null>(getLastWorkspaceId());
   useEffect(() => {
     if (compact || appSection !== "chat" || view !== "channel") {
@@ -149,9 +140,6 @@ export function useChatRouteRecovery({
       recentlyRemovedPrimaryRef.current?.workspaceId === selectedWorkspaceId
         ? recentlyRemovedPrimaryRef.current.channelId
         : null;
-    // On the restore path the remembered channel's unread pointer is consulted
-    // best-effort — if the workspace's unread data hasn't loaded yet it
-    // degrades to pane memory rather than waiting (#task:1082).
     const rememberedChannelId = lastChannelByWorkspace.get(selectedWorkspaceId) ?? null;
     const action = resolveRestoreNavigation({
       workspaceId: selectedWorkspaceId,
@@ -161,10 +149,6 @@ export function useChatRouteRecovery({
       jumpTargetChannelId: jumpTarget?.channelId ?? null,
       excludeId,
       rememberedChannelId,
-      rememberedUnreadPointer: rememberedChannelId
-        ? messageUnreadData?.latest_by_conversation?.[rememberedChannelId]
-        : undefined,
-      rememberedCloseWatermark: rememberedChannelId ? getCloseWatermark(rememberedChannelId) : null,
       rememberedPanes: rememberedChannelId ? getChannelPanes(rememberedChannelId) : null,
     });
     switch (action.kind) {
@@ -182,14 +166,6 @@ export function useChatRouteRecovery({
             replace: true,
           },
         );
-        return;
-      case "jump-unread":
-        handleJumpToMessage({
-          channelId: action.channelId,
-          messageId: action.messageId,
-          threadRootId: action.threadRootId,
-          workspaceId: selectedWorkspaceId,
-        });
         return;
     }
   }, [
@@ -214,22 +190,8 @@ export function useChatRouteRecovery({
     lastSelectedWorkspaceId,
   });
 
-  const prevPanesRef = useRef<{ channelId: string; open: boolean } | null>(null);
-
   useEffect(() => {
-    if (!selectedChannelId || directConversationId !== null) {
-      prevPanesRef.current = null;
-      return;
-    }
+    if (!selectedChannelId || directConversationId !== null) return;
     recordChannelPanes(selectedChannelId, panes);
-    const open = panes.length > 0;
-    const prev = prevPanesRef.current;
-    if (prev && prev.channelId === selectedChannelId && prev.open && !open) {
-      const seq = messageUnreadData?.latest_by_conversation?.[selectedChannelId]?.seq;
-      if (seq != null) {
-        recordCloseWatermark(selectedChannelId, seq);
-      }
-    }
-    prevPanesRef.current = { channelId: selectedChannelId, open };
-  }, [selectedChannelId, directConversationId, panes, messageUnreadData]);
+  }, [selectedChannelId, directConversationId, panes]);
 }
