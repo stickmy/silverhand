@@ -138,6 +138,8 @@ export const conversationShell: Translation<typeof en> = {
   followThread: "关注话题",
   viewInChannel2: "在频道中查看",
   thisMessageCantBe: "无法加载这条消息，它可能已被删除。",
+  couldntLoadReplies: "未能加载回复",
+  waitingForRepliesConnection: "等待联网后加载回复…",
   noRepliesYet: "还没有回复",
   unreadNew: "{count} 条新回复",
   openActivity: "打开 {name} 的动态",

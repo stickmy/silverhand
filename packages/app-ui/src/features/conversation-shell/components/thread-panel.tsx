@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { paneChrome } from "@/components/layout/pane-chrome";
 import { ArrowUpRightIcon, BellIcon, BellOffIcon, SearchIcon, ThreadIcon } from "@/icons";
 import { InlineFindBar } from "./inline-find-bar";
@@ -557,7 +558,28 @@ export function ThreadPanel({
               leadingMessage={rootCtx.root ?? null}
               emptyState={
                 <div className="flex flex-1 items-center justify-center px-4 py-6 text-center text-xs text-text-muted">
-                  {t("conversationShell.noRepliesYet")}
+                  {cluster.isPaused ? (
+                    t("conversationShell.waitingForRepliesConnection")
+                  ) : cluster.isError || replyCount > 0 ? (
+                    <div className="flex items-center gap-2">
+                      {t("conversationShell.couldntLoadReplies")}
+                      <Button
+                        variant="neutral"
+                        size="sm"
+                        disabled={cluster.isFetching || jumpWindowLockedForPhase(jumpPhase)}
+                        onClick={() => {
+                          // A successful empty window can disagree with an older
+                          // root count. Refresh both snapshots in that case.
+                          if (!cluster.isError && replyCount > 0) void rootCtx.refetch();
+                          resetToLatest();
+                        }}
+                      >
+                        {t("common.retry")}
+                      </Button>
+                    </div>
+                  ) : (
+                    t("conversationShell.noRepliesYet")
+                  )}
                 </div>
               }
               isLoading={threadClusterShowsLoader({ isLoading: cluster.isLoading, jumpPhase })}

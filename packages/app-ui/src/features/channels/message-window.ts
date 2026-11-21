@@ -548,6 +548,7 @@ export function useThreadRoot(channelId: string | null, rootMessageId: string | 
   return {
     root,
     replyCount,
+    refetch: query.refetch,
     isLoading: query.isLoading,
     isError: query.isError,
   };
