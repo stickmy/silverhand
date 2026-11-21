@@ -25,6 +25,8 @@ export interface ResizableWidth {
   /** Attach to a 4px splitter element on the column's right edge. */
   startResize: (e: React.PointerEvent) => void;
   isDragging: boolean;
+  /** Adopt a width for this session without persisting it. */
+  pin: (next: number) => void;
 }
 
 /**
@@ -129,11 +131,14 @@ export function useResizableWidth({
       const ceiling = laid ? Math.max(min, Math.min(max, laid.max)) : max;
       dragOriginX.current = e.clientX;
       dragOriginWidth.current = laid ? Math.min(widthRef.current, laid.width) : widthRef.current;
+      // A column the row has already squeezed below `min` must not jump wider
+      // on the first move.
+      const floor = Math.min(min, dragOriginWidth.current);
       setDragging(true);
 
       const onMove = (ev: PointerEvent): void => {
         const dx = (ev.clientX - dragOriginX.current) * (edge === "left" ? -1 : 1);
-        const next = Math.max(min, Math.min(ceiling, dragOriginWidth.current + dx));
+        const next = Math.max(floor, Math.min(ceiling, dragOriginWidth.current + dx));
         scheduleCssWidth(next);
       };
       const onUp = (): void => {
@@ -158,5 +163,10 @@ export function useResizableWidth({
     [bounds, edge, flushCssWidth, max, min, persistWidth, scheduleCssWidth],
   );
 
-  return { width, startResize, isDragging: dragging };
+  const pin = useCallback((next: number): void => {
+    widthRef.current = next;
+    setWidth(next);
+  }, []);
+
+  return { width, startResize, isDragging: dragging, pin };
 }

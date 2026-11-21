@@ -1,8 +1,10 @@
 import {
   useCallback,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
+  type PointerEvent as ReactPointerEvent,
   type PointerEventHandler,
   type ReactNode,
 } from "react";
@@ -128,6 +130,9 @@ function useMountOrder(keys: readonly string[]): string[] {
 
 const PRIMARY_MIN_WIDTH = 320;
 
+/** Fired on the pane row when any pane starts a resize. */
+const RESIZE_START = "pane-resize-start";
+
 /** Each kind of pane keeps the width the viewer gave it. */
 const PANE_WIDTH = {
   conversation: { defaultWidth: 520, min: 360, max: 960 },
@@ -160,12 +165,35 @@ function PaneSlot({
     width,
     startResize,
     isDragging: resizing,
+    pin,
   } = useResizableWidth({
     storageKey: `${storageKey}.pane.${pane.kind}`,
     ...PANE_WIDTH[kind],
     edge: "left",
     bounds,
   });
+
+  // When the row is narrower than the panes' widths, flex shrinks them all
+  // together, so changing one pane's width would redistribute the others.
+  // Every pane takes its laid-out width when a resize starts; from then on
+  // only the dragged pane and the primary column move.
+  useEffect(() => {
+    const row = clip.current?.closest("[data-pane-row]");
+    if (!row) return;
+    const onStart = (): void => {
+      const laid = clip.current?.getBoundingClientRect().width;
+      if (laid) pin(laid);
+    };
+    row.addEventListener(RESIZE_START, onStart);
+    return () => row.removeEventListener(RESIZE_START, onStart);
+  }, [pin]);
+  const beginResize = useCallback(
+    (e: ReactPointerEvent) => {
+      clip.current?.closest("[data-pane-row]")?.dispatchEvent(new Event(RESIZE_START));
+      startResize(e);
+    },
+    [startResize],
+  );
 
   const reducedMotion = useReducedMotion();
   const sortable = useSortable({
@@ -198,7 +226,7 @@ function PaneSlot({
         zIndex: isDragging ? 1 : undefined,
       }}
     >
-      <SplitterTrack onPointerDown={startResize} active={resizing} />
+      <SplitterTrack onPointerDown={beginResize} active={resizing} />
       <div
         ref={clip}
         data-pane-clip="side"
