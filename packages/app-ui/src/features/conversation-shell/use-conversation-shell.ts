@@ -1,7 +1,14 @@
 import { hasCollapsibleSidebar } from "@/components/layout/sidebar-slot";
 import { useCompactLayout } from "@/navigation/layout";
 import { conversationContent } from "./conversation-content";
-import { conversationPanes, singlePane } from "@/navigation/panes";
+import {
+  closePane,
+  conversationPanes,
+  openPane,
+  paneKey,
+  singlePane,
+  type Panes,
+} from "@/navigation/panes";
 import { senderFilterToParam } from "@/features/search/sender-filter-select";
 import { useAgents } from "@/features/agents/hooks/hooks";
 import { useLayoutKeyboardShortcuts } from "@/features/app-shell/effects";
@@ -150,10 +157,16 @@ export function useConversationShell({
       ? { left: selectedChannelId, right: pairedConversationId }
       : null;
 
-  /** Reopen a sidebar pair: its first conversation with the second beside it. */
+  /** Reopen a sidebar pair: its first conversation with the second beside it,
+   *  in the layout the pair was left in (each half's threads, files, ...). */
   const openPair = (workspaceId: string | null, left: string, right: string): void => {
     const path = workspaceId ? routes.chatChannel(workspaceId, left) : routes.chatDirect(left);
-    nav.go(paneUrl(path, [{ kind: "conversation", id: right }]));
+    // A layout left with another conversation beside `left` gives that one up.
+    const stored = workspaceId ? (getChannelPanes(left) ?? []) : [];
+    const remembered = stored
+      .filter((p) => p.kind === "conversation" && p.id !== right)
+      .reduce<Panes>((panes, p) => closePane(panes, paneKey(p)), stored);
+    nav.go(paneUrl(path, openPane(remembered, { kind: "conversation", id: right })));
   };
 
   const closePairHalf = (half: "left" | "right"): void => {
