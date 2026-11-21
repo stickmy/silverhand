@@ -109,6 +109,7 @@ export interface FileCapability {
   }): Promise<
     { ok: true; path?: string } | { ok: false; canceled: true } | { ok: false; reason: string }
   >;
+  /** Image export: a host offers either the share sheet, or copy and save. */
   sharePngExport?(input: {
     pngBytes: Uint8Array;
   }): Promise<{ ok: true } | { ok: false; canceled: true } | { ok: false; error: string }>;
@@ -121,13 +122,13 @@ export interface FileCapability {
     shareLabel: string;
     closeLabel: string;
   }): Promise<{ shared: boolean }>;
-  savePngExport(input: {
+  savePngExport?(input: {
     pngBytes: Uint8Array;
     suggestedName: string;
   }): Promise<
     { ok: true; path?: string } | { ok: false; canceled: true } | { ok: false; error: string }
   >;
-  copyPngExport(input: {
+  copyPngExport?(input: {
     pngBytes: Uint8Array;
   }): Promise<{ ok: true } | { ok: false; error: string }>;
 }

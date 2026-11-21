@@ -309,6 +309,7 @@ export function Lightbox({
   };
 
   const shareImage = getPlatform().files.sharePngExport;
+  const exportImage = shareImage ?? getPlatform().files.copyPngExport;
   // A native host shows the image in its own sheet (zoom, share), opened at
   // once. The displayed image is a local blob, so its bytes are handed over;
   // only when that read fails does native download the attachment itself,
@@ -361,7 +362,7 @@ export function Lightbox({
   }, [copied]);
 
   const onExport = async (): Promise<void> => {
-    if (busy) return;
+    if (busy || !exportImage) return;
     const generation = exportGeneration.current;
     setBusy(true);
     try {
@@ -371,7 +372,7 @@ export function Lightbox({
         ? await loadExportBytes()
         : new Uint8Array(await (file ?? (await fetch(src))).arrayBuffer());
       if (generation !== exportGeneration.current) return;
-      const result = await (shareImage ?? getPlatform().files.copyPngExport)({ pngBytes: bytes });
+      const result = await exportImage({ pngBytes: bytes });
       if (generation !== exportGeneration.current) return;
       if (result.ok) {
         setCopied(!shareImage);
@@ -562,19 +563,21 @@ export function Lightbox({
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <SelectionActionButton
-                rank={onDownload && !shareImage ? "secondary" : "primary"}
-                label={
-                  shareImage
-                    ? t("messages.share")
-                    : copied
-                      ? t("messages.copied")
-                      : t("messages.copy")
-                }
-                icon={shareImage ? <ShareIcon className="size-3.5" /> : undefined}
-                disabled={busy}
-                onClick={onExport}
-              />
+              {exportImage ? (
+                <SelectionActionButton
+                  rank={onDownload && !shareImage ? "secondary" : "primary"}
+                  label={
+                    shareImage
+                      ? t("messages.share")
+                      : copied
+                        ? t("messages.copied")
+                        : t("messages.copy")
+                  }
+                  icon={shareImage ? <ShareIcon className="size-3.5" /> : undefined}
+                  disabled={busy}
+                  onClick={onExport}
+                />
+              ) : null}
               {onDownload && !shareImage ? (
                 <SelectionActionButton
                   rank="primary"

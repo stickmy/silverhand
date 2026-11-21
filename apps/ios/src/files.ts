@@ -33,18 +33,6 @@ export function createIOSFiles(bridge: NativeBridge): ClientPlatform["files"] {
         };
       }
     },
-    // ImagePreviewModal and Lightbox use sharePngExport on iOS, so their
-    // desktop Copy/Save actions never call these methods. Keep explicit
-    // failures for accidental direct calls; saving via the system share
-    // sheet is handled by sharePngExport, not by these interface stubs.
-    savePngExport: async () => ({
-      ok: false,
-      error: "Image export is not available in this iOS preview",
-    }),
-    copyPngExport: async () => ({
-      ok: false,
-      error: "Image clipboard is not available in this iOS preview",
-    }),
   };
 }
 

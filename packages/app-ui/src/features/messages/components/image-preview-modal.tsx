@@ -236,7 +236,7 @@ export function ImagePreviewModal({
   viewerAvatarObjectUrl?: string | null;
 }): JSX.Element {
   const compact = useCompactLayout();
-  const shareImage = getPlatform().files.sharePngExport;
+  const { sharePngExport: shareImage, copyPngExport, savePngExport } = getPlatform().files;
   // The compact layout on a native host shows the image in a native sheet:
   // this renders it offscreen only, and the selection bar shows the wait.
   const nativePreview = compact ? getPlatform().files.previewPngExport : undefined;
@@ -417,10 +417,10 @@ export function ImagePreviewModal({
   };
 
   const onCopy = async (): Promise<void> => {
-    if (!pngBytes || busy) return;
+    if (!pngBytes || busy || !copyPngExport) return;
     setBusy(true);
     try {
-      const result = await getPlatform().files.copyPngExport({ pngBytes });
+      const result = await copyPngExport({ pngBytes });
       if (result.ok) {
         onExportComplete?.();
         onOpenChange(false);
@@ -433,10 +433,10 @@ export function ImagePreviewModal({
   };
 
   const onSave = async (): Promise<void> => {
-    if (!pngBytes || busy) return;
+    if (!pngBytes || busy || !savePngExport) return;
     setBusy(true);
     try {
-      const result = await getPlatform().files.savePngExport({
+      const result = await savePngExport({
         pngBytes,
         suggestedName,
       });
@@ -557,18 +557,22 @@ export function ImagePreviewModal({
               />
             ) : (
               <>
-                <SelectionActionButton
-                  rank="secondary"
-                  label={t("messages.copy")}
-                  disabled={phase !== "ready" || busy}
-                  onClick={onCopy}
-                />
-                <SelectionActionButton
-                  rank="primary"
-                  label={t("common.save")}
-                  disabled={phase !== "ready" || busy}
-                  onClick={onSave}
-                />
+                {copyPngExport ? (
+                  <SelectionActionButton
+                    rank="secondary"
+                    label={t("messages.copy")}
+                    disabled={phase !== "ready" || busy}
+                    onClick={onCopy}
+                  />
+                ) : null}
+                {savePngExport ? (
+                  <SelectionActionButton
+                    rank="primary"
+                    label={t("common.save")}
+                    disabled={phase !== "ready" || busy}
+                    onClick={onSave}
+                  />
+                ) : null}
               </>
             )}
           </div>

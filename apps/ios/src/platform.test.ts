@@ -131,6 +131,13 @@ describe("iOS platform", () => {
     expect(native.navigationReset).toHaveBeenCalledExactlyOnceWith({ session: "s" });
   });
 
+  it("offers image export through the share sheet only", () => {
+    const { platform } = harness();
+    expect(platform.files.sharePngExport).toBeTypeOf("function");
+    expect(platform.files).not.toHaveProperty("copyPngExport");
+    expect(platform.files).not.toHaveProperty("savePngExport");
+  });
+
   it("shares exact image bytes and distinguishes cancellation and failure", async () => {
     const { native, platform } = harness();
     const pngBytes = Uint8Array.from({ length: 20000 }, (_, i) => i % 256);
