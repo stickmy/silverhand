@@ -2,7 +2,10 @@ import type { MeResponse, RegistrationRequired, UserDto } from "@silverhand/shar
 
 /** Type guard for the setup-required auth state. Lives here, free of React
  *  Query, so pure modules can use it; `./hooks` re-exports it. */
-export function isRegistrationRequired<T>(body: T): body is Extract<T, RegistrationRequired> {
+/** Takes an already-parsed response (`MeResponse`, `ViewerState`), not raw JSON. */
+export function isRegistrationRequired<T extends object>(
+  body: T,
+): body is Extract<T, RegistrationRequired> {
   return (
     typeof body === "object" &&
     body !== null &&

@@ -42,17 +42,14 @@ describe("isRegistrationRequired", () => {
     expect(isRegistrationRequired(makeViewer())).toBe(false);
   });
 
-  it("rejects malformed payloads", () => {
-    for (const body of [
-      null,
-      undefined,
-      "registration_required",
-      1,
+  it("rejects objects without a literal `registration_required: true`", () => {
+    const bodies: object[] = [
       {},
       { registration_required: "true" },
       { registration_required: 1 },
       { registration_required: false },
-    ]) {
+    ];
+    for (const body of bodies) {
       expect(isRegistrationRequired(body)).toBe(false);
     }
   });
