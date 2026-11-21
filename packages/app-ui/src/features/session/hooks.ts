@@ -29,6 +29,7 @@ import { clearSettingsSection } from "@/features/settings/model/settings-section
 import { clearTaskFilters } from "@/features/tasks/model/task-filters-memory";
 import { usersKey } from "@/features/users/hooks";
 import { serverEnvironmentKey } from "@/features/session/server-environment";
+import { isRegistrationRequired } from "./permissions";
 
 function clearViewerLocalState(): void {
   agentStreamCache.clear();
@@ -118,19 +119,7 @@ export async function reseatViewerFromBackend(qc: QueryClient): Promise<void> {
   }
 }
 
-/** Type guard for the setup-required auth state. */
-export function isRegistrationRequired(body: ViewerState): body is SetupRequired;
-export function isRegistrationRequired(body: MeResponse): body is RegistrationRequired;
-export function isRegistrationRequired(
-  body: MeResponse | ViewerState,
-): body is RegistrationRequired | SetupRequired {
-  return (
-    typeof body === "object" &&
-    body !== null &&
-    "registration_required" in body &&
-    (body as { registration_required: unknown }).registration_required === true
-  );
-}
+export { isRegistrationRequired };
 
 export function isBackendUnreachable(body: ViewerState): body is BackendUnreachable {
   return (

@@ -1,13 +1,8 @@
 import type { MeResponse, RegistrationRequired, UserDto } from "@silverhand/shared";
 
-/**
- * Local copy of the `isRegistrationRequired` type guard. Inlined so
- * `permissions.ts` stays free of React-Query imports — `./hooks` pulls
- * in `useQuery` etc. and we don't want to drag that into a tiny pure
- * predicate. The check matches the canonical one verbatim; if the
- * shape ever changes, both copies must move together.
- */
-function isRegistrationRequiredLocal(body: MeResponse): body is RegistrationRequired {
+/** Type guard for the setup-required auth state. Lives here, free of React
+ *  Query, so pure modules can use it; `./hooks` re-exports it. */
+export function isRegistrationRequired<T>(body: T): body is Extract<T, RegistrationRequired> {
   return (
     typeof body === "object" &&
     body !== null &&
@@ -42,6 +37,6 @@ export function canEditUserProfile(
   user: Pick<UserDto, "id">,
 ): boolean {
   if (!viewer) return false;
-  if (isRegistrationRequiredLocal(viewer)) return false;
+  if (isRegistrationRequired(viewer)) return false;
   return viewer.id === user.id;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RegistrationRequired, UserDto } from "@silverhand/shared";
-import { canEditUserProfile } from "./permissions";
+import { canEditUserProfile, isRegistrationRequired } from "./permissions";
 
 function makeViewer(overrides: Partial<UserDto> = {}): UserDto {
   return {
@@ -33,5 +33,27 @@ describe("canEditUserProfile", () => {
       suggested_name: "user-1234",
     };
     expect(canEditUserProfile(pre, { id: "u-self" })).toBe(false);
+  });
+});
+
+describe("isRegistrationRequired", () => {
+  it("accepts only an explicit `registration_required: true`", () => {
+    expect(isRegistrationRequired({ registration_required: true, suggested_name: "" })).toBe(true);
+    expect(isRegistrationRequired(makeViewer())).toBe(false);
+  });
+
+  it("rejects malformed payloads", () => {
+    for (const body of [
+      null,
+      undefined,
+      "registration_required",
+      1,
+      {},
+      { registration_required: "true" },
+      { registration_required: 1 },
+      { registration_required: false },
+    ]) {
+      expect(isRegistrationRequired(body)).toBe(false);
+    }
   });
 });
