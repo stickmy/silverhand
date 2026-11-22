@@ -35,6 +35,7 @@ export interface PaneJumpModel {
   isPrimePendingFor: (channelId: string, messageId: string) => boolean;
   primePhaseFor: (channelId: string, messageId: string) => JumpPhase | null;
   handleJumpToMessage: (target: MessageJumpTarget) => boolean;
+  clearJump: () => void;
 }
 
 export interface ChatShellModel {

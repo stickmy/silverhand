@@ -6,6 +6,7 @@ import { resolveTaskDetail } from "@/features/tasks/model/task-detail-surface";
 import { routes, useNav, useRouteState } from "@/router";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { PaneJumpModel, PaneReadModel } from "./conversation-shell-models";
+import { threadJumpOutlivedPane } from "./model/thread-jump-lifetime";
 
 /**
  * Owns pane-local state and the on-screen effects across Chat/Activity. A pane
@@ -21,12 +22,19 @@ export function useConversationPanes(
   const nav = useNav();
   const { workspaceId: selectedWorkspaceId, channelId: selectedChannelId, panes } = route;
   const { primaryPointer, deferredChannelId } = read;
-  const { jumpTarget, isPrimePendingFor, handleJumpToMessage } = jump;
+  const { jumpTarget, isPrimePendingFor, handleJumpToMessage, clearJump } = jump;
 
   const screen = useMemo(
     () => onScreen(selectedChannelId, panes, compact),
     [selectedChannelId, panes, compact],
   );
+
+  const shownThreadsRef = useRef(screen.threads);
+  useEffect(() => {
+    const before = shownThreadsRef.current;
+    shownThreadsRef.current = screen.threads;
+    if (threadJumpOutlivedPane(jumpTarget, before, screen.threads)) clearJump();
+  }, [screen.threads, jumpTarget, clearJump]);
 
   const markMessageChannelRead = useMarkMessageChannelRead();
   const lastPrimaryReadKey = useRef<string | null>(null);

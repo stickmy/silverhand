@@ -175,6 +175,7 @@ const jump: PaneJumpModel = {
   isPrimePendingFor: () => false,
   primePhaseFor: () => null,
   handleJumpToMessage: vi.fn(() => true),
+  clearJump: vi.fn(),
 };
 function render(
   read: PaneReadModel = {
