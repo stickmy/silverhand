@@ -66,6 +66,7 @@ export const messages = {
   insertReferenceIntoMessage: "Insert reference into message",
   uploading: "Uploading…",
   couldntReadFile: "Couldn't read the file.",
+  attachmentUnavailable: "This attachment is no longer available. Upload it again.",
   removeAttachment: "Remove attachment",
   threadFrom: "thread from",
   selectionActions: "Selection actions",

@@ -504,3 +504,102 @@ async fn delete_fails_closed_on_unknown_metadata_then_repairs_through_the_same_p
             .is_ok()
     );
 }
+
+async fn reference(db: &mut SqliteConnection, message: &str, attachment: &str, seq: i64) {
+    sqlx::query(
+        "INSERT INTO messages(id,conversation_id,from_kind,content,metadata,seq,created_at)\
+         VALUES(?,'c','system','',?,?,1)",
+    )
+    .bind(message)
+    .bind(serde_json::json!({"attachments":[{"id":attachment}]}).to_string())
+    .bind(seq)
+    .execute(db)
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn unsent_upload_sweep_deletes_only_old_unreferenced_rows() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("attachment-sweep.sqlite");
+    seed(&path).await;
+    let writes = MessagingStore::open(&path)
+        .await
+        .unwrap()
+        .attachment_writes();
+    for id in ["stale", "sent", "fresh"] {
+        writes
+            .create(create_command(
+                id,
+                "owner",
+                &format!("attachments/c/{id}.png"),
+            ))
+            .await
+            .unwrap()
+            .unwrap();
+    }
+    let mut db = SqliteConnection::connect(path.to_str().unwrap())
+        .await
+        .unwrap();
+    sqlx::query("UPDATE attachments SET created_at=100 WHERE id='fresh'")
+        .execute(&mut db)
+        .await
+        .unwrap();
+    reference(&mut db, "m", "sent", 1).await;
+
+    let deleted = writes.delete_unreferenced_uploads(50).await.unwrap();
+    assert_eq!(
+        deleted
+            .iter()
+            .map(|(id, blob)| (id.as_str(), blob.key().as_str()))
+            .collect::<Vec<_>>(),
+        [("stale", "attachments/c/stale.png")]
+    );
+    let left: Vec<String> = sqlx::query_scalar("SELECT id FROM attachments ORDER BY id")
+        .fetch_all(&mut db)
+        .await
+        .unwrap();
+    assert_eq!(left, ["fresh", "sent"]);
+    assert!(
+        writes
+            .delete_unreferenced_uploads(50)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[tokio::test]
+async fn unsent_upload_sweep_keeps_an_upload_a_racing_send_references() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("attachment-sweep-race.sqlite");
+    seed(&path).await;
+    let writes = MessagingStore::open(&path)
+        .await
+        .unwrap()
+        .attachment_writes();
+    writes
+        .create(create_command("a", "owner", "attachments/c/a.png"))
+        .await
+        .unwrap()
+        .unwrap();
+    let mut sender = SqliteConnection::connect(path.to_str().unwrap())
+        .await
+        .unwrap();
+    sender.execute("BEGIN IMMEDIATE").await.unwrap();
+    let sweep = {
+        let writes = writes.clone();
+        tokio::spawn(async move { writes.delete_unreferenced_uploads(50).await })
+    };
+    tokio::time::sleep(Duration::from_millis(75)).await;
+    assert!(!sweep.is_finished());
+    reference(&mut sender, "late", "a", 1).await;
+    sender.execute("COMMIT").await.unwrap();
+
+    assert!(sweep.await.unwrap().unwrap().is_empty());
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM attachments WHERE id='a'")
+        .fetch_one(&mut sender)
+        .await
+        .unwrap();
+    assert_eq!(count, 1);
+}

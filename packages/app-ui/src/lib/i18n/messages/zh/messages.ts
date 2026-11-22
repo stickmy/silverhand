@@ -68,6 +68,7 @@ export const messages: Translation<typeof en> = {
   insertReferenceIntoMessage: "在消息中插入引用",
   uploading: "正在上传…",
   couldntReadFile: "无法读取文件。",
+  attachmentUnavailable: "该附件已不可用，请重新上传。",
   removeAttachment: "移除附件",
   threadFrom: "话题来自",
   selectionActions: "选区操作",

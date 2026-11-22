@@ -5,6 +5,7 @@
 //! and revision that the same transaction either mutates or leaves untouched.
 
 use serde_json::Value;
+use silverhand_backend_core::foundation::blob_store::StoredBlob;
 use silverhand_backend_core::{
     conversation_messaging::messaging::{
         AttachmentId, PrincipalIdentity,
@@ -50,6 +51,9 @@ const UPDATE_CONTENT: &str = r#"UPDATE attachments SET storage_key=?,size=?,cont
 
 const DELETE_ATTACHMENT: &str = r#"DELETE FROM attachments
     WHERE id=? AND storage=? AND storage_key=? AND content_revision=?"#;
+
+const STALE_HUMAN_UPLOADS: &str =
+    "SELECT id FROM attachments WHERE created_by_kind='user' AND created_at<? ORDER BY created_at";
 
 const ALL_MESSAGE_METADATA: &str =
     "SELECT rowid AS message_rowid,metadata FROM messages ORDER BY rowid ASC";
@@ -186,6 +190,50 @@ impl SqliteAttachmentWrite {
     /// perform their first authority read only after this future resolves.
     async fn begin_write(&self) -> Result<Transaction<'_, Sqlite>, AttachmentWriteStoreError> {
         Ok(self.pool.begin_with("BEGIN IMMEDIATE").await?)
+    }
+
+    /// Deletes human uploads created before `created_before` that no message
+    /// references, and returns their blobs for the caller to remove after commit.
+    /// References are read inside the same writer reservation, so a message that
+    /// commits first keeps its attachment.
+    pub async fn delete_unreferenced_uploads(
+        &self,
+        created_before: i64,
+    ) -> Result<Vec<(AttachmentId, StoredBlob)>, AttachmentWriteStoreError> {
+        let mut tx = self.begin_write().await?;
+        let candidates: Vec<String> = sqlx::query_scalar(STALE_HUMAN_UPLOADS)
+            .bind(created_before)
+            .fetch_all(&mut *tx)
+            .await?;
+        if candidates.is_empty() {
+            tx.commit().await?;
+            return Ok(Vec::new());
+        }
+        let referenced = referenced_attachment_ids(&mut tx).await?;
+        let mut deleted = Vec::new();
+        for raw in candidates {
+            let Ok(id) = AttachmentId::parse(raw) else {
+                continue;
+            };
+            if referenced.contains(&id) {
+                continue;
+            }
+            let Some(record) = load_attachment(&mut tx, &id).await? else {
+                continue;
+            };
+            let removed = sqlx::query(DELETE_ATTACHMENT)
+                .bind(id.as_str())
+                .bind(record.blob().storage().as_str())
+                .bind(record.blob().key().as_str())
+                .bind(record.content_revision().get())
+                .execute(&mut *tx)
+                .await?;
+            if removed.rows_affected() == 1 {
+                deleted.push((id, record.blob().clone()));
+            }
+        }
+        tx.commit().await?;
+        Ok(deleted)
     }
 
     async fn admit_create_inner(
@@ -512,10 +560,16 @@ async fn has_matching_reference(
     tx: &mut Transaction<'_, Sqlite>,
     requested: &AttachmentId,
 ) -> Result<bool, AttachmentWriteStoreError> {
+    Ok(referenced_attachment_ids(tx).await?.contains(requested))
+}
+
+async fn referenced_attachment_ids(
+    tx: &mut Transaction<'_, Sqlite>,
+) -> Result<std::collections::HashSet<AttachmentId>, AttachmentWriteStoreError> {
     let rows = sqlx::query(ALL_MESSAGE_METADATA)
         .fetch_all(&mut **tx)
         .await?;
-    let mut found = false;
+    let mut found = std::collections::HashSet::new();
     for row in &rows {
         let row_id: i64 = row.try_get("message_rowid")?;
         let Some(raw) = row.try_get::<Option<String>, _>("metadata")? else {
@@ -543,7 +597,7 @@ async fn has_matching_reference(
             let referenced = AttachmentId::parse(raw_id).map_err(|_| {
                 AttachmentWriteStoreError::MalformedMessageAttachmentReference { row: row_id }
             })?;
-            found |= &referenced == requested;
+            found.insert(referenced);
         }
     }
     Ok(found)

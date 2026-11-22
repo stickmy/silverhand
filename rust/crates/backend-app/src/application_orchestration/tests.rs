@@ -10978,9 +10978,15 @@ async fn activity_retention_sweeps_idle_database_and_stops_with_its_owner() {
         .unwrap();
     let clock = Clock(Arc::new(AtomicI64::new(six - 61_000)));
     let store = MessagingStore::open(&f.path).await.unwrap();
+    let blobs_dir = tempfile::tempdir().unwrap();
     let retention = super::activity_retention::ActivityRetention::start(
         store,
         ScopeEventHub::production().unwrap(),
+        silverhand_backend_filesystem::foundation::blob_store::LocalBlobStore::open(
+            blobs_dir.path(),
+        )
+        .await
+        .unwrap(),
         clock.clone(),
     )
     .await

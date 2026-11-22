@@ -1536,6 +1536,7 @@ pub(super) async fn compose_after_audit(
     let activity_retention = super::activity_retention::ActivityRetention::start(
         activity_retention_store,
         activity_retention_hub,
+        blob_store.clone(),
         SystemProcessClock,
     )
     .await?;

@@ -1,5 +1,6 @@
-//! Process-owned activity retention: sweep at boot and while idle, for both
-//! deployment shapes. No persisted scheduling state or per-agent coordinator.
+//! Process-owned retention: sweep at boot and daily, for both deployment shapes.
+//! No persisted scheduling state or per-agent coordinator. Each sweep prunes
+//! expired activity and deletes human uploads no message picked up.
 use chrono::{TimeZone, Utc};
 use std::{
     sync::Mutex,
@@ -11,8 +12,14 @@ use silverhand_backend_server::foundation::{
     clock::ProcessClock,
     scope_event_transport::ScopeEventHub,
 };
+use silverhand_backend_core::foundation::blob_store::{BlobAliasId, BlobStore};
+use silverhand_backend_filesystem::foundation::blob_store::{LocalBlobAliasStore, LocalBlobStore};
 use silverhand_backend_sqlite::conversation_messaging::messaging::MessagingStore;
-use tokio::{task::JoinHandle, sync::watch};
+
+/// An upload no message references after this long is abandoned (a draft that
+/// was never sent, or a removed chip whose delete request failed).
+const UNSENT_UPLOAD_RETENTION_MS: i64 = 12 * 60 * 60 * 1000;
+use tokio::{sync::watch, task::JoinHandle};
 
 pub(crate) struct ActivityRetention {
     stop: watch::Sender<bool>,
@@ -23,9 +30,11 @@ impl ActivityRetention {
     pub(crate) async fn start<C: ProcessClock>(
         store: MessagingStore,
         hub: ScopeEventHub,
+        blobs: LocalBlobStore,
         clock: C,
     ) -> Result<Self, crate::StartupError> {
         sweep(&store, &hub, clock.now_unix_millis()).await?;
+        sweep_unsent_uploads(&store, &blobs, clock.now_unix_millis()).await;
         let (stop, mut stopped) = watch::channel(false);
         let task = tokio::spawn(async move {
             let mut deadline = next_shanghai_six(clock.now_unix_millis());
@@ -47,6 +56,7 @@ impl ActivityRetention {
                 if let Err(error) = sweep(&store, &hub, now).await {
                     tracing::warn!(%error, "activity retention sweep failed; next daily deadline retries");
                 }
+                sweep_unsent_uploads(&store, &blobs, now).await;
                 deadline = next_shanghai_six(clock.now_unix_millis());
             }
         });
@@ -97,6 +107,37 @@ async fn sweep(
         "activity retention sweep completed"
     );
     Ok(())
+}
+
+/// Rows go first, in one writer transaction that rechecks references; blobs are
+/// removed only after that commit. A failed blob delete leaves an orphaned file,
+/// never a row pointing at a missing one.
+async fn sweep_unsent_uploads(store: &MessagingStore, blobs: &LocalBlobStore, now: i64) {
+    let deleted = match store
+        .attachment_writes()
+        .delete_unreferenced_uploads(now.saturating_sub(UNSENT_UPLOAD_RETENTION_MS))
+        .await
+    {
+        Ok(deleted) => deleted,
+        Err(error) => {
+            tracing::warn!(%error, "unsent upload sweep failed; next daily deadline retries");
+            return;
+        }
+    };
+    let mut blob_failures = 0usize;
+    for (id, blob) in &deleted {
+        if blobs.delete(blob).await.is_err() {
+            blob_failures += 1;
+        }
+        if let Ok(alias) = BlobAliasId::from_semantic_id(id.as_str()) {
+            let _ = blobs.delete_alias(blob, &alias).await;
+        }
+    }
+    tracing::info!(target: "activity_retention",
+        deleted_count = deleted.len(),
+        blob_failures,
+        "unsent upload sweep completed"
+    );
 }
 
 /// Strictly future local 06:00, independent of startup and sweep duration.

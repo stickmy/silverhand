@@ -27,6 +27,8 @@ import {
 import { canResolveShorthandNow, type ComposerMentionSource } from "../model/composer-picker";
 import { MAX_ATTACHMENTS } from "../model/oversize-paste";
 import { t } from "@/lib/i18n";
+import { ApiError } from "@/lib/api";
+import { toast } from "@/lib/toast";
 
 export type PendingAttachment = CachedPendingAttachment;
 
@@ -267,7 +269,7 @@ export function useComposerDraft({
 
     /** No-op once the next message has started; idempotent, as it clears the
      *  ref it tests. */
-    const restoreDraft = (): void => {
+    const restoreDraft = (error?: unknown): void => {
       if (logicalSend.userId !== getCurrentUserId()) {
         return;
       }
@@ -277,6 +279,15 @@ export function useComposerDraft({
       }
       submittingSnapshotRef.current = null;
       retrySendRef.current = logicalSend;
+      const goneId = unavailableAttachmentId(error);
+      if (goneId) {
+        submittedSnapshot.pending = submittedSnapshot.pending.map((item) =>
+          item.attachment?.id === goneId
+            ? { ...item, state: "error", error: t("messages.attachmentUnavailable") }
+            : item,
+        );
+        toast.error(t("messages.attachmentUnavailable"));
+      }
       if (mountedRef.current) {
         draftRef.current = submittedSnapshot.text;
         caretRef.current = submittedSnapshot.caret;
@@ -306,7 +317,7 @@ export function useComposerDraft({
           clearComposerDraft(draftKey, { sentAttachmentIds });
           submittingSnapshotRef.current = null;
         })
-        .catch(restoreDraft);
+        .catch((error: unknown) => restoreDraft(error));
     };
 
     // A retry ships the body its first attempt stored.
@@ -430,4 +441,20 @@ export function useComposerDraft({
     failPending,
     removePending,
   };
+}
+
+/** The attachment a send was refused for because it no longer exists (an
+ *  upload left unsent long enough for the server to clean it up). */
+function unavailableAttachmentId(error: unknown): string | null {
+  if (!(error instanceof ApiError) || error.status !== 400) {
+    return null;
+  }
+  try {
+    const body = JSON.parse(error.body) as { code?: unknown; attachment_id?: unknown };
+    return body.code === "attachment_outside_channel" && typeof body.attachment_id === "string"
+      ? body.attachment_id
+      : null;
+  } catch {
+    return null;
+  }
 }
