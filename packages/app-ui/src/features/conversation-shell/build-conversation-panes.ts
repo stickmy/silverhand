@@ -8,7 +8,6 @@ import type {
   AttachedPaneModel,
   AttachmentPaneProps,
   PrimaryPaneModel,
-  PrimaryPaneProps,
 } from "./pane-render-models";
 import type { ConversationColumn } from "./conversation-column";
 import type {
@@ -17,7 +16,6 @@ import type {
   PaneContentState,
   PaneContentCommands,
 } from "./pane-content-inputs";
-import { t } from "@/lib/i18n";
 
 export interface PaneContext {
   route: PaneContentRoute;
@@ -37,11 +35,10 @@ export function buildPrimaryPane(ctx: PaneContext): PrimaryPaneModel {
   }
   const id = route.channelId;
   const indexes = state.channelIndexesAvailable && read.primaryPaneDescriptor != null && id;
-  const besidePane = route.panes.some((p) => p.kind === "conversation");
   return {
     kind: "conversation",
     props: {
-      ...conversationViewProps(id ?? "", ctx, false),
+      ...conversationViewProps(id ?? "", ctx),
       hasChannelNamespace: read.primary?.hasChannelNamespace ?? false,
       workspaceName: read.workspaceNameById(read.primaryPaneDescriptor?.workspace_id ?? null),
       conversation: read.primaryPaneDescriptor,
@@ -52,21 +49,13 @@ export function buildPrimaryPane(ctx: PaneContext): PrimaryPaneModel {
       jumpPrimePending: state.parentJumpPrimePending,
       onToggleThreadsList: indexes ? () => commands.toggleThreadsList(id) : undefined,
       onToggleFilesList: indexes ? () => commands.toggleFilesList(id) : undefined,
-      // Beside a conversation pane, the route's conversation can close too:
-      // the pane beside it takes the route.
-      ...(besidePane
-        ? {
-            onCloseChild: commands.closeRouteConversation,
-            closeLabel: t("conversationShell.closeColumn"),
-          }
-        : {}),
     },
   };
 }
 
 /** What a conversation's view takes the same way wherever it stands: where its
  *  threads and attachments open, and whether its Threads or Files pane is open. */
-function conversationViewProps(id: string, ctx: PaneContext, attached: boolean) {
+function conversationViewProps(id: string, ctx: PaneContext) {
   const { route, read, commands } = ctx;
   const open = (kind: "threads" | "files") =>
     route.panes.some((p) => p.kind === kind && p.of === id);
@@ -78,14 +67,13 @@ function conversationViewProps(id: string, ctx: PaneContext, attached: boolean) 
     threadsListActive: open("threads"),
     filesListActive: open("files"),
     conversationRefsById: read.conversationRefsById,
-    onOpenConversationRef: commands.openConversationPane,
+    onOpenConversationRef: commands.openConversationRef,
     onOpenChannelRef: commands.handleOpenChannelByName,
     onOpenTask: commands.openTaskInPane,
     onJumpToMessage: commands.handleJumpToMessage,
     onOpenAdvancedSearch: commands.handleOpenAdvancedSearch,
     viewTabsEnabled: true,
     onOpenAttachmentPanel: (attachmentId: string) => commands.openAttachmentPanel(attachmentId, id),
-    attached,
   };
 }
 
@@ -102,9 +90,8 @@ function streamJump(id: string, state: PaneContentState) {
 }
 
 /**
- * One attached pane. `owner` is the conversation the pane belongs to — itself
- * for a conversation pane — resolved by the caller; null for a pane that
- * belongs to none.
+ * One attached pane. `owner` is the conversation the pane belongs to,
+ * resolved by the caller; null for a pane that belongs to none.
  */
 export function buildAttachedPane(
   pane: Pane,
@@ -154,31 +141,6 @@ export function buildAttachedPane(
           onOpenMembers: (add) => commands.openChannelMembers(pane.of, add),
         },
       };
-    case "conversation": {
-      if (!owner?.descriptor) {
-        return {
-          kind: "conversation",
-          status: "unresolved",
-          props: {
-            conversationId: pane.id,
-            status: !owner || owner.status === "resolved" ? "loading" : owner.status,
-            onClose: close,
-          },
-        };
-      }
-      const props: PrimaryPaneProps = {
-        ...conversationViewProps(pane.id, ctx, true),
-        ...streamJump(pane.id, state),
-        hasChannelNamespace: owner.hasChannelNamespace,
-        workspaceName: read.workspaceNameById(owner.workspaceId),
-        conversation: owner.descriptor,
-        onToggleThreadsList: () => commands.toggleThreadsList(pane.id),
-        onToggleFilesList: () => commands.toggleFilesList(pane.id),
-        onCloseChild: close,
-        closeLabel: t("conversationShell.closeColumn"),
-      };
-      return { kind: "conversation", status: "resolved", props };
-    }
   }
 
   // Threads and Files are member panels of their conversation.
@@ -249,7 +211,7 @@ export function buildAttachedPane(
         back();
       },
       conversationRefsById: read.conversationRefsById,
-      onOpenConversationRef: commands.openConversationPane,
+      onOpenConversationRef: commands.openConversationRef,
       onOpenChannelRef: commands.handleOpenChannelByName,
       onOpenTask: commands.openTaskInPane,
       jumpMessageId,

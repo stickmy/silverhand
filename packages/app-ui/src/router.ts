@@ -2,7 +2,6 @@ import type { MainTab } from "@/navigation/history";
 import {
   movePane,
   closePane,
-  conversationPanes,
   editPanesUrl,
   openPane,
   ownedPane,
@@ -401,43 +400,21 @@ export function editPaneUrl(
   return editPanesUrl(pathname, search, routeId, (panes) => edit(panes, routeId));
 }
 
-/** The URL with the pane `pane` names closed, conversation panes taking their
- *  own along. */
+/** The URL with the pane `key` names closed. */
 export function closePaneUrl(pathname: string, search: string, key: string): string {
   return editPaneUrl(pathname, search, (panes) => closePane(panes, key));
 }
 
-/** The URL with conversation `id` beside the route's, or `null` to close the
- *  first conversation pane. */
-export function besideUrl(pathname: string, search: string, id: string | null): string {
-  return editPaneUrl(pathname, search, (panes) => {
-    const [beside] = conversationPanes(panes);
-    if (id === null) return beside ? closePane(panes, `conversation:${beside}`) : panes;
-    return openPane(panes, { kind: "conversation", id });
-  });
-}
-
-/** Close the route's conversation: the conversation pane at `path` takes the
- *  route's place, keeping its panes; the closed one's panes go. */
-export function promotedPaneUrl(pathname: string, search: string, path: string): string {
-  const url = editPaneUrl(pathname, search, (panes) => panes);
-  const query = url.slice(pathname.length);
-  return path + editPaneUrl(path, query, (panes) => panes).slice(path.length);
-}
-
 /**
- * A channel URL that keeps one pane open across a channel switch: the agent
- * panel follows the new channel, and "View in channel" from a side pane keeps
- * the side conversation. Nothing else carries over.
+ * A channel URL that keeps the agent panel open across a channel switch: it
+ * follows the new channel. Nothing else carries over.
  */
 export function channelUrlKeeping(
   workspaceId: string,
   channelId: string,
-  keep: { agent: string } | { side: string },
+  keep: { agent: string },
 ): string {
-  const pane: Pane =
-    "agent" in keep ? { kind: "agent", id: keep.agent } : { kind: "conversation", id: keep.side };
-  return paneUrl(routes.chatChannel(workspaceId, channelId), [pane]);
+  return paneUrl(routes.chatChannel(workspaceId, channelId), [{ kind: "agent", id: keep.agent }]);
 }
 
 /**
@@ -465,8 +442,7 @@ export type NavigationTarget =
   | { kind: "threads"; of?: string }
   | { kind: "task"; taskId: string }
   | { kind: "agent"; agentId: string }
-  | { kind: "human"; userId: string }
-  | { kind: "conversation-pane"; conversationId: string };
+  | { kind: "human"; userId: string };
 
 /** Business destinations resolve through the existing URL schema. The shell,
  * never the caller, decides whether a pane destination fills a page. */
@@ -536,8 +512,6 @@ export function resolveNavigationTarget(
       return open(() => ({ kind: "agent", id: target.agentId }));
     case "human":
       return open(() => ({ kind: "human", id: target.userId }));
-    case "conversation-pane":
-      return open(() => ({ kind: "conversation", id: target.conversationId }));
   }
 }
 
@@ -668,12 +642,7 @@ export function useNav() {
       toUtilitySection: (section: "members" | "computers" | "settings") =>
         navigate({ kind: "section", tab: "me", root: routes[section]() }),
       toSettings: () => go(routes.settings()),
-      openConversationPane: (conversationId: string) =>
-        navigate({ kind: "conversation-pane", conversationId }),
-      openBeside: (conversationId: string) => go(besideUrl(pathname, search, conversationId)),
-      promotePane: (path: string) =>
-        drive(promotedPaneUrl(pathname, search, path), { replace: true }),
-      /** Close the pane with `key`; a conversation pane takes its own along. */
+      /** Close the pane with `key`. */
       closePane: (key: string) => edit((panes) => closePane(panes, key)),
       /** Move the pane with `key` to `index` in the row. */
       movePane: (key: string, index: number) => edit((panes) => movePane(panes, key, index)),

@@ -15,7 +15,6 @@ type Of = string;
 export type SettingsPage = "members" | "add";
 
 export type Pane =
-  | { kind: "conversation"; id: string }
   | { kind: "threads"; of: Of; thread: string | null }
   | { kind: "files"; of: Of; attachment: string | null }
   | { kind: "settings"; of: Of; page: SettingsPage | null }
@@ -32,8 +31,6 @@ export type Panes = readonly Pane[];
  *  person pane is one per stage. */
 export function paneKey(pane: Pane): string {
   switch (pane.kind) {
-    case "conversation":
-      return `conversation:${pane.id}`;
     case "threads":
     case "files":
     case "settings":
@@ -67,13 +64,11 @@ export function openPane(panes: Panes, pane: Pane): Panes {
   return panes.map((p, i) => (i === at ? pane : p));
 }
 
-/** Close the pane with `key`. A conversation pane takes the panes that
- *  belong to it along. */
+/** Close the pane with `key`. */
 export function closePane(panes: Panes, key: string): Panes {
   const closing = panes.find((p) => paneKey(p) === key);
   if (!closing) return panes;
-  const owned = closing.kind === "conversation" ? closing.id : undefined;
-  return panes.filter((p) => p !== closing && (owned === undefined || paneOwner(p) !== owned));
+  return panes.filter((p) => p !== closing);
 }
 
 /** Open `pane`, or close it when a pane with its key is already open. */
@@ -137,24 +132,16 @@ export function paneParent(pane: Pane): Pane | null {
   }
 }
 
-/** The conversation panes, in display order. */
-export function conversationPanes(panes: Panes): string[] {
-  return panes.flatMap((p) => (p.kind === "conversation" ? [p.id] : []));
-}
-
 /**
- * Keep the list whole beside the route's conversation `routeId`: no pane for
- * the route's own conversation, no pane whose conversation is gone, one pane
- * per key (the later wins, in the earlier's place).
+ * Keep the list whole beside the route's conversation `routeId`: no pane
+ * owned by another conversation, one pane per key (the later wins, in the
+ * earlier's place).
  */
 export function settlePanes(panes: Panes, routeId: string | null): Panes {
-  const open = new Set(conversationPanes(panes).filter((id) => id !== routeId));
-  if (routeId) open.add(routeId);
   return panes
     .filter((p) => {
-      if (p.kind === "conversation") return p.id !== routeId;
       const owner = paneOwner(p);
-      return owner === undefined || open.has(owner);
+      return owner === undefined || owner === routeId;
     })
     .reduce<Panes>(openPane, []);
 }
@@ -175,7 +162,6 @@ const idOrNull = (value: string | undefined): string | null =>
 function encode(pane: Pane, routeId: string | null): string {
   const of = (o: Of) => (o === routeId ? "" : `~${o}`);
   switch (pane.kind) {
-    case "conversation":
     case "task":
     case "agent":
     case "human":
@@ -193,7 +179,6 @@ function decode(raw: string, routeId: string | null): Pane | null {
   const [head = "", ownerPart] = raw.split("~");
   const [kind, value] = head.split(".");
   switch (kind) {
-    case "conversation":
     case "task":
     case "agent":
     case "human": {
@@ -270,8 +255,7 @@ export function peelPaneParam(params: URLSearchParams): boolean {
 // ─── What is on screen ──────────────────────────────────────────────────────
 
 export interface OnScreen {
-  /** Conversations whose main stream shows: the route's, then each
-   *  conversation pane's. */
+  /** Conversations whose main stream shows: the route's, when visible. */
   conversations: string[];
   /** Threads open, each with the conversation it belongs to. */
   threads: Array<{ conversationId: string; rootId: string }>;
@@ -288,9 +272,7 @@ export function onScreen(routeId: string | null, panes: Panes, compact: boolean)
   if (routeId && (!compact || shown.length === 0)) conversations.push(routeId);
   const threads: OnScreen["threads"] = [];
   for (const pane of shown) {
-    if (pane.kind === "conversation") {
-      conversations.push(pane.id);
-    } else if (pane.kind === "threads" && pane.thread) {
+    if (pane.kind === "threads" && pane.thread) {
       threads.push({ conversationId: pane.of, rootId: pane.thread });
     }
   }

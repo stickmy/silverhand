@@ -1,7 +1,6 @@
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   type PointerEvent as ReactPointerEvent,
@@ -9,7 +8,6 @@ import {
   type ReactNode,
 } from "react";
 import { useReducedMotion } from "motion/react";
-import { createPortal } from "react-dom";
 import { DndContext, closestCenter } from "@dnd-kit/core";
 import { restrictToHorizontalAxis } from "@dnd-kit/modifiers";
 import { SortableContext, horizontalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
@@ -19,17 +17,9 @@ import { paneKey, type Pane } from "@/navigation/panes";
 import { PANE_BG } from "@/components/layout/pane-chrome";
 import { PaneMovableProvider, type PaneMovable } from "@/components/layout/side-panel-header";
 import { SplitterTrack } from "@/components/layout/splitter-track";
-import {
-  registerPaneDropStage,
-  paneDropTarget,
-  usePaneDragGhost,
-  usePaneDropState,
-} from "@/components/layout/pane-drop";
 import { useResizableWidth } from "@/hooks/use-resizable-width";
 import { ConversationViewSkeleton } from "@/features/conversation-shell/components/conversation-view-skeleton";
-import { SplitRightIcon } from "@/icons";
 import { cn } from "@/lib/cn";
-import { t } from "@/lib/i18n";
 import { AttachedPane } from "./attached-pane";
 import type { ConversationContent } from "./conversation-content";
 import { PrimaryPaneContent } from "./primary-pane-content";
@@ -39,13 +29,10 @@ export function ConversationStage({
   content,
   ready,
   storageKey,
-  acceptsPaneDrop = false,
 }: {
   content: ConversationContent;
   ready: boolean;
   storageKey: string;
-  /** Dragging a sidebar row onto the stage opens it as a conversation pane. */
-  acceptsPaneDrop?: boolean;
 }) {
   const compact = useCompactLayout();
   const sensors = usePaneSortSensors();
@@ -65,50 +52,48 @@ export function ConversationStage({
   // The route's conversation stays mounted as panes open and close beside it,
   // so its scroll position and draft survive.
   return (
-    <PaneDropStage enabled={acceptsPaneDrop}>
+    <div
+      data-pane-row
+      className="flex h-full min-w-0 flex-1 overflow-hidden"
+      style={{ gap: "var(--pane-gap)" }}
+    >
       <div
-        data-pane-row
-        className="flex h-full min-w-0 flex-1 overflow-hidden"
-        style={{ gap: "var(--pane-gap)" }}
+        data-pane-primary
+        className="order-first flex h-full flex-1 overflow-hidden"
+        style={{ minWidth: PRIMARY_MIN_WIDTH }}
       >
-        <div
-          data-pane-primary
-          className="order-first flex h-full flex-1 overflow-hidden"
-          style={{ minWidth: PRIMARY_MIN_WIDTH }}
-        >
-          <PrimaryPaneContent model={content.primary} />
-        </div>
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          modifiers={[restrictToHorizontalAxis, restrictToAttachedPanes]}
-          onDragStart={() => {
-            // The press began a text selection; a drag must not extend it.
-            window.getSelection()?.removeAllRanges();
-            document.body.style.cursor = "grabbing";
-            document.body.style.userSelect = "none";
-          }}
-          onDragEnd={({ active, over }) => {
-            endPaneDrag();
-            if (!over || active.id === over.id) return;
-            const to = keys.indexOf(String(over.id));
-            if (to >= 0) content.ctx.commands.movePane(String(active.id), to);
-          }}
-          onDragCancel={endPaneDrag}
-        >
-          <SortableContext items={keys} strategy={horizontalListSortingStrategy}>
-            {mounted.map((key) => {
-              const pane = content.panes.find((p) => paneKey(p) === key)!;
-              return (
-                <PaneSlot key={key} pane={pane} storageKey={storageKey} order={keys.indexOf(key)}>
-                  <AttachedPane pane={pane} ctx={content.ctx} />
-                </PaneSlot>
-              );
-            })}
-          </SortableContext>
-        </DndContext>
+        <PrimaryPaneContent model={content.primary} />
       </div>
-    </PaneDropStage>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        modifiers={[restrictToHorizontalAxis, restrictToAttachedPanes]}
+        onDragStart={() => {
+          // The press began a text selection; a drag must not extend it.
+          window.getSelection()?.removeAllRanges();
+          document.body.style.cursor = "grabbing";
+          document.body.style.userSelect = "none";
+        }}
+        onDragEnd={({ active, over }) => {
+          endPaneDrag();
+          if (!over || active.id === over.id) return;
+          const to = keys.indexOf(String(over.id));
+          if (to >= 0) content.ctx.commands.movePane(String(active.id), to);
+        }}
+        onDragCancel={endPaneDrag}
+      >
+        <SortableContext items={keys} strategy={horizontalListSortingStrategy}>
+          {mounted.map((key) => {
+            const pane = content.panes.find((p) => paneKey(p) === key)!;
+            return (
+              <PaneSlot key={key} pane={pane} storageKey={storageKey} order={keys.indexOf(key)}>
+                <AttachedPane pane={pane} ctx={content.ctx} />
+              </PaneSlot>
+            );
+          })}
+        </SortableContext>
+      </DndContext>
+    </div>
   );
 }
 
@@ -135,15 +120,7 @@ const RESIZE_START = "pane-resize-start";
 /** Fired on an attached pane whose right-hand neighbour's splitter is moving. */
 const NEIGHBOUR_RESIZE = "pane-neighbour-resize";
 
-/** Each kind of pane keeps the width the viewer gave it. */
-const PANE_WIDTH = {
-  conversation: { defaultWidth: 520, min: 360, max: 960 },
-  other: { defaultWidth: 400, min: 300, max: 720 },
-} as const;
-
-function paneWidthKind(attachedPane: string | undefined): keyof typeof PANE_WIDTH {
-  return attachedPane === "conversation" ? "conversation" : "other";
-}
+const PANE_WIDTH = { defaultWidth: 400, min: 300, max: 720 } as const;
 
 /** An attached pane at its own width, resized from its left edge. */
 function PaneSlot({
@@ -158,7 +135,6 @@ function PaneSlot({
   order: number;
   children: ReactNode;
 }): JSX.Element {
-  const kind = paneWidthKind(pane.kind);
   const clip = useRef<HTMLDivElement | null>(null);
   // The pane on the splitter's other side, and the widths both started at.
   const drag = useRef<{ left: HTMLElement | null; leftStart: number; ownStart: number } | null>(
@@ -173,12 +149,11 @@ function PaneSlot({
     const left = drag.current?.left;
     if (left) {
       // Between two attached panes the splitter trades width between those two only.
-      const limits = PANE_WIDTH[paneWidthKind(left.dataset.attachedPane)];
       const leftWidth = left.getBoundingClientRect().width;
       return {
         width,
-        min: width - (limits.max - leftWidth),
-        max: width + leftWidth - limits.min,
+        min: width - (PANE_WIDTH.max - leftWidth),
+        max: width + leftWidth - PANE_WIDTH.min,
       };
     }
     return { width, max: width + primary.getBoundingClientRect().width - PRIMARY_MIN_WIDTH };
@@ -197,7 +172,7 @@ function PaneSlot({
     pin,
   } = useResizableWidth({
     storageKey: `${storageKey}.pane.${pane.kind}`,
-    ...PANE_WIDTH[kind],
+    ...PANE_WIDTH,
     edge: "left",
     bounds,
     onDrag,
@@ -291,91 +266,5 @@ function PaneSlot({
         <PaneMovableProvider value={grip}>{children}</PaneMovableProvider>
       </div>
     </div>
-  );
-}
-
-/** The conversation area is the drop target for a sidebar row. Once a held
- *  row is lifted out of its list, a ghost of it follows the pointer and the
- *  pane it would open as shows. */
-function PaneDropStage({ enabled, children }: { enabled: boolean; children: ReactNode }) {
-  const state = usePaneDropState();
-  const box = useRef<HTMLDivElement | null>(null);
-  const ref = useCallback(
-    (node: HTMLDivElement | null) => {
-      box.current = node;
-      registerPaneDropStage(enabled ? node : null);
-    },
-    [enabled],
-  );
-  const lifted = enabled && (state === "lifted" || state === "over");
-  const target = lifted ? paneDropTarget() : null;
-  const origin = lifted ? box.current?.getBoundingClientRect() : undefined;
-
-  return (
-    <div ref={ref} className="relative flex h-full min-w-0 flex-1">
-      {children}
-      {target && origin ? (
-        <div
-          aria-hidden
-          data-pane-drop={state}
-          className="pointer-events-none absolute z-30 p-2"
-          style={{
-            left: target.left - origin.left,
-            top: target.top - origin.top,
-            width: target.width,
-            height: target.height,
-          }}
-        >
-          <div
-            className={cn(
-              "flex h-full items-center justify-center rounded-(--floating-radius) border-2 border-dashed border-border-control transition-colors",
-              // Utility state: neutral ink, never the theme's selection hue.
-              state === "over"
-                ? "bg-[color-mix(in_oklab,var(--text-primary)_9%,transparent)] text-text-primary"
-                : "bg-[color-mix(in_oklab,var(--text-primary)_4%,transparent)] text-text-secondary",
-            )}
-          >
-            <span className="flex items-center gap-1.5 text-[13px] font-medium">
-              <SplitRightIcon className="size-4" />
-              {t("conversationShell.openOnRight")}
-            </span>
-          </div>
-        </div>
-      ) : null}
-      {lifted ? <DragGhost /> : null}
-    </div>
-  );
-}
-
-/** The held row lifted out of the sidebar: a copy of the row itself, same
- *  width and paint, in the same dragging state a reorder shows. Mounted in an
- *  `aside[data-sidebar]` so it keeps the sidebar's theme scope. */
-function DragGhost(): JSX.Element | null {
-  const ghost = usePaneDragGhost();
-  const host = useRef<HTMLElement | null>(null);
-  const row = ghost?.row ?? null;
-
-  useLayoutEffect(() => {
-    const node = host.current;
-    if (!node || !row) return;
-    node.replaceChildren(row);
-    return () => {
-      node.replaceChildren();
-    };
-  }, [row]);
-
-  if (!ghost) return null;
-  return createPortal(
-    <aside
-      ref={host}
-      aria-hidden
-      data-sidebar="drag-ghost"
-      data-sidebar-sort-dragging="true"
-      className="pointer-events-none fixed top-0 left-0 z-(--z-popover)"
-      style={{
-        transform: `translate3d(${ghost.left}px, ${ghost.top}px, 0)`,
-      }}
-    />,
-    document.body,
   );
 }

@@ -6,7 +6,7 @@ import {
   directPairPaneDescriptor,
   type ConversationPaneDescriptor,
 } from "@/features/conversations/pane-descriptor";
-import { useColumnFacts, useConversationColumn } from "./conversation-column";
+import { useColumnFacts } from "./conversation-column";
 import { presentCounterpart } from "@/features/direct-pairs/counterpart-presentation";
 import {
   directPairPaneProps,
@@ -27,7 +27,6 @@ import {
 } from "@/features/app-shell/chat-place-restore";
 import type { ConversationPointer } from "./conversation-shell-models";
 import { useRouteState } from "@/router";
-import { conversationPanes } from "@/navigation/panes";
 import { isWorkspacePlaced } from "@silverhand/shared";
 import { useCallback, useDeferredValue, useMemo } from "react";
 import { useCompactLayout } from "@/navigation/layout";
@@ -263,15 +262,6 @@ export function useConversationReadModel() {
   });
   const primary = selectedChannelId ? primaryColumn : null;
 
-  // The first conversation pane: the right half of the sidebar's pair row.
-  const [firstConversationPane = null] = conversationPanes(panes);
-  const paired = useConversationColumn(
-    section === "chat" && selectedChannelId ? firstConversationPane : null,
-    channels,
-    buildChannelDescriptor,
-    workspaceNameById,
-  );
-
   return {
     workspaces,
     workspacesLoading,
@@ -299,7 +289,6 @@ export function useConversationReadModel() {
     primaryPaneDescriptor,
     hasChannelNamespace,
     primary,
-    paired,
     buildChannelDescriptor,
     resolveNavWorkspaceId,
     activeSettled: activeChannelsStatus === "success" && activeChannelsFetchStatus === "idle",

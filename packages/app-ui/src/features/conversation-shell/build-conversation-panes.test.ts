@@ -59,8 +59,6 @@ beforeEach(() => {
       conversationRefsById: new Map(),
       primaryPaneDescriptor: primary.descriptor,
       primary,
-      channels: [],
-      buildChannelDescriptor: () => null,
     },
     state: {
       channelIndexesAvailable: true,
@@ -84,7 +82,7 @@ beforeEach(() => {
       handleDraftOpenedPair: vi.fn(),
       handleJumped: vi.fn(),
       handleOpenThreadFromChannel: vi.fn(),
-      openConversationPane: vi.fn(),
+      openConversationRef: vi.fn(),
       openThread: vi.fn(),
       toggleThreadsList: vi.fn(),
       toggleFilesList: vi.fn(),
@@ -94,7 +92,6 @@ beforeEach(() => {
       backPane: vi.fn(() => {
         calls.push("back");
       }),
-      closeRouteConversation: vi.fn(),
       movePane: vi.fn(),
     },
   };
@@ -116,16 +113,6 @@ describe("the route's conversation", () => {
   it("isolates a draft from conversation state", () => {
     ctx.route.directDraftTarget = { kind: "agent", agentId: "a" } as never;
     expect(buildPrimaryPane(ctx).kind).toBe("draft");
-  });
-
-  it("offers a close only beside a conversation pane", () => {
-    const alone = buildPrimaryPane(ctx);
-    expect(alone.kind === "conversation" && alone.props.onCloseChild).toBeFalsy();
-    ctx.route.panes = [{ kind: "conversation", id: "c2" }];
-    const beside = buildPrimaryPane(ctx);
-    if (beside.kind !== "conversation") throw new Error("Expected conversation");
-    beside.props.onCloseChild?.();
-    expect(ctx.commands.closeRouteConversation).toHaveBeenCalledTimes(1);
   });
 
   it("marks its own index panes active, not another conversation's", () => {
@@ -236,30 +223,5 @@ describe("attached panes", () => {
     };
     const model = expectKind(build({ kind: "threads", of: "c", thread: "root" }), "thread");
     expect(model.props.jumpMessageId).toBeNull();
-  });
-});
-
-describe("conversation panes", () => {
-  it("shows a placeholder until the conversation resolves", () => {
-    const model = build({ kind: "conversation", id: "c2" }, column("c2", "w", "unknown"));
-    if (model.kind !== "conversation" || model.status !== "unresolved") {
-      throw new Error("Expected placeholder");
-    }
-    model.props.onClose();
-    expect(ctx.commands.closePane).toHaveBeenCalledExactlyOnceWith("conversation:c2");
-  });
-
-  it("gives a resolved pane its own descriptor, workspace and panes", () => {
-    const other = column("c2", "w2");
-    const model = build({ kind: "conversation", id: "c2" }, other);
-    if (model.kind !== "conversation" || model.status !== "resolved") {
-      throw new Error("Expected resolved");
-    }
-    expect(model.props.conversation).toBe(other.descriptor);
-    expect(model.props.workspaceName).toBe("w2");
-    model.props.onToggleThreadsList?.();
-    model.props.onOpenAttachmentPanel?.("a");
-    expect(ctx.commands.toggleThreadsList).toHaveBeenCalledExactlyOnceWith("c2");
-    expect(ctx.commands.openAttachmentPanel).toHaveBeenCalledExactlyOnceWith("a", "c2");
   });
 });

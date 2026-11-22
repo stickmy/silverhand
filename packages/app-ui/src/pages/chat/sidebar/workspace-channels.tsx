@@ -4,15 +4,7 @@ import { useMemo, useRef, type ReactNode } from "react";
 import { type ConversationVisibility } from "@silverhand/shared";
 import { useSortable } from "@dnd-kit/sortable";
 import { ChannelIcon } from "@/components/channel-icon";
-import { PaneDragMonitor, useSidebarPairs } from "./sidebar-pairs";
-import {
-  SidebarConversationRow,
-  unfoldOrder,
-  useSidebarList,
-  type FoldedRow,
-  type RowFace,
-  type SidebarConversation,
-} from "./sidebar-conversation";
+import { SidebarConversationRow, type SidebarConversation } from "./sidebar-conversation";
 import { ChannelRowMenuItems } from "./channel-row-menu-items";
 import { SidebarEmptyRow } from "@/components/layout/sidebar-shared";
 import { SortModeMenu } from "@/components/layout/sort-mode-menu";
@@ -139,7 +131,6 @@ export function WorkspaceChannels({
     }));
   }, [items, viewerSort]);
 
-  const pairing = useSidebarPairs();
   const homeTopLevel = excludeStarredChannels(nodes);
   const { orderedGroups, onReorder } = useListDragSort<"channels", ChannelNode>({
     listKey: `channels:${workspaceId}`,
@@ -149,9 +140,7 @@ export function WorkspaceChannels({
     getCreatedAt: (c) => c.created_at,
   });
   const ordered = orderedGroups.channels;
-  const pairs = pairing?.pairs ?? [];
 
-  const loud = (face: RowFace | undefined): boolean => face?.badge?.tier === "loud";
   const conversationOf = (c: ChannelNode): SidebarConversation => {
     const attention = attentionByChannel.get(c.id);
     const isArchived = c.archived_at !== null;
@@ -165,7 +154,6 @@ export function WorkspaceChannels({
             visibility={c.roster_policy === "open" ? c.visibility : undefined}
           />
         ),
-        glyphKey: c.roster_policy === "open" ? c.visibility : "fixed",
         title: c.title,
         badge: channelNodeBadge(c, attention, unreadByChannel[c.id] ?? 0),
       },
@@ -190,38 +178,27 @@ export function WorkspaceChannels({
       ),
     };
   };
-  // A collapsed branch lists only the rows it reveals; a pair whose left half
-  // is hidden must not take its right half's row elsewhere.
-  const { lines: rows, byId } = useSidebarList(
-    `channels:${workspaceId}`,
-    ordered,
-    conversationOf,
-    pairs,
-    collapsed ? (c) => c.id === selectedChannelId || (pokeUnread && loud(c.face)) : undefined,
-  );
-  const rowOf = ({ row, pair }: FoldedRow<ChannelNode>, sortable: boolean): JSX.Element => (
+  const rows = ordered.map(conversationOf);
+  const rowOf = (row: SidebarConversation, sortable: boolean): JSX.Element => (
     <SidebarConversationRow
-      conversation={byId.get(row.id)!}
-      pair={pair}
+      conversation={row}
       selected={row.id === selectedChannelId}
       draggable={sortable}
-      sortable={sortable}
     />
   );
 
   if (collapsed) {
     const revealed = collapsedRevealRows(rows, {
       pokeUnread,
-      isSelected: ({ row, pair }) =>
-        row.id === selectedChannelId || pair?.pair.right === selectedChannelId,
-      isLoud: ({ row, pair }) => loud(byId.get(row.id)?.face) || loud(pair?.right),
+      isSelected: (row) => row.id === selectedChannelId,
+      isLoud: (row) => row.face.badge?.tier === "loud",
     });
     return (
       <>
         {revealed.length > 0 ? revealCaption : null}
         <SidebarReveal initial={mountedCollapsed.current}>
-          {revealed.map(({ row, pair }) => (
-            <SidebarRevealRow key={row.id}>{rowOf({ row, pair }, false)}</SidebarRevealRow>
+          {revealed.map((row) => (
+            <SidebarRevealRow key={row.id}>{rowOf(row, false)}</SidebarRevealRow>
           ))}
         </SidebarReveal>
       </>
@@ -242,24 +219,12 @@ export function WorkspaceChannels({
 
   return (
     <SortableGroup
-      ids={rows.map(({ row }) => row.id)}
-      onReorder={(next) =>
-        onReorder(
-          "channels",
-          unfoldOrder(
-            next,
-            ordered.map((c) => c.id),
-            pairs,
-          ),
-        )
-      }
+      ids={rows.map((row) => row.id)}
+      onReorder={(next) => onReorder("channels", next)}
     >
-      <PaneDragMonitor
-        conversationIdOf={(id) => (rows.some(({ row, pair }) => row.id === id && pair) ? null : id)}
-      />
-      {rows.map((line) => (
-        <SortableChannelItem key={line.row.id} id={line.row.id}>
-          {rowOf(line, true)}
+      {rows.map((row) => (
+        <SortableChannelItem key={row.id} id={row.id}>
+          {rowOf(row, true)}
         </SortableChannelItem>
       ))}
     </SortableGroup>

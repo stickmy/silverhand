@@ -35,13 +35,13 @@ import {
   tabKey,
   type Tab,
 } from "../conversation-shell/model/conversation-tabs";
-import { clearConversationPairs } from "../conversation-shell/conversation-pairs";
 
 export const LAST_CHANNEL_KEY = "silverhand:layout.last-channel-by-workspace";
 export const LAST_WORKSPACE_KEY = "silverhand:layout.last-workspace";
 export const LAST_CHAT_PLACE_KEY = "silverhand:layout.last-chat-place";
 export const PANES_KEY = "silverhand:layout.panes-by-channel";
 /** No longer written; still cleared on logout so an old value does not linger. */
+const SPLIT_PAIRS_KEY = "silverhand:layout.split-pairs";
 export const CLOSE_WATERMARK_KEY = "silverhand:layout.close-watermark-by-channel";
 export const CONVERSATION_TABS_KEY = "silverhand:layout.conversation-tabs";
 export const FUNCTIONAL_TABS_KEY = "silverhand:layout.functional-tabs";
@@ -361,13 +361,13 @@ export function clearPlaceMemory(): void {
   functionalTabs = [...DEFAULT_TABS];
   activeTabByConversation.clear();
   notifyConversationTabs();
-  clearConversationPairs();
   try {
     localStorage.removeItem(LAST_WORKSPACE_KEY);
     localStorage.removeItem(LAST_CHANNEL_KEY);
     localStorage.removeItem(LAST_CHAT_PLACE_KEY);
     localStorage.removeItem(PANES_KEY);
     localStorage.removeItem(CLOSE_WATERMARK_KEY);
+    localStorage.removeItem(SPLIT_PAIRS_KEY);
     localStorage.removeItem(CONVERSATION_TABS_KEY);
     localStorage.removeItem(FUNCTIONAL_TABS_KEY);
   } catch {

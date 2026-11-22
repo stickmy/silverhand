@@ -168,11 +168,6 @@ export function PaneGrip(): JSX.Element | null {
   );
 }
 
-/** The conversation an attached pane belongs to, named in its header when it
- *  is not the conversation the stage is showing first; null names none. */
-const PaneOwnerContext = createContext<string | null>(null);
-export const PaneOwnerProvider = PaneOwnerContext.Provider;
-
 /**
  * The icon + title + context idiom shared by the thread, threads-list, and
  * attachments panels: one line, the context muted after the title. The context
@@ -188,8 +183,6 @@ export function SidePanelHeaderTitle({
   title: React.ReactNode;
   subtitle?: React.ReactNode;
 }): JSX.Element {
-  const owner = useContext(PaneOwnerContext);
-
   return (
     <>
       {icon}
@@ -197,15 +190,6 @@ export function SidePanelHeaderTitle({
         <div className="min-w-0 shrink truncate text-sm font-medium text-text-primary">{title}</div>
         {subtitle ? (
           <div className="max-w-[45%] shrink-0 truncate text-xs text-text-muted">{subtitle}</div>
-        ) : null}
-        {owner ? (
-          <span
-            data-pane-owner
-            title={owner}
-            className="max-w-[45%] shrink-0 truncate rounded-(--control-radius) bg-bg-hover px-1.5 py-0.5 text-xs text-text-secondary"
-          >
-            {owner}
-          </span>
         ) : null}
       </div>
     </>

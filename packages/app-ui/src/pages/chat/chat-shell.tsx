@@ -115,7 +115,6 @@ export function ChatShell({
                     content={content}
                     ready={deferredSection === "chat"}
                     storageKey="silverhand.layout.split-ratio"
-                    acceptsPaneDrop={route.channelId !== null && !model.directDraftTarget}
                   />
                 </>
               ))}

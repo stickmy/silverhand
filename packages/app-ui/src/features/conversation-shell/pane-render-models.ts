@@ -6,7 +6,6 @@ import type { AgentView } from "@/features/agents/components/agent-view";
 import type { AttachmentSidePanel } from "@/features/conversation-shell/components/attachment-side-panel";
 import type { ChannelAttachmentsPanel } from "@/features/conversation-shell/components/channel-attachments-panel";
 import type { TaskDetailPanel } from "@/features/tasks/components/task-detail-panel";
-import type { SideUnresolvedPlaceholder } from "@/features/conversation-shell/components/side-unresolved-placeholder";
 import type { ThreadPanel } from "@/features/conversation-shell/components/thread-panel";
 import type { ChannelThreadsPanel } from "@/features/conversation-shell/components/channel-threads-panel";
 import type { ConversationPaneCapabilities } from "@/features/conversations/pane-mode";
@@ -43,7 +42,6 @@ export type PrimaryPaneProps = Pick<
   | "onOpenAttachmentPanel"
   | "onCloseChild"
   | "closeLabel"
-  | "attached"
 >;
 
 export type AgentPaneProps = Pick<
@@ -69,11 +67,6 @@ export type AttachmentPaneProps = Pick<
 export type TaskPaneProps = Pick<
   ComponentProps<typeof TaskDetailPanel>,
   "taskId" | "onClose" | "onEditingChange"
->;
-
-export type UnresolvedPaneProps = Pick<
-  ComponentProps<typeof SideUnresolvedPlaceholder>,
-  "conversationId" | "status" | "onClose"
 >;
 
 export type ThreadPaneProps = Pick<
@@ -126,7 +119,5 @@ export type AttachedPaneModel =
   | { kind: "human"; props: Pick<ComponentProps<typeof HumanView>, "userId" | "onClose"> }
   | { kind: "files"; props: FilesPaneProps; preview: AttachmentPaneProps | null }
   | { kind: "task"; props: TaskPaneProps }
-  | { kind: "conversation"; status: "resolved"; props: PrimaryPaneProps }
-  | { kind: "conversation"; status: "unresolved"; props: UnresolvedPaneProps }
   | { kind: "thread"; props: ThreadPaneProps; capabilities: ConversationPaneCapabilities }
   | { kind: "threads"; props: ThreadsPaneProps };

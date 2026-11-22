@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   PAGE_SWAP_EXIT_S,
@@ -6,62 +5,24 @@ import {
   pageSwapVariants,
 } from "@/components/layout/page-swap";
 import { paneOwner, type Pane } from "@/navigation/panes";
-import { useMarkMessageChannelRead } from "@/features/channels/hooks";
 import { ChannelSettingsPanel } from "./components/channel-settings-panel";
 import { HumanView } from "@/features/profile/human-view";
-import { ChannelView } from "@/features/conversation-shell/components/channel-view";
 import { ThreadPanel } from "@/features/conversation-shell/components/thread-panel";
 import { ChannelThreadsPanel } from "@/features/conversation-shell/components/channel-threads-panel";
 import { ChannelAttachmentsPanel } from "@/features/conversation-shell/components/channel-attachments-panel";
 import { AttachmentSidePanel } from "@/features/conversation-shell/components/attachment-side-panel";
 import { TaskDetailPanel } from "@/features/tasks/components/task-detail-panel";
 import { AgentView } from "@/features/agents/components/agent-view";
-import { SideUnresolvedPlaceholder } from "@/features/conversation-shell/components/side-unresolved-placeholder";
 import { ConversationPaneCapabilitiesProvider } from "@/features/conversations/pane-capabilities-context";
-import { PaneOwnerProvider } from "@/components/layout/side-panel-header";
-import { useConversationColumn, type ConversationColumn } from "./conversation-column";
 import { buildAttachedPane, type PaneContext } from "./build-conversation-panes";
 import type { AttachedPaneModel, AttachmentPaneProps, FilesPaneProps } from "./pane-render-models";
 
-/** One attached pane: resolves the conversation it belongs to, then renders. */
+/** One attached pane; a conversation-owned pane belongs to the route's. */
 export function AttachedPane({ pane, ctx }: { pane: Pane; ctx: PaneContext }): JSX.Element | null {
-  const { read, route } = ctx;
-  const ownerId = pane.kind === "conversation" ? pane.id : (paneOwner(pane) ?? null);
-  const own = ownerId !== null && ownerId === route.channelId;
-  const other = useConversationColumn(
-    own ? null : ownerId,
-    read.channels,
-    read.buildChannelDescriptor,
-    read.workspaceNameById,
-  );
-  const owner = own ? read.primary : other;
-  useReadWhileShown(pane.kind === "conversation" && owner?.descriptor ? owner.id : null);
-
+  const owned = paneOwner(pane) !== undefined;
   return (
-    <PaneOwnerProvider value={own || !NAMES_OWNER.has(pane.kind) ? null : ownerLabel(other)}>
-      <AttachedPaneContent model={buildAttachedPane(pane, owner, ctx)} />
-    </PaneOwnerProvider>
+    <AttachedPaneContent model={buildAttachedPane(pane, owned ? ctx.read.primary : null, ctx)} />
   );
-}
-
-/** Panes whose header names their conversation when it is not the route's.
- *  A conversation pane is its own owner, and Settings already titles itself
- *  with the channel. */
-const NAMES_OWNER = new Set<Pane["kind"]>(["threads", "files"]);
-
-/** How a pane's header names the conversation it belongs to. */
-function ownerLabel(owner: ConversationColumn | null): string | null {
-  if (!owner?.descriptor) return null;
-  return owner.paneTitle ? `#${owner.paneTitle}` : owner.descriptor.title;
-}
-
-/** A conversation pane on screen advances its read cursor once it resolves. */
-function useReadWhileShown(conversationId: string | null): void {
-  const markRead = useMarkMessageChannelRead();
-  useEffect(() => {
-    if (conversationId) markRead.mutate(conversationId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversationId]);
 }
 
 function AttachedPaneContent({ model }: { model: AttachedPaneModel }) {
@@ -78,12 +39,6 @@ function AttachedPaneContent({ model }: { model: AttachedPaneModel }) {
       return <FilesPane list={model.props} preview={model.preview} />;
     case "task":
       return <TaskDetailPanel key={`task-${model.props.taskId}`} {...model.props} />;
-    case "conversation":
-      return model.status === "resolved" ? (
-        <ChannelView {...model.props} />
-      ) : (
-        <SideUnresolvedPlaceholder {...model.props} />
-      );
     case "thread":
       // A thread inherits the parent's capability; it has no placement of its own.
       return (

@@ -203,9 +203,6 @@ interface ChannelViewProps {
   /** Preview a md/html attachment in this conversation's Files pane. Absent
    *  in a thread view, where md/html open in a tab or with the system. */
   onOpenAttachmentPanel?: (attachmentId: string) => void;
-  /** An attached pane beside the route conversation: it takes ⌘F and the tab
-   *  chord only while focus is inside it. */
-  attached?: boolean;
 }
 
 export const ChannelView = memo(function ChannelView(props: ChannelViewProps): JSX.Element {
@@ -300,7 +297,6 @@ function ActiveChannelView({
   onOpenAdvancedSearch,
   viewTabsEnabled = false,
   onOpenAttachmentPanel,
-  attached = false,
 }: ChannelViewProps & { conversation: ConversationPaneDescriptor }): JSX.Element {
   // Per-viewer membership gate. A PUBLIC channel is readable by a
   // workspace user who has not joined it: they browse (message history + thread
@@ -620,7 +616,7 @@ function ActiveChannelView({
   useInlineFindHotkey({
     rootRef: findRootRef,
     enabled: findAvailable,
-    isPrimary: !attached,
+    isPrimary: true,
     onOpen: find.openFind,
   });
 
@@ -806,7 +802,7 @@ function ActiveChannelView({
     viewTabsShown && !nativeHeader,
     (step) =>
       tabController.setActive(adjacentTabKey(tabController.tabs, tabController.activeKey, step)),
-    !attached,
+    true,
   );
 
   return (

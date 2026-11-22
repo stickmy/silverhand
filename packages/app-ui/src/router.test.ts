@@ -1,13 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  channelUrlKeeping,
-  closePaneUrl,
-  parseRouteState,
-  promotedPaneUrl,
-  resolveNavigationTarget,
-  routes,
-  besideUrl,
-} from "./router";
+import { channelUrlKeeping, parseRouteState, resolveNavigationTarget, routes } from "./router";
 
 const path = "/chat/w/w1/c/c1";
 const query = (url: string) => (url.includes("?") ? url.slice(url.indexOf("?")) : "");
@@ -27,19 +19,10 @@ describe("pane routing — attached panes beside the route's conversation", () =
     expect(url).toBe(`${path}?pane=threads.r1&pane=files`);
   });
 
-  it("each conversation keeps its own Threads and Files", () => {
-    const url = open({ kind: "threads", of: "c2" }, "?pane=conversation.c2&pane=threads");
-    expect(url).toBe(`${path}?pane=conversation.c2&pane=threads&pane=threads%7Ec2`);
-    expect(parseRouteState(path, query(url)).panes).toContainEqual({
-      kind: "threads",
-      of: "c2",
-      thread: null,
-    });
-  });
-
-  it("a pane opened without a column goes to the conversation whose pane is last", () => {
-    const url = open({ kind: "attachments" }, "?pane=conversation.c2&pane=threads.r2%7Ec2");
-    expect(url).toBe(`${path}?pane=conversation.c2&pane=threads.r2%7Ec2&pane=files%7Ec2`);
+  it("drops a pane that names another conversation", () => {
+    expect(open({ kind: "threads", of: "c2" }, "?pane=conversation.c2&pane=threads")).toBe(
+      `${path}?pane=threads`,
+    );
   });
 
   it("settings and members are pages of one Settings pane per conversation", () => {
@@ -60,37 +43,12 @@ describe("pane routing — attached panes beside the route's conversation", () =
     expect(url).toBe(`${path}?pane=task.t2&pane=threads`);
   });
 
-  it("closing a conversation pane closes the panes it owns", () => {
-    expect(
-      closePaneUrl(path, "?pane=conversation.c2&pane=files%7Ec2&pane=threads", "conversation:c2"),
-    ).toBe(`${path}?pane=threads`);
-    expect(besideUrl(path, "?pane=conversation.c2&pane=files%7Ec2", null)).toBe(path);
-  });
-
-  it("closing the route's conversation hands the route to the pane beside it", () => {
-    expect(
-      promotedPaneUrl(
-        path,
-        "?pane=threads&pane=conversation.c2&pane=threads.r2%7Ec2",
-        "/chat/w/w1/c/c2",
-      ),
-    ).toBe("/chat/w/w1/c/c2?pane=threads.r2");
-  });
-
-  it("keeps every conversation pane in display order", () => {
-    const route = parseRouteState(path, "?pane=conversation.c2&pane=conversation.c3&pane=agent.a1");
-    expect(route.panes.map((p) => p.kind)).toEqual(["conversation", "conversation", "agent"]);
-  });
-
   it("keeps params outside the pane list", () => {
     expect(open({ kind: "threads" }, "?utm=1")).toBe(`${path}?utm=1&pane=threads`);
   });
 
   it("keeps one pane across a channel switch", () => {
     expect(channelUrlKeeping("w1", "c3", { agent: "a1" })).toBe("/chat/w/w1/c/c3?pane=agent.a1");
-    expect(channelUrlKeeping("w1", "c3", { side: "c4" })).toBe(
-      "/chat/w/w1/c/c3?pane=conversation.c4",
-    );
   });
 
   it("a thread in another conversation opens on that conversation's route", () => {

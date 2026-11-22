@@ -3,7 +3,7 @@ import { onScreen } from "@/navigation/panes";
 import { useContextualCloseResponder } from "@/features/app-shell/keyboard-shortcuts";
 import { useMarkMessageChannelRead } from "@/features/channels/hooks";
 import { resolveTaskDetail } from "@/features/tasks/model/task-detail-surface";
-import { routes, useNav, useRouteState } from "@/router";
+import { useNav, useRouteState } from "@/router";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { PaneJumpModel, PaneReadModel } from "./conversation-shell-models";
 import { threadJumpOutlivedPane } from "./model/thread-jump-lifetime";
@@ -38,8 +38,7 @@ export function useConversationPanes(
 
   const markMessageChannelRead = useMarkMessageChannelRead();
   const lastPrimaryReadKey = useRef<string | null>(null);
-  // The route's conversation is read once it shows; a conversation pane marks
-  // itself read when it resolves (`AttachedPane`).
+  // The route's conversation is read once it shows.
   const visiblePrimary =
     primaryPointer && screen.conversations.includes(primaryPointer.id) ? primaryPointer : null;
   useEffect(() => {
@@ -99,9 +98,6 @@ export function useConversationPanes(
     jumpToMessageId: string | undefined,
     of: string,
   ): void => {
-    // A jump navigates to the thread's own conversation, so from a
-    // conversation pane it would replace the stage; there the thread opens in
-    // place and its pane finds the reply.
     if (jumpToMessageId && of === selectedChannelId) {
       handleJumpToMessage({
         workspaceId: selectedWorkspaceId ?? undefined,
@@ -114,18 +110,6 @@ export function useConversationPanes(
     nav.openThread(rootMessageId, of);
   };
 
-  /** Close the route's conversation: the first conversation pane takes the
-   *  route, keeping its own panes. */
-  const closeRouteConversation = (): void => {
-    const next = read.paired?.descriptor;
-    if (!next) return;
-    nav.promotePane(
-      next.workspace_id
-        ? routes.chatChannel(next.workspace_id, next.id)
-        : routes.chatDirect(next.id),
-    );
-  };
-
   return {
     screen,
     channelIndexesAvailable: selectedChannelId !== null,
@@ -136,6 +120,5 @@ export function useConversationPanes(
     parentJumpTarget: parentJump.target,
     parentJumpPrimePending: parentJump.primePending,
     handleOpenThreadFromChannel,
-    closeRouteConversation,
   };
 }

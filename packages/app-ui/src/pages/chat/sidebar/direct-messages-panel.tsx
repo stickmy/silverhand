@@ -4,12 +4,7 @@ import { useMemo } from "react";
 import type { DirectPairCounterpart } from "@silverhand/shared";
 import { DirectMessageIcon, StarIcon } from "@/icons";
 import { AppContextMenuItem } from "@/components/menus/app-context-menu";
-import { useSidebarPairs } from "./sidebar-pairs";
-import {
-  SidebarConversationRow,
-  useSidebarList,
-  type SidebarConversation,
-} from "./sidebar-conversation";
+import { SidebarConversationRow, type SidebarConversation } from "./sidebar-conversation";
 import {
   starredConversationIds,
   useFavoritesList,
@@ -77,7 +72,6 @@ export function DirectMessagesGroup(props: {
   const agentAvatarUrls = useAgentAvatarObjectUrls(agents);
   const humanAvatarUrls = useUserAvatarObjectUrls(users);
 
-  const pairing = useSidebarPairs();
   const urls = { agentAvatarUrls, humanAvatarUrls };
   const conversationOf = (row: DirectLineRow): SidebarConversation =>
     row.kind === "pair"
@@ -85,33 +79,19 @@ export function DirectMessagesGroup(props: {
           props.onSelectDirectPair(row.conversationId),
         )
       : {
-          // A draft is not a conversation yet; it lists itself but never
-          // folds into a pair or opens beside anything.
+          // A draft is not a conversation yet: it lists itself without a menu.
           ...directConversation(row.key, row, urls, false, () =>
             props.onSelectDirectDraft?.(row.target),
           ),
           openable: false,
         };
-  const { lines, byId } = useSidebarList(
-    "direct-messages",
-    rows,
-    conversationOf,
-    pairing?.pairs ?? [],
-    (c) => c.openable !== false,
+  const line = (row: DirectLineRow): JSX.Element => (
+    <SidebarConversationRow conversation={conversationOf(row)} selected={row.selected} />
   );
-  const line = ({ row, pair }: (typeof lines)[number]): JSX.Element => (
-    <SidebarConversationRow
-      conversation={byId.get(conversationOf(row).id)!}
-      pair={row.kind === "pair" ? pair : null}
-      selected={row.selected}
-    />
-  );
-  const revealed = collapsedRevealRows(lines, {
+  const revealed = collapsedRevealRows(rows, {
     pokeUnread: true,
-    isSelected: ({ row, pair }) =>
-      row.selected || (pair !== null && pair.pair.right === props.selectedChannelId),
-    isLoud: ({ row, pair }) =>
-      directRowBadge(row.unread)?.tier === "loud" || pair?.right.badge?.tier === "loud",
+    isSelected: (row) => row.selected,
+    isLoud: (row) => directRowBadge(row.unread)?.tier === "loud",
   });
 
   return (
@@ -127,8 +107,8 @@ export function DirectMessagesGroup(props: {
       persistId="direct-messages"
       collapsedContent={
         <SidebarReveal>
-          {revealed.map(({ row, pair }) => (
-            <SidebarRevealRow key={row.key}>{line({ row, pair })}</SidebarRevealRow>
+          {revealed.map((row) => (
+            <SidebarRevealRow key={row.key}>{line(row)}</SidebarRevealRow>
           ))}
         </SidebarReveal>
       }
@@ -142,8 +122,8 @@ export function DirectMessagesGroup(props: {
           <SidebarEmptyRow>{t("chat.noDirectMessages")}</SidebarEmptyRow>
         )
       ) : null}
-      {lines.map(({ row, pair }) => (
-        <li key={row.key}>{line({ row, pair })}</li>
+      {rows.map((row) => (
+        <li key={row.key}>{line(row)}</li>
       ))}
     </SidebarSection>
   );
@@ -169,14 +149,10 @@ export function directConversation(
   // presentation rule (see `presentCounterpart`) — so the draft row's face and
   // name are already the ones the minted pair will wear.
   const counterpart = presentCounterpart(line.counterpart);
-  const avatarId = line.counterpart.status === "active" ? line.counterpart.id : "";
   return {
     id,
     workspaceId: null,
     face: {
-      glyphKey: `${line.counterpart.status}:${
-        urls.agentAvatarUrls.get(avatarId) ?? urls.humanAvatarUrls.get(avatarId) ?? ""
-      }`,
       glyph: (
         <AuthorAvatarView
           avatar={counterpart.avatar}

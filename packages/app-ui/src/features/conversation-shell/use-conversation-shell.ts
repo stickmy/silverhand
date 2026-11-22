@@ -1,14 +1,7 @@
 import { hasCollapsibleSidebar } from "@/components/layout/sidebar-slot";
 import { useCompactLayout } from "@/navigation/layout";
 import { conversationContent } from "./conversation-content";
-import {
-  closePane,
-  conversationPanes,
-  openPane,
-  paneKey,
-  singlePane,
-  type Panes,
-} from "@/navigation/panes";
+import { singlePane } from "@/navigation/panes";
 import { senderFilterToParam } from "@/features/search/sender-filter-select";
 import { useAgents } from "@/features/agents/hooks/hooks";
 import { useLayoutKeyboardShortcuts } from "@/features/app-shell/effects";
@@ -20,8 +13,10 @@ import type { AdvancedSearchSeed } from "@/features/search/advanced-search-seed"
 import { useLayoutSettings } from "@/features/conversation-shell/use-layout-settings";
 import { getChannelPanes } from "@/features/app-shell/place-memory";
 import { channelUrlKeeping, paneUrl, routes, useNav, useRouteState } from "@/router";
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef } from "react";
-import { dissolveConversationPair, recordConversationPair } from "./conversation-pairs";
+import { useCallback, useDeferredValue, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { channelWorkspaceOf } from "@/features/channels/channel-workspace-index";
+import { conversationRefQueryOptions } from "@/features/conversations/conversation-ref-query";
 import type { ConversationShellModel, ConversationShellSignals } from "./conversation-shell-models";
 import { useConversationInvalidation } from "./use-conversation-invalidation";
 import { useConversationJump } from "./use-conversation-jump";
@@ -62,7 +57,6 @@ export function useConversationShell({
     panes: routePanes,
   } = route;
   const agentPanelId = singlePane(routePanes, "agent")?.id ?? null;
-  const [pairedConversationId = null] = conversationPanes(routePanes);
 
   const read = useConversationReadModel();
 
@@ -116,63 +110,6 @@ export function useConversationShell({
   const panes = useConversationPanes(read, jump, { compact });
 
   useNotificationToasts(panes.screen, (target) => handleJumpToMessage(target));
-
-  // Two conversations side by side are a pair the sidebar keeps until the
-  // viewer closes one. Recorded once the conversation pane resolves, so a dead
-  // id never lands in the sidebar.
-  const pairedResolvedId = read.paired?.descriptor ? read.paired.id : null;
-  useEffect(() => {
-    if (appSection !== "chat" || !selectedChannelId || !pairedResolvedId) return;
-    recordConversationPair({ left: selectedChannelId, right: pairedResolvedId });
-  }, [appSection, selectedChannelId, pairedResolvedId]);
-
-  // Closing either half on the stage (its header X, ⌘W) dissolves the pair, the
-  // same as the sidebar's X. Switching to another conversation does not: the
-  // pair is gone from screen, not closed.
-  const shownPair = useRef<{ left: string; right: string } | null>(null);
-  useEffect(() => {
-    const prev = shownPair.current;
-    const closedHalf =
-      prev !== null &&
-      pairedConversationId === null &&
-      (selectedChannelId === prev.left || selectedChannelId === prev.right);
-    if (closedHalf) dissolveConversationPair(prev.left);
-    shownPair.current =
-      appSection === "chat" && selectedChannelId && pairedResolvedId
-        ? { left: selectedChannelId, right: pairedResolvedId }
-        : null;
-  }, [appSection, selectedChannelId, pairedConversationId, pairedResolvedId]);
-
-  const activePair =
-    appSection === "chat" && selectedChannelId && pairedConversationId
-      ? { left: selectedChannelId, right: pairedConversationId }
-      : null;
-
-  /** Reopen a sidebar pair: its first conversation with the second beside it,
-   *  in the layout the pair was left in (each half's threads, files, ...). */
-  const openPair = (workspaceId: string | null, left: string, right: string): void => {
-    const path = workspaceId ? routes.chatChannel(workspaceId, left) : routes.chatDirect(left);
-    // A layout left with another conversation beside `left` gives that one up.
-    const stored = workspaceId ? (getChannelPanes(left) ?? []) : [];
-    const remembered = stored
-      .filter((p) => p.kind === "conversation" && p.id !== right)
-      .reduce<Panes>((panes, p) => closePane(panes, paneKey(p)), stored);
-    nav.go(paneUrl(path, openPane(remembered, { kind: "conversation", id: right })));
-  };
-
-  const closePairHalf = (half: "left" | "right"): void => {
-    if (selectedChannelId) dissolveConversationPair(selectedChannelId);
-    if (half === "left") {
-      panes.closeRouteConversation();
-      return;
-    }
-    if (pairedConversationId) nav.closePane(`conversation:${pairedConversationId}`);
-  };
-
-  const openBeside = (conversationId: string): void => {
-    if (compact || !selectedChannelId || conversationId === selectedChannelId) return;
-    nav.openBeside(conversationId);
-  };
 
   // Regular width defers a section's teardown past the click (`SectionLayer`).
   // A compact page mounts fresh and keeps the page it covers, so it renders its
@@ -233,6 +170,24 @@ export function useConversationShell({
     nav.go(paneUrl(routes.chatChannel(workspaceId, id), getChannelPanes(id) ?? []));
   };
 
+  const qc = useQueryClient();
+  /** A `#conv:` chip opens its conversation in place of the current one. */
+  const openConversationRef = (id: string): void => {
+    if (read.directPairs.some((p) => p.conversation_id === id)) {
+      nav.toDirect(id);
+      return;
+    }
+    const known = channelWorkspaceOf(id);
+    if (known) {
+      handleSelectChannel(id, known);
+      return;
+    }
+    void qc
+      .fetchQuery(conversationRefQueryOptions(id))
+      .then((res) => handleSelectChannel(id, res.ref.workspace_id))
+      .catch(() => undefined);
+  };
+
   const handleOpenChannelByName = useCallback(
     (workspaceId: string, channelId: string) => {
       // Preserve the docked agent panel across a `#<channel>` jump too, so A
@@ -291,10 +246,6 @@ export function useConversationShell({
       handleJumpToMessage,
 
       sidebarSelectedConversationId: selectedChannelId,
-      activePair,
-      openBeside,
-      openPair,
-      closePairHalf,
     },
     activity: {
       appSection,
@@ -331,7 +282,7 @@ export function useConversationShell({
         handleDraftOpenedPair,
         handleJumped,
         handleOpenThreadFromChannel: panes.handleOpenThreadFromChannel,
-        openConversationPane: nav.openConversationPane,
+        openConversationRef,
         openThread: nav.openThread,
         toggleThreadsList: nav.toggleThreadsList,
         toggleFilesList: nav.toggleFilesList,
@@ -340,7 +291,6 @@ export function useConversationShell({
         closePane: nav.closePane,
         backPane: nav.backPane,
         movePane: nav.movePane,
-        closeRouteConversation: panes.closeRouteConversation,
       },
     }),
     app: {

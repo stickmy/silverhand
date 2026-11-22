@@ -76,7 +76,7 @@ describe("resolveContextualClose — the ⌘W ladder", () => {
   it("closes the last pane, whatever its kind", () => {
     const panes: ContextualCloseState["panes"] = [
       { kind: "threads", of: "c", thread: "root" },
-      { kind: "conversation", id: "c2" },
+      { kind: "files", of: "c", attachment: null },
       { kind: "agent", id: "a1" },
     ];
     expect(resolveContextualClose({ ...NOTHING_OPEN, panes, activityChannelOpen: true })).toEqual({

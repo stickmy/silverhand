@@ -32,7 +32,6 @@ import {
   Clock,
   Code,
   CodeXml,
-  Columns2,
   CornerDownLeft,
   Cpu,
   Dices,
@@ -135,7 +134,6 @@ export const CloseIcon = icon("close", X);
 export const CodeFontIcon = icon("code-font", CodeXml);
 export const CodeIcon = icon("code", Code);
 export const CollapseIcon = icon("collapse", Minimize);
-export const SplitRightIcon = icon("split-right", Columns2);
 export const CopyMarkdownIcon = icon("copy-markdown", ClipboardCopy);
 export const CpuIcon = icon("cpu", Cpu);
 export const CreatedByIcon = icon("created-by", PenLine);

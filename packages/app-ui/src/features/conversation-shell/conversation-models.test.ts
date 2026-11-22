@@ -182,7 +182,6 @@ function render(
     primaryPointer: { id: "c", rosterPolicy: "open" },
     hasChannelNamespace: true,
     deferredChannelId: "c",
-    paired: null,
   },
   nextJump = jump,
 ) {
@@ -274,15 +273,14 @@ describe("conversation authority read model", () => {
   );
 });
 
-describe("conversation pane coordination", () => {
-  it("shows every conversation pane and open thread side by side", () => {
+describe("pane coordination", () => {
+  it("shows the route's conversation and open thread side by side", () => {
     h.route.panes = [
       { kind: "threads", of: "c", thread: "root" },
-      { kind: "conversation", id: "dm" },
       { kind: "agent", id: "a" },
     ];
     const { screen } = render();
-    expect(screen.conversations).toEqual(["c", "dm"]);
+    expect(screen.conversations).toEqual(["c"]);
     expect(screen.threads).toEqual([{ conversationId: "c", rootId: "root" }]);
     expect(h.reads.mock.calls).toEqual([["c"]]);
   });

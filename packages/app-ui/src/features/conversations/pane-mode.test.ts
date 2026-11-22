@@ -565,11 +565,8 @@ describe("the pane gates its roster reads on the capability (the wiring half)", 
   it("inherits from the column's own descriptor, not a re-guess", () => {
     // Acceptance #3: no `workspaceId === null`, no route sniffing, no local
     // boolean. Each column projects its capabilities from the descriptor it
-    // resolved, and the split column's view renders that same descriptor.
-    const appSource =
-      read("../conversation-shell/conversation-column.ts") +
-      read("../conversation-shell/build-conversation-panes.ts");
+    // resolved.
+    const appSource = read("../conversation-shell/conversation-column.ts");
     expect(appSource).toContain("inheritedPaneCapabilities(descriptor)");
-    expect(appSource).toContain("conversation: owner.descriptor");
   });
 });

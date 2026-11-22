@@ -47,7 +47,6 @@ import {
 import { AppContextMenu } from "@/components/menus/app-context-menu";
 import { starredConversationIds, useFavoritesList } from "@/features/workspaces/favorites";
 import { DirectPairStarMenuItem } from "./direct-messages-panel";
-import { useConversationDragSource, useRowPaneActions } from "./sidebar-pairs";
 import { useViewerUser } from "@/features/session/hooks";
 import { channelNodeBadge, directRowBadge } from "@/features/attention/row-badges";
 import {
@@ -244,45 +243,38 @@ export function RecentList(props: {
       <ul className="flex flex-col">
         {visible.map((row, index) => (
           <li key={row.id}>
-            <RecentRowMenu
-              row={row}
-              pinned={pinned.has(row.id)}
-              selected={row.id === props.selectedConversationId}
-            >
-              {(wrapSelect, dragSource) => (
-                <RecentRow
-                  {...dragSource}
-                  row={row}
-                  selected={row.id === props.selectedConversationId}
-                  pinned={pinned.has(row.id)}
-                  divider={
-                    index < visible.length - 1 &&
-                    row.id !== props.selectedConversationId &&
-                    visible[index + 1]!.id !== props.selectedConversationId
+            <RecentRowMenu row={row} pinned={pinned.has(row.id)}>
+              <RecentRow
+                row={row}
+                selected={row.id === props.selectedConversationId}
+                pinned={pinned.has(row.id)}
+                divider={
+                  index < visible.length - 1 &&
+                  row.id !== props.selectedConversationId &&
+                  visible[index + 1]!.id !== props.selectedConversationId
+                }
+                viewerId={viewerId}
+                now={now}
+                agentAvatarUrls={agentAvatarUrls}
+                humanAvatarUrls={humanAvatarUrls}
+                onSelect={() => {
+                  const workspaceId = row.kind === "channel" ? row.workspaceId : null;
+                  if (row.latest?.thread_root_id) {
+                    props.onOpenThread({
+                      workspaceId,
+                      conversationId: row.id,
+                      threadRootId: row.latest.thread_root_id,
+                      messageId: row.latest.message_id,
+                    });
+                    return;
                   }
-                  viewerId={viewerId}
-                  now={now}
-                  agentAvatarUrls={agentAvatarUrls}
-                  humanAvatarUrls={humanAvatarUrls}
-                  onSelect={wrapSelect(() => {
-                    const workspaceId = row.kind === "channel" ? row.workspaceId : null;
-                    if (row.latest?.thread_root_id) {
-                      props.onOpenThread({
-                        workspaceId,
-                        conversationId: row.id,
-                        threadRootId: row.latest.thread_root_id,
-                        messageId: row.latest.message_id,
-                      });
-                      return;
-                    }
-                    if (row.kind === "channel") {
-                      props.onSelectChannel(row.id, row.workspaceId);
-                    } else {
-                      props.onSelectDirectPair(row.id);
-                    }
-                  })}
-                />
-              )}
+                  if (row.kind === "channel") {
+                    props.onSelectChannel(row.id, row.workspaceId);
+                  } else {
+                    props.onSelectDirectPair(row.id);
+                  }
+                }}
+              />
             </RecentRowMenu>
           </li>
         ))}
@@ -515,34 +507,19 @@ const RecentRow = forwardRef<HTMLButtonElement, RecentRowProps>(function RecentR
 });
 
 /** The tree's row menu on the same conversation here: the channel menu, or a
- *  direct pair's Star item, behind the shared pane actions. */
+ *  direct pair's Star item. */
 function RecentRowMenu(props: {
   row: RecentListRow;
   pinned: boolean;
-  selected: boolean;
-  children: (
-    wrapSelect: (open: () => void) => (event: MouseEvent) => void,
-    dragSource: ReturnType<typeof useConversationDragSource>,
-  ) => ReactElement;
+  children: ReactElement;
 }): JSX.Element {
-  const { row } = props;
-  const paneActions = useRowPaneActions(row.id, props.selected);
-  const dragSource = useConversationDragSource(row.id, props.selected);
-  const trigger = props.children(paneActions.select, dragSource);
-
-  if (props.row.kind !== "channel") {
-    return (
-      <AppContextMenu trigger={trigger}>
-        {paneActions.menuItem}
-        <DirectPairStarMenuItem conversationId={props.row.id} starred={props.pinned} />
-      </AppContextMenu>
-    );
-  }
-
   return (
-    <AppContextMenu trigger={trigger}>
-      {paneActions.menuItem}
-      <RecentChannelMenuItems row={props.row} pinned={props.pinned} />
+    <AppContextMenu trigger={props.children}>
+      {props.row.kind === "channel" ? (
+        <RecentChannelMenuItems row={props.row} pinned={props.pinned} />
+      ) : (
+        <DirectPairStarMenuItem conversationId={props.row.id} starred={props.pinned} />
+      )}
     </AppContextMenu>
   );
 }

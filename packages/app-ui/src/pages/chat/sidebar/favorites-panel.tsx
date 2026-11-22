@@ -28,14 +28,7 @@ import { useAgentAvatarObjectUrls } from "@/features/agents/hooks/avatar-hooks";
 import { useUserAvatarObjectUrls } from "@/features/users/avatar-hooks";
 import { collectCounterpartAvatarSources } from "@/features/direct-pairs/counterpart-presentation";
 import { directConversation } from "./direct-messages-panel";
-import { PaneDragMonitor, useSidebarPairs } from "./sidebar-pairs";
-import {
-  SidebarConversationRow,
-  unfoldOrder,
-  useSidebarList,
-  type RowFace,
-  type SidebarConversation,
-} from "./sidebar-conversation";
+import { SidebarConversationRow, type SidebarConversation } from "./sidebar-conversation";
 import { ChannelIcon } from "@/components/channel-icon";
 import { t } from "@/lib/i18n";
 
@@ -126,10 +119,6 @@ export function FavoritesGroup(props: {
   });
   const ordered = orderedGroups[FAVORITES_GROUP];
   const mode = sortModeOf(viewerSort);
-  const pairing = useSidebarPairs();
-  const viewerPairs = pairing?.pairs ?? [];
-  const conversationByKey = new Map(ordered.map((row) => [row.key, conversationOf(row)]));
-  const keyOf = new Map(ordered.map((row) => [conversationOf(row), row.key]));
 
   const sidebarOf = (row: StarredRow): SidebarConversation => {
     if (row.kind === "direct") {
@@ -153,7 +142,6 @@ export function FavoritesGroup(props: {
             visibility={item.roster_policy === "open" ? item.visibility : undefined}
           />
         ),
-        glyphKey: item.roster_policy === "open" ? item.visibility : "fixed",
         title: item.title,
         badge: favoriteRowBadge(item, attention),
       },
@@ -170,27 +158,25 @@ export function FavoritesGroup(props: {
       ),
     };
   };
-  const { lines, byId } = useSidebarList("starred", ordered, sidebarOf, viewerPairs);
-  const loud = (face: RowFace | undefined): boolean => face?.badge?.tier === "loud";
+  const lines = ordered.map((row) => ({ row, conversation: sidebarOf(row) }));
 
   // Revealed rows keep the full-list order, but cannot reorder a partial set.
   const revealed = collapsedRevealRows(lines, {
     pokeUnread: true,
-    isSelected: ({ row, pair }) =>
-      conversationOf(row) === props.selectedChannelId ||
-      pair?.pair.right === props.selectedChannelId,
-    isLoud: ({ row, pair }) => loud(byId.get(conversationOf(row))?.face) || loud(pair?.right),
+    isSelected: ({ row }) => conversationOf(row) === props.selectedChannelId,
+    isLoud: ({ conversation }) => conversation.face.badge?.tier === "loud",
   });
 
-  const renderLine = ({ row, pair }: (typeof lines)[number], sortable: boolean): JSX.Element => (
+  const renderLine = (
+    { row, conversation }: (typeof lines)[number],
+    sortable: boolean,
+  ): JSX.Element => (
     <SidebarConversationRow
-      conversation={byId.get(conversationOf(row))!}
-      pair={pair}
+      conversation={conversation}
       selected={
         conversationSelectionTier(conversationOf(row), props.selectedChannelId) === "primary"
       }
       draggable={sortable}
-      sortable={sortable}
     />
   );
 
@@ -228,24 +214,8 @@ export function FavoritesGroup(props: {
       ) : null}
       <SortableGroup
         ids={lines.map(({ row }) => row.key)}
-        onReorder={(next) => {
-          // Sort ids are favorite keys; pairs are kept by conversation id.
-          const ids = next.map((key) => conversationByKey.get(key) ?? key);
-          onReorder(
-            FAVORITES_GROUP,
-            unfoldOrder(ids, ordered.map(conversationOf), viewerPairs).map(
-              (id) => keyOf.get(id) ?? id,
-            ),
-          );
-        }}
+        onReorder={(next) => onReorder(FAVORITES_GROUP, next)}
       >
-        <PaneDragMonitor
-          conversationIdOf={(key) =>
-            lines.some(({ row, pair }) => row.key === key && pair)
-              ? null
-              : (conversationByKey.get(key) ?? null)
-          }
-        />
         {lines.map((line) => (
           <SortableStarredRow key={line.row.key} id={line.row.key}>
             {renderLine(line, true)}

@@ -1,7 +1,4 @@
 export const conversationShell = {
-  closeColumn: "Close column",
-  openOnRight: "Open on right",
-  openOnRightHint: "⌥ Click",
   closeHalf: "Close {name}",
   closeSidePane: "Close side pane",
   attachments: "Attachments",

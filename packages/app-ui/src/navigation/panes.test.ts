@@ -22,13 +22,11 @@ const write = (panes: Panes, search = ""): string => {
 
 describe("panes URL", () => {
   it("round-trips the pane list in order and keeps unrelated params", () => {
-    const search =
-      "utm=1&pane=files.a1&pane=conversation.c2&pane=threads.r1%7Ec2&pane=settings.members&pane=task.t1";
+    const search = "utm=1&pane=files.a1&pane=threads.r1&pane=settings.members&pane=task.t1";
     const panes = parse(search);
     expect(panes).toEqual([
       { kind: "files", of: "c1", attachment: "a1" },
-      { kind: "conversation", id: "c2" },
-      { kind: "threads", of: "c2", thread: "r1" },
+      { kind: "threads", of: "c1", thread: "r1" },
       { kind: "settings", of: "c1", page: "members" },
       { kind: "task", id: "t1" },
     ]);
@@ -36,12 +34,15 @@ describe("panes URL", () => {
     expect(write(panes, "utm=1").startsWith("utm=1&")).toBe(true);
   });
 
-  it("drops bad entries, the route's own conversation, orphans and duplicate keys", () => {
+  it("drops bad entries, conversation panes, other conversations' panes and duplicate keys", () => {
     expect(parse("pane=nope&pane=conversation.c1&pane=threads~bad%2Fid&pane=agent.")).toEqual([]);
     expect(parse("pane=threads.r1&pane=threads.r2")).toEqual([
       { kind: "threads", of: "c1", thread: "r2" },
     ]);
     expect(parse("pane=files~c9")).toEqual([]);
+    expect(parse("pane=conversation.c2&pane=threads.r1%7Ec2&pane=agent.a1")).toEqual([
+      { kind: "agent", id: "a1" },
+    ]);
   });
 
   it("rewrites only the pane list of a URL", () => {
@@ -54,8 +55,8 @@ describe("panes URL", () => {
 describe("pane edits", () => {
   const base: Panes = [
     { kind: "threads", of: "c1", thread: null },
-    { kind: "conversation", id: "c2" },
-    { kind: "files", of: "c2", attachment: null },
+    { kind: "agent", id: "a" },
+    { kind: "files", of: "c1", attachment: null },
   ];
 
   it("opening a pane already open replaces it where it stands", () => {
@@ -64,7 +65,7 @@ describe("pane edits", () => {
       of: "c1",
       thread: "r1",
     });
-    expect(openPane(base, { kind: "threads", of: "c2", thread: null })).toHaveLength(4);
+    expect(openPane(base, { kind: "settings", of: "c1", page: null })).toHaveLength(4);
   });
 
   it("each conversation keeps its own panes; task, agent and person are one each", () => {
@@ -72,8 +73,8 @@ describe("pane edits", () => {
     expect(two).toEqual([{ kind: "agent", id: "b" }]);
   });
 
-  it("closing a conversation pane closes the panes that belong to it", () => {
-    expect(closePane(base, "conversation:c2")).toEqual([base[0]]);
+  it("closes one pane", () => {
+    expect(closePane(base, "agent")).toEqual([base[0], base[2]]);
   });
 
   it("toggles", () => {
@@ -82,44 +83,36 @@ describe("pane edits", () => {
   });
 
   it("moves a pane to a new position", () => {
-    expect(movePane(base, "files:c2", 0).map((p) => p.kind)).toEqual([
-      "files",
-      "threads",
-      "conversation",
-    ]);
+    expect(movePane(base, "files:c1", 0).map((p) => p.kind)).toEqual(["files", "threads", "agent"]);
     expect(movePane(base, "threads:c1", 9).map((p) => p.kind)).toEqual([
-      "conversation",
+      "agent",
       "files",
       "threads",
     ]);
   });
 
-  it("when a conversation pane becomes the route's, its panes follow and the old route's go", () => {
-    expect(settlePanes(base, "c2")).toEqual([{ kind: "files", of: "c2", attachment: null }]);
+  it("a new route drops the old route's panes", () => {
+    expect(settlePanes(base, "c2")).toEqual([{ kind: "agent", id: "a" }]);
   });
 });
 
 describe("onScreen", () => {
   const panes: Panes = [
+    { kind: "agent", id: "a" },
     { kind: "threads", of: "c1", thread: "r1" },
-    { kind: "conversation", id: "c2" },
-    { kind: "threads", of: "c2", thread: "r2" },
   ];
 
   it("everything open is visible at regular width", () => {
     expect(onScreen("c1", panes, false)).toEqual({
-      conversations: ["c1", "c2"],
-      threads: [
-        { conversationId: "c1", rootId: "r1" },
-        { conversationId: "c2", rootId: "r2" },
-      ],
+      conversations: ["c1"],
+      threads: [{ conversationId: "c1", rootId: "r1" }],
     });
   });
 
   it("compact shows the last pane only, or the route's conversation", () => {
     expect(onScreen("c1", panes, true)).toEqual({
       conversations: [],
-      threads: [{ conversationId: "c2", rootId: "r2" }],
+      threads: [{ conversationId: "c1", rootId: "r1" }],
     });
     expect(onScreen("c1", [], true).conversations).toEqual(["c1"]);
   });

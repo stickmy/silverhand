@@ -1,13 +1,6 @@
 import { useMemo } from "react";
 import { useEventCallback } from "@/hooks/use-event-callback";
-import { useCompactLayout } from "@/navigation/layout";
 import { ChatSidebar } from "./sidebar/chat-sidebar";
-import { SidebarPairsContext, type SidebarPairs } from "./sidebar/sidebar-pairs";
-import {
-  dissolveConversationPair,
-  useConversationPairs,
-  type ConversationPair,
-} from "@/features/conversation-shell/conversation-pairs";
 import type { WorkspaceActions } from "./use-workspace-actions";
 import type { ChatShellModel } from "@/features/conversation-shell/conversation-shell-models";
 
@@ -35,13 +28,7 @@ export function ChatBrowseSidebar({
     handleSelectChannel,
     handleJumpToMessage,
     sidebarSelectedConversationId,
-    activePair,
-    openBeside,
-    openPair,
-    closePairHalf,
   } = model;
-  const compact = useCompactLayout();
-  const pairs = useConversationPairs();
 
   // The sidebar is memoized; the shell rebuilds its model on every
   // navigation, so rows and handlers keep their identities here.
@@ -88,90 +75,47 @@ export function ChatBrowseSidebar({
       }),
   );
 
-  const openBesideStable = useEventCallback(openBeside);
-  const openPairStable = useEventCallback((pair: ConversationPair, workspaceId: string | null) =>
-    openPair(workspaceId, pair.left, pair.right),
-  );
-  const closeHalf = useEventCallback((pair: ConversationPair, half: "left" | "right") => {
-    const onScreen = activePair?.left === pair.left && activePair.right === pair.right;
-    if (onScreen) {
-      closePairHalf(half);
-      return;
-    }
-    dissolveConversationPair(pair.left);
-  });
-  const active = activePair
-    ? (pairs.find((p) => p.left === activePair.left && p.right === activePair.right) ?? null)
-    : null;
-  const canOpen = sidebarSelectedConversationId !== null && model.route.channelId !== null;
-  const pairing = useMemo<SidebarPairs | null>(
-    () =>
-      compact
-        ? null
-        : {
-            pairs,
-            active,
-            canOpen,
-            openId: model.route.channelId,
-            openBeside: openBesideStable,
-            openPair: openPairStable,
-            closeHalf,
-          },
-    [
-      compact,
-      pairs,
-      active,
-      canOpen,
-      model.route.channelId,
-      openBesideStable,
-      openPairStable,
-      closeHalf,
-    ],
-  );
-
   return (
-    <SidebarPairsContext.Provider value={pairing}>
-      <ChatSidebar
-        fill={fill}
-        workspacesLoading={workspacesLoading}
-        workspaces={rows}
-        agentsById={agentsById}
-        selectedWorkspaceId={selectedWorkspaceId}
-        // The tree's ONE selection object (a
-        // resolved conversation pane owns the highlight only when its row is
-        // in this sidebar — always true for a private line, which
-        // lives in the workspace-independent DIRECT MESSAGES list).
-        selectedChannelId={sidebarSelectedConversationId}
-        onSelectChannel={selectChannel}
-        // A pair has no workspace to open it in, so it takes the
-        // workspace-less route directly. Pane memory is recorded per
-        // workspace channel only, so a pair opens bare (#task:2035).
-        onSelectDirectPair={selectDirectPair}
-        // The transient draft row (#task:2039) re-opens THE DRAFT,
-        // never the pair: while the draft route is open that row is
-        // the draft's (`mergeDirectLineRows`), and it holds unsent
-        // text or a failed first send. Routing it through
-        // `handleMessageAgent` — which prefers an existing pair —
-        // would discard both (@Cindy, #task:2039 review).
-        directDraftTarget={directDraftTarget}
-        onSelectDirectDraft={selectDirectDraft}
-        onCreateChannel={createChannel}
-        onOpenWorkspaceSettings={openWorkspaceSettings}
-        // STARRED is global, so the parent workspace is explicit —
-        // `handleSelectChannel` then opens a starred channel in another
-        // workspace with the SAME remembered-layout restore as its home
-        // row, instead of a bare jump.
-        onSelectConversation={selectConversation}
-        onCreateWorkspace={createWorkspace}
-        savedActive={view === "saved"}
-        onSelectSaved={selectSaved}
-        archivedActive={view === "archived"}
-        onSelectArchived={selectArchived}
-        searchActive={view === "search"}
-        onSelectSearch={selectSearch}
-        savedCount={savedItems?.length}
-        onOpenThread={openThread}
-      />
-    </SidebarPairsContext.Provider>
+    <ChatSidebar
+      fill={fill}
+      workspacesLoading={workspacesLoading}
+      workspaces={rows}
+      agentsById={agentsById}
+      selectedWorkspaceId={selectedWorkspaceId}
+      // The tree's ONE selection object (a
+      // resolved conversation pane owns the highlight only when its row is
+      // in this sidebar — always true for a private line, which
+      // lives in the workspace-independent DIRECT MESSAGES list).
+      selectedChannelId={sidebarSelectedConversationId}
+      onSelectChannel={selectChannel}
+      // A pair has no workspace to open it in, so it takes the
+      // workspace-less route directly. Pane memory is recorded per
+      // workspace channel only, so a pair opens bare (#task:2035).
+      onSelectDirectPair={selectDirectPair}
+      // The transient draft row (#task:2039) re-opens THE DRAFT,
+      // never the pair: while the draft route is open that row is
+      // the draft's (`mergeDirectLineRows`), and it holds unsent
+      // text or a failed first send. Routing it through
+      // `handleMessageAgent` — which prefers an existing pair —
+      // would discard both (@Cindy, #task:2039 review).
+      directDraftTarget={directDraftTarget}
+      onSelectDirectDraft={selectDirectDraft}
+      onCreateChannel={createChannel}
+      onOpenWorkspaceSettings={openWorkspaceSettings}
+      // STARRED is global, so the parent workspace is explicit —
+      // `handleSelectChannel` then opens a starred channel in another
+      // workspace with the SAME remembered-layout restore as its home
+      // row, instead of a bare jump.
+      onSelectConversation={selectConversation}
+      onCreateWorkspace={createWorkspace}
+      savedActive={view === "saved"}
+      onSelectSaved={selectSaved}
+      archivedActive={view === "archived"}
+      onSelectArchived={selectArchived}
+      searchActive={view === "search"}
+      onSelectSearch={selectSearch}
+      savedCount={savedItems?.length}
+      onOpenThread={openThread}
+    />
   );
 }

@@ -7,7 +7,6 @@ import type { WorkspaceListItem } from "@/features/workspaces/hooks";
 import type { SidebarPane } from "@/hooks/use-sidebar-pane";
 import type { ChatView, RouteState, useNav } from "@/router";
 import type { AgentDto, AttentionBadgeRollupDto, SavedMessageDto } from "@silverhand/shared";
-import type { ConversationColumn } from "./conversation-column";
 import type { ConversationContent } from "./conversation-content";
 
 /** Conversation pointer used by the read-cursor selector. */
@@ -25,9 +24,6 @@ export interface PaneReadModel {
   primaryPointer: ConversationPointer | null;
   hasChannelNamespace: boolean;
   deferredChannelId: string | null;
-  /** The first conversation pane, which takes the route when the route's
-   *  conversation closes. */
-  paired: Pick<ConversationColumn, "id" | "descriptor"> | null;
 }
 
 export interface PaneJumpModel {
@@ -60,16 +56,6 @@ export interface ChatShellModel {
   handleSelectChannel: (id: string, workspaceId?: string | null) => void;
   handleJumpToMessage: (target: MessageJumpTarget) => boolean;
   sidebarSelectedConversationId: string | null;
-  /** The route conversation and its first conversation pane, as the sidebar pairs them. */
-  activePair: { left: string; right: string } | null;
-  /** Open `conversationId` as a conversation pane beside the route's. */
-  openBeside: (conversationId: string) => void;
-  /** Reopen a pair kept in the sidebar. */
-  /** Reopen a kept pair; `workspaceId` is the left conversation's, null for a
-   *  direct pair. */
-  openPair: (workspaceId: string | null, left: string, right: string) => void;
-  /** Close one half of the pair on screen. */
-  closePairHalf: (half: "left" | "right") => void;
 }
 
 export interface ActivityShellModel {
