@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   PAGE_SWAP_EXIT_S,
@@ -15,7 +16,7 @@ import { TaskDetailPanel } from "@/features/tasks/components/task-detail-panel";
 import { AgentView } from "@/features/agents/components/agent-view";
 import { ConversationPaneCapabilitiesProvider } from "@/features/conversations/pane-capabilities-context";
 import { buildAttachedPane, type PaneContext } from "./build-conversation-panes";
-import type { AttachedPaneModel, AttachmentPaneProps, FilesPaneProps } from "./pane-render-models";
+import type { AttachedPaneModel } from "./pane-render-models";
 
 /** One attached pane; a conversation-owned pane belongs to the route's. */
 export function AttachedPane({ pane, ctx }: { pane: Pane; ctx: PaneContext }): JSX.Element | null {
@@ -36,53 +37,69 @@ function AttachedPaneContent({ model }: { model: AttachedPaneModel }) {
     case "settings":
       return <ChannelSettingsPanel key={model.props.channelId} {...model.props} />;
     case "files":
-      return <FilesPane list={model.props} preview={model.preview} />;
+      return (
+        <DrillInPane
+          list={<ChannelAttachmentsPanel {...model.props} />}
+          detailKey={model.preview?.attachmentId ?? null}
+          detail={model.preview ? <AttachmentSidePanel {...model.preview} /> : null}
+        />
+      );
     case "task":
       return <TaskDetailPanel key={`task-${model.props.taskId}`} {...model.props} />;
-    case "thread":
-      // A thread inherits the parent's capability; it has no placement of its own.
-      return (
-        <ConversationPaneCapabilitiesProvider value={model.capabilities}>
-          <ThreadPanel {...model.props} />
-        </ConversationPaneCapabilitiesProvider>
-      );
     case "threads":
-      return <ChannelThreadsPanel {...model.props} />;
+      return (
+        <DrillInPane
+          list={<ChannelThreadsPanel {...model.props} />}
+          detailKey={model.thread?.props.rootMessageId ?? null}
+          detail={
+            model.thread ? (
+              // A thread inherits the parent's capability; it has no placement of its own.
+              <ConversationPaneCapabilitiesProvider value={model.thread.capabilities}>
+                <ThreadPanel {...model.thread.props} />
+              </ConversationPaneCapabilitiesProvider>
+            ) : null
+          }
+        />
+      );
   }
 }
 
-/** The list stays laid out under a preview (hidden, not unmounted or
- * display:none) so Back returns to the same scroll position. */
-function FilesPane({
+/** A list that drills into one item. The list stays laid out under the
+ * detail (hidden, not unmounted or display:none) so Back returns to the same
+ * scroll position. */
+function DrillInPane({
   list,
-  preview,
+  detailKey,
+  detail,
 }: {
-  list: FilesPaneProps;
-  preview: AttachmentPaneProps | null;
+  list: ReactNode;
+  detailKey: string | null;
+  detail: ReactNode;
 }): JSX.Element {
   const reducedMotion = useReducedMotion();
+  const open = detailKey !== null;
 
   return (
     <div className="relative h-full min-h-0 w-full">
       <motion.div
-        ref={(node) => node?.toggleAttribute("inert", preview !== null)}
+        ref={(node) => node?.toggleAttribute("inert", open)}
         className="h-full"
         custom={1}
         variants={pageSwapVariants(!!reducedMotion, PAGE_SWAP_EXIT_S)}
         initial={false}
-        animate={preview ? "exit" : "visible"}
+        animate={open ? "exit" : "visible"}
       >
-        <ChannelAttachmentsPanel {...list} />
+        {list}
       </motion.div>
-      <AnimatePresence initial={false} custom={preview ? 1 : -1}>
-        {preview ? (
+      <AnimatePresence initial={false} custom={open ? 1 : -1}>
+        {open ? (
           <PageSwapTransition
-            key={preview.attachmentId}
+            key={detailKey}
             direction={1}
             enterDelay={PAGE_SWAP_EXIT_S}
             className="absolute inset-0"
           >
-            <AttachmentSidePanel {...preview} />
+            {detail}
           </PageSwapTransition>
         ) : null}
       </AnimatePresence>

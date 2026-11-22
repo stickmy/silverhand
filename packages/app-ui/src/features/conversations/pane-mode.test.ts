@@ -554,7 +554,7 @@ describe("the pane gates its roster reads on the capability (the wiring half)", 
       read("../conversation-shell/build-conversation-panes.ts") +
       read("../conversation-shell/use-conversation-read-model.ts");
     const open = appSource.indexOf(
-      "<ConversationPaneCapabilitiesProvider value={model.capabilities}>",
+      "<ConversationPaneCapabilitiesProvider value={model.thread.capabilities}>",
     );
     const close = appSource.indexOf("</ConversationPaneCapabilitiesProvider>", open);
     expect(open).toBeGreaterThan(-1);

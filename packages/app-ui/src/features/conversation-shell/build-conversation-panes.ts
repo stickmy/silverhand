@@ -8,6 +8,7 @@ import type {
   AttachedPaneModel,
   AttachmentPaneProps,
   PrimaryPaneModel,
+  ThreadDetailModel,
 } from "./pane-render-models";
 import type { ConversationColumn } from "./conversation-column";
 import type {
@@ -165,26 +166,30 @@ export function buildAttachedPane(
     };
   }
 
-  if (!pane.thread) {
-    return {
-      kind: "threads",
-      props: {
-        channelId: owner.id,
-        parentTitle: owner.paneTitle,
-        onClose: close,
-        onOpenThread: (rootId) => commands.openThread(rootId, owner.id),
-      },
-    };
-  }
+  return {
+    kind: "threads",
+    props: {
+      channelId: owner.id,
+      parentTitle: owner.paneTitle,
+      onClose: close,
+      onOpenThread: (rootId) => commands.openThread(rootId, owner.id),
+    },
+    thread: pane.thread ? threadDetail(pane.thread, owner, ctx, { close, back }) : null,
+  };
+}
 
-  const threadRoot = pane.thread;
+function threadDetail(
+  threadRoot: string,
+  owner: ConversationColumn,
+  { read, state, commands }: PaneContext,
+  { close, back }: { close: () => void; back: () => void },
+): ThreadDetailModel {
   const target = state.jump.jumpTarget;
   const jumpMessageId =
     target && target.threadRootId === threadRoot && target.channelId === owner.id
       ? target.messageId
       : null;
   return {
-    kind: "thread",
     capabilities: owner.capabilities,
     props: {
       channelId: owner.id,

@@ -119,5 +119,10 @@ export type AttachedPaneModel =
   | { kind: "human"; props: Pick<ComponentProps<typeof HumanView>, "userId" | "onClose"> }
   | { kind: "files"; props: FilesPaneProps; preview: AttachmentPaneProps | null }
   | { kind: "task"; props: TaskPaneProps }
-  | { kind: "thread"; props: ThreadPaneProps; capabilities: ConversationPaneCapabilities }
-  | { kind: "threads"; props: ThreadsPaneProps };
+  | { kind: "threads"; props: ThreadsPaneProps; thread: ThreadDetailModel | null };
+
+/** A thread opened from the list; it inherits the parent's capability. */
+export interface ThreadDetailModel {
+  props: ThreadPaneProps;
+  capabilities: ConversationPaneCapabilities;
+}

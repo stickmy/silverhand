@@ -196,7 +196,10 @@ describe("attached panes", () => {
       isPrimePendingFor: () => false,
       primePhaseFor: () => "committed",
     };
-    const model = expectKind(build({ kind: "threads", of: "dm", thread: "root" }, dm), "thread");
+    const model = expectKind(
+      build({ kind: "threads", of: "dm", thread: "root" }, dm),
+      "threads",
+    ).thread!;
     expect(model.capabilities).toBe(dm.capabilities);
     expect(model.props.gate).toBe(dm.membership.gate);
     expect(model.props).toMatchObject({
@@ -221,7 +224,10 @@ describe("attached panes", () => {
       isPrimePendingFor: () => false,
       primePhaseFor: () => null,
     };
-    const model = expectKind(build({ kind: "threads", of: "c", thread: "root" }), "thread");
+    const model = expectKind(
+      build({ kind: "threads", of: "c", thread: "root" }),
+      "threads",
+    ).thread!;
     expect(model.props.jumpMessageId).toBeNull();
   });
 });
