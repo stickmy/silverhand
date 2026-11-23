@@ -13,14 +13,12 @@
   flex-direction: row-reverse;
 }
 
-/* The reply block's lines put their avatars on the right, and the badge heading
-   them puts its glyph in that same column. */
-[data-message-column][data-align="end"]
-  :is([data-thread-reply-group], [data-thread-reply-preview]) {
-  align-items: flex-end;
-  text-align: right;
-}
-[data-message-column][data-align="end"] [data-thread-reply-preview] > *,
-[data-message-column][data-align="end"] [data-thread-reply-group] > [data-panel-pill="thread"] {
-  flex-direction: row-reverse;
+/* The reply block hugs the reading edge at its content's width, like the
+   bubble and the task card; inside, it reads left to right as on the other
+   side. Mirrored lines read
+   backwards and part each name from its avatar. */
+[data-message-column][data-align="end"] [data-thread-reply-group] {
+  width: fit-content;
+  max-width: 100%;
+  margin-left: auto;
 }
