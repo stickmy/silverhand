@@ -310,6 +310,39 @@ html[data-theme] [data-sonner-toast][data-styled="true"] [data-button][data-disa
   color: var(--text-secondary);
 }
 
+/* The message's task card: the status cube is its only colour, the same cube as
+   the inline task reference. The cube's button spans the card's leading edge
+   and full height so the 10px cube stays an easy target. */
+[data-message-task-tag] [data-message-task-status] {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-self: stretch;
+  align-items: center;
+  padding: 0 2px 0 8px;
+  background: none;
+  border: none;
+  border-radius: var(--control-radius) 0 0 var(--control-radius);
+}
+[data-message-task-tag] [data-message-task-cube] {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--task-ref-cube-radius);
+  background-color: var(--task-ref-tone, var(--text-muted));
+  transition: transform 120ms ease;
+}
+[data-message-task-tag] button[data-message-task-status]:hover [data-message-task-cube] {
+  transform: scale(1.2);
+}
+[data-message-task-tag][data-task-ref-tone="todo"] [data-message-task-cube] {
+  background-color: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--task-ref-tone);
+}
+[data-message-task-tag] [data-task-event-person] {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
 /* Same cube as the inline task reference; the event's after-state. The cube
    alone carries the status hue, so the status word stays neutral. */
 .system-message-row [data-task-event-dot] {

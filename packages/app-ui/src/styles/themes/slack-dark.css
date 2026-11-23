@@ -241,10 +241,6 @@
 
 /* Hooks: Messages and composer */
 
-[data-theme="slack-dark"] [data-message-task-tag] {
-  border: none;
-}
-
 /* Hooks: Agent creation */
 
 [data-theme="slack-dark"] [data-create-agent-dialog] button[aria-pressed="true"] {

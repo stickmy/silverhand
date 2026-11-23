@@ -1,37 +1,19 @@
+import type { KeyboardEvent, MouseEvent } from "react";
 import type { AgentDto, TaskAssigneeDto } from "@silverhand/shared";
 import { formatUserDisplayName, type UserNameResolver } from "@/features/session/current-user";
 import type { CachedMessage } from "@/features/channels/pending-message";
-import {
-  StatusPicker,
-  taskStatusLabel,
-  TASK_STATUS_ICON,
-} from "@/features/tasks/components/task-status-badge";
+import { StatusPicker, taskStatusLabel } from "@/features/tasks/components/task-status-badge";
+import { useTaskRefContext } from "@/features/tasks/components/task-ref-context";
+import { EventPerson } from "@/features/tasks/components/task-event-person";
 import { useUpdateTaskStatus } from "@/features/tasks/hooks/hooks";
+import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 
 /**
- * Task tag for a message linked to a task.
- *
- * Lives at the message's BOTTOM edge — its own row ahead of reactions and
- * the thread-reply badge (shiki #task:1185), aligned to the message's
- * reading edge.
- *
- * It is ONE cohesive tag (shiki review: the split lead + chip read as
- * scattered). The whole tag is a single button: `<status-icon> #<num> ·
- * <assignee>`, status-coloured via the shared `[data-task-status]` token
- * contract (so it states its status at a glance and matches every other
- * status chip per theme — incl. poster's poster caps / 0-radius). The status
- * is carried by the leading glyph (from the shared `TASK_STATUS_ICON` source,
- * so it tracks the kanban board) + the fill colour — no redundant status
- * text. For a member of an open channel (`canMutate`), clicking anywhere on the
- * tag opens the "Move to" picker, which drives `useUpdateTaskStatus`
- * (`POST /api/tasks/:id/status`) — the same any→any path the inline `#task:N`
- * reference uses. For a non-member (public channel = read-only) or any
- * read-only surface, the chip renders identically — same glyph, colour, number,
- * assignee — but as an inert `<span>`: the status is public to read, only the
- * mutation entry is member-gated. The task title lives in the tooltip.
- *
- * Renders nothing when the message has no linked task.
+ * The task a message is linked to, as a one-line card at the message's bottom
+ * edge: status cube, number, title, assignee. The card opens the task; only the
+ * cube changes status, and only for a member of an open channel (`canMutate`).
+ * Everyone else reads the same cube without a picker.
  */
 export function MessageTaskTag({
   message,
@@ -45,93 +27,91 @@ export function MessageTaskTag({
   canMutate: boolean;
 }): JSX.Element | null {
   const updateStatus = useUpdateTaskStatus();
+  const onOpenTask = useTaskRefContext()?.onOpenTask;
   const linkedTask = message.linked_task;
   if (linkedTask === null) return null;
 
   const status = linkedTask.status;
   const label = taskStatusLabel(status);
-  const StatusIcon = TASK_STATUS_ICON[status];
   const assignee = linkedTask.assignee
     ? formatTaskAssignee(linkedTask.assignee, agentsById, userResolver)
     : null;
-  const title = [
-    t("messages.taskNumber", { number: linkedTask.task_number }),
-    label,
-    assignee,
-    linkedTask.title,
-  ]
-    .filter(Boolean)
-    .join(" ");
 
-  // Shared chip body — identical glyph / number / assignee across both the
-  // interactive and read-only forms, so a non-member reads the exact same
-  // task state a member does.
-  const body = (
-    <>
-      {/* Status glyph from the shared TASK_STATUS_ICON source (kanban /
-          per-conversation Tasks tab use the same), so a future icon swap updates everywhere. */}
-      <StatusIcon className="size-3 shrink-0" aria-hidden />
-      {/* No `font-mono` on the number — it inherits the chip's typeface, so
-          it matches the `· assignee` next to it (and poster's
-          `[data-task-status]` display face applies to the whole chip rather
-          than to the label alone). Space Mono digits read poorly in poster
-          (@shiki `sLh6CqwNw0uAtThk`, #task:1757). */}
-      <span className="shrink-0">#{linkedTask.task_number}</span>
-      {assignee ? <span className="min-w-0 truncate font-normal">{assignee}</span> : null}
-    </>
-  );
+  const open = onOpenTask ? () => onOpenTask(linkedTask.task_id) : undefined;
+  const handleClick = (event: MouseEvent) => {
+    // The row's own selection / jump capture must not also see this click.
+    event.stopPropagation();
+    open?.();
+  };
+  const handleKeyDown = (event: KeyboardEvent) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    open?.();
+  };
 
-  // Read-only chip (non-member / read-only surface): same look + content, no
-  // picker, no mutation, no interactive affordances. The click falls through
-  // to the row's normal selection/jump behaviour.
-  if (!canMutate) {
-    return (
-      <span
-        data-message-task-tag
-        // Same `[data-task-status]` token contract as the interactive form —
-        // fill / border / radius stay in lockstep with the board chips.
-        data-task-status={status}
-        title={title}
-        className="inline-flex h-4.5 max-w-55 cursor-default items-center gap-1.5 whitespace-nowrap rounded-(--task-status-radius) px-2 text-(length:--text-meta) font-medium leading-none"
-      >
-        {/* The status glyph is aria-hidden and the fill colour is visual-only,
-            and a generic span's aria-label is not reliably exposed — so carry
-            the status name as real screen-reader text. The #number + assignee
-            are already read from the body's visible text nodes. */}
-        <span className="sr-only">{label}</span>
-        {body}
-      </span>
-    );
-  }
-
-  return (
+  const cube = <span data-message-task-cube aria-hidden />;
+  const statusNode = canMutate ? (
     <StatusPicker
       current={status}
       onChange={(next) => updateStatus.mutate({ taskId: linkedTask.task_id, status: next })}
     >
       <button
         type="button"
-        data-message-task-tag
-        // Status colour / border / radius all flow from the shared
-        // `[data-task-status]` token contract (chrome.css + per-theme),
-        // so this tag stays in lockstep with the board chips. No bg /
-        // border / colour utilities here — they would fight the tokens.
-        data-task-status={status}
-        title={title}
-        aria-label={t("messages.taskChangeStatus", {
-          number: linkedTask.task_number,
-          status: label,
-        })}
-        // Stop the click from reaching the row's selection/jump capture.
-        onClick={(e) => e.stopPropagation()}
-        className="inline-flex h-4.5 max-w-55 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-(--task-status-radius) px-2 text-(length:--text-meta) font-medium leading-none transition-opacity hover:opacity-80 focus-outline"
+        data-message-task-status
+        aria-label={t("tasks.changeStatusCurrent", { status: label })}
+        // The card opens the task; the cube only opens the picker.
+        onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
+        className="cursor-pointer focus-outline"
       >
-        {body}
+        {cube}
       </button>
     </StatusPicker>
+  ) : (
+    <span data-message-task-status title={label}>
+      {cube}
+      <span className="sr-only">{label}</span>
+    </span>
+  );
+
+  return (
+    <div
+      data-message-task-tag
+      data-task-ref-tone={status}
+      role={open ? "button" : undefined}
+      tabIndex={open ? 0 : undefined}
+      aria-label={
+        open
+          ? t("messages.taskTitled", { number: linkedTask.task_number, title: linkedTask.title })
+          : undefined
+      }
+      title={linkedTask.title}
+      onClick={open ? handleClick : undefined}
+      onKeyDown={open ? handleKeyDown : undefined}
+      className={cn(
+        "inline-flex h-7.5 max-w-full min-w-0 items-center gap-2 rounded-(--control-radius) border-(length:--control-border-width) border-border bg-bg-base pr-2.5 pl-0.5 text-[13px] leading-normal transition-colors",
+        open && "cursor-pointer hover:border-(--border-control-hover) focus-outline",
+      )}
+    >
+      {statusNode}
+      <span className="shrink-0 font-medium text-text-muted tabular-nums">
+        #{linkedTask.task_number}
+      </span>
+      <span className="min-w-0 flex-1 truncate text-text-primary">{linkedTask.title}</span>
+      {linkedTask.assignee && assignee ? (
+        <span className="flex shrink-0 items-center border-l border-border-subtle pl-2 text-xs text-text-secondary">
+          <EventPerson
+            person={
+              linkedTask.assignee.type === "agent"
+                ? { kind: "agent", id: linkedTask.assignee.id, name: assignee }
+                : { kind: "user", id: linkedTask.assignee.id, name: assignee }
+            }
+          />
+        </span>
+      ) : null}
+    </div>
   );
 }
-
 export function formatTaskAssignee(
   assignee: TaskAssigneeDto,
   agentsById: Map<string, AgentDto>,

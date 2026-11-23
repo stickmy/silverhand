@@ -25,33 +25,16 @@ describe("MessageTaskTag — status-picker mutation is member-gated", () => {
     expect(mutations).toBe(1);
   });
 
-  it("early-returns the read-only chip before the mutation branch", () => {
-    const guardAt = source.indexOf("if (!canMutate)");
+  it("only the canMutate branch reaches the status picker", () => {
+    const gateAt = source.indexOf("canMutate ? (");
     const mutateAt = source.indexOf("updateStatus.mutate(");
-    expect(guardAt).toBeGreaterThan(-1);
-    expect(mutateAt).toBeGreaterThan(-1);
-    // The `!canMutate` early-return sits before the only mutation call, so a
-    // non-member never reaches a writable picker.
-    expect(guardAt).toBeLessThan(mutateAt);
+    expect(gateAt).toBeGreaterThan(-1);
+    expect(gateAt).toBeLessThan(mutateAt);
+    expect(source.indexOf(") : (", mutateAt)).toBeGreaterThan(mutateAt);
   });
 
-  it("the interactive chip is wrapped in StatusPicker; the read-only chip is a bare span", () => {
-    // The read-only branch renders a `<span data-message-task-tag` (no picker);
-    // the writable branch wraps a `<button` in `<StatusPicker`.
-    expect(source).toContain("<span\n        data-message-task-tag");
-    expect(source).toContain("<StatusPicker");
-  });
-
-  it("names the write affordance on the interactive chip (button role exposes aria-label)", () => {
-    expect(source).toContain(`t("messages.taskChangeStatus"`);
-  });
-
-  it("exposes status to assistive tech on the read-only chip via real sr-only text", () => {
-    // The status glyph is aria-hidden and the fill colour is visual-only; a
-    // generic span's aria-label is not reliably exposed, so the status name
-    // must be real screen-reader text, not an aria-label on the span.
+  it("exposes status to assistive tech on the read-only cube via real sr-only text", () => {
     expect(source).toContain('<span className="sr-only">{label}</span>');
-    expect(source).not.toContain("aria-label={`Task #${linkedTask.task_number}（${label}）`}");
   });
 });
 

@@ -156,17 +156,21 @@ export function MessageRowContent({
           {attachments}
         </div>
 
-        {/* One shared bottom row — task tag · replies · reactions on a single
-          line, no wrapping (shiki #task:1185). Each child is a bare inline
-          element; this row owns the top spacing + alignment + gap, so they
-          never stack. Renders only when at least one is present. Reversed for
-          own messages (in the stylesheet) so the task tag hugs the reading
-          edge. The replies badge is absent from this row when it heads the reply block
+        {/* The task card takes its own line, so its title never competes with
+          the replies and reactions below it (shiki #3120). A one-child
+          adornment row, so own messages align it to the reading edge too. */}
+        {taskTag ? (
+          <div data-adornment-row className="mt-1.5 flex min-w-0">
+            {taskTag}
+          </div>
+        ) : null}
+        {/* Replies and reactions share one line, no wrapping (shiki
+          #task:1185). Reversed for own messages (in the stylesheet). The
+          replies badge is absent from this row when it heads the reply block
           below — grouping it with the lines it counts outranks keeping it here
           (shiki 2026-07-31). */}
-        {taskTag || trailing || reactions ? (
+        {trailing || reactions ? (
           <div data-adornment-row className="mt-1.5 flex flex-nowrap items-center gap-2">
-            {taskTag}
             {trailing}
             {reactions}
           </div>

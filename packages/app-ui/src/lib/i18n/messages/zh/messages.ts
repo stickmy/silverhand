@@ -131,8 +131,6 @@ export const messages: Translation<typeof en> = {
   reactionCount: {
     other: "{emoji},{count} 个回应",
   },
-  taskNumber: "任务 #{number}",
-  taskChangeStatus: "任务 #{number}({status}),点击修改状态",
   insertInto: "将 {label} 插入消息",
   reactWith: "回应 {emoji}",
   deletedAccount: "{name}(已注销)",

@@ -227,10 +227,6 @@
 
 /* Hooks: Messages and composer */
 
-[data-theme="studio-light"] [data-message-task-tag] {
-  border: none;
-}
-
 /* Hooks: Floating surfaces and actions */
 
 [data-theme="studio-light"] [data-modal-shell] {

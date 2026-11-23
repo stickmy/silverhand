@@ -131,8 +131,6 @@ export const messages = {
     one: "{emoji}, {count} reaction",
     other: "{emoji}, {count} reactions",
   },
-  taskNumber: "Task #{number}",
-  taskChangeStatus: "Task #{number} ({status}) — click to change status",
   insertInto: "Insert {label} into message",
   reactWith: "React {emoji}",
   deletedAccount: "{name} (deleted account)",
