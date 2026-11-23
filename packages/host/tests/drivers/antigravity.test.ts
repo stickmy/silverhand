@@ -172,4 +172,50 @@ describe('Antigravity ACP driver', () => {
       { kind: 'text', text: 'All good ⚠ (code 400) here' },
     ]);
   });
+
+  it('maps native tool frames to the shared tool names', async () => {
+    const { driver, sent, response } = await setup();
+    response(sent[1].id, { sessionId: 's' });
+    const tool = (toolCallId: string, kind: string, rawInput: unknown, title = 't') =>
+      driver.parseLine(
+        JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'session/update',
+          params: {
+            sessionId: 's',
+            update: {
+              sessionUpdate: 'tool_call',
+              toolCallId,
+              kind,
+              title,
+              rawInput,
+              status: 'pending',
+            },
+          },
+        }),
+      )[0];
+    expect(
+      tool('1', 'execute', { CommandLine: 'echo hi', WaitMsBeforeAsync: 5000, toolSummary: 'Run' }),
+    ).toMatchObject({ name: 'Bash', input: { command: 'echo hi' } });
+    expect(tool('2', 'read', { Path: '/w/a.txt' })).toMatchObject({
+      name: 'Read',
+      input: { file_path: '/w/a.txt' },
+    });
+    expect(tool('3', 'edit', { Path: '/w/b.txt', Content: 'x' })).toMatchObject({
+      name: 'Write',
+      input: { file_path: '/w/b.txt', content: 'x' },
+    });
+    expect(tool('4', 'edit', { Path: '/w/b.txt', Target: 'x', Replacement: 'y' })).toMatchObject({
+      name: 'Edit',
+      input: { file_path: '/w/b.txt', old_string: 'x', new_string: 'y' },
+    });
+    expect(tool('5', 'search', { query: 'q' })).toMatchObject({
+      name: 'WebSearch',
+      input: { query: 'q' },
+    });
+    expect(tool('6', 'other', { Foo: 1 }, 'Custom')).toMatchObject({
+      name: 'Custom',
+      input: { Foo: 1 },
+    });
+  });
 });

@@ -75,6 +75,34 @@ export class AntigravityAcpAdapter implements AcpRuntimeAdapter {
     return null;
   }
 
+  // agy's tool frames carry an ACP `kind` and PascalCase args.
+  toolCall(update: Record<string, any>): { name: string; input: unknown } | null {
+    const input = record(update.rawInput);
+    const text = (key: string) => (typeof input[key] === 'string' ? input[key] : undefined);
+    const path = text('Path');
+    if (update.kind === 'execute' && text('CommandLine') !== undefined) {
+      return { name: 'Bash', input: { command: text('CommandLine') } };
+    }
+    if (update.kind === 'read' && path) return { name: 'Read', input: { file_path: path } };
+    if (update.kind === 'edit' && path && text('Content') !== undefined) {
+      return { name: 'Write', input: { file_path: path, content: text('Content') } };
+    }
+    if (update.kind === 'edit' && path && text('Target') !== undefined) {
+      return {
+        name: 'Edit',
+        input: {
+          file_path: path,
+          old_string: text('Target'),
+          new_string: text('Replacement') ?? '',
+        },
+      };
+    }
+    if (update.kind === 'search' && text('query') !== undefined) {
+      return { name: 'WebSearch', input: { query: text('query') } };
+    }
+    return null;
+  }
+
   messageTextError(text: string): string | null {
     return MESSAGE_ERROR.exec(text)?.[1] ?? null;
   }

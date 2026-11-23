@@ -57,6 +57,8 @@ export interface AcpRuntimeAdapter {
   /** A `session/prompt` sent mid-turn joins the running turn: the earlier prompt
    *  answers at once, and the turn ends with the latest prompt's response. */
   readonly busyPromptJoinsTurn?: boolean;
+  /** Maps a native tool call to the shared tool vocabulary (`Bash`, `Read`, …). */
+  toolCall?(update: Record<string, any>): { name: string; input: unknown } | null;
   /** Error text the runtime reports as an ordinary message chunk, or null. */
   messageTextError?(text: string): string | null;
   sessionMethod?(ctx: DriverSpawnContext, initializeResult: unknown): string;
@@ -392,10 +394,11 @@ export class AcpClient {
         const toolCallId = stringField(update.toolCallId);
         if (toolCallId && this.emittedToolCalls.has(toolCallId)) break;
         if (toolCallId) this.emittedToolCalls.add(toolCallId);
+        const tool = this.adapter.toolCall?.(update);
         events.push({
           kind: 'tool_call',
-          name: toolName(update),
-          input: update.rawInput ?? {},
+          name: tool?.name ?? toolName(update),
+          input: tool ? tool.input : (update.rawInput ?? {}),
           ...(toolCallId ? { toolCallId } : {}),
         });
         if (isTerminalToolStatus(update.status)) {
@@ -425,7 +428,7 @@ export class AcpClient {
           events.push({
             kind: 'tool_call_input',
             toolCallId,
-            input: update.rawInput,
+            input: this.adapter.toolCall?.(update)?.input ?? update.rawInput,
           });
         }
         if (isTerminalToolStatus(update.status)) {
