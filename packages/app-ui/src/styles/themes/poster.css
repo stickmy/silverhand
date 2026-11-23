@@ -33,7 +33,7 @@
   --frame-padding: 8px;
   --pane-gap: 6px;
   /* Drawn on the dark wall between panes, so it needs a light ink. */
-  --splitter-hover-bg: #d6d2c9;
+  --splitter-hover-bg: #d4d4d4;
 
   /* Surface, text and border foundations */
   --bg-base: #ffffff;
