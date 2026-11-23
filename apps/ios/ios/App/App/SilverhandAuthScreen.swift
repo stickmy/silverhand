@@ -116,6 +116,7 @@ final class AuthScreenPresenter {
   private var sheet: UIViewController?
   private var sheetKind: AuthSheet.Kind?
   private var model: AuthScreenModel?
+  private var latest: AuthScreenState?
   private lazy var library = try? AvatarLibrary.bundled()
 
   func show(_ state: AuthScreenState, from root: UIViewController) {
@@ -124,8 +125,23 @@ final class AuthScreenPresenter {
     }
     self.model = model
     model.update(state)
+    latest = state
 
     if screen?.presentingViewController == nil {
+      // A hide followed at once by a show (the page remounting the gate) finds
+      // the old screen still on its way in or out. Wait for that transition,
+      // then take the old screen down and present again with the newest state;
+      // otherwise the screen never appears.
+      if let old = root.presentedViewController as? AuthWelcomeController {
+        if let coordinator = old.transitionCoordinator {
+          coordinator.animate(alongsideTransition: nil) { [weak self] _ in
+            guard let self, let latest = self.latest else { return }
+            self.show(latest, from: root)
+          }
+          return
+        }
+        old.dismiss(animated: false)
+      }
       guard root.presentedViewController == nil else { return }
       let screen = AuthWelcomeController(rootView: WelcomeView(model: model))
       screen.modalPresentationStyle = .overFullScreen
@@ -163,6 +179,7 @@ final class AuthScreenPresenter {
     sheet = nil
     sheetKind = nil
     model = nil
+    latest = nil
     screen.presentingViewController?.dismiss(animated: true)
   }
 
