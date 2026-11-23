@@ -70,8 +70,7 @@ export function MessageContextMenu({
   onToggleSave?: () => void;
   onShare?: () => void;
   onUnfollowThread?: () => void;
-  /** Touch only: on a pointer device the row's own hover controls react and
-   *  open threads, so the right-click menu stays as it was. */
+  /** Touch only: on a pointer device the row's own hover controls react. */
   onReact?: (emoji: string) => void;
   onReplyInThread?: () => void;
 }): JSX.Element {
@@ -114,7 +113,7 @@ export function MessageContextMenu({
   const canSelectText = touch && !!text?.trim();
   const react = touch ? onReact : undefined;
   const sections = menuSections({
-    replyInThread: touch ? onReplyInThread : undefined,
+    replyInThread: onReplyInThread,
     selectText: canSelectText
       ? () => {
           openingSelection.current = true;
@@ -204,8 +203,9 @@ export function MessageContextMenu({
 
 type MenuAction = { id: string; label: string; Icon: IconComponent; run: () => void };
 
-/** The message's actions, grouped as the menu divides them; one list for the
- * web menu and the native one. */
+/** The message's actions in two groups: what the viewer does with the message
+ * itself (reply, save, follow), then taking its content out (select, copy,
+ * share). One list for the web menu and the native one. */
 function menuSections({
   replyInThread,
   selectText,
@@ -233,17 +233,19 @@ function menuSections({
   return [
     [
       ...action("reply", t("messages.replyInThread"), ThreadIcon, replyInThread),
-      ...action("select", t("messages.selectText"), SelectTextIcon, selectText),
-      ...action("copy", t("messages.copyMarkdown"), CopyMarkdownIcon, onCopyMarkdown),
       ...action(
         "save",
         saved ? t("messages.unsave") : t("messages.saveMessage"),
         saved ? BookmarkRemoveIcon : BookmarkIcon,
         onToggleSave,
       ),
+      ...action("unfollow", t("messages.unfollowThread"), BellOffIcon, onUnfollowThread),
     ],
-    action("share", t("messages.share"), ShareLinkIcon, onShare),
-    action("unfollow", t("messages.unfollowThread"), BellOffIcon, onUnfollowThread),
+    [
+      ...action("select", t("messages.selectText"), SelectTextIcon, selectText),
+      ...action("copy", t("messages.copyMarkdown"), CopyMarkdownIcon, onCopyMarkdown),
+      ...action("share", t("messages.share"), ShareLinkIcon, onShare),
+    ],
   ].filter((section) => section.length > 0);
 }
 
