@@ -122,6 +122,8 @@ export const RuntimeModelDiscoverySchema = z
           .refine((id) => !/[\u0000-\u001f\u007f-\u009f]/u.test(id)),
       )
       .max(5000),
+    /** Display names the CLI gives its model ids; the id stays the stored value. */
+    model_names: z.record(z.string(), z.string().min(1).max(128)).optional(),
     reasoning_by_model: z.record(z.string(), ModelReasoningSchema).optional(),
     /** Non-default tiers the CLI offers per model; `default` is implicit. */
     service_tiers_by_model: z
@@ -134,6 +136,7 @@ export const RuntimeModelDiscoverySchema = z
   .refine(
     (value) =>
       (value.status === 'ok' || value.models.length === 0) &&
+      Object.keys(value.model_names ?? {}).every((id) => value.models.includes(id)) &&
       Object.keys(value.reasoning_by_model ?? {}).every((id) => value.models.includes(id)) &&
       Object.keys(value.service_tiers_by_model ?? {}).every((id) => value.models.includes(id)) &&
       (value.default_model === undefined || value.models.includes(value.default_model)),

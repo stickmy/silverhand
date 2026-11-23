@@ -221,6 +221,8 @@ pub struct ModelDiscovery {
     status: ModelDiscoveryStatus,
     models: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    model_names: Option<BTreeMap<String, String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     reasoning_by_model: Option<BTreeMap<String, ModelReasoning>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     service_tiers_by_model: Option<BTreeMap<String, Vec<ModelServiceTier>>>,
@@ -257,6 +259,7 @@ impl ModelDiscovery {
             runtime: runtime.as_str().to_owned(),
             status: ModelDiscoveryStatus::Unsupported,
             models: Vec::new(),
+            model_names: None,
             reasoning_by_model: None,
             service_tiers_by_model: None,
             default_model: None,
@@ -278,6 +281,13 @@ impl ModelDiscovery {
                 .default_model
                 .as_ref()
                 .is_some_and(|id| !result.models.contains(id))
+            || result.model_names.as_ref().is_some_and(|names| {
+                names.iter().any(|(id, name)| {
+                    !result.models.contains(id)
+                        || name.is_empty()
+                        || name.encode_utf16().count() > 128
+                })
+            })
             || result.reasoning_by_model.as_ref().is_some_and(|entries| {
                 entries.iter().any(|(id, reasoning)| {
                     !result.models.contains(id)
@@ -594,6 +604,7 @@ mod tests {
     #[test]
     fn model_effort_metadata_round_trips_without_using_the_static_product_table() {
         let valid = json!({"runtime":"codex","status":"ok","models":["custom"],"default_model":"custom",
+            "model_names":{"custom":"Custom Model"},
             "reasoning_by_model":{"custom":{"supported_efforts":["future-tier"],"default_effort":"future-tier"}},
             "service_tiers_by_model":{"custom":[{"id":"ultrafast","name":"Ultrafast"}]},
             "detected_at":1,"cached":false});
@@ -602,6 +613,8 @@ mod tests {
         assert_eq!(serde_json::to_value(decoded).unwrap(), valid);
         for patch in [
             json!({"default_model":"foreign"}),
+            json!({"model_names":{"foreign":"Foreign"}}),
+            json!({"model_names":{"custom":""}}),
             json!({"reasoning_by_model":{"foreign":{"supported_efforts":[]}}}),
             json!({"reasoning_by_model":{"custom":{"supported_efforts":["BAD"]}}}),
             json!({"reasoning_by_model":{"custom":{"supported_efforts":["high"],"default_effort":"max"}}}),

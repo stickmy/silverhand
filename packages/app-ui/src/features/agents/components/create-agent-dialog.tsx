@@ -388,6 +388,7 @@ export function CreateAgentDialog({
               }}
               onCommit={setModel}
               suggestions={modelDiscovery.suggestions}
+              labelFor={modelDiscovery.modelName}
               placeholder={t("agentPage.driverDefault")}
               className="h-8"
             />

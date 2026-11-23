@@ -37,12 +37,13 @@ it('Claude sends only a metadata request, disables hooks/MCP, and preserves alia
         !process.argv.includes('{"disableAllHooks":true}')) process.exit(2);
     send({type:'control_response',response:{request_id:'foreign',subtype:'success',response:{models:[{value:'wrong'}]}}});
     send({type:'control_response',response:{request_id:m.request_id,subtype:'success',response:{models:[
-      {value:'default'}, {value:'opus',resolvedModel:'claude-opus',supportedEffortLevels:['low','future-tier']}, {value:'claude-opus'}, {value:'disabled',disabled:true}
+      {value:'default'}, {value:'opus',displayName:'Opus',resolvedModel:'claude-opus',supportedEffortLevels:['low','future-tier']}, {value:'claude-opus'}, {value:'disabled',disabled:true}
     ]}}}); });`,
   );
   expect(await probeRuntimeModels(runtime, { root })).toEqual({
     status: 'ok',
     models: ['opus', 'claude-opus'],
+    model_names: { opus: 'Opus' },
     default_model: 'opus',
     reasoning_by_model: {
       opus: { supported_efforts: ['low', 'future-tier'] },
@@ -110,12 +111,13 @@ it('Grok reads initialize metadata without creating a session', async () => {
     'grok',
     `${lines}
     if(m.method!=='initialize'||!process.argv.includes('--no-leader')) process.exit(2);
-    send({id:m.id,result:{protocolVersion:1,_meta:{modelState:{availableModels:[{modelId:'grok-model'}]}}}});
+    send({id:m.id,result:{protocolVersion:1,_meta:{modelState:{availableModels:[{modelId:'grok-model',name:'Grok Model'}]}}}});
   });`,
   );
   expect(await probeRuntimeModels(runtime, { root })).toEqual({
     status: 'ok',
     models: ['grok-model'],
+    model_names: { 'grok-model': 'Grok Model' },
   });
 });
 
@@ -141,7 +143,7 @@ it('Antigravity visits each model for its thinking levels, then closes the probe
     'antigravity',
     `${lines}
     const opts = (model) => ({configOptions:[
-      {id:'model',currentValue:model,options:[{value:'flash'},{value:'sonnet'}]},
+      {id:'model',currentValue:model,options:[{value:'flash',name:'Flash'},{value:'sonnet',name:'Sonnet'}]},
       ...(model==='flash'?[{id:'thought_level',currentValue:'high',options:[{value:'low'},{value:'high'}]}]:[]),
     ]});
     if(m.method==='initialize') { if(process.argv.slice(2).join(' ')!=='acp') process.exit(2); send({id:m.id,result:{protocolVersion:1}}); }
@@ -160,6 +162,7 @@ it('Antigravity visits each model for its thinking levels, then closes the probe
   expect(await probeRuntimeModels(runtime, { root, env: { ...process.env, HOME: root } })).toEqual({
     status: 'ok',
     models: ['flash', 'sonnet'],
+    model_names: { flash: 'Flash', sonnet: 'Sonnet' },
     default_model: 'flash',
     reasoning_by_model: {
       flash: { supported_efforts: ['low', 'high'], default_effort: 'high' },

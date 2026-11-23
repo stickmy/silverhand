@@ -602,6 +602,7 @@ function EditForm({
             id="rc-model"
             draft={draft}
             suggestions={modelDiscovery.suggestions}
+            modelName={modelDiscovery.modelName}
             onDraft={onDraft}
           />
         </div>
@@ -817,11 +818,13 @@ function ModelPicker({
   id,
   draft,
   suggestions,
+  modelName,
   onDraft,
 }: {
   id: string;
   draft: RuntimeConfigDraft;
   suggestions: readonly string[];
+  modelName: (model: string) => string | undefined;
   onDraft: (next: RuntimeConfigDraft) => void;
 }): JSX.Element {
   const inputValue = draft.modelChoice === "specify" ? draft.modelValue : "";
@@ -835,6 +838,7 @@ function ModelPicker({
       value={inputValue}
       placeholder={placeholder}
       suggestions={items}
+      labelFor={modelName}
       onChange={(next) => {
         // Keystrokes go straight into `specify`. When the user picks the
         // driver-default item from the dropdown, `pick()` fires onChange

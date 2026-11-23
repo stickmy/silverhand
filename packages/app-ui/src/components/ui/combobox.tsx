@@ -28,6 +28,7 @@ export function Combobox({
   onChange,
   onCommit,
   suggestions,
+  labelFor,
   placeholder,
   id,
   className,
@@ -39,6 +40,8 @@ export function Combobox({
   /** Fired when the value is committed: blur, Enter, or picking a suggestion. */
   onCommit: (next: string) => void;
   suggestions: readonly string[];
+  /** Display name for a suggestion; the value itself is what gets committed. */
+  labelFor?: (value: string) => string | undefined;
   placeholder?: string;
   id?: string;
   className?: string;
@@ -158,7 +161,7 @@ export function Combobox({
                 s === value ? "bg-bg-hover" : "",
               )}
             >
-              {s}
+              {labelFor?.(s) ?? s}
             </button>
           ))}
         </Popover.Content>

@@ -93,6 +93,7 @@ export function useRuntimeModels(
     serviceTiersForModel: (model: string | null) => modelServiceTierOptions(runtime, model, data),
     suggestions:
       data?.status === "ok" ? data.models : runtimeCatalogEntry(runtime).modelSuggestions,
+    modelName: (model: string) => (data?.status === "ok" ? data.model_names?.[model] : undefined),
     async refresh() {
       if (!options.enabled || query.isFetching) return;
       await client.cancelQueries({ queryKey: options.queryKey, exact: true });

@@ -11,7 +11,12 @@ const LIMIT = 2 * 1024 * 1024;
 type Frame = Record<string, any>;
 type Listing = Pick<
   RuntimeModelDiscovery,
-  'status' | 'models' | 'reasoning_by_model' | 'service_tiers_by_model' | 'default_model'
+  | 'status'
+  | 'models'
+  | 'model_names'
+  | 'reasoning_by_model'
+  | 'service_tiers_by_model'
+  | 'default_model'
 >;
 const FAILED: Listing = { status: 'error', models: [] };
 const UNSUPPORTED: Listing = { status: 'unsupported', models: [] };
@@ -43,6 +48,18 @@ function protocol(kind: RuntimeKind, version: string | null, cwd: string, home: 
   const reasoning = new Map<string, { supported_efforts: string[]; default_effort?: string }>();
   const tiers = new Map<string, { id: string; name: string }[]>();
   let defaultModel: string | undefined;
+  const names = new Map<string, string>();
+  const collectName = (id: unknown, name: unknown) => {
+    if (typeof id !== 'string' || typeof name !== 'string') return;
+    const label = name.trim();
+    if (
+      label &&
+      label !== id &&
+      label.length <= 128 &&
+      !/[\u0000-\u001f\u007f-\u009f]/u.test(label)
+    )
+      names.set(id, label);
+  };
   const collectTiers = (ids: string[], rows: unknown) => {
     if (!Array.isArray(rows)) return;
     const offered = rows
@@ -80,6 +97,9 @@ function protocol(kind: RuntimeKind, version: string | null, cwd: string, home: 
   const listing = (models: string[]): Listing => ({
     status: 'ok',
     models,
+    ...(names.size
+      ? { model_names: Object.fromEntries([...names].filter(([id]) => models.includes(id))) }
+      : {}),
     ...(reasoning.size
       ? {
           reasoning_by_model: Object.fromEntries(
@@ -198,6 +218,7 @@ function protocol(kind: RuntimeKind, version: string | null, cwd: string, home: 
         for (const row of rows) {
           const r = record(row);
           collectReasoning(modelIds([r], select), r.supportedEffortLevels);
+          collectName(r.value, r.displayName);
         }
         defaultModel = CLAUDE_DEFAULT_MODEL;
         return listing(models);
@@ -235,6 +256,8 @@ function protocol(kind: RuntimeKind, version: string | null, cwd: string, home: 
             : [];
           const model = options.find((o) => o.id === 'model');
           collected.push(...modelIds(model?.options, (r) => [r.value]));
+          for (const option of model?.options ?? [])
+            collectName(record(option).value, record(option).name);
           if (typeof model?.currentValue === 'string') defaultModel = model.currentValue;
           agyCollect(result);
           agyVisits = collected.filter((id) => id !== defaultModel);
@@ -258,9 +281,9 @@ function protocol(kind: RuntimeKind, version: string | null, cwd: string, home: 
       }
       if (kind === 'grok') {
         const rows = message.result?._meta?.modelState?.availableModels;
-        return Array.isArray(rows)
-          ? { status: 'ok', models: modelIds(rows, (r) => [r.modelId]) }
-          : UNSUPPORTED;
+        if (!Array.isArray(rows)) return UNSUPPORTED;
+        for (const row of rows) collectName(record(row).modelId, record(row).name);
+        return listing(modelIds(rows, (r) => [r.modelId]));
       }
       if (pending === 1) {
         send({ jsonrpc: '2.0', method: 'initialized', params: {} });
@@ -280,6 +303,7 @@ function protocol(kind: RuntimeKind, version: string | null, cwd: string, home: 
           : undefined;
         collectReasoning(ids, levels, r.defaultReasoningEffort);
         collectTiers(ids, r.serviceTiers);
+        collectName(ids[0], r.displayName);
         if (r.isDefault === true && ids[0]) defaultModel = ids[0];
       }
       if (typeof result.nextCursor === 'string' && result.nextCursor.length > 0) {
