@@ -10,10 +10,14 @@ function record(value: unknown): Input {
     : {};
 }
 
+// `tool` repeats strings already in `input`; the bound keeps a large write from
+// doubling the frame past MAX_FRAME_BYTES. The backend clips further for display.
+const TEXT_MAX = 4096;
+
 function text(input: Input, ...keys: string[]): string | undefined {
   for (const key of keys) {
     const value = input[key];
-    if (typeof value === 'string') return value;
+    if (typeof value === 'string') return value.slice(0, TEXT_MAX);
   }
   return undefined;
 }
@@ -24,7 +28,7 @@ function optional<K extends string>(key: K, value: string | undefined): { [P in 
 
 function edits(value: unknown, oldKey: string, newKey: string) {
   if (!Array.isArray(value)) return undefined;
-  return value.map((entry) => ({
+  return value.slice(0, 20).map((entry) => ({
     old: text(record(entry), oldKey) ?? '',
     new: text(record(entry), newKey) ?? '',
   }));
@@ -226,4 +230,11 @@ export function codexFileChange(change: unknown): Tool {
   return kind === 'add' || kind === 'update' || kind === 'delete'
     ? { type: 'edit', path, change: kind }
     : { type: 'edit', path };
+}
+
+/** Codex command and web-search items carry their one argument directly. */
+export function codexTool(type: 'command' | 'web_search', value: unknown): Tool {
+  const arg = text({ value }, 'value');
+  if (arg === undefined) return { type: 'other' };
+  return type === 'command' ? { type, command: arg } : { type, query: arg };
 }

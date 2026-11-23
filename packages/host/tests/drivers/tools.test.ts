@@ -164,6 +164,11 @@ describe('tool descriptions', () => {
     expect(oc('bash', 'execute', { cwd: '/w' })).toEqual({ type: 'other' });
   });
 
+  it('bounds repeated text so a large write cannot double the frame', () => {
+    const tool = claudeTool('Write', { file_path: '/a', content: 'x'.repeat(100_000) });
+    expect(tool.type === 'write' && tool.content?.length).toBe(4096);
+  });
+
   it('every mapping is a valid shared tool description', () => {
     for (const tool of [
       claudeTool('Edit', { file_path: '/a', old_string: 'x', new_string: 'y' }),

@@ -9,7 +9,7 @@ import {
   type ParsedEvent,
   type ToolOutcome,
 } from './index.js';
-import { codexFileChange } from './tools.js';
+import { codexFileChange, codexTool } from './tools.js';
 
 /**
  * Codex CLI driver.
@@ -466,7 +466,7 @@ export class CodexDriver implements Driver {
             kind: 'tool_call',
             name: 'shell',
             input: { command: item.command },
-            tool: { type: 'command', command: item.command },
+            tool: codexTool('command', item.command),
             ...(callId ? { toolCallId: callId } : {}),
           });
         }
@@ -551,9 +551,7 @@ export class CodexDriver implements Driver {
             kind: 'tool_call',
             name: 'web_search',
             input: { query: item.query },
-            ...(typeof item.query === 'string'
-              ? { tool: { type: 'web_search', query: item.query } }
-              : {}),
+            tool: codexTool('web_search', item.query),
             ...(typeof item.id === 'string' ? { toolCallId: item.id } : {}),
           });
           if (typeof item.id === 'string') this.pendingWebSearchIds.add(item.id);
