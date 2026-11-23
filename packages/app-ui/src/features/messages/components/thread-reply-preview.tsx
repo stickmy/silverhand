@@ -154,7 +154,7 @@ export function ThreadReplyPreview({
       }}
       title={title}
       className={
-        "group mt-1.5 flex w-full cursor-pointer flex-col gap-1 rounded-(--chip-radius) px-2 py-1.5 transition-colors " +
+        "group mt-1.5 flex w-full cursor-pointer flex-col gap-2 rounded-(--chip-radius) px-2.5 py-2 transition-colors " +
         // A recessed WASH separates the replies from the message body above
         // (shiki 2026-07-31) — one layer only: the fill REPLACED the hairline
         // rule that used to do this job rather than stacking on top of it, and
@@ -177,9 +177,8 @@ export function ThreadReplyPreview({
         // aria-label restating the badge's.
         data-thread-reply-preview
         className={
-          // Same 0.25rem rhythm as the wrapper's badge→lines gap (shiki
-          // 2026-07-31), so every vertical gap inside the block is equal — the
-          // block reads as one list, not a header plus a tighter sub-list.
+          // The badge stands 8px above the lines, a step more than the 6px
+          // between them, so it reads as the list's header (shiki #3114).
           //
           // The reply text is the FAINTEST ink on the row (shiki 2026-07-31):
           // it is an excerpt of something that lives elsewhere, so it must not
@@ -192,7 +191,7 @@ export function ThreadReplyPreview({
           // fallback here only covers a theme that does not exist yet. The ink
           // lifts on a hover ANYWHERE in the block (`group-hover`), not only
           // over the lines: one target, one response.
-          "flex w-full flex-col items-start gap-1 text-left text-xs leading-tight text-(--thread-preview-text,var(--text-muted)) transition-colors group-hover:text-text-secondary"
+          "flex w-full flex-col items-start gap-1.5 text-left text-xs leading-[1.4] text-(--thread-preview-text,var(--text-muted)) transition-colors group-hover:text-text-secondary"
         }
       >
         {rows.map((row) => (
