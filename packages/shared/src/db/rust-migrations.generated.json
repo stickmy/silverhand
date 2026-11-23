@@ -19,7 +19,7 @@
     {
       "epoch": 71,
       "firstStep": 100,
-      "lastStep": 105,
+      "lastStep": 106,
       "released": false
     }
   ],
@@ -29,8 +29,8 @@
     "packages/shared/src/conversation-title.ts": "5b8f0b3766618373619ea589e632d566e9a43e469d821de4298da76f1bb3b680",
     "packages/shared/src/db/baseline-schema.ts": "7e5b7e9a0aca9b79fa433dca341d68ef4f761c5a545069c6005a4519851130e6",
     "packages/shared/src/db/migration-contracts/task-title-v96.ts": "98b0881301cb959962489178aefca16aa4228c786f03b0b849a654d58504d583",
-    "packages/shared/src/db/migrations.ts": "f191ddc93334548372e562a87da4687acb33cf2264c8da1ff9b34a7bb316b748",
-    "packages/shared/src/db/schema-epochs.ts": "8f5c2c33c693c1c555503f64a5f38a2c83117534f05a791953e4c089c40bf8c7",
+    "packages/shared/src/db/migrations.ts": "dc3ff7cf2b5f8cef0c5d66761ae50383961cce1f47ad9d522e95a60db4f8a256",
+    "packages/shared/src/db/schema-epochs.ts": "317067901e62492ac498ba48b84808c0dcf79c786fb7a92337d62c5afab33a9c",
     "packages/shared/src/display-name-charset.ts": "9d5b574480b3956f37d53bba816b7bff6d3e3edfc861e58c32b896a919f2f8ba",
     "packages/shared/src/unicode-case-fold.ts": "b5cb75d46582dc93b640434ad78fe8f0a741e5e1aa183adbb27368ce2aceb120",
     "packages/shared/src/unicode-name-charset.ts": "bbcda81d89d738fdfe6a9ff0dd4dad633a79a84cd8f82e203753910196967879",
@@ -469,6 +469,13 @@
       "version": 105,
       "name": "agent_service_tier",
       "up": "\n      ALTER TABLE agents ADD COLUMN service_tier TEXT;\n      UPDATE agents SET service_tier = CASE fast_mode WHEN 1 THEN 'priority' ELSE 'default' END\n        WHERE fast_mode IS NOT NULL;\n      ALTER TABLE agents DROP COLUMN fast_mode;\n    ",
+      "foreignKeyEscape": false,
+      "precondition": false
+    },
+    {
+      "version": 106,
+      "name": "antigravity_runtime_transition_target",
+      "up": "\n      DROP TRIGGER agents_runtime_transition_pair_insert;\n      DROP TRIGGER agents_runtime_transition_pair_update;\n      CREATE TRIGGER agents_runtime_transition_pair_insert BEFORE INSERT ON agents\n      WHEN (NEW.runtime_transition_target IS NULL) != (NEW.runtime_transition_started_at IS NULL)\n        OR (NEW.runtime_transition_target IS NOT NULL AND NEW.runtime_transition_target NOT IN\n          ('claude','codex','cursor','gemini','qoder','opencode','pi','grok','antigravity'))\n      BEGIN SELECT RAISE(ABORT, 'invalid agents runtime transition lock'); END;\n      CREATE TRIGGER agents_runtime_transition_pair_update\n      BEFORE UPDATE OF runtime_transition_target, runtime_transition_started_at ON agents\n      WHEN (NEW.runtime_transition_target IS NULL) != (NEW.runtime_transition_started_at IS NULL)\n        OR (NEW.runtime_transition_target IS NOT NULL AND NEW.runtime_transition_target NOT IN\n          ('claude','codex','cursor','gemini','qoder','opencode','pi','grok','antigravity'))\n      BEGIN SELECT RAISE(ABORT, 'invalid agents runtime transition lock'); END;\n    ",
       "foreignKeyEscape": false,
       "precondition": false
     }

@@ -130,7 +130,9 @@ function protocol(kind: RuntimeKind, version: string | null) {
           ? ['agent', '--no-leader', 'stdio']
           : kind === 'pi'
             ? ['--mode', 'rpc', '--no-session', '--no-extensions', '--no-skills']
-            : ['models', ...(major >= 2 ? ['--standalone'] : [])];
+            : kind === 'antigravity'
+              ? ['models']
+              : ['models', ...(major >= 2 ? ['--standalone'] : [])];
   const first =
     kind === 'claude'
       ? {
@@ -140,7 +142,7 @@ function protocol(kind: RuntimeKind, version: string | null) {
         }
       : kind === 'pi'
         ? { id: 'silverhand-models', type: 'get_available_models' }
-        : kind === 'opencode'
+        : kind === 'opencode' || kind === 'antigravity'
           ? null
           : initialize;
   return {
@@ -315,7 +317,7 @@ export async function probeRuntimeModels(
           return;
         }
         output += chunk;
-        if (runtime.kind === 'opencode') return;
+        if (runtime.kind === 'opencode' || runtime.kind === 'antigravity') return;
         let newline: number;
         while (!settled && (newline = output.indexOf('\n')) >= 0) {
           const line = output.slice(0, newline);
@@ -341,6 +343,16 @@ export async function probeRuntimeModels(
             .map((s) => s.trim())
             .filter((s) => /^[^\s/]+\/[^\s]+$/u.test(s) && s.length <= 512);
           // OpenCode 2 may finish before its cold provider catalog has loaded.
+          finish(
+            models.length ? { status: 'ok', models: [...new Set(models)].slice(0, 5000) } : FAILED,
+          );
+        } else if (runtime.kind === 'antigravity' && code === 0) {
+          // `agy models` prints `<id>\t<name>` rows after a status line.
+          const models = output
+            .split(/\r?\n/u)
+            .filter((line) => line.includes('\t'))
+            .map((line) => line.split('\t')[0]!.trim())
+            .filter((s) => /^\S+$/u.test(s) && s.length <= 512);
           finish(
             models.length ? { status: 'ok', models: [...new Set(models)].slice(0, 5000) } : FAILED,
           );

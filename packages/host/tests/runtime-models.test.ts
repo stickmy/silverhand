@@ -136,6 +136,20 @@ it.each(['1.9.0', '2.2.7'])(
   },
 );
 
+it('Antigravity lists model ids from agy models rows', async () => {
+  const { runtime, root } = await fake(
+    'antigravity',
+    `
+    if(process.argv.slice(2).join(' ')!=='models') process.exit(2);
+    console.log('Fetching available models...\\ngemini-3.8-flash-low\\tGemini 3.8 Flash (Low)\\nclaude-sonnet-4-6\\tClaude Sonnet 4.6 (Thinking)');`,
+    '1.5.14',
+  );
+  expect(await probeRuntimeModels(runtime, { root })).toEqual({
+    status: 'ok',
+    models: ['gemini-3.8-flash-low', 'claude-sonnet-4-6'],
+  });
+});
+
 it('empty native metadata differs from a failed probe', async () => {
   const { runtime, root } = await fake(
     'pi',

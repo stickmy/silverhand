@@ -36,7 +36,7 @@ import type { DaemonLogger } from './logger.js';
  *    because opencode needs a config env for its standing prompt even when
  *    there is no MCP layer at all.
  *
- *  - **grok:** pass canonical MCP to the driver for shared ACP projection
+ *  - **grok / antigravity:** pass canonical MCP to the driver for shared ACP projection
  *    in session/new or session/resume. No native config file is modified.
  *
  * Failure semantics (locked, §6): the WRITE path already validated, so a

@@ -1324,14 +1324,14 @@ CREATE UNIQUE INDEX idx_messages_client_identity ON messages(from_user_id, clien
 CREATE TRIGGER agents_runtime_transition_pair_insert BEFORE INSERT ON agents
       WHEN (NEW.runtime_transition_target IS NULL) != (NEW.runtime_transition_started_at IS NULL)
         OR (NEW.runtime_transition_target IS NOT NULL AND NEW.runtime_transition_target NOT IN
-          ('claude','codex','cursor','gemini','qoder','opencode','pi'))
+          ('claude','codex','cursor','gemini','qoder','opencode','pi','grok','antigravity'))
       BEGIN SELECT RAISE(ABORT, 'invalid agents runtime transition lock'); END;
 
 CREATE TRIGGER agents_runtime_transition_pair_update
       BEFORE UPDATE OF runtime_transition_target, runtime_transition_started_at ON agents
       WHEN (NEW.runtime_transition_target IS NULL) != (NEW.runtime_transition_started_at IS NULL)
         OR (NEW.runtime_transition_target IS NOT NULL AND NEW.runtime_transition_target NOT IN
-          ('claude','codex','cursor','gemini','qoder','opencode','pi'))
+          ('claude','codex','cursor','gemini','qoder','opencode','pi','grok','antigravity'))
       BEGIN SELECT RAISE(ABORT, 'invalid agents runtime transition lock'); END;
 
 CREATE INDEX idx_messages_profile_user ON messages(from_user_id, created_at)

@@ -58,6 +58,7 @@ const ALLOW = new Set([
   "Claude Code",
   "Codex",
   "Grok",
+  "Antigravity",
   "pi",
   "OpenCode",
   "Qoder",

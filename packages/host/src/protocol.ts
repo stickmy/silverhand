@@ -139,6 +139,7 @@ export const KNOWN_CAPABILITIES_V1 = [
   'runtime.pi',
   'runtime.qoder',
   'runtime.grok',
+  'runtime.antigravity',
   'runtime.codex.reasoning.v1',
   'runtime.model_discovery.v1',
   'runtime.service_tier.v1',

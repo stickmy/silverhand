@@ -435,6 +435,7 @@ export function projectProfileMcpForRuntime(
     case 'opencode':
       return { kind: 'opencode', config: toOpencodeMcpConfig(config, 'profile') };
     case 'grok':
+    case 'antigravity':
       return { kind: 'acp', servers: toAcpMcpServers(config, 'profile') };
     default:
       throw new Error(`Profile MCP is not loaded for ${runtime}.`);

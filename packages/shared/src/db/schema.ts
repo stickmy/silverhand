@@ -9,6 +9,7 @@ export const RuntimeKindSchema = z.enum([
   'opencode',
   'pi',
   'grok',
+  'antigravity',
 ]);
 export type RuntimeKind = z.infer<typeof RuntimeKindSchema>;
 

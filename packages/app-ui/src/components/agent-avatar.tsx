@@ -2,6 +2,7 @@ import type { RuntimeKind } from "@silverhand/shared";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
+  AntigravityIcon,
   ClaudeIcon,
   CodexIcon,
   CursorIcon,
@@ -51,6 +52,7 @@ const ICONS: Partial<Record<RuntimeKind, (p: { style?: React.CSSProperties }) =>
   gemini: GeminiIcon,
   pi: PiIcon,
   grok: GrokIcon,
+  antigravity: AntigravityIcon,
 };
 
 // Full-color brand logos that carry their own background + corner
@@ -62,6 +64,7 @@ const BRAND_LOGOS: Partial<Record<RuntimeKind, string>> = {
 
 const TINTS: Partial<Record<RuntimeKind, { bg: string; fg: string }>> = {
   grok: { bg: "bg-[#09090b]", fg: "text-white" },
+  antigravity: { bg: "bg-[#ffffff]", fg: "text-[#3186ff]" },
   pi: { bg: "bg-[#09090b]", fg: "text-white" },
   claude: { bg: "bg-[#fdf3ec]", fg: "text-[#d97757]" },
   codex: { bg: "bg-[#1f1f1f]", fg: "text-white" },

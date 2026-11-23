@@ -37,7 +37,15 @@ describe('runtime catalog (shared source of truth)', () => {
     // The implemented runtimes are offered; cursor/gemini remain
     // roadmap. The host-side test asserts selectable ⇒ hasDriver.
     const selectable = RUNTIME_CATALOG.filter((e) => e.selectable).map((e) => e.kind);
-    expect(selectable).toEqual(['claude', 'codex', 'qoder', 'opencode', 'pi', 'grok']);
+    expect(selectable).toEqual([
+      'claude',
+      'codex',
+      'qoder',
+      'opencode',
+      'pi',
+      'grok',
+      'antigravity',
+    ]);
   });
 
   it('every catalog reasoning option is a structurally-valid bounded token', () => {
@@ -116,6 +124,7 @@ describe('runtime catalog (shared source of truth)', () => {
       'qoder',
       'opencode',
       'grok',
+      'antigravity',
     ]);
   });
 
@@ -193,5 +202,17 @@ describe('Grok runtime capabilities', () => {
       serviceTierOptions: [],
     });
     expect(runtimeDefaultModel('grok')).toBeNull();
+  });
+});
+
+describe('Antigravity runtime capabilities', () => {
+  it('offers native MCP; thinking levels live in the model id', () => {
+    expect(runtimeCatalogEntry('antigravity')).toMatchObject({
+      selectable: true,
+      supportsProfileMcp: true,
+      reasoningEffortOptions: [],
+      serviceTierOptions: [],
+    });
+    expect(runtimeDefaultModel('antigravity')).toBeNull();
   });
 });

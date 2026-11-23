@@ -239,6 +239,7 @@ import { CursorDriver } from './cursor.js';
 import { OpenCodeDriver } from './opencode.js';
 import { PiDriver } from './pi.js';
 import { GrokDriver } from './grok.js';
+import { AntigravityDriver } from './antigravity.js';
 import { QoderDriver } from './qoder.js';
 
 /** Per-spawn factory: codex/cursor hold per-handle state (threadId,
@@ -251,6 +252,7 @@ const FACTORIES: Partial<Record<RuntimeKind, () => Driver>> = {
   qoder: () => new QoderDriver(),
   pi: () => new PiDriver(),
   grok: () => new GrokDriver(),
+  antigravity: () => new AntigravityDriver(),
 };
 
 /** Returns a fresh driver instance for `kind`, or throws. */

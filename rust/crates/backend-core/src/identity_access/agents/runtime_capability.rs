@@ -23,7 +23,10 @@ pub fn runtime_supports_reasoning_effort(kind: RuntimeKind) -> bool {
         | RuntimeKind::Qoder
         | RuntimeKind::Pi
         | RuntimeKind::Grok => true,
-        RuntimeKind::Opencode | RuntimeKind::Cursor | RuntimeKind::Gemini => false,
+        RuntimeKind::Opencode
+        | RuntimeKind::Cursor
+        | RuntimeKind::Gemini
+        | RuntimeKind::Antigravity => false,
     }
 }
 
@@ -65,7 +68,8 @@ pub fn runtime_default_model(kind: RuntimeKind) -> Option<&'static str> {
         | RuntimeKind::Cursor
         | RuntimeKind::Gemini
         | RuntimeKind::Pi
-        | RuntimeKind::Grok => None,
+        | RuntimeKind::Grok
+        | RuntimeKind::Antigravity => None,
     }
 }
 
@@ -79,6 +83,7 @@ mod tests {
             RuntimeKind::Opencode,
             RuntimeKind::Cursor,
             RuntimeKind::Gemini,
+            RuntimeKind::Antigravity,
         ] {
             assert!(reasoning_effort_valid_for_runtime(kind, None));
             for token in ["low", "high", "max", "none"] {

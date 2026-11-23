@@ -19,6 +19,7 @@ const DETECT_BINARIES: Record<RuntimeKind, string> = {
   opencode: 'opencode',
   pi: 'pi',
   grok: 'grok',
+  antigravity: 'agy',
 };
 
 const DEFAULT_RUNTIME_DETECTION_CACHE_TTL_MS = 30_000;

@@ -862,3 +862,47 @@ async fn service_tier_upgrade_maps_fast_mode_then_drops_it() {
     assert!(!columns.iter().any(|c| c == "fast_mode"));
     db.close().await.unwrap();
 }
+
+#[tokio::test]
+async fn antigravity_upgrade_admits_the_transition_target_and_keeps_an_inflight_lock() {
+    let root = isolated();
+    let path = root.path().join("data/database.sqlite");
+    fs::create_dir(path.parent().unwrap()).unwrap();
+    let mut previous = plan();
+    previous.steps.retain(|s| s.version <= 105);
+    let mut db = connect(&path).await;
+    prepare_connected(&mut db, &path, true, &previous)
+        .await
+        .unwrap();
+    db.execute(sqlx::raw_sql(
+        "INSERT INTO users(id,name,display_name,created_at,updated_at) VALUES('u','u','U',1,1);
+         INSERT INTO hosts(id,name,kind,created_at) VALUES('h','H','local',1);
+         INSERT INTO agents(id,name,display_name,runtime,host_id,created_by_user_id,created_at,updated_at,runtime_transition_started_at,runtime_transition_target)
+         VALUES ('a','a','A','claude','h','u',1,1,2,'grok');",
+    ))
+    .await
+    .unwrap();
+    assert!(
+        db.execute("UPDATE agents SET runtime_transition_target='antigravity'")
+            .await
+            .is_err()
+    );
+    db.close().await.unwrap();
+
+    prepare_database(&path, true).await.unwrap();
+    let mut db = connect(&path).await;
+    let target: Option<String> = sqlx::query_scalar("SELECT runtime_transition_target FROM agents")
+        .fetch_one(&mut db)
+        .await
+        .unwrap();
+    assert_eq!(target.as_deref(), Some("grok"));
+    db.execute("UPDATE agents SET runtime_transition_target='antigravity'")
+        .await
+        .unwrap();
+    assert!(
+        db.execute("UPDATE agents SET runtime_transition_target='unknown'")
+            .await
+            .is_err()
+    );
+    db.close().await.unwrap();
+}

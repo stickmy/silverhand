@@ -152,6 +152,17 @@ const CATALOG: Record<RuntimeKind, RuntimeCatalogEntry> = {
     supportsProfileMcp: true,
     modelSuggestions: ['grok-4.6', 'grok-4.5'],
   },
+  antigravity: {
+    kind: 'antigravity',
+    label: 'Antigravity',
+    cliLabel: 'Antigravity CLI',
+    selectable: true,
+    // Thinking levels are model variants (`gemini-3.8-flash-low`), not a separate control.
+    reasoningEffortOptions: [],
+    serviceTierOptions: [],
+    supportsProfileMcp: true,
+    modelSuggestions: [],
+  },
   cursor: {
     kind: 'cursor',
     label: 'Cursor',
@@ -187,6 +198,7 @@ const RUNTIME_ORDER: readonly RuntimeKind[] = [
   'opencode',
   'pi',
   'grok',
+  'antigravity',
   'cursor',
   'gemini',
 ];

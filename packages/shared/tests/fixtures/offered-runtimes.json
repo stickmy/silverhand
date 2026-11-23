@@ -16,6 +16,6 @@
     "authority and is held to this artifact, so a runtime offered on one side only \u2014 or",
     "reordered in the picker on one side only \u2014 fails on both."
   ],
-  "offered": ["claude", "codex", "qoder", "opencode", "pi", "grok"],
+  "offered": ["claude", "codex", "qoder", "opencode", "pi", "grok", "antigravity"],
   "vocabularyOnly": ["cursor", "gemini"]
 }

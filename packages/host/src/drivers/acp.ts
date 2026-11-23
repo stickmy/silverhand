@@ -54,6 +54,11 @@ export interface AcpRuntimeAdapter {
   /** True when a busy-request result says the text was not taken (its turn had
    *  ended). Opting in also redelivers, best effort, on error responses. */
   busyRequestNeedsPrompt?(result: unknown): boolean;
+  /** A `session/prompt` sent mid-turn joins the running turn: the earlier prompt
+   *  answers at once, and the turn ends with the latest prompt's response. */
+  readonly busyPromptJoinsTurn?: boolean;
+  /** Error text the runtime reports as an ordinary message chunk, or null. */
+  messageTextError?(text: string): string | null;
   sessionMethod?(ctx: DriverSpawnContext, initializeResult: unknown): string;
   buildSessionFinalizeRequest?(
     ctx: DriverSpawnContext,
@@ -88,6 +93,7 @@ export class AcpClient {
   private sessionFinalized = false;
   private activePromptRequestId: JsonRpcId | null = null;
   private pendingBusyRequests = new Map<JsonRpcId, { text: string; promptId: JsonRpcId }>();
+  private joinedPrompts = new Set<JsonRpcId>();
   private redeliveries: string[] = [];
   private sessionId: string | null = null;
   private sessionAnnounced = false;
@@ -109,7 +115,9 @@ export class AcpClient {
   readyToEncode(): boolean {
     return (
       this.sessionAnnounced &&
-      (this.activePromptRequestId === null || !!this.adapter.buildBusyRequest)
+      (this.activePromptRequestId === null ||
+        !!this.adapter.buildBusyRequest ||
+        this.adapter.busyPromptJoinsTurn === true)
     );
   }
 
@@ -123,6 +131,7 @@ export class AcpClient {
       }
       return serialize({ jsonrpc: '2.0', id, ...request });
     }
+    if (this.activePromptRequestId !== null) this.joinedPrompts.add(this.activePromptRequestId);
     this.activePromptRequestId = id;
     return serialize({
       jsonrpc: '2.0',
@@ -197,18 +206,16 @@ export class AcpClient {
   private handleResponse(message: JsonRpcResponse): ParsedEvent[] {
     const events: ParsedEvent[] = [];
 
+    if (this.joinedPrompts.delete(message.id)) {
+      return message.error ? [{ kind: 'error', message: errorMessage(message, this.adapter) }] : [];
+    }
+
     if (message.error) {
       const busy = this.pendingBusyRequests.get(message.id);
       this.clearPendingForResponse(message.id);
       // A refused busy request did not take the text either.
       if (busy) this.redeliver(busy);
-      events.push({
-        kind: 'error',
-        message:
-          typeof message.error.message === 'string'
-            ? message.error.message
-            : `${this.adapter.runtimeLabel} ACP request failed`,
-      });
+      events.push({ kind: 'error', message: errorMessage(message, this.adapter) });
       if (message.id === this.activePromptRequestId) {
         this.endPrompt(events);
       }
@@ -371,7 +378,9 @@ export class AcpClient {
     switch (kind) {
       case 'agent_message_chunk': {
         const text = textFromContent(update.content);
-        if (text) events.push({ kind: 'text', text });
+        const error = text ? this.adapter.messageTextError?.(text) : null;
+        if (error) events.push({ kind: 'error', message: error });
+        else if (text) events.push({ kind: 'text', text });
         break;
       }
       case 'agent_thought_chunk': {
@@ -503,6 +512,12 @@ export class AcpClient {
   private async writeLine(line: string): Promise<void> {
     await this.io?.writeLine(line).catch(() => {});
   }
+}
+
+function errorMessage(message: JsonRpcResponse, adapter: AcpRuntimeAdapter): string {
+  return typeof message.error?.message === 'string'
+    ? message.error.message
+    : `${adapter.runtimeLabel} ACP request failed`;
 }
 
 function serialize(message: JsonRpcRequest | JsonRpcNotification | JsonRpcResponse): string {
