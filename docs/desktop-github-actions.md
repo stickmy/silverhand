@@ -30,8 +30,9 @@ Each build job has a 60-minute timeout, adjustable after hosted-runner evidence.
 2. Commit `changelog/desktop/X.Y.Z.md` alongside the Desktop version bump.
    Lead with any required upgrade steps, then describe the features and fixes
    users will notice. Call out remote server or daemon dependencies when they
-   matter. Include the platform and build variants, and finish with a GitHub
-   comparison link between the two Desktop tags. See [0.5.3](../changelog/desktop/0.5.3.md).
+   matter. Mention platform support, packaging or signing only when it changes
+   in this release. Finish with a GitHub comparison link between the two
+   Desktop tags. See [0.5.3](../changelog/desktop/0.5.3.md).
 3. Tag that commit and push the Desktop tag using the established release
    script. Tag builds check that the matching notes contain text before
    packaging. The release job uses the file from the tagged commit verbatim
