@@ -27,11 +27,11 @@ Each build job has a 60-minute timeout, adjustable after hosted-runner evidence.
 1. Find the previous published Desktop release in GitHub Releases. Review
    `git log --oneline desktop-vPREVIOUS..HEAD` and check the diffs for changes
    that affect Desktop users, including changes in shared code.
-2. Commit `docs/releases/desktop/X.Y.Z.md` alongside the Desktop version bump.
+2. Commit `changelog/desktop/X.Y.Z.md` alongside the Desktop version bump.
    Lead with any required upgrade steps, then describe the features and fixes
    users will notice. Call out remote server or daemon dependencies when they
    matter. Include the platform and build variants, and finish with a GitHub
-   comparison link between the two Desktop tags. See [0.5.3](releases/desktop/0.5.3.md).
+   comparison link between the two Desktop tags. See [0.5.3](../changelog/desktop/0.5.3.md).
 3. Tag that commit and push the Desktop tag using the established release
    script. Tag builds check that the matching notes contain text before
    packaging. The release job uses the file from the tagged commit verbatim
