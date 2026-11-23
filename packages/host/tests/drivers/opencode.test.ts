@@ -601,6 +601,7 @@ describe('OpenCodeDriver ACP event mapping', () => {
         kind: 'tool_call',
         name: 'Bash',
         input: { command: 'pnpm test' },
+        tool: { type: 'command', command: 'pnpm test' },
         toolCallId: 'tool_1',
       },
     ]);
@@ -650,6 +651,7 @@ describe('OpenCodeDriver ACP event mapping', () => {
         kind: 'tool_call',
         name: 'bash',
         input: { cwd: '/tmp/agent' },
+        tool: { type: 'other' },
         toolCallId: 'tool_1',
       },
     ]);
@@ -668,6 +670,7 @@ describe('OpenCodeDriver ACP event mapping', () => {
         kind: 'tool_call_input',
         toolCallId: 'tool_1',
         input: { cwd: '/tmp/agent', command: 'silverhand message send' },
+        tool: { type: 'command', command: 'silverhand message send' },
       },
     ]);
     expect(refined.some((e) => e.kind === 'tool_call')).toBe(false);
@@ -686,6 +689,7 @@ describe('OpenCodeDriver ACP event mapping', () => {
         kind: 'tool_call_input',
         toolCallId: 'tool_1',
         input: { cwd: '/tmp/agent', command: 'silverhand message send --anyway' },
+        tool: { type: 'command', command: 'silverhand message send --anyway' },
       },
       { kind: 'tool_output', toolCallId: 'tool_1', outcome: 'success' },
     ]);
@@ -737,7 +741,9 @@ describe('OpenCodeDriver ACP event mapping', () => {
         rawInput: {},
         status: 'in_progress',
       }),
-    ).toEqual([{ kind: 'tool_call_input', toolCallId: 'tool_2', input: {} }]);
+    ).toEqual([
+      { kind: 'tool_call_input', toolCallId: 'tool_2', input: {}, tool: { type: 'other' } },
+    ]);
   });
 
   it('auto-approves permission requests to match full-access runtime posture', async () => {

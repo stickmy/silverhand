@@ -842,6 +842,7 @@ describe('CodexDriver.parseLine event mapping', () => {
         kind: 'tool_call',
         name: 'mcp_chat_send_message',
         input: { text: 'hi' },
+        tool: { type: 'mcp', server: 'chat', tool: 'send_message' },
       },
     ]);
 
@@ -872,7 +873,14 @@ describe('CodexDriver.parseLine event mapping', () => {
         params: { item: { type: 'commandExecution', command: 'ls -al' } },
       }),
     );
-    expect(start).toEqual([{ kind: 'tool_call', name: 'shell', input: { command: 'ls -al' } }]);
+    expect(start).toEqual([
+      {
+        kind: 'tool_call',
+        name: 'shell',
+        input: { command: 'ls -al' },
+        tool: { type: 'command', command: 'ls -al' },
+      },
+    ]);
     const end = driver.parseLine(
       JSON.stringify({
         jsonrpc: '2.0',
@@ -945,7 +953,13 @@ describe('CodexDriver.parseLine event mapping', () => {
       }),
     );
     expect(start).toEqual([
-      { kind: 'tool_call', name: 'web_search', input: { query: 'silverhand' }, toolCallId: 'ws-1' },
+      {
+        kind: 'tool_call',
+        name: 'web_search',
+        input: { query: 'silverhand' },
+        tool: { type: 'web_search', query: 'silverhand' },
+        toolCallId: 'ws-1',
+      },
     ]);
 
     const end = driver.parseLine(

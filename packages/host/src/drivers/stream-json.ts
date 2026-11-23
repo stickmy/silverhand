@@ -1,4 +1,5 @@
 import { type ParsedEvent } from './index.js';
+import { claudeTool } from './tools.js';
 
 /**
  * Shared Claude-shaped `stream-json` protocol helpers.
@@ -102,6 +103,7 @@ export function parseStreamJsonLine(
               kind: 'tool_call',
               name: typeof block.name === 'string' ? block.name : 'unknown_tool',
               input: block.input,
+              tool: claudeTool(block.name, block.input),
               toolCallId: typeof block.id === 'string' ? block.id : undefined,
             });
           }

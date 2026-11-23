@@ -3,7 +3,7 @@ import type {
   AgentStreamActivityEvent,
   ToolOutcome,
 } from "@silverhand/shared";
-import { decodeTargetForDisplay } from "@silverhand/shared";
+import { decodeTargetForDisplay, ToolSchema, type Tool } from "@silverhand/shared";
 
 export type ActivityEvent = ConversationActivityEvent | AgentStreamActivityEvent;
 
@@ -221,7 +221,81 @@ function presentSilverhandCli(command: string): ToolPresentation | null {
   return { verb: label, arg, detail: null };
 }
 
+function commandPresentation(verb: string, command: string): ToolPresentation {
+  const cli = presentSilverhandCli(command);
+  if (cli) return cli;
+  const abbr = abbreviateHome(command.trim());
+  if (abbr.includes("\n")) return { verb, arg: null, detail: { kind: "code", text: abbr } };
+  return { verb, arg: abbr.length > 0 ? abbr : null, detail: null };
+}
+
+function withPath(pattern: string, path: string | undefined): string {
+  return `${pattern}${path ? ` in ${abbreviateHome(path)}` : ""}`;
+}
+
+/** Presentation of a runtime-independent tool description (`payload.tool`). */
+export function presentTool(tool: Tool, name: string, input: unknown): ToolPresentation {
+  switch (tool.type) {
+    case "command":
+      return commandPresentation("Bash", tool.command);
+    case "read":
+      return { verb: "Read", arg: abbreviateHome(tool.path), detail: null };
+    case "write":
+      return {
+        verb: "Write",
+        arg: abbreviateHome(tool.path),
+        detail:
+          tool.content !== undefined ? { kind: "diff", removed: "", added: tool.content } : null,
+      };
+    case "edit":
+      return {
+        verb: "Edit",
+        arg: `${abbreviateHome(tool.path)}${tool.change ? ` (${tool.change})` : ""}`,
+        detail: tool.edits?.length
+          ? {
+              kind: "diff",
+              removed: tool.edits.map((edit) => edit.old).join("\n"),
+              added: tool.edits.map((edit) => edit.new).join("\n"),
+            }
+          : null,
+      };
+    case "search":
+      return {
+        verb: "Grep",
+        arg: `${withPath(tool.pattern, tool.path)}${tool.glob ? ` (${tool.glob})` : ""}`,
+        detail: null,
+      };
+    case "find":
+      return { verb: "Glob", arg: withPath(tool.pattern, tool.path), detail: null };
+    case "list":
+      return { verb: "List", arg: tool.path ? abbreviateHome(tool.path) : null, detail: null };
+    case "web_search":
+      return { verb: "Search", arg: tool.query, detail: null };
+    case "web_fetch":
+      return { verb: "Fetch", arg: tool.url, detail: null };
+    case "subagent":
+      return { verb: "Task", arg: tool.description, detail: null };
+    case "skill":
+      return { verb: "Skill", arg: tool.name, detail: null };
+    case "mcp":
+      return { verb: `${tool.server}.${tool.tool}`, arg: null, detail: jsonDetail(input) };
+    case "other":
+      return { verb: name, arg: null, detail: jsonDetail(input) };
+  }
+}
+
+/** A tool_call row: `payload.tool` when the daemon sent one, else the native name table. */
+export function presentActivityToolCall(payload: Record<string, unknown> | null): ToolPresentation {
+  const name = typeof payload?.["name"] === "string" ? payload["name"] : "tool";
+  const input = payload?.["input"] ?? null;
+  const tool = ToolSchema.safeParse(payload?.["tool"]);
+  return tool.success ? presentTool(tool.data, name, input) : presentToolCall(name, input);
+}
+
 /**
+ * Legacy rows (and older daemons) carry no `tool`; this name table renders them
+ * and is frozen — new runtimes describe their tools through `tool` instead.
+ *
  * Map a `(name, input)` tool call to a legible presentation. Known tools get a
  * verb + inline arg (+ optional diff/code body); anything unrecognised or
  * malformed falls back to the raw name + pretty JSON — never a crash.
@@ -237,15 +311,7 @@ export function presentToolCall(name: string, input: unknown): ToolPresentation 
   if (n === "bash" || n === "shell") {
     const verb = n === "shell" ? "Shell" : "Bash";
     const command = s(rec, "command") ?? (typeof input === "string" ? input : null);
-    if (command !== null) {
-      const cli = presentSilverhandCli(command);
-      if (cli) return cli;
-      const abbr = abbreviateHome(command.trim());
-      if (abbr.includes("\n")) {
-        return { verb, arg: null, detail: { kind: "code", text: abbr } };
-      }
-      return { verb, arg: abbr.length > 0 ? abbr : null, detail: null };
-    }
+    if (command !== null) return commandPresentation(verb, command);
     return { verb, arg: null, detail: jsonDetail(input) };
   }
 

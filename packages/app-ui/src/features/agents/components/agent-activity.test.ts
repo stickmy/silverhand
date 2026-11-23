@@ -9,6 +9,7 @@ import { partitionRoster } from "./agent-activity-pane";
 import { mergeActivityById } from "./agent-activity-timeline";
 import {
   coalesceActivity,
+  presentActivityToolCall,
   presentToolCall,
   taskNumberFromCommand,
 } from "../model/activity-presentation";
@@ -109,6 +110,44 @@ describe("mergeActivityById", () => {
     const short = ev(5, { kind: "thinking", payload: { text: "abc" } });
     expect(mergeActivityById([long], [short])[0]!.payload).toEqual({ text: "abcdef" });
     expect(mergeActivityById([short], [long])[0]!.payload).toEqual({ text: "abcdef" });
+  });
+});
+
+describe("presentActivityToolCall", () => {
+  it("renders payload.tool regardless of the native tool name", () => {
+    expect(
+      presentActivityToolCall({
+        name: "edit",
+        input: { path: "/Users/shiki/a.ts", edits: [{ oldText: "a", newText: "b" }] },
+        tool: { type: "edit", path: "/Users/shiki/a.ts", edits: [{ old: "a", new: "b" }] },
+      }),
+    ).toEqual({ verb: "Edit", arg: "~/a.ts", detail: { kind: "diff", removed: "a", added: "b" } });
+    expect(
+      presentActivityToolCall({
+        name: "echo hi",
+        input: { CommandLine: "silverhand task claim 42" },
+        tool: { type: "command", command: "silverhand task claim 42" },
+      }).arg,
+    ).toBe("#42");
+  });
+
+  it("falls back to the name table without a valid tool", () => {
+    expect(presentActivityToolCall({ name: "Bash", input: { command: "ls" } })).toEqual({
+      verb: "Bash",
+      arg: "ls",
+      detail: null,
+    });
+    expect(
+      presentActivityToolCall({ name: "Bash", input: { command: "ls" }, tool: { type: "future" } })
+        .arg,
+    ).toBe("ls");
+  });
+
+  it("keeps the native name and input for other tools", () => {
+    expect(
+      presentActivityToolCall({ name: "todowrite", input: { todos: [1] }, tool: { type: "other" } })
+        .verb,
+    ).toBe("todowrite");
   });
 });
 

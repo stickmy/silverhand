@@ -53,6 +53,41 @@ export const TOOL_OUTCOMES = ['success', 'failed', 'cancelled', 'completed'] as 
 export const ToolOutcomeSchema = z.enum(TOOL_OUTCOMES);
 export type ToolOutcome = (typeof TOOL_OUTCOMES)[number];
 
+/**
+ * Runtime-independent description of a tool call. Each driver maps its native
+ * tool frames to this at its own boundary; the activity view renders only this.
+ * `other` keeps the native `name`/`input` as the whole story. Bounded strings
+ * may arrive truncated by the backend sanitizer, so consumers parse leniently.
+ */
+const ToolText = z.string();
+export const ToolSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('command'), command: ToolText }),
+  z.object({ type: z.literal('read'), path: ToolText }),
+  z.object({ type: z.literal('write'), path: ToolText, content: ToolText.optional() }),
+  z.object({
+    type: z.literal('edit'),
+    path: ToolText,
+    /** File-level change when the runtime reports one instead of text edits. */
+    change: z.enum(['add', 'update', 'delete']).optional(),
+    edits: z.array(z.object({ old: ToolText, new: ToolText })).optional(),
+  }),
+  z.object({
+    type: z.literal('search'),
+    pattern: ToolText,
+    path: ToolText.optional(),
+    glob: ToolText.optional(),
+  }),
+  z.object({ type: z.literal('find'), pattern: ToolText, path: ToolText.optional() }),
+  z.object({ type: z.literal('list'), path: ToolText.optional() }),
+  z.object({ type: z.literal('web_search'), query: ToolText }),
+  z.object({ type: z.literal('web_fetch'), url: ToolText }),
+  z.object({ type: z.literal('subagent'), description: ToolText }),
+  z.object({ type: z.literal('skill'), name: ToolText }),
+  z.object({ type: z.literal('mcp'), server: ToolText, tool: ToolText }),
+  z.object({ type: z.literal('other') }),
+]);
+export type Tool = z.infer<typeof ToolSchema>;
+
 export const ParsedEventSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('session_init'),
@@ -80,6 +115,7 @@ export const ParsedEventSchema = z.discriminatedUnion('kind', [
      *  `input` field would parse fine, silently downgrading the
      *  contract. `RequiredUnknownSchema` re-asserts presence. */
     input: RequiredUnknownSchema,
+    tool: ToolSchema.optional(),
     toolCallId: z.string().min(1).optional(),
   }),
   z.object({
@@ -101,6 +137,7 @@ export const ParsedEventSchema = z.discriminatedUnion('kind', [
     kind: z.literal('tool_call_input'),
     toolCallId: z.string().min(1),
     input: RequiredUnknownSchema,
+    tool: ToolSchema.optional(),
   }),
   z.object({
     kind: z.literal('tool_output'),

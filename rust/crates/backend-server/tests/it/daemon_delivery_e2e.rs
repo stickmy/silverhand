@@ -5131,6 +5131,7 @@ async fn hydrated_product_frames_reach_durable_live_and_coordinator_owners_once(
                     "kind": "tool_call",
                     "name": "Bash",
                     "input": { "command": oversized },
+                    "tool": { "type": "command", "command": oversized },
                     "toolCallId": "tool-1",
                 },
                 "ts": 16,
@@ -5146,8 +5147,18 @@ async fn hydrated_product_frames_reach_durable_live_and_coordinator_owners_once(
             .unwrap()
             .contains("<truncated 200 chars>")
     );
+    assert!(
+        tool_live["payload"]["event"]["tool"]["command"]
+            .as_str()
+            .unwrap()
+            .contains("<truncated 200 chars>")
+    );
     let tool_activity = next_json(&mut live).await;
     assert_eq!(tool_activity["kind"], "conversation_activity");
+    assert_eq!(
+        tool_activity["payload"]["payload"]["tool"]["type"],
+        "command"
+    );
     let tool_id = tool_activity["payload"]["id"].as_i64().unwrap();
     sqlx::query("UPDATE agents SET last_activity_at = NULL WHERE id = ?")
         .bind(AGENT)
@@ -5164,6 +5175,7 @@ async fn hydrated_product_frames_reach_durable_live_and_coordinator_owners_once(
                     "kind": "tool_call_input",
                     "toolCallId": "tool-1",
                     "input": { "command": "refined" },
+                    "tool": { "type": "command", "command": "refined" },
                 },
                 "ts": 17,
             }),
@@ -5179,6 +5191,7 @@ async fn hydrated_product_frames_reach_durable_live_and_coordinator_owners_once(
     assert_eq!(refined["kind"], "conversation_activity");
     assert_eq!(refined["payload"]["id"], tool_id);
     assert_eq!(refined["payload"]["payload"]["input"]["command"], "refined");
+    assert_eq!(refined["payload"]["payload"]["tool"]["command"], "refined");
 
     send_product(
         &mut daemon,

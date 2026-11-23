@@ -25,7 +25,7 @@ import { cn } from "@/lib/cn";
 import { Markdown } from "@/features/messages/components/markdown";
 import {
   coalesceActivity,
-  presentToolCall,
+  presentActivityToolCall,
   type ActivityDisplayItem,
   type ActivityEvent,
   type ToolDetail,
@@ -632,8 +632,7 @@ function ToolCallRow({
 
   const { Icon, tone } = visualForKind(event.kind);
   const time = dayjs(event.created_at).format("HH:mm:ss");
-  const name = str(event.payload, "name") ?? "tool";
-  const p = presentToolCall(name, event.payload?.["input"] ?? null);
+  const p = presentActivityToolCall(event.payload);
   const toggleArg = () => {
     setArgExpanded((value) => !value);
   };

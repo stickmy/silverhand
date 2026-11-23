@@ -1232,9 +1232,13 @@ where
             ParsedEventWire::ToolCallInput {
                 tool_call_id,
                 input,
+                tool,
             } => {
                 self.clear_pending_text(&admission)?;
                 let input = sanitize_json_value(input, 0);
+                let tool_json = sanitized_tool(tool.as_ref())
+                    .map(|tool| serde_json::to_string(&tool))
+                    .transpose()?;
                 let Some(committed) = self
                     .durable
                     .refine_tool_call_input(RefineRuntimeToolCallInput::new(
@@ -1243,6 +1247,7 @@ where
                         event.coordinate.agent()?,
                         tool_call_id.clone(),
                         serde_json::to_string(&input)?,
+                        tool_json,
                         RuntimeEventTime::from_unix_millis(presence_now()),
                     ))
                     .await?
@@ -1854,6 +1859,8 @@ pub(crate) enum ParsedEventWire {
     ToolCall {
         name: String,
         input: Value,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        tool: Option<Value>,
         #[serde(rename = "toolCallId")]
         tool_call_id: Option<String>,
     },
@@ -1861,6 +1868,8 @@ pub(crate) enum ParsedEventWire {
         #[serde(rename = "toolCallId")]
         tool_call_id: String,
         input: Value,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        tool: Option<Value>,
     },
     ToolOutput {
         name: Option<String>,
@@ -1972,18 +1981,22 @@ impl ParsedEventWire {
             Self::ToolCall {
                 name,
                 input,
+                tool,
                 tool_call_id,
             } => Self::ToolCall {
                 name: name.clone(),
                 input: sanitize_json_value(input, 0),
+                tool: sanitized_tool(tool.as_ref()),
                 tool_call_id: tool_call_id.clone(),
             },
             Self::ToolCallInput {
                 tool_call_id,
                 input,
+                tool,
             } => Self::ToolCallInput {
                 tool_call_id: tool_call_id.clone(),
                 input: sanitize_json_value(input, 0),
+                tool: sanitized_tool(tool.as_ref()),
             },
             other => other.clone(),
         }
@@ -2012,12 +2025,16 @@ impl ParsedEventWire {
             Self::ToolCall {
                 name,
                 input,
+                tool,
                 tool_call_id,
             } => (
                 RuntimeActivityKind::ToolCall,
                 RuntimeActivityPayload::ToolCall {
                     name: name.clone(),
                     input_json: serde_json::to_string(&sanitize_json_value(input, 0))?,
+                    tool_json: sanitized_tool(tool.as_ref())
+                        .map(|tool| serde_json::to_string(&tool))
+                        .transpose()?,
                     tool_call_id: tool_call_id.clone(),
                 },
             ),
@@ -2098,6 +2115,12 @@ fn append_capped_text(pending: &mut PendingTextActivity, fragment: &str) {
         .saturating_add(fragment.chars().count().saturating_sub(kept_count));
 }
 
+/// The tool description is opaque here; only an object with a string `type` is kept.
+fn sanitized_tool(tool: Option<&Value>) -> Option<Value> {
+    tool.filter(|tool| tool.get("type").is_some_and(Value::is_string))
+        .map(|tool| sanitize_json_value(tool, 0))
+}
+
 fn sanitize_json_value(value: &Value, depth: usize) -> Value {
     const STRING_MAX: usize = 500;
     const ARRAY_MAX: usize = 20;
@@ -2173,6 +2196,18 @@ mod tests {
         AgentRunStateWire, AgentRunStatus, DaemonRuntimeEventError, RuntimeEventSettlement,
         RuntimeOwnerState, runtime_exit_should_respawn, runtime_exit_status,
     };
+
+    #[test]
+    fn tool_description_survives_only_as_a_typed_object() {
+        use serde_json::json;
+        assert_eq!(super::sanitized_tool(None), None);
+        assert_eq!(super::sanitized_tool(Some(&json!("command"))), None);
+        assert_eq!(super::sanitized_tool(Some(&json!({ "type": 1 }))), None);
+        assert_eq!(
+            super::sanitized_tool(Some(&json!({ "type": "future", "x": [1] }))),
+            Some(json!({ "type": "future", "x": [1] }))
+        );
+    }
 
     fn admission(
         host: &str,

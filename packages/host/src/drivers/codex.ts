@@ -9,6 +9,7 @@ import {
   type ParsedEvent,
   type ToolOutcome,
 } from './index.js';
+import { codexFileChange } from './tools.js';
 
 /**
  * Codex CLI driver.
@@ -465,6 +466,7 @@ export class CodexDriver implements Driver {
             kind: 'tool_call',
             name: 'shell',
             input: { command: item.command },
+            tool: { type: 'command', command: item.command },
             ...(callId ? { toolCallId: callId } : {}),
           });
         }
@@ -494,6 +496,7 @@ export class CodexDriver implements Driver {
               kind: 'tool_call',
               name: 'file_change',
               input: { path: change?.path, kind: change?.kind },
+              tool: codexFileChange(change),
               ...(callId ? { toolCallId: callId } : {}),
             });
           }
@@ -525,6 +528,10 @@ export class CodexDriver implements Driver {
             kind: 'tool_call',
             name: toolName,
             input: item.arguments,
+            tool:
+              typeof item.server === 'string' && typeof item.tool === 'string'
+                ? { type: 'mcp', server: item.server, tool: item.tool }
+                : { type: 'other' },
             ...(callId ? { toolCallId: callId } : {}),
           });
         }
@@ -544,6 +551,9 @@ export class CodexDriver implements Driver {
             kind: 'tool_call',
             name: 'web_search',
             input: { query: item.query },
+            ...(typeof item.query === 'string'
+              ? { tool: { type: 'web_search', query: item.query } }
+              : {}),
             ...(typeof item.id === 'string' ? { toolCallId: item.id } : {}),
           });
           if (typeof item.id === 'string') this.pendingWebSearchIds.add(item.id);

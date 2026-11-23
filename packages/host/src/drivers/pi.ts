@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { Driver, DriverIO, DriverSpawnContext, ParsedEvent } from './index.js';
+import { piTool } from './tools.js';
 
 type Frame = Record<string, any>;
 
@@ -337,6 +338,12 @@ export class PiDriver implements Driver {
     this.calls.set(id, name);
     // Preserve the JSON value for the common activity sanitizer. Driver-local
     // clipping would destroy object/array structure and its truncation markers.
-    events.push({ kind: 'tool_call', toolCallId: id, name, input: input ?? null });
+    events.push({
+      kind: 'tool_call',
+      toolCallId: id,
+      name,
+      input: input ?? null,
+      tool: piTool(name, input),
+    });
   }
 }

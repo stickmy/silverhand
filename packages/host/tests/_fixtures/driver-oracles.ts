@@ -81,6 +81,7 @@ export const DRIVER_PARSE_ORACLES: DriverParseOracle[] = [
             kind: 'tool_call',
             name: 'Bash',
             input: { command: 'pwd' },
+            tool: { type: 'command', command: 'pwd' },
             toolCallId: 'tool-1',
           },
         ],
@@ -255,7 +256,14 @@ export const DRIVER_PARSE_ORACLES: DriverParseOracle[] = [
           method: 'item/started',
           params: { item: { type: 'commandExecution', command: 'ls -al' } },
         }),
-        expected: [{ kind: 'tool_call', name: 'shell', input: { command: 'ls -al' } }],
+        expected: [
+          {
+            kind: 'tool_call',
+            name: 'shell',
+            input: { command: 'ls -al' },
+            tool: { type: 'command', command: 'ls -al' },
+          },
+        ],
       },
       {
         line: j({
@@ -332,6 +340,7 @@ export const DRIVER_PARSE_ORACLES: DriverParseOracle[] = [
             kind: 'tool_call',
             name: 'web_search',
             input: { query: 'silverhand' },
+            tool: { type: 'web_search', query: 'silverhand' },
             toolCallId: 'ws-1',
           },
         ],
@@ -380,12 +389,14 @@ export const DRIVER_PARSE_ORACLES: DriverParseOracle[] = [
             kind: 'tool_call',
             name: 'file_change',
             input: { path: 'a.ts', kind: 'modify' },
+            tool: { type: 'edit', path: 'a.ts' },
             toolCallId: 'fc-1',
           },
           {
             kind: 'tool_call',
             name: 'file_change',
             input: { path: 'b.ts', kind: 'create' },
+            tool: { type: 'edit', path: 'b.ts' },
             toolCallId: 'fc-1',
           },
         ],

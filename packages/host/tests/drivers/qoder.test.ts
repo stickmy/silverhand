@@ -363,6 +363,7 @@ describe('QoderDriver.parseLine', () => {
         kind: 'tool_call',
         name: 'Bash',
         input: { command: 'echo hi' },
+        tool: { type: 'command', command: 'echo hi' },
         toolCallId: 'call_1',
       },
     ]);

@@ -152,13 +152,21 @@ fn activity_payload_value(
         RuntimeActivityPayload::ToolCall {
             name,
             input_json,
+            tool_json,
             tool_call_id,
-        } => json!({
-            "name": name,
-            "input": serde_json::from_str::<Value>(input_json)
-                .map_err(LiveProjectionFailure::from_source)?,
-            "tool_call_id": tool_call_id,
-        }),
+        } => {
+            let mut value = json!({
+                "name": name,
+                "input": serde_json::from_str::<Value>(input_json)
+                    .map_err(LiveProjectionFailure::from_source)?,
+                "tool_call_id": tool_call_id,
+            });
+            if let Some(tool_json) = tool_json {
+                value["tool"] = serde_json::from_str::<Value>(tool_json)
+                    .map_err(LiveProjectionFailure::from_source)?;
+            }
+            value
+        }
         RuntimeActivityPayload::ToolOutput {
             name,
             tool_call_id,

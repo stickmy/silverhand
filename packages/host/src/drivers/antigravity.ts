@@ -75,7 +75,7 @@ export class AntigravityAcpAdapter implements AcpRuntimeAdapter {
     return null;
   }
 
-  // agy's tool frames carry an ACP `kind` and PascalCase args.
+  // agy titles a tool call with its argument (the command line itself).
   toolCall(update: Record<string, any>): { name: string; input: unknown } | null {
     const input = record(update.rawInput);
     const text = (key: string) => (typeof input[key] === 'string' ? input[key] : undefined);

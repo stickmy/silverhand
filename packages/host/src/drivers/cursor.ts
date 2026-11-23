@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 
 import { type Driver, type DriverSpawnContext, type ParsedEvent } from './index.js';
+import { claudeTool } from './tools.js';
 
 /**
  * Cursor CLI (`cursor-agent --print`) driver.
@@ -108,6 +109,7 @@ export class CursorDriver implements Driver {
                 kind: 'tool_call',
                 name: typeof block.name === 'string' ? block.name : 'unknown_tool',
                 input: block.input,
+                tool: claudeTool(block.name, block.input),
                 toolCallId: typeof block.id === 'string' ? block.id : undefined,
               });
             }

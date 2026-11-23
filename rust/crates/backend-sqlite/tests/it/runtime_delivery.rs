@@ -1565,6 +1565,7 @@ async fn tool_refinement_never_rewrites_previous_generation_or_legacy_rows() {
                 RuntimeActivityPayload::ToolCall {
                     name: "shell".into(),
                     input_json: "{}".into(),
+                    tool_json: Some("{\"type\":\"command\",\"command\":\"\"}".into()),
                     tool_call_id: Some("reused-tool-id".into()),
                 },
                 RuntimeEventTime::from_unix_millis(20),
@@ -1593,6 +1594,7 @@ async fn tool_refinement_never_rewrites_previous_generation_or_legacy_rows() {
                 AgentId::parse(AGENT).unwrap(),
                 "reused-tool-id".into(),
                 "{\"command\":\"current only\"}".into(),
+                Some("{\"type\":\"command\",\"command\":\"current only\"}".into()),
                 RuntimeEventTime::from_unix_millis(30),
             ))
     };
@@ -1627,9 +1629,14 @@ async fn tool_refinement_never_rewrites_previous_generation_or_legacy_rows() {
             .fetch_one(&mut db)
             .await
             .unwrap();
+    let current_payload = serde_json::from_str::<serde_json::Value>(&current_payload).unwrap();
     assert_eq!(
-        serde_json::from_str::<serde_json::Value>(&current_payload).unwrap()["input"],
+        current_payload["input"],
         serde_json::json!({ "command": "current only" })
+    );
+    assert_eq!(
+        current_payload["tool"],
+        serde_json::json!({ "type": "command", "command": "current only" })
     );
     assert!(refine(old.clone()).await.unwrap().is_none());
     assert!(record(old).await.unwrap().is_none());

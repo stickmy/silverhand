@@ -4,6 +4,7 @@ import {
   type ParsedEvent,
   type ToolOutcome,
 } from './index.js';
+import { acpTool } from './tools.js';
 
 type JsonRpcId = number | string | null;
 
@@ -57,7 +58,8 @@ export interface AcpRuntimeAdapter {
   /** A `session/prompt` sent mid-turn joins the running turn: the earlier prompt
    *  answers at once, and the turn ends with the latest prompt's response. */
   readonly busyPromptJoinsTurn?: boolean;
-  /** Maps a native tool call to the shared tool vocabulary (`Bash`, `Read`, …). */
+  /** Overrides the native `name`/`input` when the runtime's own are unusable as a
+   *  tool name (the run state counts by `name`; older desktops render from it). */
   toolCall?(update: Record<string, any>): { name: string; input: unknown } | null;
   /** Error text the runtime reports as an ordinary message chunk, or null. */
   messageTextError?(text: string): string | null;
@@ -394,11 +396,12 @@ export class AcpClient {
         const toolCallId = stringField(update.toolCallId);
         if (toolCallId && this.emittedToolCalls.has(toolCallId)) break;
         if (toolCallId) this.emittedToolCalls.add(toolCallId);
-        const tool = this.adapter.toolCall?.(update);
+        const legacy = this.adapter.toolCall?.(update);
         events.push({
           kind: 'tool_call',
-          name: tool?.name ?? toolName(update),
-          input: tool ? tool.input : (update.rawInput ?? {}),
+          name: legacy?.name ?? toolName(update),
+          input: legacy ? legacy.input : (update.rawInput ?? {}),
+          tool: acpTool(update),
           ...(toolCallId ? { toolCallId } : {}),
         });
         if (isTerminalToolStatus(update.status)) {
@@ -429,6 +432,7 @@ export class AcpClient {
             kind: 'tool_call_input',
             toolCallId,
             input: this.adapter.toolCall?.(update)?.input ?? update.rawInput,
+            tool: acpTool(update),
           });
         }
         if (isTerminalToolStatus(update.status)) {

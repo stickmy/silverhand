@@ -92,6 +92,8 @@ pub enum RuntimeActivityPayload {
     ToolCall {
         name: String,
         input_json: String,
+        /// Runtime-independent tool description; opaque JSON to the backend.
+        tool_json: Option<String>,
         tool_call_id: Option<String>,
     },
     ToolOutput {
@@ -229,6 +231,7 @@ pub struct RefineRuntimeToolCallInput {
     agent: AgentId,
     tool_call_id: String,
     input_json: String,
+    tool_json: Option<String>,
     observed_at: RuntimeEventTime,
 }
 
@@ -322,6 +325,7 @@ impl RefineRuntimeToolCallInput {
         agent: AgentId,
         tool_call_id: String,
         input_json: String,
+        tool_json: Option<String>,
         observed_at: RuntimeEventTime,
     ) -> Self {
         Self {
@@ -330,6 +334,7 @@ impl RefineRuntimeToolCallInput {
             agent,
             tool_call_id,
             input_json,
+            tool_json,
             observed_at,
         }
     }
@@ -348,6 +353,9 @@ impl RefineRuntimeToolCallInput {
     }
     pub fn input_json(&self) -> &str {
         &self.input_json
+    }
+    pub fn tool_json(&self) -> Option<&str> {
+        self.tool_json.as_deref()
     }
     pub fn observed_at(&self) -> RuntimeEventTime {
         self.observed_at

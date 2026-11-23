@@ -1602,6 +1602,12 @@ impl DaemonEventDurablePort for SqliteRuntimeDeliveryStore {
             "input".to_owned(),
             serde_json::from_str(event.input_json()).map_err(PersistenceFailure::from_source)?,
         );
+        if let Some(tool_json) = event.tool_json() {
+            object.insert(
+                "tool".to_owned(),
+                serde_json::from_str(tool_json).map_err(PersistenceFailure::from_source)?,
+            );
+        }
         let payload_json =
             serde_json::to_string(&payload).map_err(PersistenceFailure::from_source)?;
         let changed = sqlx::query("UPDATE conversation_events SET payload = ? WHERE id = ?")
@@ -1991,11 +1997,18 @@ fn activity_payload_json(
         RuntimeActivityPayload::ToolCall {
             name,
             input_json,
+            tool_json,
             tool_call_id,
         } => {
             let input = serde_json::from_str::<serde_json::Value>(input_json)
                 .map_err(PersistenceFailure::from_source)?;
-            serde_json::json!({ "name": name, "input": input, "tool_call_id": tool_call_id })
+            let mut value =
+                serde_json::json!({ "name": name, "input": input, "tool_call_id": tool_call_id });
+            if let Some(tool_json) = tool_json {
+                value["tool"] = serde_json::from_str::<serde_json::Value>(tool_json)
+                    .map_err(PersistenceFailure::from_source)?;
+            }
+            value
         }
         RuntimeActivityPayload::ToolOutput {
             name,

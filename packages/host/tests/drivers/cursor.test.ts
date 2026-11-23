@@ -203,6 +203,7 @@ describe('CursorDriver.parseLine event mapping', () => {
         kind: 'tool_call',
         name: 'mcp__chat__send_message',
         input: { text: 'hi' },
+        tool: { type: 'mcp', server: 'chat', tool: 'send_message' },
         toolCallId: 'call-1',
       },
     ]);
