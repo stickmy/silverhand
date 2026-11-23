@@ -46,6 +46,11 @@ jobs:
         run: |
           node --test scripts/ci/desktop-dmg.test.mjs
           node scripts/ci/desktop-dmg.mjs preflight
+      - name: Validate changelog for release tag
+        if: github.event_name == 'push'
+        run: |
+          notes="docs/releases/desktop/${GITHUB_REF_NAME#desktop-v}.md"
+          grep -q '[^[:space:]]' "$notes" || { echo "::error::Missing or blank release notes at $notes"; exit 1; }
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4; version from packageManager
         with:
           run_install: false
@@ -125,6 +130,10 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          sparse-checkout: docs/releases/desktop
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: desktop-dmg-*-${{ github.sha }}
@@ -149,5 +158,5 @@ jobs:
           # In-app updates read <variant>-mac.yml from the latest published release.
           gh release create "$RELEASE_TAG" "${dmgs[@]}" "${sums[@]}" "${feeds[@]}" "${zips[@]}" "${maps[@]}" \
             --verify-tag --draft --title "Desktop ${RELEASE_TAG#desktop-v}" \
-            --notes 'macOS Apple Silicon (arm64). Embedded and remote-only builds. Developer ID signed and Apple-notarized.'
+            --notes-file "$GITHUB_WORKSPACE/docs/releases/desktop/${RELEASE_TAG#desktop-v}.md"
           gh release edit "$RELEASE_TAG" --draft=false
