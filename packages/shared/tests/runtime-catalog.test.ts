@@ -206,13 +206,13 @@ describe('Grok runtime capabilities', () => {
 });
 
 describe('Antigravity runtime capabilities', () => {
-  it('offers native MCP; thinking levels live in the model id', () => {
+  it('offers native MCP and a reasoning control fed by per-model discovery', () => {
     expect(runtimeCatalogEntry('antigravity')).toMatchObject({
       selectable: true,
       supportsProfileMcp: true,
-      reasoningEffortOptions: [],
       serviceTierOptions: [],
     });
+    expect(runtimeSupportsReasoningEffort('antigravity')).toBe(true);
     expect(runtimeDefaultModel('antigravity')).toBeNull();
   });
 });

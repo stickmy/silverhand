@@ -109,18 +109,23 @@ describe('Antigravity ACP driver', () => {
     expect(response(sent[1].id, {})).toEqual([{ kind: 'session_init', sessionId: 'saved' }]);
   });
 
-  it('selects the model variant and accepts its split into model and thinking level', async () => {
-    const { sent, response } = await setup({ model: 'gemini-3.8-flash-low' });
+  it('sets the model, then its thinking level, and checks both took effect', async () => {
+    const { sent, response } = await setup({ model: 'gemini-3.8-flash', reasoningEffort: 'low' });
     expect(response(sent[1].id, { sessionId: 's' })).toEqual([]);
     expect(sent[2]).toMatchObject({
       method: 'session/set_config_option',
-      params: { sessionId: 's', configId: 'model', value: 'gemini-3.8-flash-low' },
+      params: { sessionId: 's', configId: 'model', value: 'gemini-3.8-flash' },
+    });
+    expect(response(sent[2].id, {})).toEqual([]);
+    expect(sent[3]).toMatchObject({
+      method: 'session/set_config_option',
+      params: { sessionId: 's', configId: 'thought_level', value: 'low' },
     });
     const options = [
       { id: 'model', currentValue: 'gemini-3.8-flash' },
       { id: 'thought_level', currentValue: 'low' },
     ];
-    expect(response(sent[2].id, { configOptions: options })).toEqual([
+    expect(response(sent[3].id, { configOptions: options })).toEqual([
       { kind: 'session_init', sessionId: 's' },
     ]);
   });

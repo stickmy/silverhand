@@ -54,21 +54,25 @@ export class AntigravityAcpAdapter implements AcpRuntimeAdapter {
     };
   }
 
-  // Model ids carry the thinking level (`gemini-3.8-flash-low`); agy splits the
-  // variant into its `model` and `thought_level` options.
+  // Thinking levels belong to the selected model, so the model is set first.
   buildSessionConfigRequests(ctx: DriverSpawnContext, sessionId: string) {
-    return ctx.model ? [{ sessionId, configId: 'model', value: ctx.model }] : [];
+    return [
+      ...(ctx.model ? [{ sessionId, configId: 'model', value: ctx.model }] : []),
+      ...(ctx.reasoningEffort
+        ? [{ sessionId, configId: 'thought_level', value: ctx.reasoningEffort }]
+        : []),
+    ];
   }
 
   validateSession(ctx: DriverSpawnContext, value: unknown): string | null {
-    if (!ctx.model) return null;
     const result = record(value);
-    const model = configValue(result, 'model');
-    const level = configValue(result, 'thought_level');
-    if (model === ctx.model || (level !== undefined && `${model}-${level}` === ctx.model)) {
-      return null;
+    if (ctx.model && configValue(result, 'model') !== ctx.model) {
+      return 'Antigravity did not select the requested model.';
     }
-    return 'Antigravity did not select the requested model.';
+    if (ctx.reasoningEffort && configValue(result, 'thought_level') !== ctx.reasoningEffort) {
+      return 'Antigravity did not apply the requested thinking level for this model.';
+    }
+    return null;
   }
 
   messageTextError(text: string): string | null {

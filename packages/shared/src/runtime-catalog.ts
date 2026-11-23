@@ -157,8 +157,8 @@ const CATALOG: Record<RuntimeKind, RuntimeCatalogEntry> = {
     label: 'Antigravity',
     cliLabel: 'Antigravity CLI',
     selectable: true,
-    // Thinking levels are model variants (`gemini-3.8-flash-low`), not a separate control.
-    reasoningEffortOptions: [],
+    // Per-model levels come from discovery; models without a thinking option list none.
+    reasoningEffortOptions: ['low', 'medium', 'high'],
     serviceTierOptions: [],
     supportsProfileMcp: true,
     modelSuggestions: [],

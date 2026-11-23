@@ -143,6 +143,13 @@ const OCCURRENCE_INVENTORY: OccurrenceExemption[] = [
     count: 1,
   },
   {
+    file: 'packages/host/src/runtime-models.ts',
+    token: 'homedir()',
+    line: 'const adapter = protocol(runtime.kind, runtime.version, cwd, env.HOME || homedir());',
+    reason: "the user's own Antigravity store under ~/.gemini, not app-data",
+    count: 1,
+  },
+  {
     file: 'apps/desktop/src/main/index.ts',
     token: 'homedir()',
     line: "join(homedir(), '.local', 'bin'),",

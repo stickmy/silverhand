@@ -68,7 +68,7 @@ describe('runtime catalog ⟺ host invariants', () => {
         const driver = getDriver(entry.kind);
         const args = driver.buildArgs(built.ctx);
         const requests: any[] = [];
-        if (entry.kind === 'grok') {
+        if (entry.kind === 'grok' || entry.kind === 'antigravity') {
           driver.bindIO!({
             spawnCtx: built.ctx,
             writeLine: async (line) => {
@@ -81,7 +81,10 @@ describe('runtime catalog ⟺ host invariants', () => {
               id: requests[0].id,
               result: {
                 protocolVersion: 1,
-                agentCapabilities: { sessionCapabilities: { resume: {} } },
+                agentCapabilities: {
+                  sessionCapabilities: { resume: {} },
+                  _meta: { antigravity: { systemPrompt: { append: true } } },
+                },
               },
             }),
           );
@@ -94,7 +97,7 @@ describe('runtime catalog ⟺ host invariants', () => {
           requests.some(
             (r) =>
               r.method === 'session/set_config_option' &&
-              r.params.configId === 'reasoning_effort' &&
+              ['reasoning_effort', 'thought_level'].includes(r.params.configId) &&
               r.params.value === 'high',
           );
         expect(forwardsReasoning).toBe(runtimeSupportsReasoningEffort(entry.kind));

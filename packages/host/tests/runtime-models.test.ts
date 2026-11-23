@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -136,18 +136,38 @@ it.each(['1.9.0', '2.2.7'])(
   },
 );
 
-it('Antigravity lists model ids from agy models rows', async () => {
+it('Antigravity visits each model for its thinking levels, then closes the probe session', async () => {
   const { runtime, root } = await fake(
     'antigravity',
-    `
-    if(process.argv.slice(2).join(' ')!=='models') process.exit(2);
-    console.log('Fetching available models...\\ngemini-3.8-flash-low\\tGemini 3.8 Flash (Low)\\nclaude-sonnet-4-6\\tClaude Sonnet 4.6 (Thinking)');`,
+    `${lines}
+    const opts = (model) => ({configOptions:[
+      {id:'model',currentValue:model,options:[{value:'flash'},{value:'sonnet'}]},
+      ...(model==='flash'?[{id:'thought_level',currentValue:'high',options:[{value:'low'},{value:'high'}]}]:[]),
+    ]});
+    if(m.method==='initialize') { if(process.argv.slice(2).join(' ')!=='acp') process.exit(2); send({id:m.id,result:{protocolVersion:1}}); }
+    else if(m.method==='session/new') send({id:m.id,result:{sessionId:'probe-1',...opts('flash')}});
+    else if(m.method==='session/set_config_option') send({id:m.id,result:opts(m.params.value)});
+    else if(m.method==='session/close') send({id:m.id,result:{}});
+    else if(m.method==='session/prompt') process.exit(3);
+  });`,
     '1.5.14',
   );
-  expect(await probeRuntimeModels(runtime, { root })).toEqual({
+  const store = join(root, '.gemini', 'antigravity-cli');
+  await mkdir(join(store, 'conversations'), { recursive: true });
+  await mkdir(join(store, 'brain', 'probe-1'), { recursive: true });
+  await writeFile(join(store, 'conversations', 'probe-1.db'), '');
+  await writeFile(join(store, 'conversations', 'kept.db'), '');
+  expect(await probeRuntimeModels(runtime, { root, env: { ...process.env, HOME: root } })).toEqual({
     status: 'ok',
-    models: ['gemini-3.8-flash-low', 'claude-sonnet-4-6'],
+    models: ['flash', 'sonnet'],
+    default_model: 'flash',
+    reasoning_by_model: {
+      flash: { supported_efforts: ['low', 'high'], default_effort: 'high' },
+      sonnet: { supported_efforts: [] },
+    },
   });
+  expect(await readdir(join(store, 'conversations'))).toEqual(['kept.db']);
+  expect(await readdir(join(store, 'brain'))).toEqual([]);
 });
 
 it('empty native metadata differs from a failed probe', async () => {

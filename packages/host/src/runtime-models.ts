@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { execFile, spawn } from 'node:child_process';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
 import { defaultAppRoot } from '@silverhand/shared/app-data-layout';
 import type { RuntimeInfo, RuntimeKind, RuntimeModelDiscovery } from '@silverhand/shared';
@@ -34,7 +35,7 @@ function modelIds(value: unknown, select: (row: Frame) => unknown[]): string[] {
 }
 
 /** No prompt is sent: these requests read runtime metadata only. */
-function protocol(kind: RuntimeKind, version: string | null) {
+function protocol(kind: RuntimeKind, version: string | null, cwd: string, home: string) {
   let serial = 1;
   let pending = 1;
   let page = 0;
@@ -104,7 +105,9 @@ function protocol(kind: RuntimeKind, version: string | null) {
     params: {
       // Codex rolls models out by client name, so match the driver's.
       clientInfo: { name: 'silverhand', version: '1.0.0' },
-      ...(kind === 'grok' ? { protocolVersion: 1, clientCapabilities: {} } : {}),
+      ...(kind === 'grok' || kind === 'antigravity'
+        ? { protocolVersion: 1, clientCapabilities: {} }
+        : {}),
     },
   };
   const major = Number(version?.match(/^(\d+)\./u)?.[1]);
@@ -131,7 +134,7 @@ function protocol(kind: RuntimeKind, version: string | null) {
           : kind === 'pi'
             ? ['--mode', 'rpc', '--no-session', '--no-extensions', '--no-skills']
             : kind === 'antigravity'
-              ? ['models']
+              ? ['acp']
               : ['models', ...(major >= 2 ? ['--standalone'] : [])];
   const first =
     kind === 'claude'
@@ -142,12 +145,40 @@ function protocol(kind: RuntimeKind, version: string | null) {
         }
       : kind === 'pi'
         ? { id: 'silverhand-models', type: 'get_available_models' }
-        : kind === 'opencode' || kind === 'antigravity'
+        : kind === 'opencode'
           ? null
           : initialize;
+  // Antigravity reports thinking levels only for the selected model, so the probe
+  // session visits each model; its native session files are removed afterwards.
+  let agySession: string | undefined;
+  let agyVisits: string[] = [];
+  let agyVisiting: string | undefined;
+  const agyCollect = (result: Frame) => {
+    const options = Array.isArray(result.configOptions) ? result.configOptions.map(record) : [];
+    const model = options.find((o) => o.id === 'model');
+    const level = options.find((o) => o.id === 'thought_level');
+    const id = agyVisiting ?? model?.currentValue;
+    if (typeof id !== 'string') return;
+    collectReasoning(
+      [id],
+      Array.isArray(level?.options) ? level.options.map((o: unknown) => record(o).value) : [],
+      level?.currentValue,
+    );
+  };
   return {
     args,
     first,
+    async cleanup() {
+      if (!agySession || !/^[\w-]+$/u.test(agySession)) return;
+      const store = join(home, '.gemini', 'antigravity-cli');
+      await Promise.all([
+        ...['.db', '.db-wal', '.db-shm', '.db-journal'].map((suffix) =>
+          rm(join(store, 'conversations', `${agySession}${suffix}`), { force: true }),
+        ),
+        rm(join(store, 'brain', agySession), { recursive: true, force: true }),
+        rm(join(store, 'annotations', `${agySession}.pbtxt`), { force: true }),
+      ]);
+    },
     line(message: Frame, send: (frame: Frame) => void): Listing | undefined {
       if (kind === 'claude') {
         if (
@@ -188,6 +219,43 @@ function protocol(kind: RuntimeKind, version: string | null) {
       }
       if (message.id !== pending) return;
       if (message.error) return message.error.code === -32601 ? UNSUPPORTED : FAILED;
+      if (kind === 'antigravity') {
+        if (pending === 1) {
+          const request = rpc('session/new', { cwd, mcpServers: [] });
+          pending = request.id;
+          send(request);
+          return;
+        }
+        const result = record(message.result);
+        if (agySession === undefined) {
+          if (typeof result.sessionId !== 'string') return FAILED;
+          agySession = result.sessionId;
+          const options = Array.isArray(result.configOptions)
+            ? result.configOptions.map(record)
+            : [];
+          const model = options.find((o) => o.id === 'model');
+          collected.push(...modelIds(model?.options, (r) => [r.value]));
+          if (typeof model?.currentValue === 'string') defaultModel = model.currentValue;
+          agyCollect(result);
+          agyVisits = collected.filter((id) => id !== defaultModel);
+        } else if (agyVisiting !== undefined) {
+          agyCollect(result);
+        } else {
+          return listing([...new Set(collected)].slice(0, 5000));
+        }
+        agyVisiting = agyVisits.shift();
+        const request =
+          agyVisiting === undefined
+            ? rpc('session/close', { sessionId: agySession })
+            : rpc('session/set_config_option', {
+                sessionId: agySession,
+                configId: 'model',
+                value: agyVisiting,
+              });
+        pending = request.id;
+        send(request);
+        return;
+      }
       if (kind === 'grok') {
         const rows = message.result?._meta?.modelState?.availableModels;
         return Array.isArray(rows)
@@ -264,7 +332,7 @@ export async function probeRuntimeModels(
     };
     env.PATH = `${dirname(runtime.binary)}${delimiter}${env.PATH ?? ''}`;
     delete env.CLAUDECODE;
-    const adapter = protocol(runtime.kind, runtime.version);
+    const adapter = protocol(runtime.kind, runtime.version, cwd, env.HOME || homedir());
     return await new Promise<Listing>((resolve) => {
       const child = spawn(runtime.binary!, adapter.args, {
         cwd,
@@ -288,6 +356,7 @@ export async function probeRuntimeModels(
         clearTimeout(timer);
         void terminate(child.pid).then(async () => {
           if (!closed) await close;
+          await adapter.cleanup().catch(() => {});
           resolve(result);
         });
       };
@@ -317,7 +386,7 @@ export async function probeRuntimeModels(
           return;
         }
         output += chunk;
-        if (runtime.kind === 'opencode' || runtime.kind === 'antigravity') return;
+        if (runtime.kind === 'opencode') return;
         let newline: number;
         while (!settled && (newline = output.indexOf('\n')) >= 0) {
           const line = output.slice(0, newline);
@@ -343,16 +412,6 @@ export async function probeRuntimeModels(
             .map((s) => s.trim())
             .filter((s) => /^[^\s/]+\/[^\s]+$/u.test(s) && s.length <= 512);
           // OpenCode 2 may finish before its cold provider catalog has loaded.
-          finish(
-            models.length ? { status: 'ok', models: [...new Set(models)].slice(0, 5000) } : FAILED,
-          );
-        } else if (runtime.kind === 'antigravity' && code === 0) {
-          // `agy models` prints `<id>\t<name>` rows after a status line.
-          const models = output
-            .split(/\r?\n/u)
-            .filter((line) => line.includes('\t'))
-            .map((line) => line.split('\t')[0]!.trim())
-            .filter((s) => /^\S+$/u.test(s) && s.length <= 512);
           finish(
             models.length ? { status: 'ok', models: [...new Set(models)].slice(0, 5000) } : FAILED,
           );
