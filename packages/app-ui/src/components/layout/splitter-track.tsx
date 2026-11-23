@@ -21,9 +21,8 @@ interface SplitterTrackProps {
  * passes pointer handlers (+ optionally `active` / a ref) through.
  *
  * PAINT. Transparent by default (`--splitter-bg`, neutral fallback
- * `--border-subtle`); hover or active drag shows a hairline in
- * `--splitter-hover-bg` with a neutral grip at its middle — a neutral ink every
- * theme sets (fence-enforced in appearance.test.ts, since
+ * `--border-subtle`); hover or active drag shows a short grip at its
+ * middle in `--splitter-hover-bg` — a neutral ink every theme sets (fence-enforced in appearance.test.ts, since
  * poster declares it). The `var(--border)` fallback is a neutral safety net: a
  * divider is a utility signal, so it must never fall back to `--accent` — a
  * saturated accent on a 4px separator reads as "look at this!" and steals the
@@ -69,14 +68,11 @@ export const SplitterTrack = forwardRef<HTMLDivElement, SplitterTrackProps>(func
     >
       {/* Wider invisible hit-target so users don't need pixel-perfect aim. */}
       <div className="absolute -inset-x-1.5 inset-y-0" />
-      {/* Hover and drag show a hairline with a grip on it. */}
+      {/* Hover and drag show a short grip, vertically centred, not a full-height bar. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity group-hover:opacity-100 group-data-[active=true]:opacity-100"
-      >
-        <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-(--splitter-hover-bg,var(--border))" />
-        <div className="absolute top-1/2 left-1/2 h-9 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-text-muted" />
-      </div>
+        className="pointer-events-none absolute top-1/2 left-1/2 h-8 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-(--splitter-hover-bg,var(--border)) opacity-0 transition-opacity group-hover:opacity-100 group-data-[active=true]:opacity-100"
+      />
     </div>
   );
 });
