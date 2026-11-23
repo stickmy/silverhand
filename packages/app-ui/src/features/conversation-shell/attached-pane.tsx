@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   PAGE_SWAP_EXIT_S,
@@ -77,12 +77,18 @@ function DrillInPane({
   detail: ReactNode;
 }): JSX.Element {
   const reducedMotion = useReducedMotion();
+  const listRef = useRef<HTMLDivElement>(null);
   const open = detailKey !== null;
+
+  // A motion element calls its ref only on mount, so the flag is synced here.
+  useLayoutEffect(() => {
+    listRef.current?.toggleAttribute("inert", open);
+  }, [open]);
 
   return (
     <div className="relative h-full min-h-0 w-full">
       <motion.div
-        ref={(node) => node?.toggleAttribute("inert", open)}
+        ref={listRef}
         className="h-full"
         custom={1}
         variants={pageSwapVariants(!!reducedMotion, PAGE_SWAP_EXIT_S)}
