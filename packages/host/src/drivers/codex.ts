@@ -237,6 +237,7 @@ export class CodexDriver implements Driver {
         const resumeTarget = this.io?.spawnCtx.cliSessionId;
 
         if (typeof id === 'string' && id.length > 0 && (!resumeTarget || resumeTarget === id)) {
+          this.nameThreadIfUnnamed(id, message.result.thread.name);
           this.handleThreadReady(id, events);
         } else {
           events.push({ kind: 'error', message: 'Codex returned an invalid thread identity' });
@@ -573,6 +574,14 @@ export class CodexDriver implements Driver {
         }
         break;
     }
+  }
+
+  // Titles the native thread in Codex's own session list. A title the thread
+  // already has (including a user rename) is kept; the reply is ignored.
+  private nameThreadIfUnnamed(threadId: string, name: unknown): void {
+    const agentName = this.io?.spawnCtx.agentName.trim();
+    if (!agentName || (typeof name === 'string' && name.trim())) return;
+    this.sendRequest('thread/name/set', { threadId, name: `Silverhand - ${agentName}` });
   }
 
   private handleThreadReady(threadId: string, events: ParsedEvent[]): void {

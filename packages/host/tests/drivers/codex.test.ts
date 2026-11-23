@@ -84,6 +84,44 @@ async function bindThread(driver: CodexDriver, threadId: string): Promise<void> 
   }
 }
 
+describe('CodexDriver thread title', () => {
+  async function open(thread: Record<string, unknown>, agentName = 'tester') {
+    const built = makeSpawnCtx({ agentName });
+    const io = makeIO(built.ctx);
+    const driver = new CodexDriver();
+    driver.bindIO(io);
+    await tick();
+    driver.parseLine(JSON.stringify({ id: JSON.parse(io.lines[0]!).id, result: {} }));
+    const events = driver.parseLine(
+      JSON.stringify({ id: JSON.parse(io.lines[2]!).id, result: { thread } }),
+    );
+    built.cleanup();
+    const titles = io.lines
+      .map((line) => JSON.parse(line))
+      .filter((frame) => frame.method === 'thread/name/set');
+    return { driver, events, titles };
+  }
+
+  it('names an untitled thread after the agent', async () => {
+    const { events, titles } = await open({ id: 't1', name: null });
+    expect(titles.map((frame) => frame.params)).toEqual([
+      { threadId: 't1', name: 'Silverhand - tester' },
+    ]);
+    expect(events).toEqual([{ kind: 'session_init', sessionId: 't1' }]);
+  });
+
+  it('keeps a title the thread already has', async () => {
+    expect((await open({ id: 't1', name: 'Renamed by user' })).titles).toEqual([]);
+  });
+
+  it('ignores the reply, including an error', async () => {
+    const { driver, titles } = await open({ id: 't1' });
+    expect(
+      driver.parseLine(JSON.stringify({ id: titles[0].id, error: { code: -32601, message: 'x' } })),
+    ).toEqual([]);
+  });
+});
+
 describe('CodexDriver static config', () => {
   it('exposes the expected runtime metadata', () => {
     const d = new CodexDriver();
