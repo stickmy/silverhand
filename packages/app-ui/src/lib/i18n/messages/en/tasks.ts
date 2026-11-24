@@ -79,7 +79,7 @@ export const tasks = {
   projectFilter: "Project:{value}",
   filterTasks: "Filter tasks",
   filterTasksMenu: "Filter tasks…",
-  filterTasksMenuFiltered: "Filter tasks… (filtered)",
+  filterTasksMenuFiltered: "Filter tasks (filtered)",
   filterDone: "Done",
   history: {
     title: "History",

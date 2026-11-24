@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { TaskFilters } from "@/features/tasks/model/task-filters";
 import { cn } from "@/lib/cn";
 import { useUpdateTaskStatus } from "@/features/tasks/hooks/hooks";
@@ -6,6 +6,8 @@ import { useKanbanColumnCollapse } from "@/features/tasks/hooks/use-kanban-colum
 import { useTaskFilterOptions } from "@/features/tasks/hooks/use-task-filter-options";
 import { useBoardColumns, useBoardCounts, useBoardFacets } from "@/features/tasks/hooks/use-board";
 import { useColumnWindow } from "@/features/tasks/hooks/use-column-window";
+import { useTaskFilterSheet } from "@/features/tasks/hooks/use-task-filter-sheet";
+import { useEventCallback } from "@/hooks/use-event-callback";
 import {
   taskContainerBaseline,
   taskContainerKey,
@@ -44,9 +46,22 @@ export interface ChannelTasksTabProps {
   /** Opens a task's detail in the side pane (App writes `?task=<id>`) — the same
    *  host an inline `#task` chip opens, so a card and a chip land identically. */
   onOpenTask: (taskId: string) => void;
+  /** Where the filters live in a native sheet, the tab hands its filter and
+   *  create actions to the page bar instead of drawing a toolbar. */
+  onBarActions?: (actions: ChannelTasksBarActions | null) => void;
 }
 
-export function ChannelTasksTab({ container, onOpenTask }: ChannelTasksTabProps): JSX.Element {
+export interface ChannelTasksBarActions {
+  filtered: boolean;
+  openFilters: () => void;
+  create: () => void;
+}
+
+export function ChannelTasksTab({
+  container,
+  onOpenTask,
+  onBarActions,
+}: ChannelTasksTabProps): JSX.Element {
   const baselineFilters = useMemo<TaskFilters>(
     () => taskContainerBaseline(container),
     // Keyed on the container's VALUE, not the prop's identity — a carrier
@@ -101,18 +116,40 @@ export function ChannelTasksTab({ container, onOpenTask }: ChannelTasksTabProps)
     return { kind: "pick", channelOptions, defaultChannelId };
   }, [container, channelOptions, filters.channelId]);
 
+  const filterInput = {
+    filters,
+    onChange: applyFilters,
+    baselineFilters,
+    workspaceOptions,
+    channelOptions,
+    allChannelsLabel: t("conversationShell.all"),
+    people,
+  };
+  const filterSheet = useTaskFilterSheet(filterInput);
+  const openCreate = useEventCallback(() => setCreateOpen(true));
+  const barActions = filterSheet.available && onBarActions ? onBarActions : null;
+  useEffect(() => {
+    if (!barActions) {
+      return;
+    }
+
+    barActions({
+      filtered: filterSheet.filtered,
+      openFilters: filterSheet.open,
+      create: openCreate,
+    });
+  }, [barActions, filterSheet.filtered, filterSheet.open, openCreate]);
+  useEffect(() => {
+    if (!barActions) {
+      return;
+    }
+
+    return () => barActions(null);
+  }, [barActions]);
+
   return (
     <div className={cn("flex h-full min-h-0 flex-col bg-(--pane-bg,var(--bg-base))")}>
-      <TaskToolbar
-        onCreate={() => setCreateOpen(true)}
-        filters={filters}
-        onChange={applyFilters}
-        baselineFilters={baselineFilters}
-        workspaceOptions={workspaceOptions}
-        channelOptions={channelOptions}
-        allChannelsLabel={t("conversationShell.all")}
-        people={people}
-      />
+      {barActions ? null : <TaskToolbar onCreate={openCreate} {...filterInput} />}
 
       <TaskBoardColumns
         columns={columns}

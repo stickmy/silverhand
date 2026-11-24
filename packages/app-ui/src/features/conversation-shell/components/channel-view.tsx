@@ -2,7 +2,16 @@ import { useCompactLayout } from "@/navigation/layout";
 import { MobileNavigationSlot } from "@/components/layout/mobile-header-slot";
 import { PaneGrip } from "@/components/layout/side-panel-header";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AttachmentIcon, CloseIcon, MoreIcon, SearchIcon, SettingsIcon, ThreadIcon } from "@/icons";
+import {
+  AttachmentIcon,
+  CloseIcon,
+  FilterIcon,
+  MoreIcon,
+  PlusIcon,
+  SearchIcon,
+  SettingsIcon,
+  ThreadIcon,
+} from "@/icons";
 import { Composer } from "@/features/messages/components/composer";
 import { SelectionQuoteToolbar } from "@/features/messages/components/selection-quote-toolbar";
 import { ChannelJoinBar } from "@/features/messages/components/channel-join-bar";
@@ -60,7 +69,7 @@ import {
   useNativeBarPlatform,
   type PageBarDeclaration,
 } from "@/components/layout/native-page-bar";
-import { ChannelTasksTab } from "./channel-view/channel-tasks-tab";
+import { ChannelTasksTab, type ChannelTasksBarActions } from "./channel-view/channel-tasks-tab";
 import { ChannelAttachmentTab } from "./channel-view/channel-attachment-tab";
 import { ConversationPanelTab } from "./channel-view/conversation-panel-tab";
 import { useConversationTabs } from "@/features/conversations/use-conversation-tabs";
@@ -652,11 +661,27 @@ function ActiveChannelView({
       ? t("conversationShell.opensChannelSettings")
       : (openCounterpart?.hint ?? null);
   const locale = useLocale();
+  // The Tasks tab's filter and create actions, while it shows and its filters
+  // live in the native sheet.
+  const [taskBar, setTaskBar] = useState<ChannelTasksBarActions | null>(null);
   const nativeBar = useMemo<PageBarDeclaration | null>(() => {
     if (!nativeBarAvailable) {
       return null;
     }
 
+    const taskActions = taskBar
+      ? [
+          {
+            id: "task-filter",
+            label: taskBar.filtered
+              ? t("tasks.filterTasksMenuFiltered")
+              : t("tasks.filterTasksMenu"),
+            icon: iconMarkup(FilterIcon),
+            dot: taskBar.filtered,
+          },
+          { id: "task-create", label: t("tasks.newTask"), icon: iconMarkup(PlusIcon) },
+        ]
+      : [];
     const actions = [
       findAvailable
         ? {
@@ -701,9 +726,9 @@ function ActiveChannelView({
             : undefined,
       titleAction,
       titleIcon: titleAction ? nativeTitleIcon : undefined,
-      actions: actions.length > 0 ? [actions] : [],
+      actions: [taskActions, actions].filter((group) => group.length > 0),
       overflow:
-        actions.length > 1
+        taskActions.length + actions.length > 1
           ? { label: t("conversationShell.more"), icon: iconMarkup(MoreIcon) }
           : undefined,
       tabs: viewTabsShown
@@ -737,6 +762,7 @@ function ActiveChannelView({
     };
   }, [
     locale,
+    taskBar,
     nativeBarAvailable,
     nativeTitle,
     findAvailable,
@@ -780,6 +806,10 @@ function ActiveChannelView({
         onToggleFilesList?.();
       } else if (id === "close") {
         onCloseChild?.();
+      } else if (id === "task-filter") {
+        taskBar?.openFilters();
+      } else if (id === "task-create") {
+        taskBar?.create();
       }
     },
     tab: ({ id }) => tabController.setActive(id),
@@ -1181,7 +1211,11 @@ function ActiveChannelView({
                 data-conversation-overlay
                 className="absolute inset-0 z-(--z-raised) bg-(--pane-bg,var(--bg-base))"
               >
-                <ChannelTasksTab container={taskBoardContainer} onOpenTask={onOpenTask} />
+                <ChannelTasksTab
+                  container={taskBoardContainer}
+                  onOpenTask={onOpenTask}
+                  onBarActions={nativeHeader ? setTaskBar : undefined}
+                />
               </div>
             ) : null}
 

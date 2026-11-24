@@ -82,7 +82,7 @@ export const tasks: Translation<typeof en> = {
   projectFilter: "项目:{value}",
   filterTasks: "筛选任务",
   filterTasksMenu: "筛选任务…",
-  filterTasksMenuFiltered: "筛选任务…(已筛选)",
+  filterTasksMenuFiltered: "筛选任务(已筛选)",
   filterDone: "完成",
   history: {
     title: "历史",
