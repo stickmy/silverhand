@@ -1,0 +1,101 @@
+/* Row columns. The title is the only flexible column; the others are fixed
+   and start-aligned so each lines up down the group and sits a constant gap
+   from its neighbour. Widths fit their usual content (a relative time, an
+   uppercase status chip), so a short value leaves little dead space. */
+[data-tasks-board] {
+  container: tasks-board / inline-size;
+}
+
+[data-task-row] > [data-task-row-number] {
+  width: 3rem;
+  flex-shrink: 0;
+  font-family: var(--appearance-code-font, var(--font-mono));
+  font-variant-numeric: tabular-nums;
+}
+
+[data-task-row] > [data-task-row-assignee] {
+  display: flex;
+  width: 7.5rem;
+  min-width: 0;
+  flex-shrink: 0;
+  align-items: center;
+  color: var(--text-secondary);
+}
+
+[data-task-row-assignee] [data-task-event-person] {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+[data-task-row-assignee] [data-task-event-actor],
+[data-task-row-assignee] [data-task-row-unassigned] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-task-row] > [data-task-row-channel] {
+  display: flex;
+  width: 7.5rem;
+  min-width: 0;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 2px;
+}
+
+[data-task-row] > [data-task-row-time] {
+  width: 5.75rem;
+  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The status cube (group header and row status button): the task card / inline reference recipe, its hue
+   from the shared `--task-ref-tone` map. */
+[data-tasks-board] [data-task-cube] {
+  display: block;
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  border-radius: var(--task-ref-cube-radius);
+  background-color: var(--task-ref-tone, var(--text-muted));
+}
+
+[data-tasks-board] [data-task-cube][data-task-ref-tone="todo"] {
+  background-color: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--task-ref-tone);
+}
+
+/* Sized for the cube plus the longest label ("in progress") so every row's
+   button is the same width and the column stays straight. */
+[data-task-row] > [data-task-row-status] {
+  width: 7.5rem;
+  flex-shrink: 0;
+}
+
+/* Narrower boards give way from the least scanned column: the channel goes
+   first, then the assignee keeps only its avatar, then the time goes. */
+@container tasks-board (max-width: 760px) {
+  [data-task-row] > [data-task-row-channel] {
+    display: none;
+  }
+}
+
+@container tasks-board (max-width: 600px) {
+  [data-task-row] > [data-task-row-assignee] {
+    width: auto;
+  }
+  [data-task-row-assignee] [data-task-event-actor],
+  [data-task-row-assignee] [data-task-row-unassigned] {
+    display: none;
+  }
+}
+
+@container tasks-board (max-width: 460px) {
+  [data-task-row] > [data-task-row-time] {
+    display: none;
+  }
+}

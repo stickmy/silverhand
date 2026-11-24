@@ -17,8 +17,7 @@ import type { TaskStatus } from "@silverhand/shared";
  * user's toggles live in a module-level store and are shared across the global
  * section, the per-conversation Tasks tab, and navigation **within the
  * session**, but a window
- * reload / fresh session resets to the default (Closed collapsed). It's the
- * archival terminal column, so that default is sensible.
+ * reload / fresh session resets to the default (Done and Closed collapsed).
  *
  * The public interface (`isCollapsed` / `toggle`) is the contract: if
  * "remember my expanded columns" ever becomes a real requirement, swap the
@@ -26,10 +25,10 @@ import type { TaskStatus } from "@silverhand/shared";
  * sites in TasksSection / ChannelTasksTab don't change.
  */
 
-// Closed is collapsed by default — it's the archived terminal column and
-// holds the bulk of historical tasks, so hiding its (potentially very large)
-// card list also keeps the initial board mount cheap.
-const DEFAULT_COLLAPSED: readonly TaskStatus[] = ["closed"];
+// The terminal groups start collapsed: they hold the bulk of historical tasks,
+// so an open Done would make the stacked board very long and cost the first
+// mount.
+const DEFAULT_COLLAPSED: readonly TaskStatus[] = ["done", "closed"];
 
 // Module-level single source of truth. Snapshot identity only changes when a
 // column is actually toggled, so `useSyncExternalStore` stays stable.
@@ -60,8 +59,8 @@ export function toggleColumnCollapse(status: TaskStatus): void {
  * Force one column open — idempotent, and a no-op (no notify, no new snapshot)
  * when it is already open.
  *
- * Reveal needs this, not `toggle`: Closed is collapsed by default, so revealing
- * a closed task renders no row for it and the scroll+pulse lands on nothing —
+ * Reveal needs this, not `toggle`: Done and Closed are collapsed by default, so
+ * revealing a finished task renders no row for it and the scroll+pulse lands on nothing —
  * the affordance silently does nothing. `toggle` cannot express "make sure it is
  * open" (it would close an already-open column), and the no-op arm matters
  * because every mounted board re-renders on notify.

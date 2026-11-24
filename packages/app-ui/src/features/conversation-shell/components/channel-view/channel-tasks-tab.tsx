@@ -123,8 +123,6 @@ export function ChannelTasksTab({ container, onOpenTask }: ChannelTasksTabProps)
         onGrow={growColumn}
         onOpenTask={onOpenTask}
         onStatusChange={(taskId, status) => updateStatus.mutate({ taskId, status })}
-        columnClassName="bg-bg-primary"
-        cardClassName="bg-bg-base"
       />
 
       <CreateTaskDialog

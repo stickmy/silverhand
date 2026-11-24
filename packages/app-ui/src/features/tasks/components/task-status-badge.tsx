@@ -1,14 +1,6 @@
 import { useState, type ReactElement, type ReactNode } from "react";
 import * as Popover from "@radix-ui/react-popover";
-import {
-  ArchiveIcon,
-  ArrowRightIcon,
-  CircleIcon,
-  ProgressIcon,
-  SuccessIcon,
-  ViewIcon,
-  type IconComponent,
-} from "@/icons";
+import { ArrowRightIcon } from "@/icons";
 import type { TaskStatus } from "@silverhand/shared";
 import { cn } from "@/lib/cn";
 import { AppContextMenu, AppContextMenuItem } from "@/components/menus/app-context-menu";
@@ -56,22 +48,6 @@ const ALL_STATUSES: TaskStatus[] = ["todo", "in_progress", "in_review", "done", 
 export function taskStatusLabel(status: TaskStatus): string {
   return statusLabels()[status];
 }
-
-/**
- * Canonical per-status icon. The SINGLE source for the status glyph vocabulary
- * (shiki #task:1185: "icon 引用同一个 source，到时候更改 icon 可以一起更新") —
- * the kanban board (`TasksSection`), the per-conversation Tasks tab (`ChannelTasksTab`) and the
- * message task tag all read from here, so swapping a glyph updates every
- * surface at once. Colour stays per-consumer via the `--task-status-*-text`
- * tokens; only the glyph is centralised.
- */
-export const TASK_STATUS_ICON: Record<TaskStatus, IconComponent> = {
-  todo: CircleIcon,
-  in_progress: ProgressIcon,
-  in_review: ViewIcon,
-  done: SuccessIcon,
-  closed: ArchiveIcon,
-};
 
 const CHIP =
   // `leading-none` (v6.5n, #task:917): the chip is by definition a

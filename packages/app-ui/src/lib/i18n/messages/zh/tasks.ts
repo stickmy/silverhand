@@ -52,7 +52,6 @@ export const tasks: Translation<typeof en> = {
   couldntSaveChangesTry: "无法保存修改，请重试。",
   taskTitle: "任务标题",
   taskDescription: "任务描述",
-  dropHere: "拖到这里",
   all: "全部",
   resetFilters: "重置筛选",
   projects: "项目",

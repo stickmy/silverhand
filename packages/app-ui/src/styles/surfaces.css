@@ -169,15 +169,6 @@
   background-color: var(--bg-avatar-ground);
 }
 
-[data-tasks-column][data-drop-target] {
-  background-color: var(--bg-row-selected);
-  border-color: var(--accent);
-}
-[data-tasks-column][data-drop-target] > [data-tasks-column-header] > span,
-[data-tasks-column][data-drop-target] > [data-tasks-column-header] > svg {
-  color: var(--text-on-selected);
-}
-
 /* Liquid glass: one material across themes, mixed from the theme's own base
    so light and dark both read as frosted rather than as a flat card. */
 .glass-surface {

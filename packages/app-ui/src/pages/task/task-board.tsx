@@ -138,8 +138,6 @@ export const TaskBoard = memo(function TaskBoard({
         onGrow={growColumn}
         onOpenTask={onOpenTask}
         onStatusChange={(taskId, next) => updateStatus.mutate({ taskId, status: next })}
-        columnClassName="bg-bg-primary"
-        cardClassName="bg-bg-base"
       />
 
       <CreateTaskDialog

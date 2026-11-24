@@ -49,7 +49,6 @@ export const tasks = {
   couldntSaveChangesTry: "Couldn’t save changes. Try again.",
   taskTitle: "Task title",
   taskDescription: "Task description",
-  dropHere: "Drop here",
   all: "All",
   resetFilters: "Reset filters",
   projects: "Projects",

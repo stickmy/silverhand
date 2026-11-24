@@ -388,17 +388,6 @@
   position: relative;
   min-height: 0;
 }
-[data-layout="compact"] [data-tasks-board] {
-  flex-direction: column;
-  overflow-y: auto;
-  overflow-x: hidden;
-}
-[data-layout="compact"] [data-tasks-column] {
-  width: 100%;
-  min-width: 0;
-  flex: none;
-  max-height: 70dvh;
-}
 
 /* Floating pane chrome: the header and the controls under it float over the
    pane's scroller, which runs beneath them. In place of a bar, a blurred fade
@@ -632,28 +621,6 @@
   justify-content: center;
   font-size: 0;
   gap: 0;
-}
-
-/* Tasks: the status group header carries the status, so the column drops its
-   frame and each card drops its repeated status chip. */
-:root[data-layout="compact"] [data-tasks-board] {
-  gap: 16px;
-  padding: 12px;
-}
-:root[data-layout="compact"] [data-tasks-column] {
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-}
-:root[data-layout="compact"] [data-tasks-column] > [data-tasks-column-header] {
-  padding-inline: 2px;
-  border-bottom: 0;
-}
-[data-layout="compact"] [data-tasks-column-body] {
-  padding: 4px 0 0;
-}
-[data-layout="compact"] [data-tasks-board] [data-task-number] [data-task-status] {
-  display: none;
 }
 
 /* Keep the shared primary button, but let it follow the compact list content. */

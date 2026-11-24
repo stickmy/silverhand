@@ -29,23 +29,6 @@
     background-color: var(--message-framed-bg);
   }
 
-  & [data-tasks-column] {
-    background-color: var(--bg-elevated);
-    border-color: var(--border);
-  }
-
-  & [data-tasks-board] [data-task-number] {
-    background: var(--bg-floating);
-    border-color: var(--border);
-    box-shadow: var(--card-shadow);
-  }
-
-  & [data-tasks-board] [data-task-number]:hover {
-    border-color: var(--border);
-    background: color-mix(in srgb, var(--bg-floating), var(--text-primary) 3%);
-    box-shadow: var(--shadow-popover);
-  }
-
   & [data-collection-card]:hover,
   & [data-collection-card][data-active] {
     background-color: var(--bg-hover);
