@@ -14,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import type { ComposerDirectory } from "@/features/conversations/pane-mode";
 import { pendingAttachmentsBlockSend } from "@/features/messages/composer-draft-cache";
 import { onQuoteToComposer, spliceQuoteIntoDraft } from "@/features/messages/quote-to-composer";
+import { onMentionInComposer } from "@/features/messages/mention-to-composer";
+import { useEventCallback } from "@/hooks/use-event-callback";
 import { useComposerDirectory } from "../hooks/use-composer-directory";
 import { useComposerDraft } from "../hooks/use-composer-draft";
 import { useNativeComposer, useNativeComposerPlatform } from "../hooks/use-native-composer";
@@ -226,6 +228,14 @@ export function Composer({
       applyEdit(next.text, next.caret);
     });
   }, [draftKey, disabled]);
+
+  const insertMention = useEventCallback((handle: string) => insertAtCaret(`@${handle} `, /\S$/));
+  useEffect(() => {
+    if (disabled) {
+      return;
+    }
+    return onMentionInComposer(draftKey, insertMention);
+  }, [draftKey, disabled, insertMention]);
 
   /** Applies an edit made outside typing, then puts focus and the caret back
    *  after React writes the value (a selection set before that is lost). */

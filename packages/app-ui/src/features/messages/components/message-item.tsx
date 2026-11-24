@@ -428,8 +428,6 @@ function ActorMessageItem({
       liveAgent={liveAgent}
       liveHuman={liveHuman}
       avatarObjectUrl={bylineAvatarUrl}
-      onNavigateAgent={navigateToAgent}
-      onNavigateHuman={navigateToHuman}
     />
   );
   const timestampNode = (

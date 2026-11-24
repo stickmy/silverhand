@@ -21,6 +21,7 @@ import type {
 } from "@silverhand/shared";
 import { ChannelMessageItem } from "@/features/messages/components/channel-message-item";
 import { useMessageRenderContext } from "@/features/messages/hooks/use-message-render-context";
+import { ComposerTarget } from "@/features/messages/mention-to-composer";
 import { useAuthorAvatarObjectUrls } from "@/features/messages/hooks/author-avatar-hooks";
 import { SystemMessage } from "@/features/messages/components/system-message";
 import { SystemActivityCluster } from "@/features/messages/components/system-activity-cluster";
@@ -720,129 +721,131 @@ export function MessageList({
   );
 
   return (
-    <div className="relative min-h-0 min-w-0 flex-1 flex flex-col">
-      <MessageActionChrome
-        surface={actions}
-        renderCtx={{
-          agentsByName,
-          humansByName,
-          channelsByName,
-          conversationRefsById,
-          agentAvatarUrls,
-          viewer,
-          viewerAvatarObjectUrl,
-        }}
-        workspaceId={workspaceId}
-        conversationId={channelId}
-        selectionKey={streamKey}
-        header={exportHeader}
-      />
-      <div ref={viewportRef} className="relative min-h-0 min-w-0 flex-1">
-        {isLoading ? (
-          // Initial window fetch: the message skeleton (shared with the full-view
-          // skeleton), so entering a channel reads the same as every other
-          // conversation-loading surface. `absolute inset-0` fills this box.
-          <MessageRowsSkeleton className="absolute inset-0" />
-        ) : items.length === 0 && !leadingSlot && !leadingMessage ? (
-          (emptyState ?? <EmptyConversation />)
-        ) : (
-          <MessageScroller<StreamItem>
-            // Remount on channel switches and disjoint window replacements so
-            // the new window opens at its own anchor.
-            key={`${channelId}:${windowResetVersion}`}
-            controlRef={scrollerRef}
-            items={items}
-            itemKey={itemKey}
-            renderItem={renderRow}
-            header={
-              <>
-                {/* Reserves the floating compact header's height inside the
+    <ComposerTarget.Provider value={streamKey}>
+      <div className="relative min-h-0 min-w-0 flex-1 flex flex-col">
+        <MessageActionChrome
+          surface={actions}
+          renderCtx={{
+            agentsByName,
+            humansByName,
+            channelsByName,
+            conversationRefsById,
+            agentAvatarUrls,
+            viewer,
+            viewerAvatarObjectUrl,
+          }}
+          workspaceId={workspaceId}
+          conversationId={channelId}
+          selectionKey={streamKey}
+          header={exportHeader}
+        />
+        <div ref={viewportRef} className="relative min-h-0 min-w-0 flex-1">
+          {isLoading ? (
+            // Initial window fetch: the message skeleton (shared with the full-view
+            // skeleton), so entering a channel reads the same as every other
+            // conversation-loading surface. `absolute inset-0` fills this box.
+            <MessageRowsSkeleton className="absolute inset-0" />
+          ) : items.length === 0 && !leadingSlot && !leadingMessage ? (
+            (emptyState ?? <EmptyConversation />)
+          ) : (
+            <MessageScroller<StreamItem>
+              // Remount on channel switches and disjoint window replacements so
+              // the new window opens at its own anchor.
+              key={`${channelId}:${windowResetVersion}`}
+              controlRef={scrollerRef}
+              items={items}
+              itemKey={itemKey}
+              renderItem={renderRow}
+              header={
+                <>
+                  {/* Reserves the floating compact header's height inside the
                 scroller, so rows scroll beneath it. */}
-                <div aria-hidden data-pane-chrome-spacer />
-                {leadingSlot ? (
-                  <div className="mx-auto mb-1 w-full max-w-300 px-(--message-list-gutter)">
-                    {leadingSlot}
-                  </div>
-                ) : null}
-                {leadingMessage ? (
-                  <>
-                    <div className="mx-auto w-full max-w-300 px-(--message-list-gutter) py-0.5">
-                      {renderItem({ kind: "message", message: leadingMessage })}
+                  <div aria-hidden data-pane-chrome-spacer />
+                  {leadingSlot ? (
+                    <div className="mx-auto mb-1 w-full max-w-300 px-(--message-list-gutter)">
+                      {leadingSlot}
                     </div>
-                    <div className="my-2 shrink-0 border-t border-border-subtle" />
-                    {items.length === 0 ? emptyState : null}
-                  </>
-                ) : null}
-              </>
-            }
-            footer={
-              <>
-                <div className="h-3" data-composer-activity-room />
-                <NativeComposerRoom />
-              </>
-            }
-            initialAnchor={initialAnchor}
-            // Follow new rows only at the real conversation tail: during a jump,
-            // or in an around-message window, the bottom is just the last row
-            // currently held.
-            follow={shouldFollowBottom({ hasJumpTarget: jumpToMessageId != null, isAtTail })}
-            atBottomThreshold={20}
-            reachEdgeDistance={preloadDistance}
-            onReachTop={handleStartReached}
-            onReachBottom={handleEndReached}
-            onAtBottomChange={handleAtBottomChange}
-            onTopItemChange={handleTopItemChange}
-            restAt={leadingMessage ? "top" : "bottom"}
-            className="h-full min-w-0"
-          />
-        )}
-
-        {isFetchingEarlier ? (
-          // Loading must not change the measured list header height: doing so
-          // moves every message while the reader is waiting at the top.
-          <div className="pointer-events-none absolute inset-x-0 top-[calc(var(--pane-chrome-height,0px)+12px)] flex justify-center motion-safe:animate-in motion-safe:fade-in-0">
-            <div role="status" className="flex items-center gap-1.5 text-xs text-text-muted">
-              <GridLoaderIcon className="size-3.5" />
-              {t("conversationShell.loadingEarlierMessages")}
-            </div>
-          </div>
-        ) : null}
-
-        {surfaceActive && (showScrollBottom || shouldResetToLatest) ? (
-          <button
-            type="button"
-            data-scroll-bottom
-            data-sticker
-            data-sticker-size="lg"
-            data-sticker-tone="neutral"
-            aria-label={
-              shouldResetToLatest
-                ? t("conversationShell.jumpToLatest")
-                : t("conversationShell.scrollToBottom")
-            }
-            title={
-              shouldResetToLatest
-                ? t("conversationShell.jumpToLatest")
-                : t("conversationShell.scrollToBottom")
-            }
-            onClick={() => {
-              cancelJumpForBottom();
-              if (shouldResetToLatest && onResetToLatest) {
-                // The window is behind the tail: reset the query to the latest
-                // window, which mounts at its bottom (the armed intent).
-                dispatchBottomAnchor({ type: "arm-reset" });
-                onResetToLatest();
-              } else {
-                scrollerRef.current?.scrollToBottom();
+                  ) : null}
+                  {leadingMessage ? (
+                    <>
+                      <div className="mx-auto w-full max-w-300 px-(--message-list-gutter) py-0.5">
+                        {renderItem({ kind: "message", message: leadingMessage })}
+                      </div>
+                      <div className="my-2 shrink-0 border-t border-border-subtle" />
+                      {items.length === 0 ? emptyState : null}
+                    </>
+                  ) : null}
+                </>
               }
-            }}
-            className="absolute bottom-4 left-1/2 z-(--z-sticky) flex size-9 -translate-x-1/2 items-center justify-center rounded-(--pill-radius) bg-accent text-text-on-accent shadow-lg transition-all hover:opacity-90 active:opacity-75"
-          >
-            <ArrowDownIcon className="size-4" />
-          </button>
-        ) : null}
+              footer={
+                <>
+                  <div className="h-3" data-composer-activity-room />
+                  <NativeComposerRoom />
+                </>
+              }
+              initialAnchor={initialAnchor}
+              // Follow new rows only at the real conversation tail: during a jump,
+              // or in an around-message window, the bottom is just the last row
+              // currently held.
+              follow={shouldFollowBottom({ hasJumpTarget: jumpToMessageId != null, isAtTail })}
+              atBottomThreshold={20}
+              reachEdgeDistance={preloadDistance}
+              onReachTop={handleStartReached}
+              onReachBottom={handleEndReached}
+              onAtBottomChange={handleAtBottomChange}
+              onTopItemChange={handleTopItemChange}
+              restAt={leadingMessage ? "top" : "bottom"}
+              className="h-full min-w-0"
+            />
+          )}
+
+          {isFetchingEarlier ? (
+            // Loading must not change the measured list header height: doing so
+            // moves every message while the reader is waiting at the top.
+            <div className="pointer-events-none absolute inset-x-0 top-[calc(var(--pane-chrome-height,0px)+12px)] flex justify-center motion-safe:animate-in motion-safe:fade-in-0">
+              <div role="status" className="flex items-center gap-1.5 text-xs text-text-muted">
+                <GridLoaderIcon className="size-3.5" />
+                {t("conversationShell.loadingEarlierMessages")}
+              </div>
+            </div>
+          ) : null}
+
+          {surfaceActive && (showScrollBottom || shouldResetToLatest) ? (
+            <button
+              type="button"
+              data-scroll-bottom
+              data-sticker
+              data-sticker-size="lg"
+              data-sticker-tone="neutral"
+              aria-label={
+                shouldResetToLatest
+                  ? t("conversationShell.jumpToLatest")
+                  : t("conversationShell.scrollToBottom")
+              }
+              title={
+                shouldResetToLatest
+                  ? t("conversationShell.jumpToLatest")
+                  : t("conversationShell.scrollToBottom")
+              }
+              onClick={() => {
+                cancelJumpForBottom();
+                if (shouldResetToLatest && onResetToLatest) {
+                  // The window is behind the tail: reset the query to the latest
+                  // window, which mounts at its bottom (the armed intent).
+                  dispatchBottomAnchor({ type: "arm-reset" });
+                  onResetToLatest();
+                } else {
+                  scrollerRef.current?.scrollToBottom();
+                }
+              }}
+              className="absolute bottom-4 left-1/2 z-(--z-sticky) flex size-9 -translate-x-1/2 items-center justify-center rounded-(--pill-radius) bg-accent text-text-on-accent shadow-lg transition-all hover:opacity-90 active:opacity-75"
+            >
+              <ArrowDownIcon className="size-4" />
+            </button>
+          ) : null}
+        </div>
       </div>
-    </div>
+    </ComposerTarget.Provider>
   );
 }
 

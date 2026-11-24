@@ -4,6 +4,7 @@ import { AgentInfoPopover } from "@/features/agents/components/agent-info-popove
 import { HumanInfoPopover } from "@/features/profile/human-info-popover";
 import type { AuthorPresentation } from "../model/author-presentation";
 import { AuthorAvatarView, AuthorName } from "./author-avatar-view";
+import { requestMentionInComposer, useComposerTarget } from "../mention-to-composer";
 
 export function MessageAuthorAvatar({
   presentation,
@@ -101,18 +102,20 @@ export function MessageAuthorLabel({
   liveAgent,
   liveHuman,
   avatarObjectUrl,
-  onNavigateAgent,
-  onNavigateHuman,
 }: {
   presentation: AuthorPresentation;
   conversationId: string;
   liveAgent: AgentDto | undefined;
   liveHuman: UserDto | undefined;
   avatarObjectUrl: string | null;
-  onNavigateAgent: (agentId: string) => void;
-  onNavigateHuman: (userId: string) => void;
 }): JSX.Element {
   const label = presentation.label;
+  const composerTarget = useComposerTarget();
+  const mention = (handle: string): void => {
+    if (composerTarget !== null) {
+      requestMentionInComposer(composerTarget, handle);
+    }
+  };
   if (presentation.status === "active" && liveAgent) {
     return (
       <AgentInfoPopover
@@ -125,7 +128,7 @@ export function MessageAuthorLabel({
           type="button"
           onClick={(event) => {
             event.preventDefault();
-            onNavigateAgent(liveAgent.id);
+            mention(liveAgent.name);
           }}
           /* `data-message-author` + `data-author-kind` are theme-neutral
            *  identity hooks. BOTH kinds take `text-text-primary` in EVERY theme:
@@ -153,7 +156,7 @@ export function MessageAuthorLabel({
           type="button"
           onClick={(event) => {
             event.preventDefault();
-            onNavigateHuman(liveHuman.id);
+            mention(liveHuman.name);
           }}
           data-message-author
           data-author-kind="user"
