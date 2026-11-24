@@ -49,8 +49,10 @@ export const messages = {
   unsave: "Unsave",
   saveMessage: "Save message",
   unfollowThread: "Unfollow thread",
-  reply: "Reply",
-  replies: "Replies",
+  replyCount: {
+    one: "{count} Reply",
+    other: "{count} Replies",
+  },
   react: "React",
   thread2: "Thread",
   replyInThread: "Reply in thread",

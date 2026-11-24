@@ -44,12 +44,8 @@ export function messageThreadSummary({
   threadPreview: JSX.Element | null;
   badgeHeadsPreview: boolean;
 } {
-  // "{N} Reply/Replies" — pluralized to match the ThreadPanel header
-  // (which says "N replies"); the badge previously hard-coded "Reply".
   const replyBadgeLabel =
-    threadReplyCount === undefined
-      ? ""
-      : `${threadReplyCount} ${threadReplyCount === 1 ? t("messages.reply") : t("messages.replies")}`;
+    threadReplyCount === undefined ? "" : t("messages.replyCount", { count: threadReplyCount });
 
   // P1 (#task:1073): when the enriched summary is present, the badge upgrades
   // to avatars + count + last-reply time. `repliers.length > 0` guards the
