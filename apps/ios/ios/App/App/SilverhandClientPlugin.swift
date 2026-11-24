@@ -13,7 +13,7 @@ public final class SilverhandClientPlugin: CAPPlugin, CAPBridgedPlugin {
     "upload",
     "openSocket", "sendSocket", "closeSocket", "openExternal", "appVersion",
     "navigationSync", "navigationReset",
-    "navigationBadges", "navigationAvatar", "setLocale", "titlebar", "titlebarEndSearch", "pageBar", "pageBarBackProgress", "composerSync", "composerRemove", "composerSetText", "selectionBarSync", "selectionBarRemove", "bannerShow", "toastShow", "toastDismiss", "sharePng", "previewPng", "saveAttachment", "avatarMakerEdit", "authScreenShow", "authScreenHide", "contextMenuAvailable", "contextMenuShow",
+    "navigationBadges", "navigationAvatar", "setLocale", "titlebar", "titlebarEndSearch", "pageBar", "pageBarBackProgress", "composerSync", "composerRemove", "composerSetText", "selectionBarSync", "selectionBarRemove", "bannerShow", "toastShow", "toastDismiss", "sharePng", "previewPng", "saveAttachment", "avatarMakerEdit", "authScreenShow", "authScreenHide", "filterSheetShow", "filterSheetHide", "contextMenuAvailable", "contextMenuShow",
   ].map { CAPPluginMethod(name: $0, returnType: CAPPluginReturnPromise) }
 
   @MainActor private var session: ClientSession?
@@ -155,6 +155,40 @@ public final class SilverhandClientPlugin: CAPPlugin, CAPBridgedPlugin {
     DispatchQueue.main.async {
       MainActor.assumeIsolated {
         self.authScreen.hide()
+        call.resolve()
+      }
+    }
+  }
+
+  @MainActor private lazy var filterSheet: FilterSheetPresenter = {
+    let presenter = FilterSheetPresenter()
+    presenter.onEvent = { [weak self] event in self?.notifyListeners("filterSheet", data: event) }
+    return presenter
+  }()
+
+  @objc func filterSheetShow(_ call: CAPPluginCall) {
+    guard let state = call.getObject("state").flatMap(FilterSheetState.init) else {
+      call.reject("Missing filter sheet state")
+      return
+    }
+    // Each answer to a pick must land after the one before it.
+    DispatchQueue.main.async {
+      MainActor.assumeIsolated {
+        guard let host = self.bridge?.viewController, host.view.window != nil,
+          self.filterSheet.show(state, from: host)
+        else {
+          call.reject("Unable to present the filters")
+          return
+        }
+        call.resolve()
+      }
+    }
+  }
+
+  @objc func filterSheetHide(_ call: CAPPluginCall) {
+    DispatchQueue.main.async {
+      MainActor.assumeIsolated {
+        self.filterSheet.hide()
         call.resolve()
       }
     }

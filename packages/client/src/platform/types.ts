@@ -193,6 +193,46 @@ export interface AvatarMakerCapability {
   } | null>;
 }
 
+/** One choice in a filter sheet list. `group` heads a run of options; an
+ *  `avatar` draws a picture (an image URL), or the label's initial without one. */
+export interface FilterSheetOption {
+  id: string;
+  label: string;
+  detail?: string;
+  group?: string;
+  avatar?: { image: string | null };
+}
+/** One filter: a row showing the chosen option that opens the full list. */
+export interface FilterSheetField {
+  id: string;
+  label: string;
+  options: FilterSheetOption[];
+  selected: string;
+  /** Under the list when it cannot offer every choice yet. */
+  note?: string;
+  searchPlaceholder?: string;
+}
+export interface FilterSheetState {
+  title: string;
+  doneLabel: string;
+  fields: FilterSheetField[];
+  /** Null while the filters are at their baseline. */
+  resetLabel: string | null;
+}
+export type FilterSheetEvent =
+  | { kind: "select"; field: string; option: string }
+  | { kind: "reset" }
+  | { kind: "dismiss" };
+/** A native sheet of filters. The UI owns the filter state, the cascade between
+ *  fields and every string: each pick comes back as an event, and the UI answers
+ *  with the new state. */
+export interface FilterSheetCapability {
+  /** Shows the sheet, or updates the one showing. */
+  show(state: FilterSheetState): Promise<void>;
+  hide(): Promise<void>;
+  subscribe(handler: (event: FilterSheetEvent) => void): Promise<() => void>;
+}
+
 /** The phone's signed-out screen, drawn natively: a welcome scene with the
  *  login, signup, password recovery and server address forms in sheets. The
  *  page keeps the session calls, validation and every string, and declares the
@@ -342,6 +382,7 @@ export interface ClientPlatform {
   avatarMaker?: AvatarMakerCapability;
   contextMenu?: ContextMenuCapability;
   authScreen?: AuthScreenCapability;
+  filterSheet?: FilterSheetCapability;
   /** The system menu bar item lists conversations with unread messages. */
   menuBar?: MenuBarCapability;
   /** Present only where the app can update itself. */

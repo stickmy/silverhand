@@ -71,6 +71,8 @@ function harness() {
     avatarMakerEdit: vi.fn(async () => ({})),
     authScreenShow: vi.fn(async () => {}),
     authScreenHide: vi.fn(async () => {}),
+    filterSheetShow: vi.fn(async () => {}),
+    filterSheetHide: vi.fn(async () => {}),
     contextMenuAvailable: vi.fn(async () => ({ available: true })),
     contextMenuShow: vi.fn(async () => ({})),
     openExternal: vi.fn(),

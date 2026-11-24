@@ -33,6 +33,7 @@
 		A28990000000000000000001 /* SilverhandImagePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = A28990000000000000000002 /* SilverhandImagePreview.swift */; };
 		A26A10000000000000000001 /* SilverhandNativeCopy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A26A10000000000000000002 /* SilverhandNativeCopy.swift */; };
 		A28590000000000000000001 /* SilverhandAvatarMaker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A28590000000000000000002 /* SilverhandAvatarMaker.swift */; };
+		A31320000000000000000001 /* SilverhandFilterSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A31320000000000000000002 /* SilverhandFilterSheet.swift */; };
 		A26990000000000000000001 /* SilverhandComposerActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A26990000000000000000002 /* SilverhandComposerActivity.swift */; };
 		A26950000000000000000001 /* AttachmentExportController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A26950000000000000000002 /* AttachmentExportController.swift */; };
 /* End PBXBuildFile section */
@@ -75,6 +76,7 @@
 		A28990000000000000000002 /* SilverhandImagePreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SilverhandImagePreview.swift; sourceTree = "<group>"; };
 		A26A10000000000000000002 /* SilverhandNativeCopy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SilverhandNativeCopy.swift; sourceTree = "<group>"; };
 		A28590000000000000000002 /* SilverhandAvatarMaker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SilverhandAvatarMaker.swift; sourceTree = "<group>"; };
+		A31320000000000000000002 /* SilverhandFilterSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SilverhandFilterSheet.swift; sourceTree = "<group>"; };
 		A26990000000000000000002 /* SilverhandComposerActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SilverhandComposerActivity.swift; sourceTree = "<group>"; };
 		A26950000000000000000002 /* AttachmentExportController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentExportController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -138,6 +140,7 @@
 				A28990000000000000000002 /* SilverhandImagePreview.swift */,
 				A26A10000000000000000002 /* SilverhandNativeCopy.swift */,
 				A28590000000000000000002 /* SilverhandAvatarMaker.swift */,
+				A31320000000000000000002 /* SilverhandFilterSheet.swift */,
 				A26950000000000000000002 /* AttachmentExportController.swift */,
 				A26630000000000000000002 /* SilverhandClientPlugin.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
@@ -279,6 +282,7 @@
 				A28990000000000000000001 /* SilverhandImagePreview.swift in Sources */,
 				A26A10000000000000000001 /* SilverhandNativeCopy.swift in Sources */,
 				A28590000000000000000001 /* SilverhandAvatarMaker.swift in Sources */,
+				A31320000000000000000001 /* SilverhandFilterSheet.swift in Sources */,
 				A26950000000000000000001 /* AttachmentExportController.swift in Sources */,
 				A26630000000000000000001 /* SilverhandClientPlugin.swift in Sources */,
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,

@@ -17,6 +17,8 @@ import type {
   SelectionBarState,
   AuthScreenEvent,
   AuthScreenState,
+  FilterSheetEvent,
+  FilterSheetState,
   BackendProxyRequest,
   BackendProxyResponse,
   ClientAuthResult,
@@ -119,6 +121,9 @@ export interface NativeBridge {
   /** The compact sign-in sheet; a newer state updates the one showing. */
   authScreenShow(input: { state: AuthScreenState }): Promise<void>;
   authScreenHide(): Promise<void>;
+  /** The filter sheet; a newer state updates the one showing. */
+  filterSheetShow(input: { state: FilterSheetState }): Promise<void>;
+  filterSheetHide(): Promise<void>;
   openExternal(input: { url: string }): Promise<void>;
   appVersion(): Promise<{ version: string }>;
   addListener(
@@ -155,6 +160,10 @@ export interface NativeBridge {
   addListener(
     event: "authScreen",
     handler: (event: AuthScreenEvent) => void,
+  ): Promise<PluginListenerHandle>;
+  addListener(
+    event: "filterSheet",
+    handler: (event: FilterSheetEvent) => void,
   ): Promise<PluginListenerHandle>;
   addListener(
     event: "fold",
