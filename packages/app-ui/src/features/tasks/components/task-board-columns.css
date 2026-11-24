@@ -99,3 +99,12 @@
     display: none;
   }
 }
+
+/* On a phone a long group scrolls the header out of reach, so it pins to the
+   top of the board while its rows pass under it. The board's top padding
+   already clears the floating pane chrome, and the header fill is opaque. */
+[data-layout="compact"] [data-tasks-column-header] {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+}

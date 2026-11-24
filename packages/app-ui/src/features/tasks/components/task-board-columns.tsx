@@ -1,7 +1,7 @@
 import "./task-board-columns.css";
 import { TaskRowsSkeleton } from "./task-body-skeleton";
 import { taskChannelLabel } from "../model/task-place.js";
-import { useRef, useState, type RefObject } from "react";
+import { useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { ChevronDownIcon, ChevronRightIcon } from "@/icons";
 import type { TaskStatus, TaskSummaryDto } from "@silverhand/shared";
 import { cn } from "@/lib/cn";
@@ -168,10 +168,39 @@ function StatusGroup({
   // header. Once a task arrives the stored bit takes over again.
   const [openWhileEmpty, setOpenWhileEmpty] = useState(false);
   const collapsed = empty ? !openWhileEmpty : collapsedByViewer;
-  const toggle = empty ? () => setOpenWhileEmpty((open) => !open) : onToggleCollapse;
+  const sectionRef = useRef<HTMLElement>(null);
+  const headerRef = useRef<HTMLButtonElement>(null);
+  const stuckOffsetRef = useRef<number | null>(null);
+  const toggle = () => {
+    // A header pinned over its own rows (compact sticky) has scrolled past the
+    // group's top; collapsing would leave the reader far below the group.
+    // Remember where the header sits so the group can be put back under it.
+    const section = sectionRef.current;
+    const header = headerRef.current;
+    stuckOffsetRef.current =
+      section && header && header.getBoundingClientRect().top > section.getBoundingClientRect().top
+        ? header.getBoundingClientRect().top
+        : null;
+    if (empty) {
+      setOpenWhileEmpty((open) => !open);
+    } else {
+      onToggleCollapse();
+    }
+  };
   const Chevron = collapsed ? ChevronRightIcon : ChevronDownIcon;
   const canGrow = !collapsed && hasMore;
   const sentinelRef = useRef<HTMLLIElement>(null);
+
+  useLayoutEffect(() => {
+    const offset = stuckOffsetRef.current;
+    const section = sectionRef.current;
+    const board = scrollRootRef.current;
+    stuckOffsetRef.current = null;
+    if (offset === null || !section || !board) {
+      return;
+    }
+    board.scrollTop += section.getBoundingClientRect().top - offset;
+  }, [collapsed, scrollRootRef]);
 
   useColumnEndSentinel({
     rootRef: scrollRootRef,
@@ -182,8 +211,14 @@ function StatusGroup({
   });
 
   return (
-    <section data-tasks-column data-status={status} className="flex flex-none flex-col">
+    <section
+      ref={sectionRef}
+      data-tasks-column
+      data-status={status}
+      className="flex flex-none flex-col"
+    >
       <button
+        ref={headerRef}
         type="button"
         data-tasks-column-header
         onClick={toggle}
