@@ -1,9 +1,10 @@
 import { memo, useCallback, useMemo, useState } from "react";
-import { PlusIcon, TaskIcon } from "@/icons";
+import { FilterIcon, PlusIcon, TaskIcon } from "@/icons";
 import { useCompactLayout } from "@/navigation/layout";
 import { useUpdateTaskStatus } from "@/features/tasks/hooks/hooks";
 import { useKanbanColumnCollapse } from "@/features/tasks/hooks/use-kanban-column-collapse";
 import { useTaskFilterOptions } from "@/features/tasks/hooks/use-task-filter-options";
+import { useTaskFilterSheet } from "@/features/tasks/hooks/use-task-filter-sheet";
 import { useBoardColumns, useBoardCounts, useBoardFacets } from "@/features/tasks/hooks/use-board";
 import { useColumnWindow } from "@/features/tasks/hooks/use-column-window";
 import { DEFAULT_TASK_FILTERS, type TaskFilters } from "@/features/tasks/model/task-filters";
@@ -66,6 +67,17 @@ export const TaskBoard = memo(function TaskBoard({
   const counts = useBoardCounts(filters);
   const people = useBoardFacets(filters);
 
+  const filterInput = {
+    filters,
+    onChange: applyFilters,
+    baselineFilters: DEFAULT_TASK_FILTERS,
+    workspaceOptions,
+    channelOptions,
+    allChannelsLabel: t("taskPage.all"),
+    people,
+  };
+  const filterSheet = useTaskFilterSheet(filterInput);
+
   const selectedChannelName = filters.channelId
     ? channelOptions.find((o) => o.id === filters.channelId)?.label
     : null;
@@ -109,6 +121,15 @@ export const TaskBoard = memo(function TaskBoard({
             ) : undefined
           }
           nativeActions={[
+            filterSheet.available
+              ? {
+                  id: "filter",
+                  label: t("tasks.filterTasks"),
+                  icon: iconMarkup(FilterIcon),
+                  dot: filterSheet.filtered,
+                  run: filterSheet.open,
+                }
+              : null,
             {
               id: "create",
               label: t("taskPage.newTask"),
@@ -118,16 +139,12 @@ export const TaskBoard = memo(function TaskBoard({
           ]}
         />
 
-        <TaskToolbar
-          onCreate={compact ? undefined : () => setCreateOpen(true)}
-          filters={filters}
-          onChange={applyFilters}
-          baselineFilters={DEFAULT_TASK_FILTERS}
-          workspaceOptions={workspaceOptions}
-          channelOptions={channelOptions}
-          allChannelsLabel={t("taskPage.all")}
-          people={people}
-        />
+        {filterSheet.available ? null : (
+          <TaskToolbar
+            onCreate={compact ? undefined : () => setCreateOpen(true)}
+            {...filterInput}
+          />
+        )}
       </FloatingPaneChrome>
       <TaskBoardColumns
         columns={columns}

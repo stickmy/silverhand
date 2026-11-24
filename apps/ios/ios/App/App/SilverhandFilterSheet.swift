@@ -91,8 +91,9 @@ final class FilterSheetPresenter {
     let model = FilterSheetModel(state: state) { [weak self] event in self?.onEvent?(event) }
     let controller = UIHostingController(rootView: AnyView(EmptyView()))
     controller.rootView = AnyView(
-      FilterSheetView(model: model, onDone: { [weak controller] in
-        controller?.dismiss(animated: true)
+      FilterSheetView(model: model, onDone: { [weak self, weak controller] in
+        // A dismissal in code does not reach the presentation delegate.
+        controller?.dismiss(animated: true) { self?.dismissed() }
       }))
     let dismissal = Dismissal { [weak self] in self?.dismissed() }
     // A presented sheet takes its traits from the window, not the presenter; the theme
@@ -122,7 +123,7 @@ final class FilterSheetPresenter {
     onEvent?(["kind": "dismiss"])
   }
 
-  /// Done and a swipe down both end here.
+  /// A swipe down.
   private final class Dismissal: NSObject, UIAdaptivePresentationControllerDelegate {
     let onDismiss: () -> Void
     init(onDismiss: @escaping () -> Void) { self.onDismiss = onDismiss }

@@ -53,6 +53,7 @@ import {
   Info,
   Layers,
   Link2,
+  ListFilter,
   Maximize,
   Minimize,
   Palette,
@@ -347,6 +348,7 @@ export const InfoIcon = icon("info", Info);
 export const IntegrationIcon = icon("integration", Plug);
 export const LayersIcon = icon("layers", Layers);
 export const LinkIcon = icon("link", Link2);
+export const FilterIcon = icon("filter", ListFilter);
 export const MembersIcon = icon("members", Users);
 export const MentionIcon = icon("mention", AtSign);
 export const MoreIcon = icon("more", Ellipsis);

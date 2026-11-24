@@ -77,6 +77,10 @@ export const tasks = {
   keepUnder: "Keep it under {max} characters.",
   channelFilter: "Channel:{value}",
   projectFilter: "Project:{value}",
+  filterTasks: "Filter tasks",
+  filterTasksMenu: "Filter tasks…",
+  filterTasksMenuFiltered: "Filter tasks… (filtered)",
+  filterDone: "Done",
   history: {
     title: "History",
     showAll: "Show all {count}",
