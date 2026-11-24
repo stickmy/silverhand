@@ -80,9 +80,8 @@ export const tasks: Translation<typeof en> = {
   keepUnder: "请控制在 {max} 个字符以内。",
   channelFilter: "频道:{value}",
   projectFilter: "项目:{value}",
+  project: "项目",
   filterTasks: "筛选任务",
-  filterTasksMenu: "筛选任务…",
-  filterTasksMenuFiltered: "筛选任务(已筛选)",
   filterDone: "完成",
   history: {
     title: "历史",

@@ -225,7 +225,7 @@ function sheetState(
     }
     fields.push({
       id: "scope",
-      label: t("tasks.boardScope"),
+      label: t("tasks.project"),
       options: scopeOptions,
       searchPlaceholder: t("common.search"),
       selected:

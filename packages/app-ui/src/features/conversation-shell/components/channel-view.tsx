@@ -673,9 +673,7 @@ function ActiveChannelView({
       ? [
           {
             id: "task-filter",
-            label: taskBar.filtered
-              ? t("tasks.filterTasksMenuFiltered")
-              : t("tasks.filterTasksMenu"),
+            label: t("tasks.filterTasks"),
             icon: iconMarkup(FilterIcon),
             dot: taskBar.filtered,
           },
