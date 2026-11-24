@@ -15,7 +15,7 @@ export const activity: Translation<typeof en> = {
   markAsRead: "标为已读",
   markAllRead: "全部标为已读",
   markAllReadFailed: "未能全部标为已读，请重试",
-  newCount: "{n} 条新",
+  newCount: "{n} 条未读",
   emptyFilter: {
     all: "暂无内容",
     mention: "没有提及",
