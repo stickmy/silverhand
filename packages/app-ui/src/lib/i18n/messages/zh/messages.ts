@@ -57,9 +57,6 @@ export const messages: Translation<typeof en> = {
   optionOtherPlaceholder: "你的回答",
   optionSubmit: "提交",
   optionPickFirst: "请至少选择一项",
-  optionSubmitCount: {
-    other: "提交 ({count})",
-  },
   imageCount: {
     other: "{count} 张图片",
   },

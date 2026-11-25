@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { CheckIcon } from "@/icons";
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 
@@ -101,7 +102,6 @@ export function MessageOptions({
 
   const isOn = (id: string): boolean => (multi ? draft.has(id) : answeredIds.includes(id));
   const otherOn = otherOpen || (answer?.other != null && ticked === null);
-  const pending = multi ? draft.size + (otherOpen && otherText.trim() ? 1 : 0) : 0;
 
   return (
     <div data-message-options className="mt-2 flex max-w-[min(360px,100%)] flex-col gap-1.5">
@@ -177,9 +177,7 @@ export function MessageOptions({
             onClick={submitMulti}
             className="rounded-(--control-radius) bg-(--text-primary) px-3 py-1 text-xs text-(--bg-primary)"
           >
-            {pending > 0
-              ? t("messages.optionSubmitCount", { count: pending })
-              : t("messages.optionSubmit")}
+            {t("messages.optionSubmit")}
           </button>
         </div>
       ) : null}
@@ -228,23 +226,29 @@ function OptionRow({
 }
 
 function OptionMark({ multi, on }: { multi: boolean; on: boolean }): JSX.Element {
+  if (multi) {
+    return (
+      <span
+        aria-hidden
+        className={cn(
+          "flex size-3.5 shrink-0 items-center justify-center rounded-[min(3px,var(--control-radius))] border-[1.5px]",
+          on ? "border-text-primary bg-(--text-primary) text-(--bg-base)" : "border-text-muted",
+        )}
+      >
+        {on ? <CheckIcon size={10} strokeWidth={3} /> : null}
+      </span>
+    );
+  }
+
   return (
     <span
       aria-hidden
       className={cn(
-        "flex size-3.5 shrink-0 items-center justify-center border-[1.5px]",
-        multi ? "rounded-[3px]" : "rounded-full",
+        "flex size-3.5 shrink-0 items-center justify-center rounded-full border-[1.5px]",
         on ? "border-text-primary" : "border-text-muted",
       )}
     >
-      {on ? (
-        <span
-          className={cn(
-            "bg-(--text-primary)",
-            multi ? "size-2 rounded-[1px]" : "size-1.5 rounded-full",
-          )}
-        />
-      ) : null}
+      {on ? <span className="size-1.5 rounded-full bg-(--text-primary)" /> : null}
     </span>
   );
 }

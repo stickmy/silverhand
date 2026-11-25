@@ -54,10 +54,6 @@ export const messages = {
   optionOtherPlaceholder: "Your answer",
   optionSubmit: "Submit",
   optionPickFirst: "Pick at least one option",
-  optionSubmitCount: {
-    one: "Submit ({count})",
-    other: "Submit ({count})",
-  },
   imageCount: {
     one: "{count} image",
     other: "{count} images",
