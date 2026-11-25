@@ -1,8 +1,9 @@
 /**
  * `silverhand message` — send, history, search.
  */
-import type { AgentSendStaleResolutionReason, Reference } from '@silverhand/shared';
+import type { AgentSendStaleResolutionReason, MessageOptions, Reference } from '@silverhand/shared';
 import {
+  MessageOptionsSchema,
   NAMED_STREAM_ADDRESS_PREFIX,
   conversationAddressOf,
   MAX_MESSAGE_CONTENT_LABEL,
@@ -22,17 +23,18 @@ import {
 import { CliError, mapHttpError } from '../errors.js';
 import type { BackendClient } from '../client.js';
 import type { CliEnv } from '../env.js';
-import { flagBool, flagNumber, flagString, flagStringArray } from '../parse.js';
+import { flagBool, flagNumber, flagString, flagStringArray, type ParsedArgs } from '../parse.js';
 import { decodeStdinUtf8, readAllStdin } from '../stdin.js';
 import { reachHelpParagraphSection } from '../reach-help.js';
 import { requireAddressBeforeSideEffects, requireTargetFlag } from '../target-flag.js';
-import type { Command } from './index.js';
+import type { Command, FacetGroup } from './index.js';
 
 const sendCommand: Command = {
   verb: 'send',
   summary: 'Send a message to one addressed stream.',
   help: `silverhand message send --target <address>
                           [--attachment-id <id> ...]
+                          [--option <id>=<label> ... [--multi]]
                           [--stale-resolution unaffected|revised]
                           [--anyway]
 
@@ -108,6 +110,16 @@ Flags:
   --attachment-id <id>  Optional, repeatable. Attachment ids returned by
                         \`silverhand file upload\`. All ids must belong
                         to the same channel as the addressed stream.
+  --option <id>=<label> Optional, repeatable (2-10). Attach answer options
+                        readers can pick from. Use them only when the
+                        question has a few clear, mutually comparable
+                        alternatives; ask open questions in plain text.
+                        <id> is lowercase [a-z0-9_-], up to 16 chars, unique
+                        in the message. Readers can always answer with free
+                        "other" text, so do not add a catch-all option.
+                        Each answer posts a system event that mentions you.
+  --multi               With --option: readers may pick several options.
+                        Default is single choice.
   --stale-resolution    Optional. After a message_stale conflict, explain
                         why this retry is being sent:
                         "unaffected" means the original draft still applies;
@@ -141,8 +153,8 @@ the message landed in. The send still succeeded and everyone it did address
 received it; fix the spelling (or add the member) and send again if that
 reference mattered. No reason is given per token, and its absence means
 nothing was reported, not that every reference landed.`,
-  flags: ['target', 'attachment-id', 'stale-resolution'] as const,
-  booleanFlags: ['anyway'],
+  flags: ['target', 'attachment-id', 'option', 'stale-resolution'] as const,
+  booleanFlags: ['anyway', 'multi'],
   removedFlags: {
     'reply-to': {
       replacement: '--target',
@@ -204,6 +216,7 @@ nothing was reported, not that every reference landed.`,
         'credential lives, not a default destination.',
     });
     const anyway = flagBool(args, 'anyway') ?? false;
+    const options = parseOptionFlags(args);
     const staleResolution = parseSendStaleResolution(flagString(args, 'stale-resolution'));
     if (anyway && staleResolution !== undefined) {
       throw new CliError({
@@ -273,6 +286,7 @@ nothing was reported, not that every reference landed.`,
       content,
       target,
       ...(attachmentIds && attachmentIds.length > 0 ? { attachment_ids: attachmentIds } : {}),
+      ...(options ? { options } : {}),
       ...(anyway ? { freshness_bypass: true } : {}),
       ...(staleResolution ? { stale_resolution_reason: staleResolution } : {}),
     };
@@ -289,6 +303,7 @@ nothing was reported, not that every reference landed.`,
       target,
       ...(anyway ? { freshness_bypass: true } : {}),
       ...(attachmentIds && attachmentIds.length > 0 ? { attachment_ids: attachmentIds } : {}),
+      ...(options ? { options } : {}),
     });
   },
 };
@@ -476,6 +491,138 @@ stdout: { "changed": <bool>, "emoji": "<emoji>", "count": <n> }`,
     });
   },
 };
+
+const answerCommand: Command = {
+  verb: 'answer',
+  summary: "Answer a message's options.",
+  help: `silverhand message answer --message-id <id>
+                            [--option <id> ...] [--other <text>]
+
+Answer a message that carries options (shown under its body as
+\`[Options (single choice) ...]\` with \`<id>: <label>\` lines). Pass the
+option ids you pick, free text with --other, or both (multi choice only).
+A single-choice answer takes exactly one --option or --other.
+
+Answering again replaces your answer; the last answer wins. Each answer
+posts a system event in the question's stream that mentions its author.
+You cannot answer your own question.
+
+Flags:
+  --message-id <id>  Required. The question message.
+  --option <id>      Repeatable. An option id from the question.
+  --other <text>     Free-text answer when no option fits.
+
+stdout: { "message_id", "answer": { "by", "option_ids", "other", "answered_at" },
+          "event_message_id" }`,
+  flags: ['message-id', 'option', 'other'] as const,
+  async run({ client, args }) {
+    const messageId = requireMessageId(args);
+    const optionIds = flagStringArray(args, 'option') ?? [];
+    const other = flagString(args, 'other');
+    if (optionIds.length === 0 && (other === undefined || other.trim() === '')) {
+      throw new CliError({
+        code: 'validation_error',
+        message: 'pass at least one --option <id> or --other <text>',
+        retriable: false,
+      });
+    }
+    return await client.answerMessage({
+      message_id: messageId,
+      ...(optionIds.length > 0 ? { option_ids: optionIds } : {}),
+      ...(other !== undefined && other.trim() !== '' ? { other } : {}),
+    });
+  },
+};
+
+const optionsUpdateCommand: Command = {
+  verb: 'update',
+  summary: 'Replace the options of your own unanswered message.',
+  help: `silverhand message options update --message-id <id>
+                                    --option <id>=<label> ... [--multi]
+
+Replace the whole option list of a message you sent. Allowed only while
+nobody has answered it; once answered this fails with options_answered —
+send a new message instead. Same --option rules as \`message send\`.
+
+Flags:
+  --message-id <id>      Required. Your message that carries options.
+  --option <id>=<label>  Required, repeatable (2-10). The new options.
+  --multi                Readers may pick several options.
+
+stdout: { "message_id", "options": { "mode", "items": [{ "id", "label" }] } }`,
+  flags: ['message-id', 'option'] as const,
+  booleanFlags: ['multi'],
+  async run({ client, args }) {
+    const messageId = requireMessageId(args);
+    const options = parseOptionFlags(args);
+    if (!options) {
+      throw new CliError({
+        code: 'validation_error',
+        message: 'pass the new options with --option <id>=<label> (repeatable)',
+        retriable: false,
+      });
+    }
+    return await client.updateMessageOptions({ message_id: messageId, options });
+  },
+};
+
+export const messageFacets: readonly FacetGroup[] = [
+  {
+    facet: 'options',
+    summary: 'Replace the answer options of your own unanswered message.',
+    commands: [optionsUpdateCommand],
+  },
+];
+
+function requireMessageId(args: ParsedArgs): string {
+  const messageId = flagString(args, 'message-id');
+  if (!messageId) {
+    throw new CliError({
+      code: 'validation_error',
+      message: '--message-id is required',
+      retriable: false,
+    });
+  }
+  return messageId;
+}
+
+/** `--option <id>=<label>` (repeatable) + `--multi` → validated options. */
+function parseOptionFlags(args: ParsedArgs): MessageOptions | undefined {
+  const raw = flagStringArray(args, 'option');
+  const multi = flagBool(args, 'multi') ?? false;
+  if (raw === undefined || raw.length === 0) {
+    if (multi) {
+      throw new CliError({
+        code: 'validation_error',
+        message: '--multi needs options; pass --option <id>=<label> (repeatable)',
+        retriable: false,
+      });
+    }
+    return undefined;
+  }
+  const items = raw.map((entry) => {
+    const split = entry.indexOf('=');
+    if (split <= 0) {
+      throw new CliError({
+        code: 'validation_error',
+        message: `--option expects <id>=<label>, got ${JSON.stringify(entry)}`,
+        retriable: false,
+      });
+    }
+    return { id: entry.slice(0, split), label: entry.slice(split + 1) };
+  });
+  const parsed = MessageOptionsSchema.safeParse({ mode: multi ? 'multi' : 'single', items });
+  if (!parsed.success) {
+    throw new CliError({
+      code: 'validation_error',
+      message:
+        'invalid --option list: 2-10 options, ids lowercase [a-z0-9_-] up to 16 chars and ' +
+        'unique, labels non-empty up to 200 chars',
+      retriable: false,
+    });
+  }
+  return parsed.data;
+}
 
 const historyCommand: Command = {
   verb: 'history',
@@ -741,6 +888,7 @@ export const messageCommands: readonly Command[] = [
   staleResolveCommand,
   staleReceiveCommand,
   reactCommand,
+  answerCommand,
   historyCommand,
   searchCommand,
 ];

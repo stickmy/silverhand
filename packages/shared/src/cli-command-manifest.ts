@@ -49,7 +49,14 @@ export const SILVERHAND_COMMAND_DOMAINS = [
           'one exception: an address flag (--target) takes a whole delivery ' +
           'address verbatim, #conv: prefix and all. ' +
           'Wrap URLs next to non-ASCII punctuation in <...> or Markdown link syntax.',
-        verbs: ['send', 'stale-resolve', 'stale-receive', 'react', 'history', 'search'],
+        verbs: ['send', 'stale-resolve', 'stale-receive', 'react', 'answer', 'history', 'search'],
+        facets: [
+          {
+            facet: 'options',
+            summary: 'Replace the answer options of your own unanswered message.',
+            verbs: ['update'],
+          },
+        ],
       },
     ],
   },

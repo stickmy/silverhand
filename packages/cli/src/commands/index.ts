@@ -21,7 +21,7 @@ import {
   type SilverhandCommandNoun,
   type SilverhandCommandNounManifest,
 } from '@silverhand/shared/cli-command-manifest';
-import { messageCommands } from './message.js';
+import { messageCommands, messageFacets } from './message.js';
 import { taskCommands } from './task.js';
 import { threadCommands } from './thread.js';
 import { channelCommands } from './channel.js';
@@ -118,6 +118,7 @@ const COMMAND_IMPLEMENTATIONS: Record<SilverhandCommandNoun, readonly Command[]>
 };
 
 const FACET_IMPLEMENTATIONS: Partial<Record<SilverhandCommandNoun, readonly FacetGroup[]>> = {
+  message: messageFacets,
   profile: profileFacets,
 };
 

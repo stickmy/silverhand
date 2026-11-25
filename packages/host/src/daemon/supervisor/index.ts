@@ -835,6 +835,7 @@ export class Supervisor implements SupervisorContract {
     const body: Record<string, unknown> = {
       content: params.content,
       ...(params.attachment_ids ? { attachment_ids: params.attachment_ids } : {}),
+      ...(params.options ? { options: params.options } : {}),
       // Forwarded VERBATIM: the address the agent spelled is the request, and a
       // daemon that re-formatted it would be a second grammar between the two
       // authorities (the CLI's `--target` and the backend's resolver).

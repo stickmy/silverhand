@@ -196,5 +196,17 @@
     "suffix": "peer-profile",
     "noun": "profile",
     "verb": "get"
+  },
+  {
+    "method": "POST",
+    "suffix": "answer-message",
+    "noun": "message",
+    "verb": "answer"
+  },
+  {
+    "method": "POST",
+    "suffix": "message-options",
+    "noun": "message",
+    "verb": "options update"
   }
 ]

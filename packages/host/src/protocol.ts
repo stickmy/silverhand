@@ -59,6 +59,7 @@ import { z } from 'zod';
 import {
   AgentRunStateSchema,
   AgentSendStaleResolutionReasonSchema,
+  MessageOptionsSchema,
   AgentWorkspaceFileReadSchema,
   AgentWorkspaceTreeSchema,
   ConversationPlacementKindSchema,
@@ -399,6 +400,7 @@ export const AgentMessageSendParamsSchema = z.object({
    */
   target: z.string().min(1),
   attachment_ids: z.array(z.string().min(1)).optional(),
+  options: MessageOptionsSchema.optional(),
   stale_resolution_reason: AgentSendStaleResolutionReasonSchema.optional(),
   freshness_bypass: z.boolean().optional(),
 });

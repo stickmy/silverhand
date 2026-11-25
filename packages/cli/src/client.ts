@@ -10,6 +10,11 @@
 import {
   AUTH_TOKEN_HEADER,
   internalPaths,
+  type AgentAnswerMessageInput,
+  type AgentUpdateMessageOptionsInput,
+  type MessageAnswerAck,
+  type MessageOptions,
+  type MessageOptionsUpdateAck,
   type AgentListChannelsDto,
   type AgentCreateChannelInput,
   type AgentFollowThreadInput,
@@ -104,6 +109,7 @@ export class BackendClient {
     stale_event_id?: string;
     stale_resolution_reason?: AgentSendStaleResolutionReason;
     freshness_bypass?: boolean;
+    options?: MessageOptions;
     attachment_ids?: string[];
   }): Promise<{
     message_id: string;
@@ -141,6 +147,14 @@ export class BackendClient {
       internalPaths.agentReactMessage(this.env.agentId),
       { message_id: input.message_id, emoji: input.emoji },
     );
+  }
+
+  answerMessage(input: AgentAnswerMessageInput): Promise<MessageAnswerAck> {
+    return this.request('POST', internalPaths.agentAnswerMessage(this.env.agentId), input);
+  }
+
+  updateMessageOptions(input: AgentUpdateMessageOptionsInput): Promise<MessageOptionsUpdateAck> {
+    return this.request('POST', internalPaths.agentUpdateMessageOptions(this.env.agentId), input);
   }
 
   /** Voluntarily follow a reply cluster (subscription, not permission;
