@@ -232,9 +232,17 @@ export type DirectPairAssigneeView =
   | { status: "error"; candidates: readonly DirectPairAssigneeCandidate[] }
   | { status: "ready"; candidates: readonly DirectPairAssigneeCandidate[] };
 
+/** The viewer as a DM assignee candidate — the pair's other endpoint. */
+export interface DirectPairViewer {
+  id: string;
+  name: string;
+  displayName: string;
+}
+
 export function projectDirectPairAssignee(
   pane: DirectPairPaneState,
   current: { type: "agent" | "user"; id: string } | null,
+  viewer: DirectPairViewer | null = null,
 ): DirectPairAssigneeView {
   switch (pane.kind) {
     case "idle":
@@ -245,24 +253,29 @@ export function projectDirectPairAssignee(
     case "absent":
       return { status: "ready", candidates: [] };
     case "ready": {
+      const candidates: DirectPairAssigneeCandidate[] = [];
       const cp = pane.pair.counterpart;
-      if (cp.status !== "active") {
-        // A `deleted` counterpart is gone.
-        return { status: "ready", candidates: [] };
+      // A `deleted` counterpart is gone.
+      if (cp.status === "active") {
+        const type = cp.kind === "agent" ? "agent" : "user";
+        candidates.push({
+          type,
+          id: cp.id,
+          name: cp.name,
+          displayName: cp.display_name || cp.name,
+          isCurrent: current?.type === type && current.id === cp.id,
+        });
       }
-      const type = cp.kind === "agent" ? "agent" : "user";
-      return {
-        status: "ready",
-        candidates: [
-          {
-            type,
-            id: cp.id,
-            name: cp.name,
-            displayName: cp.display_name || cp.name,
-            isCurrent: current?.type === type && current.id === cp.id,
-          },
-        ],
-      };
+      if (viewer) {
+        candidates.push({
+          type: "user",
+          id: viewer.id,
+          name: viewer.name,
+          displayName: viewer.displayName || viewer.name,
+          isCurrent: current?.type === "user" && current.id === viewer.id,
+        });
+      }
+      return { status: "ready", candidates };
     }
   }
 }

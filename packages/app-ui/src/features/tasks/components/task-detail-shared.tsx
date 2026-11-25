@@ -21,6 +21,12 @@ import {
 import type { TaskDetailFailure } from "@/features/tasks/model/task-detail";
 import { useConversationMembers } from "@/features/conversations/use-conversation-members";
 import { useDirectPairPane, projectDirectPairAssignee } from "@/features/direct-pairs/hooks";
+import {
+  isBackendUnreachable,
+  isRegistrationRequired,
+  isUpdateRequired,
+  useViewerUser,
+} from "@/features/session/hooks";
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 
@@ -308,7 +314,8 @@ function AssigneeValue({
  * humans alike. The candidate source is placement-specific so no row here is one
  * the server would refuse:
  *   - workspace   → the conversation's members, from `useConversationMembers`;
- *   - direct_pair → the pair's counterpart, from the pair-participation carrier
+ *   - direct_pair → the pair's two endpoints: the counterpart, from the
+ *                   pair-participation carrier, and the viewer
  *                   (`useDirectPairsList()`). A DirectPair has no roster, so
  *                   `/members` there answers empty; the pair list is the
  *                   authority (@Cindy, #task:2041 / #task:2037).
@@ -511,9 +518,9 @@ function WorkspacePickerBody({
   );
 }
 
-/** DirectPair placement: the sole candidate is the pair's counterpart, read from
- *  the pair-participation carrier — a DirectPair has no roster (@Cindy,
- *  #task:2041). The candidate domain + readiness are the pure `projectDirectPairAssignee`
+/** DirectPair placement: the candidates are the pair's two endpoints — the
+ *  counterpart, read from the pair-participation carrier (a DirectPair has no
+ *  roster — @Cindy, #task:2041), and the viewer. The candidate domain + readiness are the pure `projectDirectPairAssignee`
  *  seam: the active counterpart is ALWAYS offered, INCLUDING when it is the task's
  *  current assignee (then it reads as a selected no-op, never dropped — the empty-
  *  dropdown bug), and a cold/failed read is surfaced as loading / load-failed, never
@@ -535,7 +542,12 @@ function DirectPairPickerBody({
   onChoose: (candidate: AssigneeCandidate) => void;
 }): JSX.Element {
   const paneState = useDirectPairPane(conversationId);
-  const view = projectDirectPairAssignee(paneState, current);
+  const { data: me } = useViewerUser();
+  const viewer =
+    me && !isRegistrationRequired(me) && !isBackendUnreachable(me) && !isUpdateRequired(me)
+      ? { id: me.id, name: me.name, displayName: me.display_name }
+      : null;
+  const view = projectDirectPairAssignee(paneState, current, viewer);
   const placeholder =
     view.status === "loading"
       ? t("tasks.loading")

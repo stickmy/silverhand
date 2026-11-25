@@ -378,6 +378,26 @@ describe("projectDirectPairAssignee — the DM task-assignee domain (#task:2041,
     });
   });
 
+  it("offers the viewer alongside the counterpart", () => {
+    const viewer = { id: "u-me", name: "shiki", displayName: "Shiki" };
+    expect(
+      projectDirectPairAssignee(activeAgentPane("a-1", "alice", "Alice"), null, viewer),
+    ).toEqual({
+      status: "ready",
+      candidates: [
+        { type: "agent", id: "a-1", name: "alice", displayName: "Alice", isCurrent: false },
+        { type: "user", id: "u-me", name: "shiki", displayName: "Shiki", isCurrent: false },
+      ],
+    });
+    expect(
+      projectDirectPairAssignee(
+        activeAgentPane("a-1", "alice", "Alice"),
+        { type: "user", id: "u-me" },
+        viewer,
+      ).candidates[1],
+    ).toMatchObject({ isCurrent: true });
+  });
+
   it("offers nothing for a DELETED counterpart", () => {
     const deletedPane: DirectPairPaneState = {
       kind: "ready",
