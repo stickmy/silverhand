@@ -15,6 +15,7 @@ import { MessageAuthorDtoSchema } from './message-author.js';
 import { ThreadSummaryInvariantSchema } from './thread-summary.js';
 import { MessageSeqSchema } from '../seq.js';
 import { UnresolvedReferencesSchema } from './message-reference.js';
+import { MessageAnswerDtoSchema, MessageOptionsSchema } from './message-options.js';
 
 export const ClientMessageIdSchema = z
   .string()
@@ -58,6 +59,10 @@ export const MessageDtoSchema = z.object({
    *  (boundary strip). Replaces the retired flat `task_*` "message IS task"
    *  projection. See LinkedTaskDtoSchema. */
   linked_task: LinkedTaskDtoSchema.nullable(),
+  /** Answer options the author attached (#task:3143); absent from older servers. */
+  options: MessageOptionsSchema.nullable().optional(),
+  /** The current answer to `options`, or null while unanswered. */
+  answer: MessageAnswerDtoSchema.nullable().optional(),
 });
 export type MessageDto = z.infer<typeof MessageDtoSchema>;
 

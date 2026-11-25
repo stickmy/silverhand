@@ -13,6 +13,7 @@ export * from './reactions.js';
 export * from './message-author.js';
 export * from './message-reference.js';
 export * from './message.js';
+export * from './message-options.js';
 export * from './thread-summary.js';
 export * from './attention.js';
 export * from './task.js';

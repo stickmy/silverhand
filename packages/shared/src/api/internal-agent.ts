@@ -11,6 +11,7 @@ import { ChannelTitleSchema } from './conversation.js';
 import { UnresolvedReferencesSchema } from './message-reference.js';
 import { MessageAttachmentIdsInputSchema, hasMessagePayload } from './_zod-helpers.js';
 import { AttachmentSnapshotSchema } from './attachment.js';
+import { MessageOptionsSchema } from './message-options.js';
 import type { MessageAuthorDto } from './message-author.js';
 import { ReactionAggregateDtoSchema } from './reactions.js';
 
@@ -72,6 +73,12 @@ export const AgentSendMessageInputSchema = z
      *  Server validates each id belongs to the same channel as the
      *  resolved target conversation. */
     attachment_ids: MessageAttachmentIdsInputSchema,
+    /** Answer options readers can pick from (#task:3143). Requires text. */
+    options: MessageOptionsSchema.optional(),
+  })
+  .refine((input) => input.options === undefined || input.content.trim().length > 0, {
+    message: 'a message with options must include text',
+    path: ['content'],
   })
   .refine(hasMessagePayload, {
     message: 'message must include text or at least one attachment',

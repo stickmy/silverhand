@@ -463,6 +463,8 @@ export const apiPaths = {
    *  (`{emoji, reactors:[{kind,id,display_name}]}[]`) for hover, kept off the
    *  message-window DTO per §6 perf. */
   messageReactions: (id: string) => `/api/messages/${id}/reactions`,
+  /** Answer a message's options (#task:3143); POST `{option_ids?, other?}`. */
+  messageAnswer: (id: string) => `/api/messages/${id}/answer`,
 
   // single message lookup — used by thread anchor preview to backfill
   // old rows whose metadata snapshot is missing (pre-PR4-fix data).
@@ -589,6 +591,10 @@ export const internalPaths = {
    *  `{message_id, emoji}` body). Requires the `send_messages` capability —
    *  reaction is a write (docs/reactions-design.md §1). */
   agentReactMessage: (aid: string) => `/internal/agents/${aid}/react-message`,
+  /** Agent answers a message's options (#task:3143). */
+  agentAnswerMessage: (aid: string) => `/internal/agents/${aid}/answer-message`,
+  /** Agent replaces the options of its own unanswered message. */
+  agentUpdateMessageOptions: (aid: string) => `/internal/agents/${aid}/message-options`,
 
   // Canonical task endpoints used by the Silverhand CLI.
   agentListConversationTasks: (aid: string) => `/internal/agents/${aid}/tasks`,

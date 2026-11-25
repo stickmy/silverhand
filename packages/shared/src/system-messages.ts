@@ -572,3 +572,46 @@ export function readRenameMetadata(
   const parsed = RenameMetadataSchema.safeParse(metadata);
   return parsed.success ? parsed.data : null;
 }
+
+// ── message_answer metadata ──────────────────────────────────────────
+
+/**
+ * Metadata of the `message_answer` system event posted in the question's stream
+ * on every answer and re-answer (#task:3143). The labels are snapshots taken at
+ * answer time, so the line stays readable however the question later reads.
+ *
+ *  - `answer_to`: the question message id (click target).
+ *  - `question_author`: who asked; the event mentions them.
+ *  - `answerer`: who answered.
+ *  - `options`: the picked options, in the question's order.
+ *  - `other`: free text given instead of / beside the options, else null.
+ *  - `changed`: true when this replaced an earlier answer.
+ *
+ * Not yet in `SYSTEM_SUBTYPES`: the renderer adds it with its row.
+ */
+export const MessageAnswerMetadataSchema = z.object({
+  subtype: z.literal('message_answer'),
+  answer_to: z.string(),
+  question_author: z.object({
+    kind: z.enum(['user', 'agent']),
+    id: z.string(),
+    name: z.string(),
+  }),
+  answerer: z.object({
+    kind: z.enum(['user', 'agent']),
+    id: z.string(),
+    name: z.string(),
+  }),
+  options: z.array(z.object({ id: z.string(), label: z.string() })),
+  other: z.string().nullable(),
+  changed: z.boolean(),
+});
+export type MessageAnswerMetadata = z.infer<typeof MessageAnswerMetadataSchema>;
+
+export function readMessageAnswerMetadata(
+  metadata: Record<string, unknown> | null | undefined,
+): MessageAnswerMetadata | null {
+  if (!metadata) return null;
+  const parsed = MessageAnswerMetadataSchema.safeParse(metadata);
+  return parsed.success ? parsed.data : null;
+}
