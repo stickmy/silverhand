@@ -21,10 +21,12 @@ import {
   type TaskSummaryDto,
 } from "@silverhand/shared";
 import { api, ApiError, toPathSegment } from "@/lib/api";
+import { taskHistoryKey } from "./use-task-history";
 import { isCurrentViewerScope, onWsFrame, subscribeViewerScope } from "@/lib/ws-client";
 import { classifyTasksCacheKey } from "../model/board-query";
 import {
   shouldRefreshTaskDetail,
+  shouldRefreshTaskHistory,
   shouldRetryTaskDetail,
   taskDetailKey,
   type TaskDetailFrame,
@@ -340,6 +342,9 @@ export function useTaskDetail(taskId: string | null | undefined, opts?: { enable
                 taskKind: (frame.payload as TaskChangedEvent)?.kind ?? null,
               }
             : { type: "other" };
+      if (shouldRefreshTaskHistory(projected, taskId)) {
+        void qc.invalidateQueries({ queryKey: taskHistoryKey(taskId), exact: true });
+      }
       if (!shouldRefreshTaskDetail(projected, taskId)) return;
       void qc.invalidateQueries({ queryKey: taskDetailKey(taskId), exact: true });
     });

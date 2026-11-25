@@ -7,6 +7,7 @@ import {
   resolveTaskDetailView,
   resolveTaskJumpTarget,
   shouldRefreshTaskDetail,
+  shouldRefreshTaskHistory,
   shouldRetryTaskDetail,
   taskDetailKey,
   type TaskDetailFrame,
@@ -305,5 +306,34 @@ describe("shouldRefreshTaskDetail", () => {
     expect(
       shouldRefreshTaskDetail({ type: "snapshot_required", viewerScope: false }, openTaskId),
     ).toBe(false);
+  });
+});
+
+describe("shouldRefreshTaskHistory", () => {
+  const event = (
+    over: Partial<Extract<TaskDetailFrame, { type: "event" }>> = {},
+  ): TaskDetailFrame => ({
+    type: "event",
+    viewerScope: true,
+    kind: "task_changed",
+    taskId: "t-1",
+    taskKind: "assign",
+    ...over,
+  });
+  it("re-reads on any change to the open task", () => {
+    for (const taskKind of ["create", "claim", "assign", "unclaim", "status", "edit"] as const) {
+      expect(shouldRefreshTaskHistory(event({ taskKind }), "t-1")).toBe(true);
+    }
+  });
+  it("ignores other tasks, other scopes and other frames", () => {
+    expect(shouldRefreshTaskHistory(event({ taskId: "t-2" }), "t-1")).toBe(false);
+    expect(shouldRefreshTaskHistory(event({ viewerScope: false }), "t-1")).toBe(false);
+    expect(shouldRefreshTaskHistory(event({ kind: "message_created" }), "t-1")).toBe(false);
+    expect(shouldRefreshTaskHistory({ type: "other" }, "t-1")).toBe(false);
+  });
+  it("re-reads after a viewer snapshot gap", () => {
+    expect(shouldRefreshTaskHistory({ type: "snapshot_required", viewerScope: true }, "t-1")).toBe(
+      true,
+    );
   });
 });

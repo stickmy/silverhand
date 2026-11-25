@@ -216,3 +216,16 @@ export function shouldRefreshTaskDetail(frame: TaskDetailFrame, openTaskId: stri
       return false;
   }
 }
+
+/** Whether the open task's history has to re-read: every committed change to it
+ *  appends an event the `task_changed` frame does not carry. */
+export function shouldRefreshTaskHistory(frame: TaskDetailFrame, openTaskId: string): boolean {
+  switch (frame.type) {
+    case "snapshot_required":
+      return frame.viewerScope;
+    case "event":
+      return frame.viewerScope && frame.kind === "task_changed" && frame.taskId === openTaskId;
+    case "other":
+      return false;
+  }
+}
