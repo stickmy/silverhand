@@ -120,7 +120,8 @@ const RESIZE_START = "pane-resize-start";
 /** Fired on an attached pane whose right-hand neighbour's splitter is moving. */
 const NEIGHBOUR_RESIZE = "pane-neighbour-resize";
 
-const PANE_WIDTH = { defaultWidth: 400, min: 300, max: 720 } as const;
+// No own ceiling: a pane grows until the primary column reaches its minimum.
+const PANE_WIDTH = { defaultWidth: 400, min: 300, max: Number.POSITIVE_INFINITY } as const;
 
 /** An attached pane at its own width, resized from its left edge. */
 function PaneSlot({
