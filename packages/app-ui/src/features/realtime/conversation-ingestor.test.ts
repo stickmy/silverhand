@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { QueryClient, QueryObserver, notifyManager } from "@tanstack/react-query";
 import {
   ATTACHMENT_CHANGED_EVENT,
+  MESSAGE_OPTIONS_CHANGED_EVENT,
   MESSAGE_REACTION_CHANGED_EVENT,
   conversationSideScope,
   conversationScope,
@@ -54,7 +55,12 @@ import {
 describe("replay-safety contract matrix (#task:1262, reclassified #task:1263 (c))", () => {
   it("classifies the message-stream wire kinds and their cache effects explicitly", () => {
     expect(Object.keys(MESSAGE_STREAM_KIND_CONTRACTS).sort()).toEqual(
-      [MESSAGE_REACTION_CHANGED_EVENT, "message", "task_changed"].sort(),
+      [
+        MESSAGE_REACTION_CHANGED_EVENT,
+        MESSAGE_OPTIONS_CHANGED_EVENT,
+        "message",
+        "task_changed",
+      ].sort(),
     );
     expect(MESSAGE_STREAM_KIND_CONTRACTS.message).toEqual([
       "mainline_row_window",
@@ -68,6 +74,9 @@ describe("replay-safety contract matrix (#task:1262, reclassified #task:1263 (c)
     expect(MESSAGE_STREAM_KIND_CONTRACTS[MESSAGE_REACTION_CHANGED_EVENT]).toEqual([
       "reaction_message_patch",
       "reactors_list_refresh",
+    ]);
+    expect(MESSAGE_STREAM_KIND_CONTRACTS[MESSAGE_OPTIONS_CHANGED_EVENT]).toEqual([
+      "options_message_patch",
     ]);
   });
 

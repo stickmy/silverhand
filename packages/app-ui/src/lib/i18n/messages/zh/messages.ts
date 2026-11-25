@@ -170,6 +170,11 @@ export const messages: Translation<typeof en> = {
   skippedOccurrences: {
     other: "跳过了 {count} 次",
   },
+  couldntAnswer: "无法提交回答，请重试。",
+  answerEvent: {
+    answered: "{answerer} 回答了 {author} 的问题：",
+    changed: "{answerer} 将回答改为：",
+  },
   taskEvent: {
     moved: "{actor} 移至 {status}",
     created: "{actor} 创建",

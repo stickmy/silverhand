@@ -26,6 +26,7 @@ export const SYSTEM_SUBTYPES = [
   'task_unclaim',
   'task_status',
   'task_edit',
+  'message_answer',
 ] as const;
 export type SystemSubtype = (typeof SYSTEM_SUBTYPES)[number];
 
@@ -586,8 +587,6 @@ export function readRenameMetadata(
  *  - `options`: the picked options, in the question's order.
  *  - `other`: free text given instead of / beside the options, else null.
  *  - `changed`: true when this replaced an earlier answer.
- *
- * Not yet in `SYSTEM_SUBTYPES`: the renderer adds it with its row.
  */
 export const MessageAnswerMetadataSchema = z.object({
   subtype: z.literal('message_answer'),

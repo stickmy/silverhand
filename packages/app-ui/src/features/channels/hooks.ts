@@ -47,6 +47,7 @@ export {
 } from "@/features/channels/agent-status-cache";
 export type { ConversationAgentStatusPatch } from "@/features/channels/agent-status-cache";
 export {
+  applyOptionsChangedToMessage,
   applyTaskChangedToMessage,
   applyReactionToMessage,
   patchMessageInActiveProjections,

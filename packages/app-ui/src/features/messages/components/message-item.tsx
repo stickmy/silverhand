@@ -29,6 +29,8 @@ import { useMessageLayoutMode } from "../hooks/use-message-layout-mode";
 import { useCoarsePointer } from "@/navigation/layout";
 import { MessageTaskTag } from "./message-task-tag";
 import { AttachmentList } from "./message-attachments";
+import { MessageOptions } from "./message-options";
+import { useAnswerMessage } from "../hooks/use-answer-message";
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 
@@ -385,6 +387,10 @@ function ActorMessageItem({
   // out, so the row would otherwise collapse from under it.
   const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
   const toggleReaction = useToggleReaction();
+  const answerMessage = useAnswerMessage({
+    channelId: message.conversation_id,
+    messageId: message.id,
+  });
   // The reaction delta's routing identity, read off this row (#task:1753) — the
   // ACK's authoritative recovery needs the channel + thread context, not just the
   // message id, to reach every projection that displays the row.
@@ -483,7 +489,7 @@ function ActorMessageItem({
     </time>
   );
 
-  const attachmentsNode =
+  const attachmentList =
     message.attachments && message.attachments.length > 0 ? (
       <AttachmentList
         attachments={message.attachments}
@@ -493,6 +499,38 @@ function ActorMessageItem({
         onExpandAttachment={onExpandAttachment}
       />
     ) : null;
+  const optionsNode =
+    committed && message.options ? (
+      <MessageOptions
+        options={message.options}
+        answer={
+          message.answer
+            ? {
+                optionIds: message.answer.option_ids,
+                other: message.answer.other,
+                answererName: message.answer.by.display_name || message.answer.by.name,
+              }
+            : null
+        }
+        canAnswer={canParticipate && !isCurrentUser}
+        busy={answerMessage.isPending}
+        onAnswer={(pick) =>
+          answerMessage.mutate({
+            ...(pick.optionIds.length > 0 ? { option_ids: pick.optionIds } : {}),
+            ...(pick.other !== null ? { other: pick.other } : {}),
+          })
+        }
+      />
+    ) : null;
+  const attachmentsNode =
+    attachmentList && optionsNode ? (
+      <>
+        {attachmentList}
+        {optionsNode}
+      </>
+    ) : (
+      (attachmentList ?? optionsNode)
+    );
   // Null when the message has no reactions — keeps the shared bottom row
   // (task tag · replies · reactions) from rendering an empty slot.
   const reactionsNode =

@@ -174,6 +174,11 @@ export const messages = {
     one: "Skipped {count} occurrence",
     other: "Skipped {count} occurrences",
   },
+  couldntAnswer: "Couldn’t send the answer. Try again.",
+  answerEvent: {
+    answered: "{answerer} answered {author}’s question:",
+    changed: "{answerer} changed the answer to:",
+  },
   taskEvent: {
     moved: "{status} by {actor}",
     created: "created by {actor}",

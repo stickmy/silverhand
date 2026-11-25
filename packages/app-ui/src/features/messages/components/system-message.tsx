@@ -10,6 +10,7 @@ import type { WorkspaceChannelReference } from "./conversation-ref";
 import { type SystemMessageRenderer, GenericNarrationFallback } from "./system-message/shared";
 import { ScheduleFireRow } from "./system-message/schedule-fire";
 import { TaskEventRow } from "./system-message/task-event";
+import { MessageAnswerRow } from "./system-message/message-answer";
 import {
   ChannelContextCard,
   ChildContextCard,
@@ -139,6 +140,7 @@ const systemMessageRenderers: Record<SystemSubtype, SystemMessageRenderer> = {
   conversation_member_added: ConversationMemberChangeRow,
   conversation_member_removed: ConversationMemberChangeRow,
   mention_cc: MentionCcCard,
+  message_answer: MessageAnswerRow,
 };
 
 /**

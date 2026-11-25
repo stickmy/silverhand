@@ -8,6 +8,7 @@ import { useQuery, type QueryClient } from "@tanstack/react-query";
 import type {
   ConversationMessagesDto,
   MessageDto,
+  MessageOptionsChangedEvent,
   ReactionAggregateDto,
   TaskChangedEvent,
   ThreadReplyPreviewRow,
@@ -49,6 +50,15 @@ export function applyTaskChangedToMessage(message: MessageDto, task: TaskChanged
       assignee: task.assignee,
     },
   };
+}
+
+/** Apply a `message_options_changed` frame to its message row: SETS the
+ *  absolute options and current answer from the event, so replay is a no-op. */
+export function applyOptionsChangedToMessage(
+  message: MessageDto,
+  event: MessageOptionsChangedEvent,
+): MessageDto {
+  return { ...message, options: event.options, answer: event.answer };
 }
 
 /** A COMMITTED reaction change carried by the ORDERED plane — the

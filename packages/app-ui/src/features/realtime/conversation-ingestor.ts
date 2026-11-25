@@ -10,6 +10,7 @@ import { useQueryClient, notifyManager } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 import {
   ATTACHMENT_CHANGED_EVENT,
+  MESSAGE_OPTIONS_CHANGED_EVENT,
   MESSAGE_REACTION_CHANGED_EVENT,
   parseConversationScope,
   parseConversationSideScope,
@@ -20,6 +21,7 @@ import type {
   ConversationActivityEvent,
   MessageDto,
   MessageEventPayload,
+  MessageOptionsChangedEvent,
   MessageProjections,
   MessageReactionChangedEvent,
   ServerFrame,
@@ -55,6 +57,7 @@ import {
   applyAgentStatusToCache,
   applyClusterMessageToCaches,
   applyMainlineMessageToChannelCaches,
+  applyOptionsChangedToMessage,
   applyTaskChangedToMessage,
   applyThreadFollowersMessage,
   applyThreadRootReplyBump,
@@ -134,6 +137,12 @@ export const REPLAY_SAFETY_CONTRACTS = {
     summary:
       "task chip sets an absolute linked_task snapshot on the SOURCE message row (by source_message_id) across active AND warm-inactive caches; a source-backed frame ALWAYS satisfies the floor (displayed/warm → patched, absent row → authoritative-on-paginate vacuous-satisfy), a source-less task is vacuously satisfied",
   },
+  options_message_patch: {
+    cursor: "content-apply",
+    recovery: "idempotent",
+    summary:
+      "options + current answer are an absolute snapshot SET on the question row by message id across active AND warm-inactive caches; every frame satisfies (absent row → authoritative-on-paginate)",
+  },
   reaction_message_patch: {
     cursor: "content-apply",
     recovery: "idempotent",
@@ -195,6 +204,7 @@ export const MESSAGE_STREAM_KIND_CONTRACTS = {
   ],
   task_changed: ["task_message_patch"],
   [MESSAGE_REACTION_CHANGED_EVENT]: ["reaction_message_patch", "reactors_list_refresh"],
+  [MESSAGE_OPTIONS_CHANGED_EVENT]: ["options_message_patch"],
 } as const satisfies Record<string, readonly ReplayEffectId[]>;
 
 type MessageStreamKind = keyof typeof MESSAGE_STREAM_KIND_CONTRACTS;
@@ -619,6 +629,24 @@ function ingestTaskChanged(qc: QueryClient, channelId: string, task: TaskChanged
   return contentEffectApplied("task_message_patch", true);
 }
 
+/** Options and answer are an absolute snapshot, so the frame patches the
+ *  question wherever it is cached and always satisfies the floor, like
+ *  `task_changed`. */
+function ingestOptionsChanged(
+  qc: QueryClient,
+  channelId: string,
+  ev: MessageOptionsChangedEvent,
+): boolean {
+  const patchRow = (message: MessageDto): MessageDto => applyOptionsChangedToMessage(message, ev);
+  patchMessageInActiveProjections(
+    qc,
+    { channelId, messageId: ev.message_id, threadRootId: ev.thread_root_id },
+    patchRow,
+  );
+  patchWarmInactiveMessageRow(qc, channelId, ev.message_id, patchRow);
+  return contentEffectApplied("options_message_patch", true);
+}
+
 /** WS wrapper over the ordered-plane committed-reaction seam (#task:1753). Its
  *  only transport-specific job is resolving the event's REACTOR into the viewer's
  *  own terminal state — `null` when someone else reacted, so the count moves and
@@ -843,6 +871,9 @@ export function ingestConversationFrame(qc: QueryClient, frame: ServerFrame): vo
     } else if (kind === MESSAGE_REACTION_CHANGED_EVENT) {
       const ev = frame.payload as MessageReactionChangedEvent | undefined;
       if (ev?.message_id) applied = ingestReaction(qc, messageStreamId, ev);
+    } else if (kind === MESSAGE_OPTIONS_CHANGED_EVENT) {
+      const ev = frame.payload as MessageOptionsChangedEvent | undefined;
+      if (ev?.message_id) applied = ingestOptionsChanged(qc, messageStreamId, ev);
     }
     if (applied) eventWsClient.markSatisfied(frame.scope, frame.seq, frame.epoch);
     return;
