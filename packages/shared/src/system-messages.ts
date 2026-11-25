@@ -27,6 +27,7 @@ export const SYSTEM_SUBTYPES = [
   'task_status',
   'task_edit',
   'message_answer',
+  'message_answer_withdrawn',
 ] as const;
 export type SystemSubtype = (typeof SYSTEM_SUBTYPES)[number];
 
@@ -612,5 +613,33 @@ export function readMessageAnswerMetadata(
 ): MessageAnswerMetadata | null {
   if (!metadata) return null;
   const parsed = MessageAnswerMetadataSchema.safeParse(metadata);
+  return parsed.success ? parsed.data : null;
+}
+
+/**
+ * Metadata of the `message_answer_withdrawn` system event: the current answerer
+ * cleared their answer, so the question is unanswered again.
+ */
+export const MessageAnswerWithdrawnMetadataSchema = z.object({
+  subtype: z.literal('message_answer_withdrawn'),
+  answer_to: z.string(),
+  question_author: z.object({
+    kind: z.enum(['user', 'agent']),
+    id: z.string(),
+    name: z.string(),
+  }),
+  answerer: z.object({
+    kind: z.enum(['user', 'agent']),
+    id: z.string(),
+    name: z.string(),
+  }),
+});
+export type MessageAnswerWithdrawnMetadata = z.infer<typeof MessageAnswerWithdrawnMetadataSchema>;
+
+export function readMessageAnswerWithdrawnMetadata(
+  metadata: Record<string, unknown> | null | undefined,
+): MessageAnswerWithdrawnMetadata | null {
+  if (!metadata) return null;
+  const parsed = MessageAnswerWithdrawnMetadataSchema.safeParse(metadata);
   return parsed.success ? parsed.data : null;
 }

@@ -92,6 +92,20 @@ export const MessageAnswerAckSchema = z.object({
 });
 export type MessageAnswerAck = z.infer<typeof MessageAnswerAckSchema>;
 
+export const AgentWithdrawMessageAnswerInputSchema = z.object({
+  message_id: z.string().min(1),
+});
+export type AgentWithdrawMessageAnswerInput = z.infer<typeof AgentWithdrawMessageAnswerInputSchema>;
+
+/** ACK of an answer withdrawal (human and agent doors). Only the current
+ *  answerer may withdraw; the question becomes unanswered again. */
+export const MessageAnswerWithdrawAckSchema = z.object({
+  message_id: z.string(),
+  /** The `message_answer_withdrawn` system event this posted. */
+  event_message_id: z.string(),
+});
+export type MessageAnswerWithdrawAck = z.infer<typeof MessageAnswerWithdrawAckSchema>;
+
 /** ACK of an options update (agent door; only agents author options). */
 export const MessageOptionsUpdateAckSchema = z.object({
   message_id: z.string(),
@@ -127,4 +141,8 @@ export const MESSAGE_OPTIONS_ERROR_CODES = {
   optionsAnswered: 'options_answered',
   /** Only the author may update options. */
   notAuthor: 'not_author',
+  /** Withdraw found no answer to clear. */
+  noAnswer: 'no_answer',
+  /** Only the current answerer may withdraw the answer. */
+  notAnswerer: 'not_answerer',
 } as const;

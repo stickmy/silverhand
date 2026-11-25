@@ -204,6 +204,12 @@
     "verb": "answer"
   },
   {
+    "method": "DELETE",
+    "suffix": "answer-message",
+    "noun": "message",
+    "verb": "answer"
+  },
+  {
     "method": "POST",
     "suffix": "message-options",
     "noun": "message",

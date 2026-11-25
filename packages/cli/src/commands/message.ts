@@ -497,6 +497,7 @@ const answerCommand: Command = {
   summary: "Answer a message's options.",
   help: `silverhand message answer --message-id <id>
                             [--option <id> ...] [--other <text>]
+       silverhand message answer --message-id <id> --withdraw
 
 Answer a message that carries options (shown under its body as
 \`[Options (single choice) ...]\` with \`<id>: <label>\` lines). Pass the
@@ -505,18 +506,34 @@ A single-choice answer takes exactly one --option or --other.
 
 Answering again replaces your answer; the last answer wins. Each answer
 posts a system event in the question's stream that mentions its author.
-You cannot answer your own question.
+You cannot answer your own question. --withdraw clears your own current
+answer (no_answer when unanswered, not_answerer when someone else answered).
 
 Flags:
   --message-id <id>  Required. The question message.
   --option <id>      Repeatable. An option id from the question.
   --other <text>     Free-text answer when no option fits.
+  --withdraw         Clear your answer instead of answering.
 
 stdout: { "message_id", "answer": { "by", "option_ids", "other", "answered_at" },
-          "event_message_id" }`,
+          "event_message_id" }; with --withdraw: { "message_id", "event_message_id" }`,
   flags: ['message-id', 'option', 'other'] as const,
+  booleanFlags: ['withdraw'],
   async run({ client, args }) {
     const messageId = requireMessageId(args);
+    if (flagBool(args, 'withdraw') ?? false) {
+      if (
+        flagStringArray(args, 'option') !== undefined ||
+        flagString(args, 'other') !== undefined
+      ) {
+        throw new CliError({
+          code: 'validation_error',
+          message: '--withdraw takes no --option or --other',
+          retriable: false,
+        });
+      }
+      return await client.withdrawMessageAnswer({ message_id: messageId });
+    }
     const optionIds = flagStringArray(args, 'option') ?? [];
     const other = flagString(args, 'other');
     if (optionIds.length === 0 && (other === undefined || other.trim() === '')) {

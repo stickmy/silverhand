@@ -12,6 +12,8 @@ import {
   internalPaths,
   type AgentAnswerMessageInput,
   type AgentUpdateMessageOptionsInput,
+  type AgentWithdrawMessageAnswerInput,
+  type MessageAnswerWithdrawAck,
   type MessageAnswerAck,
   type MessageOptions,
   type MessageOptionsUpdateAck,
@@ -151,6 +153,10 @@ export class BackendClient {
 
   answerMessage(input: AgentAnswerMessageInput): Promise<MessageAnswerAck> {
     return this.request('POST', internalPaths.agentAnswerMessage(this.env.agentId), input);
+  }
+
+  withdrawMessageAnswer(input: AgentWithdrawMessageAnswerInput): Promise<MessageAnswerWithdrawAck> {
+    return this.request('DELETE', internalPaths.agentAnswerMessage(this.env.agentId), input);
   }
 
   updateMessageOptions(input: AgentUpdateMessageOptionsInput): Promise<MessageOptionsUpdateAck> {
