@@ -8,21 +8,13 @@ import { AppContextMenu, AppContextMenuItem } from "@/components/menus/app-conte
 import { t } from "@/lib/i18n";
 
 /**
- * Small inline status chip for task cards (global section + per-conversation Tasks tab).
+ * Task status reads the same everywhere: a status cube and its label. The
+ * cube's hue comes from the shared `--task-ref-tone` map; the label stays
+ * neutral text.
  *
- * Radius rides `--task-status-radius` — the whole task-status family (this
- * badge, the message task tag, and `TaskStatusPill`) shares ONE capsule form
- * so the same status reads identically wherever it appears (shiki 2026-08-09,
- * overriding the earlier chip/pill split from Cindy review
- * `ME-fJNO4XJRLpSHz`): warm themes give the capsule, poster hard-cuts to 0.
- *
- * Read-only by default. Pass `onChange` to make it click-to-open a tiny
- * popover that moves the task to any other status — the human-side
- * "manage any task, not just in_review" affordance (shiki
- * `x9rIbAIlyUBVneiu`). Status transitions are unrestricted (`POST
- * /api/tasks/:id/status` allows any→any), so we offer every status except
- * the current one — including `closed` (move-to-close) and, on a closed
- * task, the four open statuses (reopen).
+ * Status transitions are unrestricted (`POST /api/tasks/:id/status` allows
+ * any→any), so the picker offers every status except the current one,
+ * including `closed` and, on a closed task, reopening.
  */
 const statusLabels = (): Record<TaskStatus, string> => ({
   todo: t("tasks.badge.todo"),
@@ -44,26 +36,27 @@ const moveLabels = (): Record<TaskStatus, string> => ({
 const ALL_STATUSES: TaskStatus[] = ["todo", "in_progress", "in_review", "done", "closed"];
 
 /** Canonical lowercase status label (`todo` / `in progress` / …). Exported so
- *  other surfaces (e.g. the message task tag) render the SAME vocabulary
- *  instead of forking their own label map. */
+ *  other surfaces render the SAME vocabulary instead of forking a label map. */
 export function taskStatusLabel(status: TaskStatus): string {
   return statusLabels()[status];
 }
 
-const CHIP =
-  // `leading-none` (v6.5n, #task:917): the chip is by definition a
-  // single-line compact element; without an explicit line-height it
-  // inherits the root prose 1.5 and stretches its parent line-box,
-  // misaligning with siblings (e.g. card row 1's `#nnn` stamp).
-  // Scoped opt-out per Tailwind's intended pattern — prose stays at
-  // the loose default, only this chip tightens.
-  // `whitespace-nowrap` keeps "in progress" / "in review" cohesive when
-  // the card's row 1 wraps under narrow column widths (TasksSection at low
-  // viewport + per-conversation Tasks tab at MIN_WIDTH share 5 columns). The
-  // chip drops to its own line beneath `#nnn` instead of breaking
-  // mid-word.
-  "rounded-[var(--task-status-radius)] whitespace-nowrap px-1 py-0.5 text-[length:var(--text-badge)] font-medium uppercase tracking-wide leading-none";
+/** Cube + label, the one way a status is drawn. */
+function StatusMark({ status }: { status: TaskStatus }): JSX.Element {
+  return (
+    <>
+      <span data-task-cube data-task-ref-tone={status} aria-hidden />
+      <span className="min-w-0 flex-1 truncate text-left">{statusLabels()[status]}</span>
+    </>
+  );
+}
 
+const MARK = "inline-flex items-center gap-1.5 whitespace-nowrap text-text-secondary";
+
+/**
+ * Inline status (message task hover card). Read-only by default; pass
+ * `onChange` to open the {@link StatusPicker} on click.
+ */
 export function TaskStatusBadge({
   status,
   onChange,
@@ -72,17 +65,15 @@ export function TaskStatusBadge({
 }: {
   status: TaskStatus;
   onChange?: (next: TaskStatus) => void;
-  /** Fires when the click-to-change picker opens / closes. Lets a
-   *  parent floating surface (e.g. the hover-card task popover) stay
-   *  pinned open while the picker is active — otherwise the host
-   *  HoverCard closes on pointer-leave and unmounts the picker. */
+  /** Fires when the picker opens / closes, so a host floating surface (the
+   *  hover-card task popover) stays pinned open while it is active. */
   onOpenChange?: (open: boolean) => void;
   className?: string;
 }): JSX.Element {
   if (!onChange) {
     return (
-      <span data-task-status={status} className={cn(CHIP, className)}>
-        {statusLabels()[status]}
+      <span className={cn(MARK, className)}>
+        <StatusMark status={status} />
       </span>
     );
   }
@@ -90,19 +81,17 @@ export function TaskStatusBadge({
     <StatusPicker current={status} onChange={onChange} onOpenChange={onOpenChange}>
       <button
         type="button"
-        data-task-status={status}
         aria-label={t("tasks.changeStatusCurrent", { status: statusLabels()[status] })}
         title={t("tasks.changeStatus")}
-        // Stop the click from reaching the card's stretched jump
-        // overlay underneath.
+        // Keep the click off the card's jump overlay underneath.
         onClick={(e) => e.stopPropagation()}
         className={cn(
-          CHIP,
-          "cursor-pointer transition-opacity hover:opacity-80 focus-outline",
+          MARK,
+          "cursor-pointer rounded-(--control-radius) transition-colors hover:text-text-primary focus-outline",
           className,
         )}
       >
-        {statusLabels()[status]}
+        <StatusMark status={status} />
       </button>
     </StatusPicker>
   );
@@ -135,8 +124,7 @@ export function TaskStatusButton({
           className,
         )}
       >
-        <span data-task-cube data-task-ref-tone={status} aria-hidden />
-        <span className="min-w-0 flex-1 truncate text-left">{statusLabels()[status]}</span>
+        <StatusMark status={status} />
         <ChevronDownIcon className="size-3 shrink-0 text-text-muted" aria-hidden />
       </button>
     </StatusPicker>
@@ -207,11 +195,9 @@ export function StatusPicker({
                 onChange(s);
                 close();
               }}
-              className="flex w-full items-center rounded-(--floating-item-radius) px-2 py-1.5 text-left hover:bg-bg-hover"
+              className="flex w-full items-center gap-1.5 rounded-(--floating-item-radius) px-2 py-1.5 text-left text-xs text-text-secondary hover:bg-bg-hover hover:text-text-primary"
             >
-              <span data-task-status={s} className={CHIP}>
-                {statusLabels()[s]}
-              </span>
+              <StatusMark status={s} />
             </button>
           ))}
         </Popover.Content>

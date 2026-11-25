@@ -1,5 +1,5 @@
-/* The status cube (board group header and the status button): the task card / inline reference recipe, its hue
-   from the shared `--task-ref-tone` map. */
+/* The status cube: the one status mark, shared with the task card and the
+   inline reference. Its hue comes from the shared `--task-ref-tone` map. */
 [data-task-cube] {
   display: block;
   width: 10px;

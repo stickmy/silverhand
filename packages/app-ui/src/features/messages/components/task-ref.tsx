@@ -244,13 +244,13 @@ function TaskPopoverBody({
         <span data-tasks-num className="font-mono text-(length:--text-badge) text-text-muted">
           #{task.task_number}
         </span>
-        {/* Same interactive chip as the task-pane card: click → "Move to"
-            picker → POST /status. `onPickerOpenChange` pins the host
-            hover-card open while the picker is up. */}
+        {/* Click → status picker → POST /status. `onPickerOpenChange` pins
+            the host hover-card open while the picker is up. */}
         <TaskStatusBadge
           status={task.status}
           onChange={onStatusChange}
           onOpenChange={onPickerOpenChange}
+          className="text-xs"
         />
       </div>
       <p className="wrap-break-word text-xs font-medium text-text-primary">{task.title}</p>

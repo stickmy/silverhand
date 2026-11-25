@@ -199,27 +199,11 @@
   --task-ref-weight: 500;
 
   /* Task status */
-  --task-status-closed-bg: transparent;
-  --task-status-closed-border: 1px solid var(--border-subtle);
-  --task-status-closed-solid: var(--task-status-closed-text);
-  --task-status-closed-text: var(--text-muted);
-  --task-status-done-bg: var(--success-soft);
-  --task-status-done-border: 1px solid color-mix(in oklab, var(--success) 45%, transparent);
-  --task-status-done-solid: var(--task-status-done-text);
-  --task-status-done-text: var(--success);
-  --task-status-in-progress-bg: var(--warning-soft);
-  --task-status-in-progress-border: 1px solid color-mix(in oklab, var(--warning) 45%, transparent);
-  --task-status-in-progress-solid: var(--task-status-in-progress-text);
-  --task-status-in-progress-text: var(--warning);
-  --task-status-in-review-bg: var(--accent);
-  --task-status-in-review-border: 1px solid transparent;
+  --task-status-closed-solid: var(--text-muted);
+  --task-status-done-solid: var(--success);
+  --task-status-in-progress-solid: var(--warning);
   --task-status-in-review-solid: var(--accent);
-  --task-status-in-review-text: var(--text-on-accent);
-  --task-status-radius: 9999px;
-  --task-status-todo-bg: transparent;
-  --task-status-todo-border: 1px solid var(--border);
-  --task-status-todo-solid: var(--task-status-todo-text);
-  --task-status-todo-text: var(--text-muted);
+  --task-status-todo-solid: var(--text-muted);
 
   /* Panel geometry */
   --panel-border-width: 1px;

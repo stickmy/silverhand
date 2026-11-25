@@ -35,32 +35,6 @@
   height: var(--system-message-control-height);
 }
 
-[data-task-status="todo"] {
-  background-color: var(--task-status-todo-bg);
-  color: var(--task-status-todo-text);
-  border: var(--task-status-todo-border);
-}
-[data-task-status="in_progress"] {
-  background-color: var(--task-status-in-progress-bg);
-  color: var(--task-status-in-progress-text);
-  border: var(--task-status-in-progress-border);
-}
-[data-task-status="in_review"] {
-  background-color: var(--task-status-in-review-bg);
-  color: var(--task-status-in-review-text);
-  border: var(--task-status-in-review-border);
-}
-[data-task-status="done"] {
-  background-color: var(--task-status-done-bg);
-  color: var(--task-status-done-text);
-  border: var(--task-status-done-border);
-}
-[data-task-status="closed"] {
-  background-color: var(--task-status-closed-bg);
-  color: var(--task-status-closed-text);
-  border: var(--task-status-closed-border);
-}
-
 [data-radix-menu-content],
 [data-popover-frame] {
   border: var(--floating-border);

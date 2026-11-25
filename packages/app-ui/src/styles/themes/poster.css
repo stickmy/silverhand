@@ -215,27 +215,11 @@
   --task-ref-weight: 400;
 
   /* Task status */
-  --task-status-closed-bg: var(--poster-ink);
-  --task-status-closed-border: none;
-  --task-status-closed-solid: var(--task-status-closed-bg);
-  --task-status-closed-text: var(--poster-paper);
-  --task-status-done-bg: var(--poster-green);
-  --task-status-done-border: none;
-  --task-status-done-solid: var(--task-status-done-bg);
-  --task-status-done-text: var(--text-inverse);
-  --task-status-in-progress-bg: var(--poster-blue);
-  --task-status-in-progress-border: none;
-  --task-status-in-progress-solid: var(--task-status-in-progress-bg);
-  --task-status-in-progress-text: var(--poster-paper);
-  --task-status-in-review-bg: var(--poster-orange);
-  --task-status-in-review-border: none;
-  --task-status-in-review-solid: var(--task-status-in-review-bg);
-  --task-status-in-review-text: var(--poster-ink);
-  --task-status-radius: 0;
-  --task-status-todo-bg: #736c62;
-  --task-status-todo-border: none;
-  --task-status-todo-solid: var(--task-status-todo-bg);
-  --task-status-todo-text: var(--text-inverse);
+  --task-status-closed-solid: var(--poster-ink);
+  --task-status-done-solid: var(--poster-green);
+  --task-status-in-progress-solid: var(--poster-blue);
+  --task-status-in-review-solid: var(--poster-orange);
+  --task-status-todo-solid: #736c62;
 
   /* Panel geometry */
   --panel-border-width: 2px;

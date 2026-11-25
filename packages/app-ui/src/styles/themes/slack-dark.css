@@ -198,27 +198,11 @@
   --task-ref-weight: 500;
 
   /* Task status */
-  --task-status-closed-bg: transparent;
-  --task-status-closed-border: 1px solid var(--border-subtle);
-  --task-status-closed-solid: var(--task-status-closed-text);
-  --task-status-closed-text: var(--text-muted);
-  --task-status-done-bg: rgba(46, 187, 133, 0.18);
-  --task-status-done-border: 1px solid rgba(46, 187, 133, 0.4);
-  --task-status-done-solid: var(--task-status-done-text);
-  --task-status-done-text: #2ebb85;
-  --task-status-in-progress-bg: rgba(236, 178, 46, 0.18);
-  --task-status-in-progress-border: 1px solid rgba(236, 178, 46, 0.4);
-  --task-status-in-progress-solid: var(--task-status-in-progress-text);
-  --task-status-in-progress-text: #ecb22e;
-  --task-status-in-review-bg: color-mix(in srgb, var(--accent) 16%, transparent);
-  --task-status-in-review-border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
-  --task-status-in-review-solid: var(--task-status-in-review-text);
-  --task-status-in-review-text: var(--accent);
-  --task-status-radius: 9999px;
-  --task-status-todo-bg: rgba(171, 171, 173, 0.16);
-  --task-status-todo-border: 1px solid rgba(255, 255, 255, 0.1);
-  --task-status-todo-solid: var(--task-status-todo-text);
-  --task-status-todo-text: #ababad;
+  --task-status-closed-solid: var(--text-muted);
+  --task-status-done-solid: #2ebb85;
+  --task-status-in-progress-solid: #ecb22e;
+  --task-status-in-review-solid: var(--accent);
+  --task-status-todo-solid: #ababad;
 
   /* Panel geometry */
   --panel-border-width: 1px;

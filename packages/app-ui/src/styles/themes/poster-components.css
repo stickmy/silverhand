@@ -326,7 +326,6 @@
   transform: translateY(-1px);
 }
 
-[data-theme="poster"] [data-task-status],
 [data-theme="poster"] [data-panel-pill] {
   font-family: var(--font-chrome-label);
   letter-spacing: var(--chrome-label-tracking);
