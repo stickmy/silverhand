@@ -109,71 +109,72 @@ export function MessageOptions({
   const editing = ticked !== null || otherOpen;
 
   return (
-    <div data-message-options className="mt-2 flex max-w-[min(360px,100%)] flex-col gap-1.5">
-      <div className="flex flex-col rounded-(--control-radius) border-(length:--control-border-width) border-border bg-(--bg-base) p-1">
-        {options.items.map((item) => (
-          <OptionRow
-            key={item.id}
-            multi={multi}
-            on={isOn(item.id)}
-            interactive={interactive}
-            answererName={
-              ticked === null && answeredIds.includes(item.id) ? answer?.answererName : undefined
-            }
-            onPick={() => pickItem(item.id)}
-          >
-            {item.label}
-          </OptionRow>
-        ))}
+    <div
+      data-message-options
+      className="mt-2 flex max-w-[min(360px,100%)] flex-col rounded-(--control-radius) border-(length:--control-border-width) border-border bg-(--bg-base) p-1"
+    >
+      {options.items.map((item) => (
         <OptionRow
+          key={item.id}
           multi={multi}
-          on={otherOn}
+          on={isOn(item.id)}
           interactive={interactive}
           answererName={
-            ticked === null && !otherOpen && answer?.other != null ? answer.answererName : undefined
+            ticked === null && answeredIds.includes(item.id) ? answer?.answererName : undefined
           }
-          onPick={() => {
-            if (interactive) {
-              setOtherOpen((open) => !open);
+          onPick={() => pickItem(item.id)}
+        >
+          {item.label}
+        </OptionRow>
+      ))}
+      <OptionRow
+        multi={multi}
+        on={otherOn}
+        interactive={interactive}
+        answererName={
+          ticked === null && !otherOpen && answer?.other != null ? answer.answererName : undefined
+        }
+        onPick={() => {
+          if (interactive) {
+            setOtherOpen((open) => !open);
+          }
+        }}
+      >
+        {answer?.other != null && !otherOpen
+          ? t("messages.optionOtherAnswer", { text: answer.other })
+          : t("messages.optionOtherEllipsis")}
+      </OptionRow>
+      {otherOpen ? (
+        <form
+          className="flex gap-1.5 px-1 pt-0.5 pb-1"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (multi) {
+              submitMulti();
+            } else {
+              submitOther();
             }
           }}
         >
-          {answer?.other != null && !otherOpen
-            ? t("messages.optionOtherAnswer", { text: answer.other })
-            : t("messages.optionOtherEllipsis")}
-        </OptionRow>
-        {otherOpen ? (
-          <form
-            className="flex gap-1.5 px-1 pt-0.5 pb-1"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (multi) {
-                submitMulti();
-              } else {
-                submitOther();
-              }
-            }}
-          >
-            <input
-              autoFocus
-              value={otherText}
-              onChange={(e) => setOtherText(e.target.value)}
-              placeholder={t("messages.optionOtherPlaceholder")}
-              className="min-w-0 flex-1 rounded-(--control-radius) border-(length:--control-border-width) border-border bg-transparent px-2.5 py-1.5 text-sm outline-none focus:border-(--border-control-hover,var(--text-muted))"
-            />
-            {multi ? null : (
-              <button
-                type="submit"
-                className="rounded-(--control-radius) bg-(--text-primary) px-3 text-xs text-(--bg-primary)"
-              >
-                {t("messages.optionSubmit")}
-              </button>
-            )}
-          </form>
-        ) : null}
-      </div>
+          <input
+            autoFocus
+            value={otherText}
+            onChange={(e) => setOtherText(e.target.value)}
+            placeholder={t("messages.optionOtherPlaceholder")}
+            className="min-w-0 flex-1 rounded-(--control-radius) border-(length:--control-border-width) border-border bg-transparent px-2.5 py-1.5 text-sm outline-none focus:border-(--border-control-hover,var(--text-muted))"
+          />
+          {multi ? null : (
+            <button
+              type="submit"
+              className="rounded-(--control-radius) bg-(--text-primary) px-3 text-xs text-(--bg-primary)"
+            >
+              {t("messages.optionSubmit")}
+            </button>
+          )}
+        </form>
+      ) : null}
       {interactive && answer?.mine && !editing ? (
-        <div className="flex justify-end">
+        <div className="flex justify-end px-2 pt-1 pb-1">
           <button
             type="button"
             onClick={onWithdraw}
@@ -184,7 +185,7 @@ export function MessageOptions({
         </div>
       ) : null}
       {multi && interactive && (answer === null || editing) ? (
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex items-center justify-end gap-2 px-1 pt-1 pb-0.5">
           {hint ? (
             <span className="text-(length:--text-meta) text-text-muted">
               {t("messages.optionPickFirst")}
