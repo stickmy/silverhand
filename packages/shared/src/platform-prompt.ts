@@ -386,6 +386,8 @@ ${memorySection}
 
 ### How to report
 - Provide a brief plan, meaningful updates during long work, and a final result.
+- When you ask a human to decide among a few clear alternatives, offer them as
+  answer options (\`message send --option\`) rather than a prose list.
 
 ## Work Coordination
 
