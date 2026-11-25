@@ -53,6 +53,7 @@ export const messages = {
   optionOtherEllipsis: "Other…",
   optionOtherPlaceholder: "Your answer",
   optionSubmit: "Submit",
+  optionWithdraw: "Withdraw answer",
   optionPickFirst: "Pick at least one option",
   imageCount: {
     one: "{count} image",
@@ -171,7 +172,9 @@ export const messages = {
     other: "Skipped {count} occurrences",
   },
   couldntAnswer: "Couldn’t send the answer. Try again.",
+  couldntWithdrawAnswer: "Couldn’t withdraw the answer. Try again.",
   answerEvent: {
+    withdrawn: "{answerer} withdrew the answer to {author}’s question",
     answered: "{answerer} answered {author}’s question:",
     changed: "{answerer} changed the answer to:",
   },

@@ -18,6 +18,8 @@ export interface MessageOptionsAnswer {
   other: string | null;
   /** Display name of whoever gave the current answer. */
   answererName: string;
+  /** The viewer gave the current answer, so they may withdraw it. */
+  mine: boolean;
 }
 
 export interface MessageOptionsPick {
@@ -36,6 +38,7 @@ export function MessageOptions({
   canAnswer,
   busy = false,
   onAnswer,
+  onWithdraw,
 }: {
   options: MessageOptionsValue;
   answer: MessageOptionsAnswer | null;
@@ -43,6 +46,7 @@ export function MessageOptions({
   canAnswer: boolean;
   busy?: boolean;
   onAnswer: (pick: MessageOptionsPick) => void;
+  onWithdraw: () => void;
 }): JSX.Element {
   const multi = options.mode === "multi";
   const answeredIds = answer?.optionIds ?? NO_IDS;
@@ -102,6 +106,7 @@ export function MessageOptions({
 
   const isOn = (id: string): boolean => (multi ? draft.has(id) : answeredIds.includes(id));
   const otherOn = otherOpen || (answer?.other != null && ticked === null);
+  const editing = ticked !== null || otherOpen;
 
   return (
     <div data-message-options className="mt-2 flex max-w-[min(360px,100%)] flex-col gap-1.5">
@@ -165,7 +170,18 @@ export function MessageOptions({
           )}
         </form>
       ) : null}
-      {multi && interactive && (answer === null || ticked !== null || otherOpen) ? (
+      {interactive && answer?.mine && !editing ? (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={onWithdraw}
+            className="text-(length:--text-meta) text-text-muted transition-colors hover:text-text-primary"
+          >
+            {t("messages.optionWithdraw")}
+          </button>
+        </div>
+      ) : null}
+      {multi && interactive && (answer === null || editing) ? (
         <div className="flex items-center justify-end gap-2">
           {hint ? (
             <span className="text-(length:--text-meta) text-text-muted">

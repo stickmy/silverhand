@@ -75,6 +75,7 @@ export function MessageList({
   jumpToMessageId,
   jumpPrimePending = false,
   onJumped,
+  onLocateOffWindow,
   isAtTail = true,
   hasNewerLiveGap = false,
   onResetToLatest,
@@ -134,6 +135,8 @@ export function MessageList({
    *  branch instead of giving up. */
   jumpPrimePending?: boolean;
   onJumped?: () => void;
+  /** Loads and jumps to a message outside the loaded window. */
+  onLocateOffWindow?: (messageId: string) => void;
   /** True when the cached window reaches the conversation tail.
    *  Around-message jumps can leave the list in a valid mid-history
    *  window before any live message arrives; the center bottom button
@@ -604,6 +607,18 @@ export function MessageList({
     scrollerRef.current?.scrollToKey(itemKey(item), "center");
   }, [searchActiveMessageId, items, itemKey, jumpToMessageId]);
 
+  // In-window targets scroll and flash in place; anything else goes through
+  // the owner's prime-and-jump path.
+  const rowLocateMessage = useEventCallback((messageId: string) => {
+    const item = items.find((it) => it.kind === "message" && it.message.id === messageId);
+    if (!item) {
+      onLocateOffWindow?.(messageId);
+      return;
+    }
+    scrollerRef.current?.scrollToKey(itemKey(item), "center");
+    setFlashedMessageId(messageId);
+  });
+
   const renderItem = useCallback(
     (item: StreamItem) => {
       if (item.kind === "cluster") {
@@ -631,6 +646,7 @@ export function MessageList({
             channelsByName={channelsByName}
             onOpenChannelRef={rowOpenChannelRef}
             humansByName={humansByName}
+            onLocateMessage={rowLocateMessage}
           />
         );
       }
@@ -681,6 +697,7 @@ export function MessageList({
       humansByName,
       channelsByName,
       rowOpenChannelRef,
+      rowLocateMessage,
       conversationRefsById,
       rowOpenConversationRef,
       rowOpenAttachment,

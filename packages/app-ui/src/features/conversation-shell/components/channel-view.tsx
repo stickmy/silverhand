@@ -1131,6 +1131,7 @@ function ActiveChannelView({
               <MessageList
                 channelId={conversation.id}
                 workspaceId={conversation.workspace_id}
+                onLocateOffWindow={inlineFindNavigate}
                 exportHeader={exportHeader}
                 {...messageWindow.listProps}
                 canReact={!closed && !isArchived && gate.allowMutations}

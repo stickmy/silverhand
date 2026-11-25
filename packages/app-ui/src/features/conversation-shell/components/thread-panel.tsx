@@ -547,6 +547,7 @@ export function ThreadPanel({
               channelId={channelId}
               workspaceId={workspaceId}
               streamKey={`${channelId}#cluster#${rootMessageId}`}
+              onLocateOffWindow={inlineFindNavigate}
               messages={replyMessages}
               leadingMessage={rootCtx.root ?? null}
               emptyState={

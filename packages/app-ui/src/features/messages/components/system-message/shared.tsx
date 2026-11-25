@@ -28,6 +28,8 @@ export interface RendererProps {
   channelsByName?: Map<string, ChannelReference | null>;
   onOpenChannelRef?: (channelId: string) => void;
   humansByName?: Map<string, UserDto>;
+  /** Brings a message of this stream into view, loading it when off-window. */
+  onLocateMessage?: (messageId: string) => void;
 }
 
 export type SystemMessageRenderer = ComponentType<RendererProps>;

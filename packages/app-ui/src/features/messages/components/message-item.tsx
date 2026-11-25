@@ -30,7 +30,7 @@ import { useCoarsePointer } from "@/navigation/layout";
 import { MessageTaskTag } from "./message-task-tag";
 import { AttachmentList } from "./message-attachments";
 import { MessageOptions } from "./message-options";
-import { useAnswerMessage } from "../hooks/use-answer-message";
+import { useAnswerMessage, useWithdrawAnswer } from "../hooks/use-answer-message";
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 
@@ -387,10 +387,9 @@ function ActorMessageItem({
   // out, so the row would otherwise collapse from under it.
   const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
   const toggleReaction = useToggleReaction();
-  const answerMessage = useAnswerMessage({
-    channelId: message.conversation_id,
-    messageId: message.id,
-  });
+  const answerTarget = { channelId: message.conversation_id, messageId: message.id };
+  const answerMessage = useAnswerMessage(answerTarget);
+  const withdrawAnswer = useWithdrawAnswer(answerTarget);
   // The reaction delta's routing identity, read off this row (#task:1753) — the
   // ACK's authoritative recovery needs the channel + thread context, not just the
   // message id, to reach every projection that displays the row.
@@ -509,17 +508,19 @@ function ActorMessageItem({
                 optionIds: message.answer.option_ids,
                 other: message.answer.other,
                 answererName: message.answer.by.display_name || message.answer.by.name,
+                mine: message.answer.by.kind === "user" && isCurrentUserId(message.answer.by.id),
               }
             : null
         }
         canAnswer={canParticipate && !isCurrentUser}
-        busy={answerMessage.isPending}
+        busy={answerMessage.isPending || withdrawAnswer.isPending}
         onAnswer={(pick) =>
           answerMessage.mutate({
             ...(pick.optionIds.length > 0 ? { option_ids: pick.optionIds } : {}),
             ...(pick.other !== null ? { other: pick.other } : {}),
           })
         }
+        onWithdraw={() => withdrawAnswer.mutate()}
       />
     ) : null;
   const attachmentsNode =

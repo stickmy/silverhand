@@ -1,5 +1,10 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiPaths, type MessageAnswerAck, type MessageAnswerInput } from "@silverhand/shared";
+import {
+  apiPaths,
+  type MessageAnswerAck,
+  type MessageAnswerInput,
+  type MessageAnswerWithdrawAck,
+} from "@silverhand/shared";
 import { api } from "@/lib/api";
 import { toast } from "@/lib/toast";
 import { t } from "@/lib/i18n";
@@ -21,6 +26,21 @@ export function useAnswerMessage(target: { channelId: string; messageId: string 
     onSuccess: () => invalidateMessageRowInActiveProjections(qc, target),
     onError: () => {
       toast.error(t("messages.couldntAnswer"));
+    },
+  });
+}
+
+/** Withdraw the viewer's own answer; the question becomes unanswered again. */
+export function useWithdrawAnswer(target: { channelId: string; messageId: string }) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      api<MessageAnswerWithdrawAck>(apiPaths.messageAnswer(target.messageId), {
+        method: "DELETE",
+      }),
+    onSuccess: () => invalidateMessageRowInActiveProjections(qc, target),
+    onError: () => {
+      toast.error(t("messages.couldntWithdrawAnswer"));
     },
   });
 }

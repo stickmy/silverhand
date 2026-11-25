@@ -10,7 +10,7 @@ import type { WorkspaceChannelReference } from "./conversation-ref";
 import { type SystemMessageRenderer, GenericNarrationFallback } from "./system-message/shared";
 import { ScheduleFireRow } from "./system-message/schedule-fire";
 import { TaskEventRow } from "./system-message/task-event";
-import { MessageAnswerRow } from "./system-message/message-answer";
+import { MessageAnswerRow, MessageAnswerWithdrawnRow } from "./system-message/message-answer";
 import {
   ChannelContextCard,
   ChildContextCard,
@@ -31,6 +31,7 @@ interface SystemMessageProps {
   channelsByName?: Map<string, ChannelReference | null>;
   onOpenChannelRef?: (channelId: string) => void;
   humansByName?: Map<string, UserDto>;
+  onLocateMessage?: (messageId: string) => void;
 }
 
 /**
@@ -141,6 +142,7 @@ const systemMessageRenderers: Record<SystemSubtype, SystemMessageRenderer> = {
   conversation_member_removed: ConversationMemberChangeRow,
   mention_cc: MentionCcCard,
   message_answer: MessageAnswerRow,
+  message_answer_withdrawn: MessageAnswerWithdrawnRow,
 };
 
 /**

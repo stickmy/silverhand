@@ -56,6 +56,7 @@ export const messages: Translation<typeof en> = {
   optionOtherEllipsis: "其他…",
   optionOtherPlaceholder: "你的回答",
   optionSubmit: "提交",
+  optionWithdraw: "撤回回答",
   optionPickFirst: "请至少选择一项",
   imageCount: {
     other: "{count} 张图片",
@@ -168,7 +169,9 @@ export const messages: Translation<typeof en> = {
     other: "跳过了 {count} 次",
   },
   couldntAnswer: "无法提交回答，请重试。",
+  couldntWithdrawAnswer: "无法撤回回答，请重试。",
   answerEvent: {
+    withdrawn: "{answerer} 撤回了对 {author} 问题的回答",
     answered: "{answerer} 回答了 {author} 的问题：",
     changed: "{answerer} 将回答改为：",
   },
