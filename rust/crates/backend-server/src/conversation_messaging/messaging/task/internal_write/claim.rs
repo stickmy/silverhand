@@ -12,7 +12,7 @@
 //! The fixed order per entry is `claimTaskAgent`'s: identity (once, at the door for
 //! the whole request) → admission → the by-id arm (agent-slot only; a conversation
 //! frame has no by-id surface → the uniform `task_not_found`) or the by-number arm
-//! (`resolve_write_board` → `write_tasks` capability → `resolve_id_by_number`) → the
+//! ([`number_board`] → `resolve_id_by_number`) → the
 //! claim UoW. A number-batch resolves its shared board ONCE; a board-resolution
 //! refusal is reported for every number entry (with its number echoed for batch
 //! correlation), exactly as the per-ref TS loop would.
@@ -30,15 +30,13 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use silverhand_backend_core::conversation_messaging::messaging::task::{
     AgentClaimOutcome, AgentDisplayNameReader, AgentEventNames, AgentExistenceReader,
-    TaskByIdCapability, TaskClaimWrite, TaskId, TaskNumber, TaskWriteCapability,
-    TaskWriteDoorReads,
+    TaskClaimWrite, TaskId, TaskNumber, TaskWriteDoorReads,
 };
 use silverhand_backend_core::foundation::identity::AgentId;
 use silverhand_backend_core::host_runtime::runtime_credential::RuntimePrincipal;
 
-use super::selector::{
-    BoardResolveRefusal, ResolvedBoard, WorkspaceSelector, resolve_write_board_with_source_board,
-};
+use super::door::{DoorRefusal, RequiredCapability, admit_by_id, number_board};
+use super::selector::WorkspaceSelector;
 use super::update_status::TaskNumberResolver;
 use crate::conversation_messaging::messaging::task::aftermath::{
     TaskMutationAftermath, TaskSourcePlacementSnapshot,
@@ -189,51 +187,18 @@ where
 
     let mut results: Vec<Value> = Vec::new();
     let mut actor_name: Option<AgentEventNames> = None;
-    let mut source_snapshot = None;
 
     match batch {
         ClaimBatch::Ids(ids) => {
             for id in ids {
-                // §4.5: no by-id surface off a conversation frame — the uniform
-                // task_not_found, echoing the caller's id for batch correlation.
-                if source.is_some() {
-                    results.push(fail_id(
-                        "task_not_found",
-                        "task not found",
-                        id.as_str(),
-                        json!({}),
-                    ));
-                    continue;
-                }
-                match state.door.agent_exists(actor).await {
-                    Ok(true) => {}
-                    Ok(false) => {
-                        results.push(fail_id(
-                            "agent_not_found",
-                            "agent not found",
-                            id.as_str(),
-                            json!({}),
-                        ));
-                        continue;
-                    }
-                    Err(_) => return safe_500(),
-                }
-                let mut door = state.door.clone();
-                match door
-                    .may_mutate_task_by_id(&id, actor, TaskByIdCapability::Write)
-                    .await
+                match admit_by_id(&state.door, actor, source, &id, RequiredCapability::WRITE).await
                 {
-                    Ok(true) => {}
-                    Ok(false) => {
-                        results.push(fail_id(
-                            "task_not_found",
-                            "task not found",
-                            id.as_str(),
-                            json!({}),
-                        ));
+                    Ok(()) => {}
+                    Err(DoorRefusal::Internal) => return safe_500(),
+                    Err(refusal) => {
+                        results.push(refusal_entry(&refusal, json!({ "id": id.as_str() })));
                         continue;
                     }
-                    Err(_) => return safe_500(),
                 }
                 if actor_name.is_none() {
                     actor_name = match state.names.agent_display_name(actor).await {
@@ -257,90 +222,29 @@ where
             }
         }
         ClaimBatch::Numbers { numbers, selector } => {
-            let mut door = state.door.clone();
-            let source_board = if let Some(source) = source {
-                match door.conversation_board(source).await {
-                    Ok(Some(board)) => {
-                        source_snapshot = Some(TaskSourcePlacementSnapshot::new(
-                            source.clone(),
-                            Some(&board),
-                        ));
-                        Some(board)
-                    }
-                    Ok(None) => {
-                        let refused = number_refusal_for_all(
-                            &numbers,
-                            "conversation_not_found",
-                            "conversation not found",
-                            json!({}),
-                        );
-                        return (StatusCode::OK, Json(json!({ "results": refused })))
-                            .into_response();
-                    }
-                    Err(_) => return safe_500(),
-                }
-            } else {
-                None
-            };
-            match door.agent_exists(actor).await {
-                Ok(true) => {}
-                Ok(false) => {
-                    let refused = number_refusal_for_all(
-                        &numbers,
-                        "agent_not_found",
-                        "agent not found",
-                        json!({}),
-                    );
-                    return (StatusCode::OK, Json(json!({ "results": refused }))).into_response();
-                }
-                Err(_) => return safe_500(),
-            }
             // Resolve the shared board ONCE (all numbers count on the same board);
-            // a resolution refusal is reported for every number entry.
-            let board_key = match resolve_write_board_with_source_board(
-                &mut door,
+            // a door refusal is reported for every number entry.
+            let board = match number_board(
+                &state.door,
                 actor,
                 source,
-                source_board.as_ref(),
                 &selector,
+                RequiredCapability::WRITE,
             )
             .await
             {
-                Ok(Ok(resolved)) => {
-                    match resolved {
-                        ResolvedBoard::Workspace {
-                            board_key,
-                            workspace,
-                        } => {
-                            // write_tasks on the workspace board (a pair board has no
-                            // capability axis).
-                            match door
-                                .has_capability(TaskWriteCapability::Write, &workspace, actor)
-                                .await
-                            {
-                                Ok(true) => Ok(board_key),
-                                Ok(false) => Err(number_refusal_for_all(
-                                    &numbers,
-                                    "capability_denied",
-                                    "agent lacks the write_tasks capability in the target workspace",
-                                    json!({ "capability": "write_tasks" }),
-                                )),
-                                Err(_) => return safe_500(),
-                            }
-                        }
-                        ResolvedBoard::DirectPair { board_key } => Ok(board_key),
-                    }
-                }
-                Ok(Err(refusal)) => Err(number_batch_board_refusal(&numbers, refusal)),
-                Err(_) => return safe_500(),
-            };
-            let board_key = match board_key {
-                Ok(key) => key,
-                Err(refused_entries) => {
-                    return (StatusCode::OK, Json(json!({ "results": refused_entries })))
-                        .into_response();
+                Ok(board) => board,
+                Err(DoorRefusal::Internal) => return safe_500(),
+                Err(refusal) => {
+                    let refused: Vec<Value> = numbers
+                        .iter()
+                        .map(|number| refusal_entry(&refusal, json!({ "task_number": number })))
+                        .collect();
+                    return (StatusCode::OK, Json(json!({ "results": refused }))).into_response();
                 }
             };
+            let source_snapshot = board.source_snapshot;
+            let board_key = board.board_key;
             let actor_name = match state.names.agent_display_name(actor).await {
                 Ok(Some(name)) => name,
                 Ok(None) => {
@@ -511,14 +415,12 @@ async fn claim_outcome_number<AF: TaskMutationAftermath>(
     }
 }
 
-/// A board-resolution refusal → one refusal entry per number in the batch, mirroring
-/// the per-ref TS loop where each `claimTaskAgent` re-resolves and fails identically.
-fn number_batch_board_refusal(numbers: &[i64], refusal: BoardResolveRefusal) -> Vec<Value> {
-    let extra = refusal.candidates().map_or_else(
-        || json!({}),
-        |candidates| json!({ "workspace_candidates": candidates.iter().map(|w| w.as_str()).collect::<Vec<_>>() }),
-    );
-    number_refusal_for_all(numbers, refusal.code(), refusal.reason(), extra)
+/// A door refusal as one batch entry, carrying the entry's correlation field.
+fn refusal_entry(refusal: &DoorRefusal, correlation: Value) -> Value {
+    match refusal.failure() {
+        Some((code, reason, extra)) => fail_entry(code, &reason, correlation, extra),
+        None => fail_entry("internal", "internal error", correlation, json!({})),
+    }
 }
 
 fn number_refusal_for_all(numbers: &[i64], code: &str, reason: &str, extra: Value) -> Vec<Value> {
@@ -568,6 +470,9 @@ mod tests {
     use axum::http::Request;
     use silverhand_backend_core::conversation_messaging::messaging::task::{
         BoardKey, PairKey, TaskStatus, WorkspaceMembership,
+    };
+    use silverhand_backend_core::conversation_messaging::messaging::task::{
+        TaskByIdCapability, TaskWriteCapability,
     };
     use silverhand_backend_core::foundation::identity::{
         ConversationId, DaemonInstanceId, WorkspaceId,

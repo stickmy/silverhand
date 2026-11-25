@@ -19,8 +19,7 @@ use serde::Deserialize;
 use serde_json::json;
 use silverhand_backend_core::conversation_messaging::messaging::task::{
     AgentDisplayNameReader, AgentExistenceReader, AssignOutcome, AssignTarget, TaskAssigner,
-    TaskByIdCapability, TaskClaimWrite, TaskId, TaskNumber, TaskWriteCapability,
-    TaskWriteDoorReads,
+    TaskClaimWrite, TaskId, TaskNumber, TaskWriteDoorReads,
 };
 use silverhand_backend_core::conversation_messaging::messaging::{
     ParticipantHandle, PrincipalKind,
@@ -28,8 +27,9 @@ use silverhand_backend_core::conversation_messaging::messaging::{
 use silverhand_backend_core::foundation::identity::AgentId;
 use silverhand_backend_core::host_runtime::runtime_credential::RuntimePrincipal;
 
-use super::selector::{
-    BoardResolveRefusal, ResolvedBoard, WorkspaceSelector, resolve_write_board_with_source_board,
+use super::door::{
+    Located, RequiredCapability, TaskRef, agent_not_found, conversation_readonly, locate,
+    mutation_failure, task_closed, task_done, task_not_found,
 };
 use super::update_status::TaskNumberResolver;
 use crate::conversation_messaging::messaging::task::aftermath::{
@@ -67,47 +67,6 @@ pub(crate) struct AssignBody {
     #[garde(skip)]
     #[serde(default)]
     workspace_name: RequiredPatchField<String>,
-}
-
-enum AssignTaskRef {
-    ById(TaskId),
-    ByNumber {
-        task_number: i64,
-        selector: WorkspaceSelector,
-    },
-}
-
-impl AssignTaskRef {
-    fn try_from_parts(
-        task_number: Option<i64>,
-        task_id: Option<String>,
-        workspace_id: Option<String>,
-        workspace_name: Option<String>,
-    ) -> Result<Self, ()> {
-        let workspace_id = crate::foundation::wire_patch::empty_selector_as_none(workspace_id);
-        let workspace_name = crate::foundation::wire_patch::empty_selector_as_none(workspace_name);
-        match (task_number, task_id) {
-            (Some(_), Some(_)) | (None, None) => Err(()),
-            (Some(task_number), None) => {
-                if workspace_id.is_some() && workspace_name.is_some() {
-                    return Err(());
-                }
-                Ok(AssignTaskRef::ByNumber {
-                    task_number: TaskNumber::new(task_number).map_err(|_| ())?.get(),
-                    selector: WorkspaceSelector {
-                        workspace_id,
-                        workspace_name,
-                    },
-                })
-            }
-            (None, Some(raw_id)) => {
-                if workspace_id.is_some() || workspace_name.is_some() {
-                    return Err(());
-                }
-                Ok(AssignTaskRef::ById(TaskId::parse(raw_id).map_err(|_| ())?))
-            }
-        }
-    }
 }
 
 type Shared<D, N, W, A, AF> = State<Arc<TaskAssignState<D, N, W, A, AF>>>;
@@ -182,7 +141,7 @@ where
     let Some(assignee) = body.assignee.into_option() else {
         return invalid_input();
     };
-    let Ok(target) = AssignTaskRef::try_from_parts(
+    let Ok(target) = TaskRef::from_wire(
         body.task_number.into_option(),
         body.task_id.into_option(),
         body.workspace_id.into_option(),
@@ -198,109 +157,26 @@ where
         );
     };
 
-    let mut source_snapshot = None;
-    let task_id = match target {
-        AssignTaskRef::ById(id) => {
-            if source.is_some() {
-                return task_not_found();
-            }
-            match state.door.agent_exists(actor).await {
-                Ok(true) => {}
-                Ok(false) => {
-                    return mutation_failure("agent_not_found", "agent not found", json!({}));
-                }
-                Err(_) => return safe_500(),
-            }
-            let mut door = state.door.clone();
-            match door
-                .may_mutate_task_by_id(&id, actor, TaskByIdCapability::Write)
-                .await
-            {
-                Ok(true) => {}
-                Ok(false) => return task_not_found(),
-                Err(_) => return safe_500(),
-            }
-            id
-        }
-        AssignTaskRef::ByNumber {
-            task_number,
-            selector,
-        } => {
-            let mut door = state.door.clone();
-            let source_board = if let Some(source) = source {
-                match door.conversation_board(source).await {
-                    Ok(Some(board)) => {
-                        source_snapshot = Some(
-                            crate::conversation_messaging::messaging::task::TaskSourcePlacementSnapshot::new(
-                                source.clone(), Some(&board),
-                            ),
-                        );
-                        Some(board)
-                    }
-                    Ok(None) => {
-                        return mutation_failure(
-                            "conversation_not_found",
-                            "conversation not found",
-                            json!({}),
-                        );
-                    }
-                    Err(_) => return safe_500(),
-                }
-            } else {
-                None
-            };
-            match door.agent_exists(actor).await {
-                Ok(true) => {}
-                Ok(false) => {
-                    return mutation_failure("agent_not_found", "agent not found", json!({}));
-                }
-                Err(_) => return safe_500(),
-            }
-            let resolved = match resolve_write_board_with_source_board(
-                &mut door,
-                actor,
-                source,
-                source_board.as_ref(),
-                &selector,
-            )
-            .await
-            {
-                Ok(Ok(board)) => board,
-                Ok(Err(refusal)) => return board_refusal(refusal),
-                Err(_) => return safe_500(),
-            };
-            let board_key = match resolved {
-                ResolvedBoard::Workspace {
-                    board_key,
-                    workspace,
-                } => {
-                    match door
-                        .has_capability(TaskWriteCapability::Write, &workspace, actor)
-                        .await
-                    {
-                        Ok(true) => {}
-                        Ok(false) => return capability_denied(),
-                        Err(_) => return safe_500(),
-                    }
-                    board_key
-                }
-                ResolvedBoard::DirectPair { board_key } => board_key,
-            };
-            match state
-                .numbers
-                .resolve_id_by_number(&board_key, task_number)
-                .await
-            {
-                Ok(Some(id)) => id,
-                Ok(None) => return task_not_found(),
-                Err(_) => return safe_500(),
-            }
-        }
+    let Located {
+        task_id,
+        source_snapshot,
+    } = match locate(
+        &state.door,
+        &state.numbers,
+        actor,
+        source,
+        target,
+        RequiredCapability::WRITE,
+    )
+    .await
+    {
+        Ok(located) => located,
+        Err(refusal) => return refusal.into_response(),
     };
 
     let names = match state.names.agent_display_name(actor).await {
         Ok(Some(names)) => names,
-        Ok(None) => return mutation_failure("agent_not_found", "agent not found", json!({})),
+        Ok(None) => return agent_not_found(),
         Err(_) => return safe_500(),
     };
     let assigner = TaskAssigner::Agent {
@@ -322,17 +198,11 @@ where
             task_id,
             task_number,
         }) => assigned(&task_id, task_number),
-        Ok(AssignOutcome::AgentNotFound) => {
-            mutation_failure("agent_not_found", "agent not found", json!({}))
-        }
+        Ok(AssignOutcome::AgentNotFound) => agent_not_found(),
         Ok(AssignOutcome::NotFound) => task_not_found(),
         Ok(AssignOutcome::ConversationReadonly) => conversation_readonly(),
-        Ok(AssignOutcome::TaskDone) => {
-            mutation_failure("task_done", "task is already done", json!({}))
-        }
-        Ok(AssignOutcome::TaskClosed) => {
-            mutation_failure("task_closed", "task is closed", json!({}))
-        }
+        Ok(AssignOutcome::TaskDone) => task_done(),
+        Ok(AssignOutcome::TaskClosed) => task_closed(),
         Ok(AssignOutcome::AssigneeNotConversationMember) => mutation_failure(
             "assignee_not_conversation_member",
             "assignee is not a member of this task's conversation",
@@ -348,38 +218,6 @@ fn assigned(id: &TaskId, number: TaskNumber) -> Response {
         Json(json!({ "success": true, "task_number": number.get(), "id": id.as_str() })),
     )
         .into_response()
-}
-
-fn task_not_found() -> Response {
-    mutation_failure("task_not_found", "task not found", json!({}))
-}
-fn conversation_readonly() -> Response {
-    mutation_failure(
-        "conversation_readonly",
-        "the conversation is read-only: a direct-pair endpoint is gone",
-        json!({}),
-    )
-}
-fn capability_denied() -> Response {
-    mutation_failure(
-        "capability_denied",
-        "agent lacks the write_tasks capability in the target workspace",
-        json!({ "capability": "write_tasks" }),
-    )
-}
-fn board_refusal(refusal: BoardResolveRefusal) -> Response {
-    let extra = refusal.candidates().map_or_else(
-        || json!({}),
-        |candidates| json!({ "workspace_candidates": candidates.iter().map(|w| w.as_str()).collect::<Vec<_>>() }),
-    );
-    mutation_failure(refusal.code(), refusal.reason(), extra)
-}
-fn mutation_failure(code: &str, reason: &str, extra: serde_json::Value) -> Response {
-    let mut body = json!({ "success": false, "code": code, "reason": reason });
-    if let (Some(map), serde_json::Value::Object(extra)) = (body.as_object_mut(), extra) {
-        map.extend(extra);
-    }
-    (StatusCode::OK, Json(body)).into_response()
 }
 
 #[cfg(test)]

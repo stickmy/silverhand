@@ -30,17 +30,17 @@ use axum::{
 use serde::Deserialize;
 use serde_json::json;
 use silverhand_backend_core::conversation_messaging::messaging::task::{
-    AgentDisplayNameReader, AgentExistenceReader, ReadViewer, TaskByIdCapability, TaskContent,
-    TaskEditWrite, TaskEditWriteOutcome, TaskEditor, TaskId, TaskNumber, TaskTitle,
-    TaskWriteCapability, TaskWriteDoorReads,
+    AgentDisplayNameReader, AgentExistenceReader, ReadViewer, TaskContent, TaskEditWrite,
+    TaskEditWriteOutcome, TaskEditor, TaskTitle, TaskWriteDoorReads,
 };
 use silverhand_backend_core::foundation::identity::AgentId;
 use silverhand_backend_core::host_runtime::runtime_credential::RuntimePrincipal;
 
 use crate::conversation_messaging::messaging::task::aftermath::TaskMutationAftermath;
 
-use super::selector::{
-    BoardResolveRefusal, ResolvedBoard, WorkspaceSelector, resolve_write_board_with_source_board,
+use super::door::{
+    Located, RequiredCapability, TaskRef, agent_not_found, conversation_readonly, locate,
+    task_not_found,
 };
 use super::update_status::TaskNumberResolver;
 use crate::foundation::http_error::plain_500 as safe_500;
@@ -81,16 +81,8 @@ pub(crate) struct EditBody {
     workspace_name: RequiredPatchField<String>,
 }
 
-enum EditTarget {
-    ById(TaskId),
-    ByNumber {
-        task_number: i64,
-        selector: WorkspaceSelector,
-    },
-}
-
 struct ValidatedEdit {
-    target: EditTarget,
+    target: TaskRef,
     /// `Some` when the field was present and its value parsed; `None` = unchanged.
     title: Option<TaskTitle>,
     content: Option<TaskContent>,
@@ -98,15 +90,8 @@ struct ValidatedEdit {
 
 impl ValidatedEdit {
     fn try_from_body(body: EditBody) -> Result<Self, ()> {
-        let task_number = body.task_number.into_option();
-        let task_id = body.task_id.into_option();
         let raw_title = body.title.into_option();
         let raw_body = body.body.into_option();
-        let workspace_id =
-            crate::foundation::wire_patch::empty_selector_as_none(body.workspace_id.into_option());
-        let workspace_name = crate::foundation::wire_patch::empty_selector_as_none(
-            body.workspace_name.into_option(),
-        );
         // At least one of title / body must be present.
         if raw_title.is_none() && raw_body.is_none() {
             return Err(());
@@ -122,27 +107,12 @@ impl ValidatedEdit {
             None => None,
         };
 
-        let target = match (task_number, task_id) {
-            (Some(_), Some(_)) | (None, None) => return Err(()),
-            (Some(task_number), None) => {
-                if workspace_id.is_some() && workspace_name.is_some() {
-                    return Err(());
-                }
-                EditTarget::ByNumber {
-                    task_number: TaskNumber::new(task_number).map_err(|_| ())?.get(),
-                    selector: WorkspaceSelector {
-                        workspace_id,
-                        workspace_name,
-                    },
-                }
-            }
-            (None, Some(raw_id)) => {
-                if workspace_id.is_some() || workspace_name.is_some() {
-                    return Err(());
-                }
-                EditTarget::ById(TaskId::parse(raw_id).map_err(|_| ())?)
-            }
-        };
+        let target = TaskRef::from_wire(
+            body.task_number.into_option(),
+            body.task_id.into_option(),
+            body.workspace_id.into_option(),
+            body.workspace_name.into_option(),
+        )?;
 
         Ok(Self {
             target,
@@ -198,115 +168,21 @@ where
         return invalid_input();
     };
 
-    let mut source_snapshot = None;
-    let task_id = match validated.target {
-        EditTarget::ById(id) => {
-            if source.is_some() {
-                return task_not_found();
-            }
-            match state.door.agent_exists(actor).await {
-                Ok(true) => {}
-                Ok(false) => {
-                    return mutation_failure("agent_not_found", "agent not found", json!({}));
-                }
-                Err(_) => return safe_500(),
-            }
-            let mut door = state.door.clone();
-            match door
-                .may_mutate_task_by_id(&id, actor, TaskByIdCapability::WriteAndRead)
-                .await
-            {
-                Ok(true) => {}
-                Ok(false) => return task_not_found(),
-                Err(_) => return safe_500(),
-            }
-            id
-        }
-        EditTarget::ByNumber {
-            task_number,
-            selector,
-        } => {
-            let mut door = state.door.clone();
-            let source_board = if let Some(source) = source {
-                match door.conversation_board(source).await {
-                    Ok(Some(board)) => {
-                        source_snapshot = Some(
-                            crate::conversation_messaging::messaging::task::TaskSourcePlacementSnapshot::new(
-                                source.clone(), Some(&board),
-                            ),
-                        );
-                        Some(board)
-                    }
-                    Ok(None) => {
-                        return mutation_failure(
-                            "conversation_not_found",
-                            "conversation not found",
-                            json!({}),
-                        );
-                    }
-                    Err(_) => return safe_500(),
-                }
-            } else {
-                None
-            };
-            match door.agent_exists(actor).await {
-                Ok(true) => {}
-                Ok(false) => {
-                    return mutation_failure("agent_not_found", "agent not found", json!({}));
-                }
-                Err(_) => return safe_500(),
-            }
-            let resolved = match resolve_write_board_with_source_board(
-                &mut door,
-                actor,
-                source,
-                source_board.as_ref(),
-                &selector,
-            )
-            .await
-            {
-                Ok(Ok(board)) => board,
-                Ok(Err(refusal)) => return board_refusal(refusal),
-                Err(_) => return safe_500(),
-            };
-            let board_key = match resolved {
-                ResolvedBoard::Workspace {
-                    board_key,
-                    workspace,
-                } => {
-                    // DUAL capability, write_tasks THEN read_tasks — edit returns the
-                    // full definition, so an agent with write but not read could
-                    // otherwise exfiltrate content. Report whichever is missing.
-                    match door
-                        .has_capability(TaskWriteCapability::Write, &workspace, actor)
-                        .await
-                    {
-                        Ok(true) => {}
-                        Ok(false) => return capability_denied("write_tasks"),
-                        Err(_) => return safe_500(),
-                    }
-                    match door
-                        .has_capability(TaskWriteCapability::Read, &workspace, actor)
-                        .await
-                    {
-                        Ok(true) => {}
-                        Ok(false) => return capability_denied("read_tasks"),
-                        Err(_) => return safe_500(),
-                    }
-                    board_key
-                }
-                ResolvedBoard::DirectPair { board_key } => board_key,
-            };
-            match state
-                .numbers
-                .resolve_id_by_number(&board_key, task_number)
-                .await
-            {
-                Ok(Some(id)) => id,
-                Ok(None) => return task_not_found(),
-                Err(_) => return safe_500(),
-            }
-        }
+    let Located {
+        task_id,
+        source_snapshot,
+    } = match locate(
+        &state.door,
+        &state.numbers,
+        actor,
+        source,
+        validated.target,
+        RequiredCapability::WRITE_AND_READ,
+    )
+    .await
+    {
+        Ok(located) => located,
+        Err(refusal) => return refusal.into_response(),
     };
 
     let editor = TaskEditor::Agent(actor.clone());
@@ -314,7 +190,7 @@ where
     // name, falling back to the id when the agent row is gone (the TS `?? id`).
     let editor_name = match state.names.agent_display_name(actor).await {
         Ok(Some(name)) => name,
-        Ok(None) => return mutation_failure("agent_not_found", "agent not found", json!({})),
+        Ok(None) => return agent_not_found(),
         Err(_) => return safe_500(),
     };
     match state
@@ -345,9 +221,7 @@ where
             edit_success(success.detail, actor)
         }
         Ok(TaskEditWriteOutcome::NoOp(success)) => edit_success(success.detail, actor),
-        Ok(TaskEditWriteOutcome::AgentNotFound) => {
-            mutation_failure("agent_not_found", "agent not found", json!({}))
-        }
+        Ok(TaskEditWriteOutcome::AgentNotFound) => agent_not_found(),
         Ok(TaskEditWriteOutcome::NotFound) => task_not_found(),
         Ok(TaskEditWriteOutcome::ConversationReadonly) => conversation_readonly(),
         Err(_) => safe_500(),
@@ -370,38 +244,6 @@ fn edit_success(
         Err(_) => safe_500(),
     }
 }
-fn task_not_found() -> Response {
-    mutation_failure("task_not_found", "task not found", json!({}))
-}
-fn conversation_readonly() -> Response {
-    mutation_failure(
-        "conversation_readonly",
-        "the conversation is read-only: a direct-pair endpoint is gone",
-        json!({}),
-    )
-}
-fn capability_denied(capability: &str) -> Response {
-    mutation_failure(
-        "capability_denied",
-        &format!("agent lacks the {capability} capability in the target workspace"),
-        json!({ "capability": capability }),
-    )
-}
-fn board_refusal(refusal: BoardResolveRefusal) -> Response {
-    let extra = refusal.candidates().map_or_else(
-        || json!({}),
-        |candidates| json!({ "workspace_candidates": candidates.iter().map(|w| w.as_str()).collect::<Vec<_>>() }),
-    );
-    mutation_failure(refusal.code(), refusal.reason(), extra)
-}
-fn mutation_failure(code: &str, reason: &str, extra: serde_json::Value) -> Response {
-    let mut body = json!({ "success": false, "code": code, "reason": reason });
-    if let (Some(map), serde_json::Value::Object(extra)) = (body.as_object_mut(), extra) {
-        map.extend(extra);
-    }
-    (StatusCode::OK, Json(body)).into_response()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -411,6 +253,9 @@ mod tests {
     use serde_json::Value;
     use silverhand_backend_core::conversation_messaging::messaging::task::{
         BoardKey, PairKey, WorkspaceMembership,
+    };
+    use silverhand_backend_core::conversation_messaging::messaging::task::{
+        TaskByIdCapability, TaskId, TaskWriteCapability,
     };
     use silverhand_backend_core::foundation::identity::{
         ConversationId, DaemonInstanceId, WorkspaceId,

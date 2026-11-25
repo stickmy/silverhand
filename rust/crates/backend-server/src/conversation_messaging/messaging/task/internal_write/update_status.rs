@@ -30,23 +30,22 @@
 use std::sync::Arc;
 
 use axum::{
-    Json, Router,
+    Router,
     extract::{Path, State},
-    http::StatusCode,
     response::{IntoResponse, Response},
     routing::post,
 };
 use serde::Deserialize;
 use silverhand_backend_core::conversation_messaging::messaging::task::{
     AgentDisplayNameReader, AgentExistenceReader, AgentStatusRefusal, AgentStatusWriteOutcome,
-    TaskByIdCapability, TaskId, TaskNumber, TaskStatus, TaskStatusWrite, TaskWriteCapability,
-    TaskWriteDoorReads,
+    TaskStatus, TaskStatusWrite, TaskWriteDoorReads,
 };
 use silverhand_backend_core::foundation::identity::AgentId;
 use silverhand_backend_core::host_runtime::runtime_credential::RuntimePrincipal;
 
-use super::selector::{
-    BoardResolveRefusal, ResolvedBoard, WorkspaceSelector, resolve_write_board_with_source_board,
+use super::door::{
+    Located, RequiredCapability, TaskRef, agent_not_found, conversation_readonly, locate,
+    mutation_failure, success, task_not_found,
 };
 use crate::conversation_messaging::messaging::task::aftermath::TaskMutationAftermath;
 use crate::foundation::http_error::plain_500 as safe_500;
@@ -102,27 +101,13 @@ pub(crate) struct UpdateStatusBody {
     workspace_name: RequiredPatchField<String>,
 }
 
-/// How the status change names its target — exactly one arm, decided by the XOR the
-/// DTO enforces.
-enum StatusTarget {
-    /// A global-identity write; the id already determines the board, so no selector
-    /// may accompany it.
-    ById(TaskId),
-    /// A per-board human number; the selector (or the source frame) resolves which
-    /// board it counts on.
-    ByNumber {
-        task_number: i64,
-        selector: WorkspaceSelector,
-    },
-}
-
 /// The semantically-validated status change. Construction enforces every refine the
 /// TS `UpdateTaskStatusInputSchema` does — exactly one of `task_number`/`task_id`,
 /// `workspace_id` XOR `workspace_name`, a task id barring any workspace selector, and
 /// a status token that is one of the five — collapsing all of them to the same
 /// verdict-only `422` (no issue list).
 struct ValidatedUpdateStatus {
-    target: StatusTarget,
+    target: TaskRef,
     status: TaskStatus,
 }
 
@@ -132,41 +117,12 @@ impl ValidatedUpdateStatus {
         let status = TaskStatus::parse(&body.status).map_err(|_| ())?;
 
         // Exactly one of task_number / task_id.
-        let task_number = body.task_number.into_option();
-        let task_id = body.task_id.into_option();
-        let workspace_id =
-            crate::foundation::wire_patch::empty_selector_as_none(body.workspace_id.into_option());
-        let workspace_name = crate::foundation::wire_patch::empty_selector_as_none(
+        let target = TaskRef::from_wire(
+            body.task_number.into_option(),
+            body.task_id.into_option(),
+            body.workspace_id.into_option(),
             body.workspace_name.into_option(),
-        );
-        let target = match (task_number, task_id) {
-            (Some(_), Some(_)) | (None, None) => return Err(()),
-            (Some(task_number), None) => {
-                // A number resolves on a board; a workspace selector may narrow it,
-                // but the two selectors are mutually exclusive.
-                if workspace_id.is_some() && workspace_name.is_some() {
-                    return Err(());
-                }
-                StatusTarget::ByNumber {
-                    task_number: TaskNumber::new(task_number).map_err(|_| ())?.get(),
-                    selector: WorkspaceSelector {
-                        workspace_id,
-                        workspace_name,
-                    },
-                }
-            }
-            (None, Some(raw_id)) => {
-                // A task id already determines its board: no workspace selector may
-                // accompany it.
-                if workspace_id.is_some() || workspace_name.is_some() {
-                    return Err(());
-                }
-                // A structurally-empty id is a semantic refusal here, matching the
-                // schema's `.min(1)` — not a `not_found` lookup.
-                let id = TaskId::parse(raw_id).map_err(|_| ())?;
-                StatusTarget::ById(id)
-            }
-        };
+        )?;
 
         Ok(Self { target, status })
     }
@@ -224,120 +180,22 @@ where
         return invalid_input();
     };
 
-    // (3)/(4) Resolve the canonical target id, gating the board this agent may reach.
-    let mut source_snapshot = None;
-    let task_id = match validated.target {
-        StatusTarget::ById(id) => {
-            // §4.5: no by-id mutation surface off a conversation frame — the uniform
-            // indistinguishable `task_not_found`, decided before any store touch.
-            if source.is_some() {
-                return task_not_found();
-            }
-            match state.door.agent_exists(actor).await {
-                Ok(true) => {}
-                Ok(false) => {
-                    return mutation_failure(
-                        "agent_not_found",
-                        "agent not found",
-                        serde_json::json!({}),
-                    );
-                }
-                Err(_) => return safe_500(),
-            }
-            let mut door = state.door.clone();
-            match door
-                .may_mutate_task_by_id(&id, actor, TaskByIdCapability::Write)
-                .await
-            {
-                Ok(true) => {}
-                Ok(false) => return task_not_found(),
-                Err(_) => return safe_500(),
-            }
-            id
-        }
-        StatusTarget::ByNumber {
-            task_number,
-            selector,
-        } => {
-            let mut door = state.door.clone();
-            let source_board = if let Some(source) = source {
-                match door.conversation_board(source).await {
-                    Ok(Some(board)) => {
-                        source_snapshot = Some(
-                            crate::conversation_messaging::messaging::task::TaskSourcePlacementSnapshot::new(
-                                source.clone(), Some(&board),
-                            ),
-                        );
-                        Some(board)
-                    }
-                    Ok(None) => {
-                        return mutation_failure(
-                            "conversation_not_found",
-                            "conversation not found",
-                            serde_json::json!({}),
-                        );
-                    }
-                    Err(_) => return safe_500(),
-                }
-            } else {
-                None
-            };
-            match door.agent_exists(actor).await {
-                Ok(true) => {}
-                Ok(false) => {
-                    return mutation_failure(
-                        "agent_not_found",
-                        "agent not found",
-                        serde_json::json!({}),
-                    );
-                }
-                Err(_) => return safe_500(),
-            }
-            let resolved = match resolve_write_board_with_source_board(
-                &mut door,
-                actor,
-                source,
-                source_board.as_ref(),
-                &selector,
-            )
-            .await
-            {
-                Ok(Ok(board)) => board,
-                Ok(Err(refusal)) => return board_refusal(refusal),
-                Err(_) => return safe_500(),
-            };
-            let board_key = match resolved {
-                ResolvedBoard::Workspace {
-                    board_key,
-                    workspace,
-                } => {
-                    // `write_tasks` on the resolved workspace board (a direct-pair
-                    // board has no capability axis — participation is its whole gate).
-                    match door
-                        .has_capability(TaskWriteCapability::Write, &workspace, actor)
-                        .await
-                    {
-                        Ok(true) => {}
-                        Ok(false) => return capability_denied(),
-                        Err(_) => return safe_500(),
-                    }
-                    board_key
-                }
-                ResolvedBoard::DirectPair { board_key } => board_key,
-            };
-            // Resolve the per-board number to a canonical id. A number that names no
-            // row on that board is the uniform `task_not_found` — the write UoW would
-            // reach the same verdict, but there is no id to hand it.
-            match state
-                .numbers
-                .resolve_id_by_number(&board_key, task_number)
-                .await
-            {
-                Ok(Some(id)) => id,
-                Ok(None) => return task_not_found(),
-                Err(_) => return safe_500(),
-            }
-        }
+    // (3)/(4) The door settles the canonical target id this agent may reach.
+    let Located {
+        task_id,
+        source_snapshot,
+    } = match locate(
+        &state.door,
+        &state.numbers,
+        actor,
+        source,
+        validated.target,
+        RequiredCapability::WRITE,
+    )
+    .await
+    {
+        Ok(located) => located,
+        Err(refusal) => return refusal.into_response(),
     };
 
     // (5) The core write UoW owns participation, read-only, permission, and the
@@ -345,9 +203,7 @@ where
     // The actor pill name for the appended task_status event (fallback to id).
     let actor_name = match state.names.agent_display_name(actor).await {
         Ok(Some(name)) => name,
-        Ok(None) => {
-            return mutation_failure("agent_not_found", "agent not found", serde_json::json!({}));
-        }
+        Ok(None) => return agent_not_found(),
         Err(_) => return safe_500(),
     };
     match state
@@ -367,46 +223,12 @@ where
             .await;
             success()
         }
-        Ok(AgentStatusWriteOutcome::AgentNotFound) => {
-            mutation_failure("agent_not_found", "agent not found", serde_json::json!({}))
-        }
+        Ok(AgentStatusWriteOutcome::AgentNotFound) => agent_not_found(),
         Ok(AgentStatusWriteOutcome::NotFound) => task_not_found(),
         Ok(AgentStatusWriteOutcome::ConversationReadonly) => conversation_readonly(),
         Ok(AgentStatusWriteOutcome::Refused(refusal)) => status_refused(refusal),
         Err(_) => safe_500(),
     }
-}
-
-/// `{ success: true }` — the CLI reads success from the body, so the HTTP status is
-/// always `200`.
-fn success() -> Response {
-    (StatusCode::OK, Json(serde_json::json!({ "success": true }))).into_response()
-}
-
-/// The uniform anti-enumeration miss: no such task, OR the agent is not a
-/// participant, OR a by-id write off a conversation frame. One envelope, `200`.
-fn task_not_found() -> Response {
-    mutation_failure("task_not_found", "task not found", serde_json::json!({}))
-}
-
-/// The task's direct-pair conversation is read-only (a peer endpoint is gone),
-/// judged after participation so only a participant learns the peer left.
-fn conversation_readonly() -> Response {
-    mutation_failure(
-        "conversation_readonly",
-        "the conversation is read-only: a direct-pair endpoint is gone",
-        serde_json::json!({}),
-    )
-}
-
-/// The agent may reach the board but lacks `write_tasks` on it — the typed denial
-/// naming the capability bucket, parity with `updateStatusAgent`'s `capability_denied`.
-fn capability_denied() -> Response {
-    mutation_failure(
-        "capability_denied",
-        "agent lacks the write_tasks capability in the target workspace",
-        serde_json::json!({ "capability": "write_tasks" }),
-    )
 }
 
 /// The core status refusal — either the permission gate (`not_assignee`) or the
@@ -427,42 +249,19 @@ fn status_refused(refusal: AgentStatusRefusal) -> Response {
     }
 }
 
-/// A board-resolution refusal → the mutation envelope, parity with the codes
-/// `resolveAgentTaskBoard` surfaces through `mutationFailure`.
-fn board_refusal(refusal: BoardResolveRefusal) -> Response {
-    let extra = refusal.candidates().map_or_else(
-        || serde_json::json!({}),
-        |candidates| {
-            serde_json::json!({
-                "workspace_candidates": candidates.iter().map(|w| w.as_str()).collect::<Vec<_>>(),
-            })
-        },
-    );
-    mutation_failure(refusal.code(), refusal.reason(), extra)
-}
-
-/// The shared `{ success: false, code, reason, ...extra }` envelope, always `200`.
-fn mutation_failure(code: &str, reason: &str, extra: serde_json::Value) -> Response {
-    let mut body = serde_json::json!({
-        "success": false,
-        "code": code,
-        "reason": reason,
-    });
-    if let (Some(map), serde_json::Value::Object(extra)) = (body.as_object_mut(), extra) {
-        map.extend(extra);
-    }
-    (StatusCode::OK, Json(body)).into_response()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use axum::body::{Body, to_bytes};
     use axum::extract::Extension;
     use axum::http::Request;
+    use axum::http::StatusCode;
     use serde_json::{Value, json};
     use silverhand_backend_core::conversation_messaging::messaging::task::{
         BoardKey, PairKey, WorkspaceMembership,
+    };
+    use silverhand_backend_core::conversation_messaging::messaging::task::{
+        TaskByIdCapability, TaskId, TaskWriteCapability,
     };
     use silverhand_backend_core::foundation::identity::{
         ConversationId, DaemonInstanceId, WorkspaceId,
