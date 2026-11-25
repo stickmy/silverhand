@@ -30,7 +30,7 @@ export function MessageAnswerRow(props: RendererProps): JSX.Element {
           .getElementById(`msg-${meta.answer_to}`)
           ?.scrollIntoView({ block: "center", behavior: "smooth" })
       }
-      className="w-full min-w-0 text-left text-text-muted"
+      className="w-full min-w-0 justify-start gap-1 text-left text-text-muted"
     >
       <span data-task-event-meta className="min-w-0">
         {meta.changed
