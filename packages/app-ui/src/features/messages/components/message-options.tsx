@@ -110,66 +110,68 @@ export function MessageOptions({
 
   return (
     <div data-message-options className="mt-2 flex max-w-[min(360px,100%)] flex-col gap-1.5">
-      {options.items.map((item) => (
+      <div className="flex flex-col rounded-(--control-radius) border-(length:--control-border-width) border-border bg-(--bg-base) p-1">
+        {options.items.map((item) => (
+          <OptionRow
+            key={item.id}
+            multi={multi}
+            on={isOn(item.id)}
+            interactive={interactive}
+            answererName={
+              ticked === null && answeredIds.includes(item.id) ? answer?.answererName : undefined
+            }
+            onPick={() => pickItem(item.id)}
+          >
+            {item.label}
+          </OptionRow>
+        ))}
         <OptionRow
-          key={item.id}
           multi={multi}
-          on={isOn(item.id)}
+          on={otherOn}
           interactive={interactive}
           answererName={
-            ticked === null && answeredIds.includes(item.id) ? answer?.answererName : undefined
+            ticked === null && !otherOpen && answer?.other != null ? answer.answererName : undefined
           }
-          onPick={() => pickItem(item.id)}
-        >
-          {item.label}
-        </OptionRow>
-      ))}
-      <OptionRow
-        multi={multi}
-        on={otherOn}
-        interactive={interactive}
-        answererName={
-          ticked === null && !otherOpen && answer?.other != null ? answer.answererName : undefined
-        }
-        onPick={() => {
-          if (interactive) {
-            setOtherOpen((open) => !open);
-          }
-        }}
-      >
-        {answer?.other != null && !otherOpen
-          ? t("messages.optionOtherAnswer", { text: answer.other })
-          : t("messages.optionOtherEllipsis")}
-      </OptionRow>
-      {otherOpen ? (
-        <form
-          className="flex gap-1.5"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (multi) {
-              submitMulti();
-            } else {
-              submitOther();
+          onPick={() => {
+            if (interactive) {
+              setOtherOpen((open) => !open);
             }
           }}
         >
-          <input
-            autoFocus
-            value={otherText}
-            onChange={(e) => setOtherText(e.target.value)}
-            placeholder={t("messages.optionOtherPlaceholder")}
-            className="min-w-0 flex-1 rounded-(--control-radius) border-(length:--control-border-width) border-border bg-transparent px-2.5 py-1.5 text-sm outline-none focus:border-(--border-control-hover,var(--text-muted))"
-          />
-          {multi ? null : (
-            <button
-              type="submit"
-              className="rounded-(--control-radius) bg-(--text-primary) px-3 text-xs text-(--bg-primary)"
-            >
-              {t("messages.optionSubmit")}
-            </button>
-          )}
-        </form>
-      ) : null}
+          {answer?.other != null && !otherOpen
+            ? t("messages.optionOtherAnswer", { text: answer.other })
+            : t("messages.optionOtherEllipsis")}
+        </OptionRow>
+        {otherOpen ? (
+          <form
+            className="flex gap-1.5 px-1 pt-0.5 pb-1"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (multi) {
+                submitMulti();
+              } else {
+                submitOther();
+              }
+            }}
+          >
+            <input
+              autoFocus
+              value={otherText}
+              onChange={(e) => setOtherText(e.target.value)}
+              placeholder={t("messages.optionOtherPlaceholder")}
+              className="min-w-0 flex-1 rounded-(--control-radius) border-(length:--control-border-width) border-border bg-transparent px-2.5 py-1.5 text-sm outline-none focus:border-(--border-control-hover,var(--text-muted))"
+            />
+            {multi ? null : (
+              <button
+                type="submit"
+                className="rounded-(--control-radius) bg-(--text-primary) px-3 text-xs text-(--bg-primary)"
+              >
+                {t("messages.optionSubmit")}
+              </button>
+            )}
+          </form>
+        ) : null}
+      </div>
       {interactive && answer?.mine && !editing ? (
         <div className="flex justify-end">
           <button
@@ -226,10 +228,10 @@ function OptionRow({
       disabled={!interactive}
       onClick={onPick}
       className={cn(
-        "flex w-full items-center gap-2 rounded-(--control-radius) border-(length:--control-border-width) px-2.5 py-1.5 text-left text-sm transition-colors focus-outline disabled:cursor-default",
+        "flex w-full items-center gap-2 rounded-[max(0px,calc(var(--control-radius)-2px))] px-2 py-1.5 text-left text-sm transition-colors focus-outline disabled:cursor-default",
         on
-          ? "border-text-primary bg-(--bg-base) text-text-primary"
-          : "border-border bg-(--bg-base) text-text-secondary enabled:hover:border-text-muted enabled:hover:text-text-primary",
+          ? "text-text-primary"
+          : "text-text-secondary enabled:hover:bg-bg-hover enabled:hover:text-text-primary",
       )}
     >
       <OptionMark multi={multi} on={on} />
