@@ -91,80 +91,50 @@ export function MessageAuthorAvatar({
 
 /**
  * Header author label, driven by the resolved {@link AuthorPresentation}:
- * - active agent (live row present) → `<AgentInfoPopover>` + navigable button
- * - active user (live row present) → `<HumanInfoPopover>` + navigable button
- * - deleted → the snapshot name + a quiet "deleted" marker, non-navigable
- * - unresolved / active-without-live-row → the plain label, non-navigable
+ * - active author (live row present) → a button that mentions them in this
+ *   stream's composer; no hover card (the avatar carries the identity card)
+ * - deleted → the snapshot name + a quiet "deleted" marker
+ * - unresolved / active-without-live-row → the plain label
  */
 export function MessageAuthorLabel({
   presentation,
-  conversationId,
   liveAgent,
   liveHuman,
-  avatarObjectUrl,
 }: {
   presentation: AuthorPresentation;
-  conversationId: string;
   liveAgent: AgentDto | undefined;
   liveHuman: UserDto | undefined;
-  avatarObjectUrl: string | null;
 }): JSX.Element {
-  const label = presentation.label;
   const composerTarget = useComposerTarget();
-  const mention = (handle: string): void => {
-    if (composerTarget !== null) {
-      requestMentionInComposer(composerTarget, handle);
-    }
-  };
-  if (presentation.status === "active" && liveAgent) {
+  const live =
+    presentation.status !== "active"
+      ? null
+      : liveAgent
+        ? { kind: "agent" as const, handle: liveAgent.name }
+        : liveHuman
+          ? { kind: "user" as const, handle: liveHuman.name }
+          : null;
+  if (live) {
     return (
-      <AgentInfoPopover
-        agent={liveAgent}
-        conversationId={conversationId}
-        trigger="hover"
-        avatarObjectUrl={avatarObjectUrl}
+      <button
+        type="button"
+        onClick={(event) => {
+          event.preventDefault();
+          if (composerTarget !== null) {
+            requestMentionInComposer(composerTarget, live.handle);
+          }
+        }}
+        /* `data-message-author` + `data-author-kind` are theme-neutral
+         *  identity hooks. BOTH kinds take `text-text-primary` in EVERY theme:
+         *  the label is a recognition surface, not a status signal, and agent
+         *  and human are isomorphic actors (shiki 2026-08-02). A theme must
+         *  not repaint the author name by kind. */
+        data-message-author
+        data-author-kind={live.kind}
+        className="rounded font-bold text-text-primary focus-outline"
       >
-        <button
-          type="button"
-          onClick={(event) => {
-            event.preventDefault();
-            mention(liveAgent.name);
-          }}
-          /* `data-message-author` + `data-author-kind` are theme-neutral
-           *  identity hooks. BOTH kinds take `text-text-primary` in EVERY theme:
-           *  the label is a recognition surface, not a status signal, and agent
-           *  and human are isomorphic actors (shiki 2026-08-02). A theme must
-           *  not repaint the author name by kind. */
-          data-message-author
-          data-author-kind="agent"
-          className="rounded font-bold text-text-primary focus-outline"
-        >
-          {label}
-        </button>
-      </AgentInfoPopover>
-    );
-  }
-  if (presentation.status === "active" && liveHuman) {
-    return (
-      <HumanInfoPopover
-        human={liveHuman}
-        userId={liveHuman.id}
-        trigger="hover"
-        avatarObjectUrl={avatarObjectUrl}
-      >
-        <button
-          type="button"
-          onClick={(event) => {
-            event.preventDefault();
-            mention(liveHuman.name);
-          }}
-          data-message-author
-          data-author-kind="user"
-          className="rounded font-bold text-text-primary focus-outline"
-        >
-          {label}
-        </button>
-      </HumanInfoPopover>
+        {presentation.label}
+      </button>
     );
   }
   // Deleted / unresolved (or active-without-live-row): a non-navigable label.

@@ -422,13 +422,7 @@ function ActorMessageItem({
   // static export path (see MessageRowContent). `taskTag`/`trailing` are
   // live-only adornments; the export passes `null` for them explicitly.
   const authorNode = (
-    <MessageAuthorLabel
-      presentation={presentation}
-      conversationId={conversationId}
-      liveAgent={liveAgent}
-      liveHuman={liveHuman}
-      avatarObjectUrl={bylineAvatarUrl}
-    />
+    <MessageAuthorLabel presentation={presentation} liveAgent={liveAgent} liveHuman={liveHuman} />
   );
   const timestampNode = (
     <time
