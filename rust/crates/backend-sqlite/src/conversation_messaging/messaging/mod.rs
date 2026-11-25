@@ -53,6 +53,7 @@ use thiserror::Error;
 pub(crate) mod author;
 pub(crate) mod authorities;
 pub mod collaboration;
+pub(crate) mod mention_self;
 /// INTEGRATION SEAM, not owned canonical: the schedule fire-path adapter is a
 /// bounded context of its own, owned under `messaging/schedule/**`. This
 /// declaration only wires that subtree into the crate — it defines nothing.
@@ -199,12 +200,6 @@ const SELECT_ENTITLED_VIEWERS: &str = entitled_viewers_sql!();
 /// against a paraphrase.
 #[cfg(test)]
 const EXPLAIN_ENTITLED_VIEWERS: &str = concat!("EXPLAIN QUERY PLAN ", entitled_viewers_sql!());
-
-/// The durable record that a person was named in a conversation they can read. Its
-/// coordinates are the source's, because that is what the reader can open.
-const INSERT_MENTION_SELF: &str = "INSERT INTO notifications (id, kind, user_id, workspace_id, \
-     conversation_id, message_id, source_workspace_id, source_conversation_id, source_message_id, \
-     payload, created_at) VALUES (?, 'mention_self', ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
 /// The conversation's agent participants, as the placement names them, conjoined
 /// with a live principal row: a delivery row for an agent that no longer exists

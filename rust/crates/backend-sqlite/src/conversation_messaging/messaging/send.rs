@@ -97,19 +97,19 @@ impl<E: SendClock + SendEntropy> MessagingStore<E> {
             let id = NotificationId::mint(&self.environment)?;
             let created_at_ms = self.environment.now_unix_ms()?;
 
-            sqlx::query(INSERT_MENTION_SELF)
-                .bind(id.as_str())
-                .bind(&viewer)
-                .bind(intent.source_workspace().as_str())
-                .bind(intent.source_conversation().as_str())
-                .bind(intent.source_message().as_str())
-                .bind(intent.source_workspace().as_str())
-                .bind(intent.source_conversation().as_str())
-                .bind(intent.source_message().as_str())
-                .bind(payload_of(&mentioned)?)
-                .bind(created_at_ms)
-                .execute(&mut *tx)
-                .await?;
+            mention_self::insert_mention_self(
+                &mut tx,
+                mention_self::MentionSelfRow {
+                    id: id.as_str(),
+                    viewer: &viewer,
+                    workspace_id: Some(intent.source_workspace().as_str()),
+                    conversation_id: intent.source_conversation().as_str(),
+                    message_id: intent.source_message().as_str(),
+                    payload: payload_of(&mentioned)?,
+                    created_at: created_at_ms,
+                },
+            )
+            .await?;
 
             rows.push(CommittedMentionRow::committed(
                 id,
