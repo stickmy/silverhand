@@ -11453,6 +11453,7 @@ async fn mounted_message_options_round_trip_through_send_answer_and_window() {
         "INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES(?,'asker',1)",
         "INSERT INTO workspace_members(workspace_id,agent_id,joined_at) VALUES(?,'asker',1)",
         "INSERT INTO workspace_agent_capabilities(workspace_id,agent_id,capability) VALUES(?,'asker','send_messages')",
+        "INSERT INTO workspace_agent_capabilities(workspace_id,agent_id,capability) VALUES(?,'asker','read_messages')",
     ] {
         let bind = if sql.contains("conversation_agents") {
             CONVERSATION_ID

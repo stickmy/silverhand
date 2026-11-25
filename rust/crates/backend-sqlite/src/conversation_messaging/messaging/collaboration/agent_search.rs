@@ -101,6 +101,18 @@ impl AgentSearchRead for SqliteAgentSearch {
         // Resolve authors for the collected hits IN this tx.
         let evidence: Vec<AuthorEvidence> = hits.iter().map(|h| h.evidence.clone()).collect();
         let authors = resolve_authors(&mut tx, &evidence).await?;
+        let ids = hits
+            .iter()
+            .filter_map(|hit| {
+                silverhand_backend_core::conversation_messaging::messaging::MessageId::parse(
+                    hit.id.clone(),
+                )
+                .ok()
+            })
+            .collect::<Vec<_>>();
+        let mut options = super::message_options::load_states(&mut tx, &ids)
+            .await
+            .map_err(PersistenceFailure::from_source)?;
         // Excerpt folding and DTO allocation only consume the collected facts.
         tx.commit().await.map_err(AgentSearchStoreError::from)?;
         #[cfg(test)]
@@ -108,7 +120,14 @@ impl AgentSearchRead for SqliteAgentSearch {
 
         let mut projected = Vec::with_capacity(hits.len());
         for (hit, author) in hits.into_iter().zip(authors) {
+            let hit_options =
+                silverhand_backend_core::conversation_messaging::messaging::MessageId::parse(
+                    hit.id.clone(),
+                )
+                .ok()
+                .and_then(|id| options.remove(&id));
             projected.push(AgentSearchHit {
+                options: hit_options,
                 message_id: hit.id,
                 conversation_id: hit.conversation_id,
                 seq: hit.seq,

@@ -11,7 +11,7 @@ import { ChannelTitleSchema } from './conversation.js';
 import { UnresolvedReferencesSchema } from './message-reference.js';
 import { MessageAttachmentIdsInputSchema, hasMessagePayload } from './_zod-helpers.js';
 import { AttachmentSnapshotSchema } from './attachment.js';
-import { MessageOptionsSchema } from './message-options.js';
+import { MessageAnswerDtoSchema, MessageOptionsSchema } from './message-options.js';
 import type { MessageAuthorDto } from './message-author.js';
 import { ReactionAggregateDtoSchema } from './reactions.js';
 
@@ -394,6 +394,9 @@ export const ReadHistoryMessageSchema = z.object({
    *  also see the result — docs/reactions-design.md §5.2. */
   reactions: z.array(ReactionAggregateDtoSchema).nullable(),
   content: z.string().optional(),
+  /** Present only on a message that carries answer options. */
+  options: MessageOptionsSchema.optional(),
+  answer: MessageAnswerDtoSchema.nullable().optional(),
 });
 export type ReadHistoryMessage = z.infer<typeof ReadHistoryMessageSchema>;
 
@@ -567,6 +570,9 @@ export const AgentSearchMessageHitSchema = z.object({
   sender: MessageSenderRefSchema.nullable(),
   excerpt: z.string(),
   match_offset: z.number().int().nonnegative(),
+  /** Present only on a message that carries answer options. */
+  options: MessageOptionsSchema.optional(),
+  answer: MessageAnswerDtoSchema.nullable().optional(),
 });
 export type AgentSearchMessageHit = z.infer<typeof AgentSearchMessageHitSchema>;
 

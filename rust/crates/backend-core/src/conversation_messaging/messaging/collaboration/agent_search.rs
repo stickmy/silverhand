@@ -290,6 +290,7 @@ pub struct AgentSearchHit {
     pub author: Option<crate::conversation_messaging::messaging::MessageAuthor>,
     pub excerpt: SearchExcerpt,
     pub coordinates: super::message_target_coordinates::MessageTargetCoordinates,
+    pub options: Option<super::message_options::MessageOptionsState>,
 }
 
 #[cfg(test)]

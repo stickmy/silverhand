@@ -222,7 +222,7 @@ fn search_refusal(refusal: SearchRefusal) -> Response {
 
 fn hit_dto(hit: AgentSearchHit) -> serde_json::Value {
     let coords = &hit.coordinates;
-    serde_json::json!({
+    let mut dto = serde_json::json!({
         "message_ref": {
             "id": hit.message_id,
             "workspace_id": coords.workspace_id.as_ref().map(|w| w.as_str()),
@@ -236,7 +236,9 @@ fn hit_dto(hit: AgentSearchHit) -> serde_json::Value {
         "sender": hit.author.as_ref().map(|author| sender_ref(&author_dto(author))),
         "excerpt": hit.excerpt.excerpt,
         "match_offset": hit.excerpt.match_offset,
-    })
+    });
+    super::message_options::attach_to_message(&mut dto, hit.options.as_ref());
+    dto
 }
 
 /// Project the full author wire JSON down to the `MessageSenderRef` shape (drop the
