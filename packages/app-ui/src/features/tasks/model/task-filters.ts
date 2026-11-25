@@ -50,13 +50,13 @@ export function createdWindowStart(window: TaskCreatedWindow, now = dayjs()): nu
 export function createdWindowLabel(window: TaskCreatedWindow): string {
   switch (window) {
     case "week":
-      return t("tasks.createdPastWeek");
+      return t("tasks.createdOneWeek");
     case "two_weeks":
-      return t("tasks.createdPastTwoWeeks");
+      return t("tasks.createdTwoWeeks");
     case "month":
-      return t("tasks.createdPastMonth");
+      return t("tasks.createdOneMonth");
     case "all":
-      return t("tasks.createdAnyTime");
+      return t("tasks.all");
   }
 }
 
