@@ -49,6 +49,11 @@ export const messages = {
   unsave: "Unsave",
   saveMessage: "Save message",
   unfollowThread: "Unfollow thread",
+  imageCount: {
+    one: "{count} image",
+    other: "{count} images",
+  },
+  showFewerImages: "Show less",
   replyCount: {
     one: "{count} Reply",
     other: "{count} Replies",

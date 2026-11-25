@@ -52,6 +52,10 @@ export const messages: Translation<typeof en> = {
   unsave: "取消收藏",
   saveMessage: "收藏消息",
   unfollowThread: "取消关注话题",
+  imageCount: {
+    other: "{count} 张图片",
+  },
+  showFewerImages: "收起",
   replyCount: {
     other: "{count} 条回复",
   },

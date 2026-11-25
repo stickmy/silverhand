@@ -43,20 +43,130 @@ export function AttachmentList({
   // agent-facing stdin suffix exactly (same shared resolver). This lets a
   // reader map an agent's "Image #1" back to the actual tile (#task:1324).
   const labels = resolveAttachmentLabels(attachments);
+  const [expanded, setExpanded] = useState(false);
+
+  const images = attachments.filter(isImageAttachment);
+  const stacked = images.length >= STACK_MIN_IMAGES && !expanded;
+
+  const tile = (att: AttachmentSnapshot, i: number): JSX.Element => (
+    <AttachmentTile
+      key={att.id}
+      attachment={att}
+      label={labels[i]}
+      canExport={canExport}
+      onOpenAttachment={onOpenAttachment}
+      onExpandAttachment={onExpandAttachment}
+    />
+  );
+
   return (
-    <div data-attachment-list className="mt-2 flex flex-wrap gap-2">
+    <div data-attachment-list className="mt-2 flex flex-wrap items-start gap-2">
       {lead}
-      {attachments.map((att, i) => (
-        <AttachmentTile
-          key={att.id}
-          attachment={att}
-          label={labels[i]}
-          canExport={canExport}
-          onOpenAttachment={onOpenAttachment}
-          onExpandAttachment={onExpandAttachment}
-        />
-      ))}
+      {stacked ? (
+        <>
+          <ImageStack images={images} onExpand={() => setExpanded(true)} />
+          {attachments.map((att, i) => (isImageAttachment(att) ? null : tile(att, i)))}
+        </>
+      ) : (
+        attachments.map(tile)
+      )}
+      {images.length >= STACK_MIN_IMAGES && expanded ? (
+        <button
+          type="button"
+          onClick={() => setExpanded(false)}
+          className="self-end rounded-(--control-radius) px-1.5 py-0.5 text-(length:--text-meta) text-text-muted hover:bg-bg-hover hover:text-text-primary focus-outline"
+        >
+          {t("messages.showFewerImages")}
+        </button>
+      ) : null}
     </div>
+  );
+}
+
+/** Two or more images in one message fold into a stack; one image stays as is. */
+const STACK_MIN_IMAGES = 2;
+
+function isImageAttachment(attachment: AttachmentSnapshot): boolean {
+  return attachment.content_type.startsWith("image/");
+}
+
+/** Tilt of the cards behind the top picture, nearest first. */
+const STACK_TILTS = [-6, 5];
+
+/**
+ * The folded form: the first picture on top, the next two tilted behind it so
+ * the pile reads as several pictures at a glance.
+ */
+function ImageStack({
+  images,
+  onExpand,
+}: {
+  images: AttachmentSnapshot[];
+  onExpand: () => void;
+}): JSX.Element | null {
+  const first = images[0];
+  const { load, onImageError } = useAttachmentImage(first?.id ?? "", first !== undefined);
+  const imageUrl = attachmentImageUrl(load);
+  const behind = images.slice(1, 1 + STACK_TILTS.length);
+  const label = t("messages.imageCount", { count: images.length });
+
+  if (!first) {
+    return null;
+  }
+
+  // The padding keeps the tilted corners inside the row instead of over the
+  // text above and the reactions below.
+  return (
+    <button
+      type="button"
+      data-image-stack
+      onClick={onExpand}
+      aria-label={label}
+      title={label}
+      className="relative block max-w-[min(340px,100%)] rounded-(--chip-radius) p-2.5 focus-outline"
+    >
+      {behind
+        .map((image, i) => <StackCard key={image.id} attachment={image} tilt={STACK_TILTS[i]!} />)
+        .reverse()}
+      <span className="relative block overflow-hidden rounded-(--chip-radius) bg-bg-floating shadow-[0_2px_8px_rgb(0_0_0/0.18)]">
+        {imageUrl ? (
+          <img
+            src={imageUrl}
+            alt={first.filename}
+            onError={onImageError}
+            className="block max-h-64 max-w-full object-contain"
+          />
+        ) : (
+          <span className="flex h-32 w-48 items-center justify-center text-xs text-text-muted">
+            {load.status === "failed" ? first.filename : t("messages.loading")}
+          </span>
+        )}
+        <span className="absolute bottom-1.5 left-1.5 rounded-full bg-black/60 px-1.5 py-0.5 text-(length:--text-badge) leading-none text-white">
+          {label}
+        </span>
+      </span>
+    </button>
+  );
+}
+
+function StackCard({
+  attachment,
+  tilt,
+}: {
+  attachment: AttachmentSnapshot;
+  tilt: number;
+}): JSX.Element {
+  const { load } = useAttachmentImage(attachment.id, true);
+  const imageUrl = attachmentImageUrl(load);
+
+  return (
+    <span
+      aria-hidden
+      className="absolute inset-2.5 overflow-hidden rounded-(--chip-radius) bg-bg-elevated shadow-[0_2px_8px_rgb(0_0_0/0.18)]"
+      style={{ transform: `rotate(${tilt}deg)` }}
+    >
+      {imageUrl ? <img src={imageUrl} alt="" className="size-full object-cover" /> : null}
+    </span>
   );
 }
 
