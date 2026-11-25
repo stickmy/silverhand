@@ -8,6 +8,7 @@
  * into singleton runtime turns.
  */
 import { resolveAttachmentLabels, type AttachmentSnapshot } from './api/attachment.js';
+import type { MessageAnswerDto, MessageOptions } from './api/message-options.js';
 import type { Reference } from './reference.js';
 
 export const RUNTIME_DELIVERY_INSTRUCTION_SIGNALS = [
@@ -74,6 +75,25 @@ export function formatRuntimeDeliveryAttachmentSuffix(
     attachments.length === 1
       ? '[1 attachment — the label (e.g. `Image #1`) is how the sender refers to it; use `silverhand file view --attachment-id <id>` with the id below to read it]'
       : `[${attachments.length} attachments — the label (e.g. \`Image #1\`) is how the sender refers to each; use \`silverhand file view --attachment-id <id>\` with each id below to read them]`;
+  return `\n\n${header}\n${lines.join('\n')}`;
+}
+
+/** Options block under a question; mirrors the Rust delivery projector. */
+export function formatRuntimeDeliveryOptionsSuffix(
+  messageId: string,
+  options: MessageOptions | null | undefined,
+  answer: MessageAnswerDto | null | undefined,
+): string {
+  if (!options) return '';
+  const mode = options.mode === 'single' ? 'single choice' : 'multiple choice';
+  const header = answer
+    ? `[Options (${mode}), answered by @${answer.by.name}]`
+    : `[Options (${mode}), unanswered — answer with \`silverhand message answer --message-id ${messageId} --option <id>\` or \`--other <text>\`]`;
+  const lines = options.items.map(
+    (item) =>
+      `  - ${item.id}: ${item.label}${answer?.option_ids.includes(item.id) ? '  ← answer' : ''}`,
+  );
+  if (answer?.other != null) lines.push(`  - other: ${answer.other}  ← answer`);
   return `\n\n${header}\n${lines.join('\n')}`;
 }
 

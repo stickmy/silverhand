@@ -26,6 +26,7 @@ pub mod direct_pair_initiation;
 pub mod human_search;
 mod json_body;
 pub mod membership;
+pub mod message_options;
 pub mod message_unread;
 pub mod notification;
 mod query_number;

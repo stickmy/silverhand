@@ -1568,6 +1568,7 @@ fn created_message() -> CreatedMessage {
         seq: MessageSeq::try_from(1).unwrap(),
         created_at_ms: 1,
         thread_root_id: None,
+        options: None,
     }
 }
 

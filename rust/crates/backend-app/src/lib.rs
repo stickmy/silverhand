@@ -68,8 +68,8 @@ use silverhand_backend_server::{
             conversation_agent_activity, conversation_agent_directory, conversation_agent_runtime,
             conversation_latest, conversation_log_debug, conversation_message_window,
             conversation_ref, conversation_threads, conversation_unread, human_search,
-            membership as conversation_membership, message_unread, notification, reaction,
-            runtime_control as conversation_runtime_control, saved,
+            membership as conversation_membership, message_options, message_unread, notification,
+            reaction, runtime_control as conversation_runtime_control, saved,
             stale_message_resolution::{
                 TracingStaleMessageResolutionObserver, router as stale_message_resolution_router,
             },

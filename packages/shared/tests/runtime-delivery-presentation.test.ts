@@ -4,6 +4,9 @@ import {
   composeRuntimeDeliveryPresentation,
   formatRuntimeDeliveryAttachmentSuffix,
   formatRuntimeDeliveryHeader,
+  formatRuntimeDeliveryOptionsSuffix,
+  type MessageAnswerDto,
+  type MessageOptions,
   runtimeDeliveryInstructionSignal,
   type Reference,
   type RuntimeDeliveryFromKind,
@@ -52,6 +55,18 @@ describe('runtime delivery presentation authority', () => {
     expect(new Set(observed.map((testCase) => testCase.instruction))).toEqual(
       new Set(['user_for_recipient', 'user_for_other', 'non_system_mention', 'system', 'other']),
     );
+  });
+
+  it('keeps the options block aligned with the Rust fixture', () => {
+    for (const testCase of fixture.optionsCases) {
+      expect(
+        formatRuntimeDeliveryOptionsSuffix(
+          testCase.messageId,
+          testCase.options as MessageOptions,
+          testCase.answer as MessageAnswerDto | null,
+        ),
+      ).toBe(testCase.expectedSuffix);
+    }
   });
 
   it('keeps multi-row order and novel-remainder composition deterministic', () => {

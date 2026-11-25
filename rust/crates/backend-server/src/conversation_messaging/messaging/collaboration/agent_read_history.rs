@@ -312,6 +312,7 @@ fn message_dto(
             serde_json::Value::String(message.content.clone()),
         );
     }
+    super::message_options::attach_to_message(&mut dto, message.options.as_ref());
     Ok(dto)
 }
 
@@ -552,6 +553,7 @@ mod tests {
             attachments,
             reactions,
             content: String::new(),
+            options: None,
         }
     }
 

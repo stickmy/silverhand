@@ -4504,6 +4504,7 @@ const SUPPORTED_EVENT_KINDS: &[&str] = &[
     "sidebar_sort_changed",
     "saved_changed",
     "message_reaction_changed",
+    "message_options_changed",
     "attachment_changed",
     "conversation_latest_changed",
     "message_alert",
@@ -4543,6 +4544,7 @@ fn wire_kind(event: &ProductEvent) -> &'static str {
         ProductEvent::SidebarSortChanged {} => "sidebar_sort_changed",
         ProductEvent::SavedChanged(_) => "saved_changed",
         ProductEvent::MessageReactionChanged(_) => "message_reaction_changed",
+        ProductEvent::MessageOptionsChanged(_) => "message_options_changed",
         ProductEvent::AttachmentChanged(_) => "attachment_changed",
         ProductEvent::ConversationLatestChanged(_) => "conversation_latest_changed",
         ProductEvent::MessageAlert(_) => "message_alert",
@@ -4660,6 +4662,7 @@ fn the_supported_wire_kinds_are_a_closed_named_set() {
             "reactor_id": "user-1",
             "count": 1
         })),
+        ProductEvent::MessageOptionsChanged(json!({ "message_id": "m-1" })),
         ProductEvent::AttachmentChanged(
             json!({ "attachment_id": "attachment-1", "content_revision": 2 }),
         ),

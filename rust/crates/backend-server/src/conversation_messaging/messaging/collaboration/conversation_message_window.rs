@@ -342,6 +342,7 @@ pub(crate) fn message(
     if let Some(id) = &projection.client_message_id {
         dto["client_message_id"] = json!(id);
     }
+    super::message_options::attach_to_message(&mut dto, projection.options.as_ref());
     Ok(dto)
 }
 

@@ -35,6 +35,9 @@
 
 use garde::Validate;
 use serde::Deserialize;
+use silverhand_backend_core::conversation_messaging::messaging::collaboration::message_options::{
+    MessageOptions, OptionMode,
+};
 use silverhand_backend_core::conversation_messaging::messaging::{
     AttachmentId, ClientMessageId, MessageContent, MessageId,
     attachments::{AttachmentLabel, AttachmentRef},
@@ -51,6 +54,7 @@ pub(crate) const MAX_MESSAGE_ATTACHMENTS: usize = 20;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct ValidatedSendPayload {
     pub(crate) client_message_id: Option<ClientMessageId>,
+    pub(crate) options: Option<MessageOptions>,
     content: MessageContent,
     attachments: Vec<AttachmentRef>,
 }
@@ -268,6 +272,33 @@ struct AgentSendBody {
     #[serde(default)]
     #[garde(length(max = MAX_MESSAGE_ATTACHMENTS))]
     attachment_ids: Vec<AttachmentRefInput>,
+    #[serde(default)]
+    #[garde(skip)]
+    options: RequiredPatchField<MessageOptionsInput>,
+}
+
+/// Answer options as the wire spells them; the grammar is the domain's.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+pub(crate) struct MessageOptionsInput {
+    mode: String,
+    items: Vec<MessageOptionItemInput>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+struct MessageOptionItemInput {
+    id: String,
+    label: String,
+}
+
+impl MessageOptionsInput {
+    pub(crate) fn parse(self) -> Option<MessageOptions> {
+        let mode = OptionMode::parse(&self.mode)?;
+        MessageOptions::parse(
+            mode,
+            self.items.into_iter().map(|item| (item.id, item.label)),
+        )
+        .ok()
+    }
 }
 
 /// A garde rule for an optional-not-nullable string that must be non-empty when present:
@@ -390,8 +421,18 @@ impl TryFrom<AgentSendBody> for ValidatedAgentSend {
         } else {
             None
         };
+        let options = match raw.options {
+            RequiredPatchField::Missing => None,
+            RequiredPatchField::Value(input) => Some(input.parse().ok_or(PayloadRefusal::Invalid)?),
+        };
+        // Options ask a question, so they need text to ask it with.
+        if options.is_some() && ecmascript_trim(&raw.content).is_empty() {
+            return Err(PayloadRefusal::Invalid);
+        }
+        let mut payload = seal(refine(raw.content, attachments)?)?;
+        payload.options = options;
         Ok(ValidatedAgentSend {
-            payload: seal(refine(raw.content, attachments)?)?,
+            payload,
             target: raw.target,
             freshness_bypass,
             stale_resolution_reason,
@@ -497,6 +538,7 @@ fn seal(unsealed: UnsealedSendPayload) -> Result<ValidatedSendPayload, PayloadRe
 
     Ok(ValidatedSendPayload {
         client_message_id: None,
+        options: None,
         content,
         attachments,
     })

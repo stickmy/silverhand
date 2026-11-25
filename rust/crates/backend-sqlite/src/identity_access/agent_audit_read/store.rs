@@ -135,6 +135,8 @@ pub enum AgentAuditReadError {
     Attachment(#[from] AttachmentReadStoreError),
     #[error("message author resolution failed")]
     Author(#[source] PersistenceFailure),
+    #[error("message options read failed")]
+    Options(#[source] PersistenceFailure),
     #[error("stored column {column} does not name a usable identity")]
     MalformedIdentity { column: &'static str },
     #[error("stored conversations.roster_policy is outside the closed set")]
@@ -568,9 +570,17 @@ async fn read_transcript_window(
     let resolved = resolve_authors(tx, &evidence)
         .await
         .map_err(AgentAuditReadError::Author)?;
+    let ids = raw.iter().map(|row| row.id.clone()).collect::<Vec<_>>();
+    let mut options =
+        crate::conversation_messaging::messaging::collaboration::message_options::load_states(
+            &mut *tx, &ids,
+        )
+        .await
+        .map_err(|error| AgentAuditReadError::Options(PersistenceFailure::from_source(error)))?;
     let mut messages: Vec<SelectedWindowMessage> = Vec::with_capacity(raw.len());
     for (row, author) in raw.into_iter().zip(resolved) {
-        messages.push(row.seal(author, Vec::new())?);
+        let row_options = options.remove(&row.id);
+        messages.push(row.seal(author, Vec::new(), row_options)?);
     }
 
     // has_more probes read the neighbourhood beyond the returned page. The latest window

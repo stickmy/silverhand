@@ -38,7 +38,7 @@ async fn snapshot(
     db: &mut SqliteConnection,
     omit_retired_preferences: bool,
 ) -> Vec<(String, Vec<String>)> {
-    let tables: Vec<String> = sqlx::query_scalar("SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT IN ('_migrations','avatar_designs','password_recovery_state','agent_runtime_credentials') ORDER BY name").fetch_all(&mut *db).await.unwrap();
+    let tables: Vec<String> = sqlx::query_scalar("SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT IN ('_migrations','avatar_designs','password_recovery_state','agent_runtime_credentials','message_options') ORDER BY name").fetch_all(&mut *db).await.unwrap();
     let mut result = vec![];
     for table in tables {
         let columns: Vec<String> =
@@ -904,5 +904,56 @@ async fn antigravity_upgrade_admits_the_transition_target_and_keeps_an_inflight_
             .await
             .is_err()
     );
+    db.close().await.unwrap();
+}
+
+#[tokio::test]
+async fn message_options_upgrade_adds_the_answer_table_with_answer_invariants() {
+    let root = isolated();
+    let path = root.path().join("data/database.sqlite");
+    fs::create_dir(path.parent().unwrap()).unwrap();
+    let mut previous = plan();
+    previous.steps.retain(|s| s.version <= 106);
+    let mut db = connect(&path).await;
+    prepare_connected(&mut db, &path, true, &previous)
+        .await
+        .unwrap();
+    db.close().await.unwrap();
+
+    prepare_database(&path, true).await.unwrap();
+    let mut db = connect(&path).await;
+    db.execute(sqlx::raw_sql(
+        "PRAGMA foreign_keys=OFF;
+         INSERT INTO messages(id,conversation_id,from_kind,from_user_id,content,seq,created_at) VALUES('m','c','user','u','q',1,1);
+         INSERT INTO message_options(message_id,mode,items) VALUES('m','single','[]');
+         PRAGMA foreign_keys=ON;",
+    ))
+    .await
+    .unwrap();
+    // A partial answer is unrepresentable.
+    assert!(
+        db.execute("UPDATE message_options SET answered_at=2 WHERE message_id='m'")
+            .await
+            .is_err()
+    );
+    assert!(
+        db.execute("UPDATE message_options SET answer_other='x' WHERE message_id='m'")
+            .await
+            .is_err()
+    );
+    db.execute(
+        "UPDATE message_options SET answer_by_kind='user',answer_by_id='u',answer_by_name='u',\
+         answer_by_display='U',answer_option_ids='[]',answer_other='x',answered_at=2",
+    )
+    .await
+    .unwrap();
+    db.execute("DELETE FROM messages WHERE id='m'")
+        .await
+        .unwrap();
+    let left: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM message_options")
+        .fetch_one(&mut db)
+        .await
+        .unwrap();
+    assert_eq!(left, 0);
     db.close().await.unwrap();
 }

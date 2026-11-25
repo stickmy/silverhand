@@ -97,7 +97,8 @@ where
     let source_conversation = draft.source_conversation.clone();
     let command = SendMessage::prepare(draft, positions, authority)
         .await?
-        .with_client_message_id(payload.client_message_id);
+        .with_client_message_id(payload.client_message_id)
+        .with_options(payload.options);
     let outcome = unit_of_work.send_message(command).await?;
     if !outcome.is_replay() {
         aftermath.announce(&outcome).await;
@@ -266,6 +267,7 @@ mod tests {
             seq: MessageSeq::try_from(1).unwrap(),
             created_at_ms: 1,
             thread_root_id: None,
+            options: None,
         };
         SendMessageOutcome::committed_send(
             MessageCreatedFact::committed(

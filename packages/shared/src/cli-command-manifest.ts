@@ -35,7 +35,7 @@ export interface SilverhandCommandDomainManifest {
 export const SILVERHAND_COMMAND_DOMAINS = [
   {
     domain: 'Messages',
-    when: 'Communicate, inspect history, search prior decisions, or react.',
+    when: 'Communicate, inspect history, search prior decisions, react, or answer options.',
     nouns: [
       {
         noun: 'message',

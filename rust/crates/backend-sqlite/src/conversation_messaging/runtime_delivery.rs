@@ -5,6 +5,9 @@ use std::{collections::HashSet, path::Path, time::Duration};
 
 use crate::foundation::agent_lifecycle_sql::{agent_materialized, agent_transition_clear};
 use serde::Serialize;
+use silverhand_backend_core::conversation_messaging::messaging::collaboration::message_options::{
+    MessageOptionsState, OptionMode,
+};
 use silverhand_backend_core::{
     conversation_messaging::messaging::{
         FromKind, MessageContent, MessageId, NotificationId, ReferencePositions,
@@ -176,6 +179,9 @@ impl SqliteRuntimeDeliveryStore {
                     m.conversation_id AS message_conversation_id,
                     m.seq, m.from_kind, m.from_agent_id, m.from_user_id,
                     m.content, m.metadata, m.created_at, m.thread_root_id,
+                    mo.message_id AS options_message_id, mo.mode, mo.items, mo.answer_by_kind,
+                    mo.answer_by_id, mo.answer_by_name, mo.answer_by_display,
+                    mo.answer_option_ids, mo.answer_other, mo.answered_at,
                     recipient.id AS recipient_id, recipient.name AS recipient_name,
                     sender_agent.name AS sender_agent_name,
                     sender_host.id AS sender_host_id,
@@ -238,6 +244,7 @@ impl SqliteRuntimeDeliveryStore {
                     ) * 1440.0) AS INTEGER) AS offset_minutes
                FROM conversation_inboxes i
                JOIN messages m ON m.id = i.message_id
+               LEFT JOIN message_options mo ON mo.message_id = m.id
                JOIN agents recipient ON recipient.id = i.agent_id
                JOIN conversations c ON c.id = m.conversation_id
                LEFT JOIN workspaces w ON w.id = c.workspace_id
@@ -2139,6 +2146,18 @@ fn decode_delivery(
     let task = task_header(metadata.as_ref());
     let sender = sender_header(row, from)?;
     let omitted: i64 = row.try_get("omitted_replies").map_err(persistence)?;
+    let options = match row
+        .try_get::<Option<String>, _>("options_message_id")
+        .map_err(persistence)?
+    {
+        None => None,
+        Some(_) => Some(
+            crate::conversation_messaging::messaging::collaboration::message_options::decode_state(
+                row,
+            )
+            .map_err(PersistenceFailure::from_source)?,
+        ),
+    };
     let mut presentation = render_delivery_presentation(
         &message_id,
         &sender,
@@ -2146,7 +2165,11 @@ fn decode_delivery(
         &timestamp,
         task,
         content.as_str(),
-        &attachment_suffix(metadata.as_ref()),
+        &format!(
+            "{}{}",
+            options_suffix(&message_id, options.as_ref()),
+            attachment_suffix(metadata.as_ref())
+        ),
     );
     if omitted > 0 {
         let history = shell_single_quote(&target);
@@ -2332,6 +2355,45 @@ fn task_header(metadata: Option<&serde_json::Value>) -> Option<(i64, &str)> {
             "todo" | "in_progress" | "in_review" | "done" | "closed"
         ))
     .then_some((number, status))
+}
+
+/// The options block under a question: mode, answer state, one line per option.
+fn options_suffix(message_id: &str, state: Option<&MessageOptionsState>) -> String {
+    let Some(state) = state else {
+        return String::new();
+    };
+    let options = state.options();
+    let mode = match options.mode() {
+        OptionMode::Single => "single choice",
+        OptionMode::Multi => "multiple choice",
+    };
+    let picked = |id: &str| {
+        state
+            .answer()
+            .is_some_and(|answer| answer.option_ids().iter().any(|picked| picked == id))
+    };
+    let header = match state.answer() {
+        None => format!(
+            "[Options ({mode}), unanswered — answer with `silverhand message answer --message-id {message_id} --option <id>` or `--other <text>`]"
+        ),
+        Some(answer) => format!("[Options ({mode}), answered by @{}]", answer.by().name()),
+    };
+    let mut lines: Vec<String> = options
+        .items()
+        .iter()
+        .map(|item| {
+            let mark = if picked(item.id()) {
+                "  ← answer"
+            } else {
+                ""
+            };
+            format!("  - {}: {}{mark}", item.id(), item.label())
+        })
+        .collect();
+    if let Some(other) = state.answer().and_then(|answer| answer.other()) {
+        lines.push(format!("  - other: {other}  ← answer"));
+    }
+    format!("\n\n{header}\n{}", lines.join("\n"))
 }
 
 fn attachment_suffix(metadata: Option<&serde_json::Value>) -> String {
@@ -2813,6 +2875,56 @@ mod presentation_tests {
                 offset = start + end + 1;
             }
             spans
+        }
+    }
+
+    #[test]
+    fn options_suffix_matches_the_shared_fixture() {
+        use silverhand_backend_core::conversation_messaging::messaging::{
+            PrincipalIdentity,
+            collaboration::message_options::{Answerer, MessageAnswer, MessageOptions},
+        };
+        use silverhand_backend_core::foundation::identity::{AgentId, UserId};
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../../../../packages/shared/tests/fixtures/runtime-delivery-presentation.json"
+        ))
+        .unwrap();
+        for case in fixture["optionsCases"].as_array().unwrap() {
+            let mode = OptionMode::parse(case["options"]["mode"].as_str().unwrap()).unwrap();
+            let items = case["options"]["items"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|item| {
+                    (
+                        item["id"].as_str().unwrap().to_owned(),
+                        item["label"].as_str().unwrap().to_owned(),
+                    )
+                });
+            let options = MessageOptions::parse(mode, items).unwrap();
+            let answer = case["answer"].as_object().map(|answer| {
+                let by = &answer["by"];
+                let id = by["id"].as_str().unwrap();
+                let principal = match by["kind"].as_str().unwrap() {
+                    "agent" => PrincipalIdentity::Agent(AgentId::parse(id).unwrap()),
+                    _ => PrincipalIdentity::Human(UserId::parse(id).unwrap()),
+                };
+                MessageAnswer::stored(
+                    Answerer::new(
+                        principal,
+                        by["name"].as_str().unwrap().to_owned(),
+                        by["display_name"].as_str().unwrap().to_owned(),
+                    ),
+                    serde_json::from_value(answer["option_ids"].clone()).unwrap(),
+                    answer["other"].as_str().map(str::to_owned),
+                    answer["answered_at"].as_i64().unwrap(),
+                )
+            });
+            let state = MessageOptionsState::new(options, answer);
+            assert_eq!(
+                options_suffix(case["messageId"].as_str().unwrap(), Some(&state)),
+                case["expectedSuffix"].as_str().unwrap()
+            );
         }
     }
 

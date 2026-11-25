@@ -25,6 +25,7 @@ pub mod conversation_unread;
 pub mod direct_pair_initiation;
 pub mod human_search;
 pub mod membership;
+pub mod message_options;
 pub mod message_target_coordinates;
 pub mod message_unread;
 pub mod notification;

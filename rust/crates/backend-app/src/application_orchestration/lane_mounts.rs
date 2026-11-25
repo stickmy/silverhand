@@ -1746,6 +1746,65 @@ impl silverhand_backend_core::conversation_messaging::messaging::collaboration::
     }
 }
 
+/// Answer options post-commit: publish the event message and the absolute options
+/// state, then wake the question's author when it is an agent.
+impl<U, A, G, D, S> silverhand_backend_core::conversation_messaging::messaging::collaboration::message_options::MessageOptionsAftermath
+    for LaneEffects<U, A, G, D, S>
+where
+    U: Send + Sync,
+    A: Send + Sync,
+    G: Send + Sync,
+    D: LiveConversationRuntimeDelivery,
+    S: Send + Sync,
+{
+    async fn answered(
+        &self,
+        fact: &silverhand_backend_core::conversation_messaging::messaging::collaboration::message_options::AnsweredFact,
+    ) -> Vec<String> {
+        use silverhand_backend_server::conversation_messaging::messaging::collaboration::message_options as wire;
+        let mut failures = Vec::new();
+        let conversation = &fact.question.conversation;
+        match wire::answer_event_message(fact) {
+            Ok(message) => {
+                if let Err(error) = self.hub.publish_system_message(conversation, message) {
+                    failures.push(error.to_string());
+                }
+            }
+            Err(error) => failures.push(error.to_string()),
+        }
+        if let Err(error) = self
+            .hub
+            .publish_message_options_changed(conversation, wire::changed_payload(&fact.question, &fact.state))
+        {
+            failures.push(error.to_string());
+        }
+        if let silverhand_backend_core::conversation_messaging::messaging::PrincipalIdentity::Agent(agent) =
+            &fact.question.author
+            && let Err(error) = self
+                .delivery
+                .deliver_to_live_recipient(conversation, agent, &fact.event.id)
+                .await
+        {
+            failures.push(error.to_string());
+        }
+        failures
+    }
+
+    async fn options_updated(
+        &self,
+        fact: &silverhand_backend_core::conversation_messaging::messaging::collaboration::message_options::OptionsUpdatedFact,
+    ) -> Vec<String> {
+        use silverhand_backend_server::conversation_messaging::messaging::collaboration::message_options as wire;
+        match self.hub.publish_message_options_changed(
+            &fact.question.conversation,
+            wire::changed_payload(&fact.question, &fact.state),
+        ) {
+            Ok(()) => Vec::new(),
+            Err(error) => vec![error.to_string()],
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::{

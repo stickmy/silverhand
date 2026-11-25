@@ -1176,6 +1176,7 @@ mod tests {
             thread_root: None,
             linked_task: None,
             reactions: Vec::new(),
+            options: None,
         })
         .unwrap()
     }
@@ -1467,6 +1468,7 @@ mod tests {
                 thread_root: None,
                 linked_task: None,
                 reactions: Vec::new(),
+                options: None,
             })
             .unwrap();
             SelectedHumanSearchMessage::projected(user(viewer), conversation_ref("c"), message)

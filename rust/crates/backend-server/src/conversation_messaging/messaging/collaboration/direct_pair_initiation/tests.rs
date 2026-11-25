@@ -229,6 +229,7 @@ fn committed_outcome() -> SendMessageOutcome {
         seq: MessageSeq::try_from(1).unwrap(),
         created_at_ms: 10,
         thread_root_id: None,
+        options: None,
     };
     SendMessageOutcome::committed_send(
         MessageCreatedFact::committed(

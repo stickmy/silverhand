@@ -2,6 +2,7 @@
 
 mod mutation;
 mod read;
+pub(super) use mutation::{ReactionAccess, reaction_access};
 pub(super) use read::aggregate_facts_in_snapshot;
 
 use silverhand_backend_core::{

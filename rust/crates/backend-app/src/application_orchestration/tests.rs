@@ -2548,7 +2548,7 @@ async fn the_composition_mounts_every_declared_route() {
     // The 114 human-perimeter product doors. Anonymous (no bearer) → the human
     // session perimeter's `401` envelope, never a `404`: each path IS mounted and
     // guarded. (`.layer` runs the perimeter for any matched human route.)
-    const HUMAN_PERIMETER_DOORS: [(&str, &str); 115] = [
+    const HUMAN_PERIMETER_DOORS: [(&str, &str); 116] = [
         ("POST", "/api/hosts"),
         // #2219 CP4 host-custody batch B — the three perimeter-guarded custody doors.
         // `GET /api/hosts` shares the path node with the invite POST above, so its anon
@@ -2624,6 +2624,7 @@ async fn the_composition_mounts_every_declared_route() {
         ("GET", "/api/saved"),
         ("POST", "/api/messages/msg000000000000001/save"),
         ("DELETE", "/api/messages/msg000000000000001/save"),
+        ("POST", "/api/messages/msg000000000000001/answer"),
         // #2218/#task:2321: `/api/runtimes`, the local runtime-catalog face that is
         // authenticated (under
         // the product's `/api/*` bearer gate with no allowlist entry). Anon → 401.
@@ -2782,22 +2783,23 @@ async fn the_composition_mounts_every_declared_route() {
         ("GET", "/api/tasks/by-number"),
         ("GET", "/api/tasks/task-1"),
     ];
-    assert_eq!(HUMAN_PERIMETER_DOORS.len(), 115);
+    assert_eq!(HUMAN_PERIMETER_DOORS.len(), 116);
     for (method, path) in HUMAN_PERIMETER_DOORS {
         let (status, body) = request(&router, method, path, None).await;
         assert_eq!(status, StatusCode::UNAUTHORIZED, "{method} {path}: {body}");
         assert_eq!(body, unauthorized, "{method} {path}");
     }
 
-    // The 36 runtime-perimeter internal doors. Anonymous → the runtime credential
+    // The 38 runtime-perimeter internal doors. Anonymous → the runtime credential
     // perimeter's `401` on the matched route, never `404`. The original three (#2226-era
     // send/tasks/stale), the #2234 CP7a self-scope profile family (`/profile` GET+POST,
     // `/avatar` POST+DELETE, `/peer-profile` GET), the #2234 CP7b profile-MCP family
     // (`/profile/mcp` GET+POST + `/profile/mcp/probe` POST), and the #2250/#2257
-    // cli-trace door, and #2262's six reaction/attachment doors. All eighteen ride the
+    // cli-trace door, #2262's six reaction/attachment doors, and #3144's two answer-option
+    // doors. All ride the
     // ONE `require_runtime_credential` layer, so anon
     // on any listed method is the same bodiless 401.
-    assert_eq!(CLI_INVOKE_PRODUCTION_PERIMETER.len(), 36);
+    assert_eq!(CLI_INVOKE_PRODUCTION_PERIMETER.len(), 38);
     for (method, path_template) in CLI_INVOKE_PRODUCTION_PERIMETER {
         let path = path_template.replace("{aid}", "agent-1");
         let method = (*method).as_str();
@@ -11434,3 +11436,237 @@ mod task_content_length_tests;
 
 #[path = "host_activation_tests.rs"]
 mod host_activation_tests;
+
+/// #3144: an agent asks with options, the human answers through the mounted door, and
+/// every reader agrees — the ACK, the two canonical frames, and the cold window read.
+#[tokio::test]
+async fn mounted_message_options_round_trip_through_send_answer_and_window() {
+    let fixture = fixture(true).await;
+    seed_human(&fixture.path).await;
+    seed_workspace_conversation(&fixture.path).await;
+    seed_runtime_agent(&fixture.path, "asker").await;
+    let pool = SqlitePoolOptions::new()
+        .connect(fixture.path.to_str().unwrap())
+        .await
+        .unwrap();
+    for sql in [
+        "INSERT INTO conversation_agents(conversation_id,agent_id,joined_at) VALUES(?,'asker',1)",
+        "INSERT INTO workspace_members(workspace_id,agent_id,joined_at) VALUES(?,'asker',1)",
+        "INSERT INTO workspace_agent_capabilities(workspace_id,agent_id,capability) VALUES(?,'asker','send_messages')",
+    ] {
+        let bind = if sql.contains("conversation_agents") {
+            CONVERSATION_ID
+        } else {
+            WORKSPACE_ID
+        };
+        sqlx::query(sqlx::AssertSqlSafe(sql))
+            .bind(bind)
+            .execute(&pool)
+            .await
+            .unwrap();
+    }
+    pool.close().await;
+
+    let app = prepare(&config(fixture.path.clone())).await.unwrap();
+    let agent_bearer = mint_runtime_bearer(&app, "asker").await;
+    let human_bearer = format!("Bearer {TOKEN}");
+    let router = app.router.clone();
+
+    let (status, body) = json_request_with_body(
+        &router,
+        "POST",
+        "/internal/agents/asker/send-message",
+        Some(&agent_bearer),
+        Body::from(format!(
+            r##"{{"content":"Ship which?","target":"#conv:{CONVERSATION_ID}","options":{{"mode":"single","items":[{{"id":"a","label":"Alpha"}},{{"id":"b","label":"Beta"}}]}}}}"##
+        )),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let sent: serde_json::Value = serde_json::from_str(&body).unwrap();
+    let message_id = sent["message_id"].as_str().unwrap().to_owned();
+
+    // The author cannot answer their own question.
+    let (status, body) = json_request_with_body(
+        &router,
+        "POST",
+        "/internal/agents/asker/answer-message",
+        Some(&agent_bearer),
+        Body::from(format!(
+            r#"{{"message_id":"{message_id}","option_ids":["a"]}}"#
+        )),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+    assert!(body.contains("own_question"), "{body}");
+
+    // Single choice refuses two picks and unknown ids.
+    let answer_path = format!("/api/messages/{message_id}/answer");
+    for (payload, code) in [
+        (r#"{"option_ids":["a","b"]}"#, "invalid_answer"),
+        (r#"{"option_ids":["z"]}"#, "unknown_option"),
+    ] {
+        let (status, body) = json_request_with_body(
+            &router,
+            "POST",
+            &answer_path,
+            Some(&human_bearer),
+            Body::from(payload),
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
+        assert!(body.contains(code), "{body}");
+    }
+
+    let (status, body) = json_request_with_body(
+        &router,
+        "POST",
+        &answer_path,
+        Some(&human_bearer),
+        Body::from(r#"{"option_ids":["b"]}"#),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let ack: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(ack["message_id"], message_id.as_str());
+    assert_eq!(ack["answer"]["option_ids"], serde_json::json!(["b"]));
+    assert_eq!(ack["answer"]["by"]["kind"], "user");
+    assert_eq!(ack["answer"]["other"], serde_json::Value::Null);
+    let event_id = ack["event_message_id"].as_str().unwrap().to_owned();
+
+    // Options are frozen once answered.
+    let (status, body) = json_request_with_body(
+        &router,
+        "POST",
+        "/internal/agents/asker/message-options",
+        Some(&agent_bearer),
+        Body::from(format!(
+            r#"{{"message_id":"{message_id}","options":{{"mode":"multi","items":[{{"id":"a","label":"A"}},{{"id":"c","label":"C"}}]}}}}"#
+        )),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT, "{body}");
+    assert!(body.contains("options_answered"), "{body}");
+
+    let (status, body) = request(
+        &router,
+        "GET",
+        &format!("/api/channels/{CONVERSATION_ID}/messages"),
+        Some(&human_bearer),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let window: serde_json::Value = serde_json::from_str(&body).unwrap();
+    let messages = window["messages"].as_array().unwrap();
+    let question = messages
+        .iter()
+        .find(|m| m["id"] == message_id.as_str())
+        .unwrap();
+    assert_eq!(question["options"]["mode"], "single");
+    assert_eq!(question["options"]["items"][1]["label"], "Beta");
+    assert_eq!(question["answer"]["option_ids"], serde_json::json!(["b"]));
+    let event = messages
+        .iter()
+        .find(|m| m["id"] == event_id.as_str())
+        .unwrap();
+    assert_eq!(event["from_kind"], "system");
+    assert_eq!(event["metadata"]["subtype"], "message_answer");
+    assert_eq!(event["metadata"]["answer_to"], message_id.as_str());
+    assert_eq!(event["metadata"]["options"][0]["label"], "Beta");
+    assert_eq!(event["metadata"]["changed"], false);
+    // A message without options carries neither field.
+    assert!(
+        messages
+            .iter()
+            .all(|m| m["id"] == message_id.as_str() || m.get("options").is_none())
+    );
+    app.close_connections().await;
+}
+
+/// #3144: an answer publishes the system event and then the absolute options state on
+/// the canonical conversation stream.
+#[tokio::test]
+async fn mounted_message_answer_publishes_event_then_options_frame() {
+    let fixture = fixture(true).await;
+    seed_human(&fixture.path).await;
+    seed_workspace_conversation(&fixture.path).await;
+    let pool = SqlitePoolOptions::new()
+        .connect(fixture.path.to_str().unwrap())
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO users (id, name, display_name, created_at, updated_at) VALUES ('user-2', 'asker', 'Asker', 1, 1)")
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO messages (id, conversation_id, from_kind, from_user_id, content, seq, created_at) \
+         VALUES ('question', ?, 'user', 'user-2', 'Which?', 1, 1)",
+    )
+    .bind(CONVERSATION_ID)
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO message_options (message_id, mode, items) VALUES \
+         ('question', 'multi', '[{\"id\":\"a\",\"label\":\"Alpha\"},{\"id\":\"b\",\"label\":\"Beta\"}]')",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query("UPDATE conversations SET latest_message_seq = 1 WHERE id = ?")
+        .bind(CONVERSATION_ID)
+        .execute(&pool)
+        .await
+        .unwrap();
+    pool.close().await;
+
+    let app = prepare(&config(fixture.path.clone())).await.unwrap();
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let (shutdown_tx, shutdown_rx) = oneshot::channel();
+    let running = tokio::spawn(serve(listener, app, async move {
+        let _ = shutdown_rx.await;
+        Ok::<(), std::io::Error>(())
+    }));
+    let bearer = format!("Bearer {TOKEN}");
+    let scope = format!("conversation:{CONVERSATION_ID}");
+    let mut socket = subscribe_event_scope(address, &scope, 0).await;
+
+    let response = http_over_tcp(
+        address,
+        "POST",
+        "/api/messages/question/answer",
+        Some(&bearer),
+        r#"{"option_ids":["b","a"],"other":" more "}"#,
+    )
+    .await;
+    assert!(response.starts_with("HTTP/1.1 200 OK\r\n"), "{response}");
+
+    let event = next_socket_json(&mut socket).await;
+    assert_eq!(event["kind"], "message");
+    let message = &event["payload"]["message"];
+    assert_eq!(message["from_kind"], "system");
+    assert_eq!(message["metadata"]["subtype"], "message_answer");
+    assert_eq!(
+        message["metadata"]["question_author"],
+        serde_json::json!({"kind": "user", "id": "user-2", "name": "asker"})
+    );
+    assert_eq!(message["metadata"]["other"], "more");
+
+    let changed = next_socket_json(&mut socket).await;
+    assert_eq!(changed["kind"], "message_options_changed");
+    assert_eq!(changed["payload"]["message_id"], "question");
+    assert_eq!(changed["payload"]["conversation_id"], CONVERSATION_ID);
+    assert_eq!(changed["payload"]["options"]["mode"], "multi");
+    assert_eq!(
+        changed["payload"]["answer"]["option_ids"],
+        serde_json::json!(["a", "b"]),
+        "picks are stored in option order"
+    );
+    assert_eq!(changed["payload"]["answer"]["other"], "more");
+    assert_eq!(changed["payload"]["answer"]["by"]["id"], "user-1");
+
+    socket.close(None).await.unwrap();
+    shutdown_tx.send(()).unwrap();
+    running.await.unwrap().unwrap();
+}

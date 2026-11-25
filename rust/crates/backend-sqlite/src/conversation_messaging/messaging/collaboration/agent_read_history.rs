@@ -241,6 +241,9 @@ impl AgentReadHistoryRead for SqliteAgentReadHistory {
                 ))
             })?;
         let reactions = reaction_aggregates_for(&mut tx, agent, &message_ids).await?;
+        let mut options = super::message_options::load_states(&mut tx, &message_ids)
+            .await
+            .map_err(PersistenceFailure::from_source)?;
         // All database facts are owned now. DTO/metadata work needs no connection.
         tx.commit()
             .await
@@ -267,7 +270,11 @@ impl AgentReadHistoryRead for SqliteAgentReadHistory {
                 serde_json::Value::Null => None,
                 other => Some(other),
             });
+            let row_options = MessageId::parse(row.id.clone())
+                .ok()
+                .and_then(|id| options.remove(&id));
             messages.push(ReadHistoryMessage {
+                options: row_options,
                 snippet: snippet_for(&row.content),
                 content: if include_content {
                     row.content.clone()

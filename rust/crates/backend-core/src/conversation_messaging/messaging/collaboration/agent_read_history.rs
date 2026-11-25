@@ -69,6 +69,7 @@ pub struct ReadHistoryMessage {
     pub attachments: serde_json::Value,
     pub reactions: serde_json::Value,
     pub content: String,
+    pub options: Option<super::message_options::MessageOptionsState>,
 }
 
 /// The committed window read: the projected messages (ascending seq) plus whether

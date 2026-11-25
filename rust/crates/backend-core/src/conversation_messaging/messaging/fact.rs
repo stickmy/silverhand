@@ -105,6 +105,8 @@ pub struct CreatedMessage {
     pub seq: MessageSeq,
     pub created_at_ms: i64,
     pub thread_root_id: Option<ThreadRootId>,
+    /// Answer options the author attached; a fresh message is always unanswered.
+    pub options: Option<super::collaboration::message_options::MessageOptions>,
 }
 
 /// One send's whole answer: what was committed, and what only its sender is told.

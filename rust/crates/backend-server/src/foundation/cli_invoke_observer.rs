@@ -33,6 +33,8 @@ use tracing::Instrument;
 const CLI_TRACE_PATH: &str = "/internal/agents/{aid}/cli-trace";
 const AVATAR_PATH: &str = "/internal/agents/{aid}/avatar";
 const REACTION_PATH: &str = "/internal/agents/{aid}/react-message";
+const ANSWER_PATH: &str = "/internal/agents/{aid}/answer-message";
+const OPTIONS_PATH: &str = "/internal/agents/{aid}/message-options";
 const ATTACHMENTS_PATH: &str = "/internal/agents/{aid}/attachments";
 const ATTACHMENT_PATH: &str = "/internal/agents/{aid}/attachments/{attachment_id}";
 const ATTACHMENT_LOCATE_PATH: &str = "/internal/agents/{aid}/attachments/{attachment_id}/locate";
@@ -46,6 +48,8 @@ pub const CLI_INVOKE_PRODUCTION_PERIMETER: &[(CliInvokeMethod, &str)] = &[
     (CliInvokeMethod::Post, "/internal/agents/{aid}/send-message"),
     (CliInvokeMethod::Post, REACTION_PATH),
     (CliInvokeMethod::Delete, REACTION_PATH),
+    (CliInvokeMethod::Post, ANSWER_PATH),
+    (CliInvokeMethod::Post, OPTIONS_PATH),
     (CliInvokeMethod::Post, ATTACHMENTS_PATH),
     (CliInvokeMethod::Patch, ATTACHMENT_PATH),
     (CliInvokeMethod::Get, ATTACHMENT_LOCATE_PATH),
@@ -155,6 +159,22 @@ const ROUTES: &[RouteDescriptor] = &[
         "message",
         "react",
         "react-message",
+        &[],
+    ),
+    route(
+        CliInvokeMethod::Post,
+        ANSWER_PATH,
+        "message",
+        "answer",
+        "answer-message",
+        &[],
+    ),
+    route(
+        CliInvokeMethod::Post,
+        OPTIONS_PATH,
+        "message",
+        "options update",
+        "message-options",
         &[],
     ),
     route(
@@ -844,7 +864,7 @@ mod tests {
                 left.path
             );
         }
-        assert_eq!(ROUTES.len(), 33);
+        assert_eq!(ROUTES.len(), 35);
         let mut accounted: Vec<_> = ROUTES
             .iter()
             .map(|route| (route.method, route.path))

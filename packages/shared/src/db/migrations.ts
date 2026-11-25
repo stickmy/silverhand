@@ -4425,6 +4425,32 @@ export const migrations: Migration[] = [
       BEGIN SELECT RAISE(ABORT, 'invalid agents runtime transition lock'); END;
     `,
   },
+  {
+    version: 107,
+    name: 'message_options',
+    // Answer options on a message plus its one current answer (last write wins).
+    // The answerer name is a snapshot so the answer stays labelled after deletion.
+    up: `
+      CREATE TABLE message_options (
+        message_id            TEXT PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,
+        mode                  TEXT NOT NULL CHECK (mode IN ('single', 'multi')),
+        items                 TEXT NOT NULL,
+        answer_by_kind        TEXT CHECK (answer_by_kind IN ('user', 'agent')),
+        answer_by_id          TEXT,
+        answer_by_name        TEXT,
+        answer_by_display     TEXT,
+        answer_option_ids     TEXT,
+        answer_other          TEXT,
+        answered_at           INTEGER,
+        CHECK ((answered_at IS NULL) = (answer_by_kind IS NULL)),
+        CHECK ((answered_at IS NULL) = (answer_by_id IS NULL)),
+        CHECK ((answered_at IS NULL) = (answer_by_name IS NULL)),
+        CHECK ((answered_at IS NULL) = (answer_by_display IS NULL)),
+        CHECK ((answered_at IS NULL) = (answer_option_ids IS NULL)),
+        CHECK (answered_at IS NOT NULL OR answer_other IS NULL)
+      );
+    `,
+  },
 ];
 
 /**

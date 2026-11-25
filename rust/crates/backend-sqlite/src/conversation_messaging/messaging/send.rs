@@ -394,6 +394,7 @@ impl<E: SendEntropy + Send + Sync> TxScope<'_, '_, E> {
                 .map(ThreadRootId::parse)
                 .transpose()
                 .map_err(|_| SendMessageError::ClientMessageConflict)?,
+            options: None,
         };
         Ok(Some(
             SendMessageOutcome::committed_send(
@@ -732,6 +733,11 @@ impl<E: SendEntropy + Send + Sync> TxScope<'_, '_, E> {
             .execute(&mut *self.tx)
             .await
             .map_err(driver)?;
+        if let Some(options) = command.options() {
+            collaboration::message_options::insert_options(&mut self.tx, &id, options)
+                .await
+                .map_err(driver)?;
+        }
 
         Ok(CreatedMessage {
             client_message_id: command.client_message_id().map(|id| id.as_str().to_owned()),
@@ -752,6 +758,7 @@ impl<E: SendEntropy + Send + Sync> TxScope<'_, '_, E> {
             seq,
             created_at_ms,
             thread_root_id: thread_root,
+            options: command.options().cloned(),
         })
     }
 

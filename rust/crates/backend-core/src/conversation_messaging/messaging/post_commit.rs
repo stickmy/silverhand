@@ -1217,6 +1217,7 @@ mod tests {
             seq: MessageSeq::try_from(1).unwrap(),
             created_at_ms: 7,
             thread_root_id: None,
+            options: None,
         }
     }
 

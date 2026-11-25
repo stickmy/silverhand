@@ -153,13 +153,13 @@ async fn rollback_refusal<T>(
     Ok(Err(refusal))
 }
 
-enum ReactionAccess {
+pub(in crate::conversation_messaging::messaging::collaboration) enum ReactionAccess {
     Allowed,
     Forbidden,
     CapabilityDenied,
 }
 
-async fn reaction_access(
+pub(in crate::conversation_messaging::messaging::collaboration) async fn reaction_access(
     tx: &mut Transaction<'_, Sqlite>,
     actor: &ReactionActor,
     conversation: &silverhand_backend_core::foundation::identity::ConversationId,

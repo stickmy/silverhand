@@ -89,6 +89,7 @@ pub(super) async fn compose_after_audit(
 
     let notification_store = messaging_store.notifications();
     let reaction_store = messaging_store.reactions();
+    let message_options_store = messaging_store.message_options();
     let attachment_reads = messaging_store.attachment_reads();
     let attachment_writes = messaging_store.attachment_writes();
     let agent_attachments = messaging_store.agent_attachments();
@@ -754,6 +755,10 @@ pub(super) async fn compose_after_audit(
     // aftermath. All six public + four internal attachment faces share one read adapter,
     // one write adapter, one agent adapter, the process's ONE blob root, and the SAME hub
     // as the cursor-inert `attachment_changed` publisher.
+    let human_message_options =
+        message_options::human_router(message_options_store.clone(), lane_effects.clone());
+    let agent_message_options =
+        message_options::agent_router(message_options_store, lane_effects.clone());
     let human_reactions = reaction::human_router(
         reaction_store.clone(),
         reaction_store.clone(),
@@ -1283,6 +1288,7 @@ pub(super) async fn compose_after_audit(
             // this router and no public face can inherit runtime credentials.
             .merge(notifications)
             .merge(human_reactions)
+            .merge(human_message_options)
             .merge(human_attachments)
             // Host-resources read lane, Wave 3A checkpoint A5 (#2198). Rides its own
             // by-path cold-read pool captured above, kept distinct from the teardown
@@ -1374,6 +1380,7 @@ pub(super) async fn compose_after_audit(
             // `cli.invoke` middleware and, because runtime auth wraps that middleware
             // below, record exactly once only after a principal has authenticated.
             .merge(agent_reactions)
+            .merge(agent_message_options)
             .merge(agent_attachment_products)
             // #2250: the CLI preflight-trace door (POST `/internal/agents/{aid}/cli-trace`),
             // behind the SAME runtime-credential perimeter, recording each typed preflight

@@ -72,6 +72,10 @@ pub(crate) fn message_dto(message: &CreatedMessage) -> Value {
     if let Some(id) = &message.client_message_id {
         dto["client_message_id"] = json!(id);
     }
+    if let Some(options) = &message.options {
+        let state = silverhand_backend_core::conversation_messaging::messaging::collaboration::message_options::MessageOptionsState::new(options.clone(), None);
+        super::collaboration::message_options::attach_to_message(&mut dto, Some(&state));
+    }
     dto
 }
 

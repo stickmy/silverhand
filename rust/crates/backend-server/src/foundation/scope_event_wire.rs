@@ -77,6 +77,7 @@ pub(crate) enum ProductEvent {
     },
     SavedChanged(Value),
     MessageReactionChanged(Value),
+    MessageOptionsChanged(Value),
     AttachmentChanged(Value),
     ConversationLatestChanged(Value),
     MessageAlert(Value),

@@ -327,6 +327,17 @@ impl ScopeEventHub {
         )
     }
 
+    pub fn publish_message_options_changed(
+        &self,
+        conversation: &ConversationId,
+        payload: serde_json::Value,
+    ) -> Result<(), ScopeEventHubError> {
+        self.publish(
+            EventScope::Conversation(conversation.clone()),
+            ProductEvent::MessageOptionsChanged(payload),
+        )
+    }
+
     pub fn publish_viewer_workspace_membership_changed(
         &self,
         viewer: &UserId,

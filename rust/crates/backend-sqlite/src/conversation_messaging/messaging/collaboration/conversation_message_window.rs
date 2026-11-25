@@ -38,8 +38,10 @@ use crate::conversation_messaging::messaging::{
 
 use super::{
     channel_lifecycle::{ChannelLifecycleStoreError, load_channel_row, load_workspace_role_fact},
+    message_options::load_states,
     reaction::aggregate_facts_in_snapshot,
 };
+use silverhand_backend_core::conversation_messaging::messaging::collaboration::message_options::MessageOptionsState;
 
 // `pub(crate)`: the message column list and its linked-task joins are reused verbatim
 // by the agent-audit read adapter, which selects rows in `mode=all` (no mainline/thread
@@ -86,6 +88,8 @@ pub enum ConversationMessageWindowStoreError {
     Author(#[source] PersistenceFailure),
     #[error("stored message reaction projection failed")]
     Reaction(#[source] PersistenceFailure),
+    #[error("stored message options projection failed")]
+    Options(#[source] PersistenceFailure),
     #[error("stored message-window row coordinates are inconsistent")]
     Coordinate,
     #[error("stored message-window projection is not closed")]
@@ -222,13 +226,17 @@ impl SqliteConversationMessageWindowRead {
                 reactions.entry(fact.message).or_default().push(reaction);
             }
 
+            let mut options = load_states(&mut tx, &message_ids).await.map_err(|error| {
+                ConversationMessageWindowStoreError::Options(PersistenceFailure::from_source(error))
+            })?;
             let mut messages = Vec::with_capacity(raw_messages.len());
             for (raw, author) in raw_messages
                 .into_iter()
                 .zip(message_authors.iter().cloned())
             {
                 let row_reactions = reactions.remove(&raw.id).unwrap_or_default();
-                messages.push(raw.seal(author, row_reactions)?);
+                let row_options = options.remove(&raw.id);
+                messages.push(raw.seal(author, row_reactions, row_options)?);
             }
             if !reactions.is_empty() {
                 return Err(ConversationMessageWindowStoreError::Coordinate);
@@ -643,7 +651,7 @@ fn closed_false_boundary(
 #[derive(Clone)]
 pub(crate) struct RawMessage {
     client_message_id: Option<String>,
-    id: MessageId,
+    pub(crate) id: MessageId,
     conversation: ConversationId,
     pub(crate) author: AuthorEvidence,
     content: String,
@@ -677,6 +685,7 @@ impl RawMessage {
         self,
         resolved: Option<MessageAuthor>,
         reactions: Vec<WindowReaction>,
+        options: Option<MessageOptionsState>,
     ) -> Result<SelectedWindowMessage, ConversationMessageWindowStoreError> {
         let author = author_fact(&self.author, resolved)?;
         SelectedWindowMessage::seal(WindowMessageProjection {
@@ -691,6 +700,7 @@ impl RawMessage {
             thread_root: self.thread_root,
             linked_task: self.linked_task,
             reactions,
+            options,
         })
         .map_err(ConversationMessageWindowStoreError::Projection)
     }

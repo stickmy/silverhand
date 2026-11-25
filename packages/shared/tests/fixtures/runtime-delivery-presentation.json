@@ -54,6 +54,20 @@
       "expectedInstruction": "system"
     }
   ],
+  "optionsCases": [
+    {
+      "messageId": "msg-ask",
+      "options": { "mode": "single", "items": [{ "id": "a", "label": "Stacked" }, { "id": "b", "label": "Side by side" }] },
+      "answer": null,
+      "expectedSuffix": "\n\n[Options (single choice), unanswered — answer with `silverhand message answer --message-id msg-ask --option <id>` or `--other <text>`]\n  - a: Stacked\n  - b: Side by side"
+    },
+    {
+      "messageId": "msg-multi",
+      "options": { "mode": "multi", "items": [{ "id": "mac", "label": "macOS" }, { "id": "ios", "label": "iOS" }, { "id": "web", "label": "Web" }] },
+      "answer": { "by": { "kind": "agent", "id": "agent-toby", "name": "Toby", "display_name": "Toby" }, "option_ids": ["mac", "web"], "other": "Linux later", "answered_at": 1 },
+      "expectedSuffix": "\n\n[Options (multiple choice), answered by @Toby]\n  - mac: macOS  ← answer\n  - ios: iOS\n  - web: Web  ← answer\n  - other: Linux later  ← answer"
+    }
+  ],
   "instructionCases": [
     {
       "name": "human_without_references_addresses_the_recipient",

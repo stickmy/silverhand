@@ -209,12 +209,23 @@ pub struct SendMessage {
     addressed: AddressedPrincipals,
     direct_lines: DirectLineGrants,
     freshness_bypass: bool,
+    options: Option<super::collaboration::message_options::MessageOptions>,
 }
 
 impl SendMessage {
     pub fn with_client_message_id(mut self, id: Option<ClientMessageId>) -> Self {
         self.client_message_id = id;
         self
+    }
+    pub fn with_options(
+        mut self,
+        options: Option<super::collaboration::message_options::MessageOptions>,
+    ) -> Self {
+        self.options = options;
+        self
+    }
+    pub fn options(&self) -> Option<&super::collaboration::message_options::MessageOptions> {
+        self.options.as_ref()
     }
     pub fn client_message_id(&self) -> Option<&ClientMessageId> {
         self.client_message_id.as_ref()
@@ -251,6 +262,7 @@ impl SendMessage {
             addressed,
             direct_lines,
             freshness_bypass: draft.freshness_bypass,
+            options: None,
         })
     }
 

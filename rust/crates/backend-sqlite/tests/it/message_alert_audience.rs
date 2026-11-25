@@ -57,6 +57,7 @@ fn message(conversation: &str, thread: Option<&str>) -> CreatedMessage {
         seq: MessageSeq::try_from(2).unwrap(),
         created_at_ms: 2,
         thread_root_id: thread.map(|id| ThreadRootId::parse(id).unwrap()),
+        options: None,
     }
 }
 

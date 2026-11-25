@@ -650,6 +650,7 @@ impl RawSearchMessage {
             thread_root: self.thread_root,
             linked_task: None,
             reactions: Vec::new(),
+            options: None,
         })
         .map_err(HumanSearchStoreError::MessageProjection)?;
         SelectedHumanSearchMessage::projected(self.source_viewer, self.conversation, selected)

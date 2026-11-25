@@ -571,6 +571,7 @@ pub struct WindowMessageProjection {
     pub thread_root: Option<ThreadRootId>,
     pub linked_task: Option<WindowLinkedTask>,
     pub reactions: Vec<WindowReaction>,
+    pub options: Option<super::message_options::MessageOptionsState>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -1423,6 +1424,7 @@ mod tests {
             thread_root: root.map(thread_root),
             linked_task: None,
             reactions,
+            options: None,
         })
         .unwrap()
     }
