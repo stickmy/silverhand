@@ -22,6 +22,7 @@ export const SYSTEM_SUBTYPES = [
   'rename',
   'task_create',
   'task_claim',
+  'task_assign',
   'task_unclaim',
   'task_status',
   'task_edit',
@@ -32,6 +33,7 @@ export type SystemSubtype = (typeof SYSTEM_SUBTYPES)[number];
 export const TASK_SUBTYPES = [
   'task_create',
   'task_claim',
+  'task_assign',
   'task_unclaim',
   'task_status',
   'task_edit',
@@ -141,7 +143,7 @@ export function readConversationMemberChangeMetadata(
 }
 
 /**
- * Metadata shape for `task_create` / `task_claim` / `task_unclaim` /
+ * Metadata shape for `task_create` / `task_claim` / `task_assign` / `task_unclaim` /
  * `task_status` / `task_edit` system messages. Two rules hold for EVERY event:
  * `subtype` names the ACTION, and `task_status` is the status snapshot AFTER
  * the mutation. **No branch lets you derive the prior status from `subtype`** —
@@ -150,15 +152,14 @@ export function readConversationMemberChangeMetadata(
  *
  *  - `subtype = task_create`: genesis event; `task_status = 'todo'`.
  *  - `subtype = task_claim`, `actor.kind = 'agent'`: the agent's self-claim, a
- *    workflow verb. It accepts any unassigned non-terminal task: a `todo` task
- *    is bumped to `in_progress`, while `in_progress` / `in_review` are left as
- *    they are. So `task_status = 'in_progress'` is the common case, not the
- *    contract — read the field, don't assume the prior was `todo`.
- *  - `subtype = task_claim`, `actor.kind = 'user'`: a human assign / reassign —
- *    a DISPATCH. `task_assignee` is the new owner, and a `todo` task is started
- *    in the same write, so `task_status = 'in_progress'`; a task already
- *    `in_progress` / `in_review` only changes hands and keeps its status. Read
- *    the field: the prior status is not derivable here either.
+ *    workflow verb. It accepts an unassigned (or already its own) non-terminal
+ *    task: a `todo` task is bumped to `in_progress`, while `in_progress` /
+ *    `in_review` are left as they are. Read the field, don't assume the prior
+ *    was `todo`.
+ *  - `subtype = task_assign`: an agent or human made `task_assignee` the owner.
+ *    An OWNERSHIP write: `task_status` is the unchanged current status.
+ *  - `subtype = task_claim`, `actor.kind = 'user'`: legacy (pre-`task_assign`)
+ *    human assign; older servers also started a `todo` task in the same write.
  *  - `subtype = task_unclaim`, `actor.kind = 'agent'`: the agent's self-release,
  *    a workflow verb — it returns the task to the pool, so
  *    `task_status = 'todo'` and `task_assignee = null`. The prior status was any
@@ -175,11 +176,10 @@ export function readConversationMemberChangeMetadata(
  *    (or a woken assignee) pulls the current definition via `task detail`.
  *    Fired ONLY on a real canonical change; a same-value save emits nothing.
  *
- * The human/agent split above is the wire face of `docs/tasks-design.md §4.4`:
- * a human's assign dispatches (ownership + starting a `todo` task), a human's
- * unassign touches ownership only, and rewinding the workflow stays exclusive to
- * the agent's own claim / unclaim. Legacy events predating the actor field have
- * no `actor.kind` to branch on — degrade, don't guess.
+ * Assignment and unassignment touch ownership only; starting or rewinding the
+ * workflow stays exclusive to the assignee's own claim / unclaim. Legacy events
+ * predating the actor field have no `actor.kind` to branch on — degrade, don't
+ * guess.
  *
  * `task_id` (v60+) is the canonical task-aggregate id for per-task event
  * lookup. The legacy `task_message_id` (pre-v60 events) held the old
@@ -222,16 +222,12 @@ export const TaskSystemMetadataSchema = z.object({
 });
 export type TaskSystemMetadata = z.infer<typeof TaskSystemMetadataSchema>;
 
-/** A `task_claim` that names someone other than its actor is an assignment, as
- *  is any human claim/unclaim; an agent's own claim/unclaim is not. */
+/** An ownership write by someone other than the owner: `task_assign`, plus the
+ *  legacy human `task_claim` and any human `task_unclaim`. */
 export function isTaskAssignmentEvent(meta: TaskSystemMetadata): boolean {
-  if (meta.subtype !== 'task_claim' && meta.subtype !== 'task_unclaim') return false;
-  if (meta.actor.kind === 'user') return true;
-  const assignee = meta.task_assignee;
+  if (meta.subtype === 'task_assign') return true;
   return (
-    meta.subtype === 'task_claim' &&
-    !!assignee &&
-    !(assignee.type === 'agent' && assignee.id === meta.actor.id)
+    (meta.subtype === 'task_claim' || meta.subtype === 'task_unclaim') && meta.actor.kind === 'user'
   );
 }
 

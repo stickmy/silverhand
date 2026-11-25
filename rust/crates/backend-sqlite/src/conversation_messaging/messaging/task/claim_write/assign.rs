@@ -127,7 +127,7 @@ pub(super) async fn assign(
         &mut tx,
         task_id,
         actor_pill,
-        TaskEventKind::Claim,
+        TaskEventKind::Assign,
         now,
         compose_assign_event,
     )

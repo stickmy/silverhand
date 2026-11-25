@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MutationObserver, QueryClient, type MutationObserverOptions } from "@tanstack/react-query";
+import { ApiError } from "@/lib/api";
 import { useAssignTask, useUpdateTaskStatus } from "./hooks";
 
 const harness = vi.hoisted(() => ({
@@ -110,8 +111,23 @@ describe("task mutation lifecycle", () => {
       expect(qc.getQueryState(keys[3]!)?.isInvalidated).toBe(false);
       expect(harness.points).toHaveBeenCalledExactlyOnceWith(qc, "task-a");
       expect(harness.api.mock.calls[0]?.[0]).toBe(
-        `/api/tasks/task-a/${assignee ? "claim" : "unclaim"}`,
+        `/api/tasks/task-a/${assignee ? "assign" : "unclaim"}`,
       );
     },
   );
+
+  it("assign falls back to /claim when the server has no /assign route", async () => {
+    harness.api
+      .mockRejectedValueOnce(new ApiError(404, "Not Found", ""))
+      .mockResolvedValueOnce({ success: true });
+    await useAssignTask().mutateAsync({ taskId: "task-a", assignee: { type: "user", id: "u-1" } });
+    expect(harness.api.mock.calls.map((c) => c[0])).toEqual([
+      "/api/tasks/task-a/assign",
+      "/api/tasks/task-a/claim",
+    ]);
+    expect(harness.api.mock.calls[1]?.[1]).toEqual({
+      method: "POST",
+      body: JSON.stringify({ user_id: "u-1" }),
+    });
+  });
 });

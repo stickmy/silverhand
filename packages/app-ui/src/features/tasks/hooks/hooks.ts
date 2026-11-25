@@ -213,9 +213,10 @@ export interface TaskAssigneeRef {
 
 /**
  * Assign / re-assign / clear a task's assignee — `assignee: null` clears.
- * `POST /api/tasks/:taskId/claim` `{agent_id}` or `{user_id}` for a named
- * participant, `POST /api/tasks/:taskId/unclaim` for the clear. Backs the detail
- * modal's Assignee row.
+ * `POST /api/tasks/:taskId/assign` `{agent_id}` or `{user_id}` for a named
+ * participant (falling back to `/claim` on a server without `/assign`),
+ * `POST /api/tasks/:taskId/unclaim` for the clear. Backs the detail modal's
+ * Assignee row.
  *
  * ONE hook for both because it is ONE product action ("who owns this"), and both
  * arms need the identical three-projection invalidation and the same error exit;
@@ -234,20 +235,25 @@ export function useAssignTask() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (args: { taskId: string; assignee: TaskAssigneeRef | null }) => {
-      const { assignee } = args;
-      const res = await api<{ success: boolean; reason?: string }>(
-        assignee === null ? `/api/tasks/${args.taskId}/unclaim` : `/api/tasks/${args.taskId}/claim`,
-        {
+      const { taskId, assignee } = args;
+      type Result = { success: boolean; reason?: string };
+      let res: Result;
+      if (assignee === null) {
+        res = await api<Result>(`/api/tasks/${taskId}/unclaim`, { method: "POST" });
+      } else {
+        const init = {
           method: "POST",
-          ...(assignee === null
-            ? {}
-            : {
-                body: JSON.stringify(
-                  assignee.type === "agent" ? { agent_id: assignee.id } : { user_id: assignee.id },
-                ),
-              }),
-        },
-      );
+          body: JSON.stringify(
+            assignee.type === "agent" ? { agent_id: assignee.id } : { user_id: assignee.id },
+          ),
+        };
+        try {
+          res = await api<Result>(`/api/tasks/${taskId}/assign`, init);
+        } catch (err) {
+          if (!(err instanceof ApiError && err.status === 404)) throw err;
+          res = await api<Result>(`/api/tasks/${taskId}/claim`, init);
+        }
+      }
       if (!res.success) throw new Error(res.reason ?? "assign failed");
       return res;
     },

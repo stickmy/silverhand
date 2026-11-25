@@ -174,6 +174,7 @@ export const messages = {
   taskVerb: {
     created: "created",
     claimed: "claimed",
+    assigned: "assigned",
     edited: "edited",
     unclaimed: "unclaimed",
   },

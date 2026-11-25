@@ -826,7 +826,7 @@ export const HumanUpdateTaskStatusInputSchema = z.object({
 });
 export type HumanUpdateTaskStatusInput = z.infer<typeof HumanUpdateTaskStatusInputSchema>;
 
-// Human UI — POST /api/tasks/:taskId/claim (assign to a participant). Exactly
+// Human UI — POST /api/tasks/:taskId/assign (`/claim` on older servers). Exactly
 // one of `agent_id` / `user_id`; clearing the assignee is `POST /unclaim`.
 // Assignment never changes the status.
 export const HumanClaimTaskInputSchema = z
@@ -948,7 +948,7 @@ export type TaskEditResult = z.infer<typeof TaskEditResultSchema>;
 // member of the task's conversation (the cross-conversation board, member-gated
 // so a private channel's task never fans out beyond its members).
 export const TaskChangedEventSchema = z.object({
-  kind: z.enum(['create', 'claim', 'unclaim', 'status', 'edit']),
+  kind: z.enum(['create', 'claim', 'assign', 'unclaim', 'status', 'edit']),
   /** Null for DirectPair-board tasks (P0-f): the event's routing keys are the
    *  conversation scopes below; workspace is a workspace-board-only fact. */
   workspace_id: z.string().nullable(),

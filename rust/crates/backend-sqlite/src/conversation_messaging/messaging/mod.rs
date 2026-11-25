@@ -306,7 +306,7 @@ macro_rules! freshness_relevant_inbox {
          SELECT 1 FROM messages m WHERE m.id=i.message_id AND m.from_kind='system' \
          AND CASE WHEN json_valid(m.metadata) THEN \
              json_extract(m.metadata,'$.subtype') IN \
-                 ('task_create','task_edit','task_status','task_claim','task_unclaim') \
+                 ('task_create','task_edit','task_status','task_claim','task_assign','task_unclaim') \
              AND json_type(m.metadata,'$.actor')='object' \
              AND json_extract(m.metadata,'$.actor.kind')='agent' \
              AND json_type(m.metadata,'$.actor.id')='text' \

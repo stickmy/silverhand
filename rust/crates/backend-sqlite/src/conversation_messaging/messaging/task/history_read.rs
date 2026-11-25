@@ -19,7 +19,7 @@ const SELECT_TASK_EVENTS: &str = "SELECT id, created_at, metadata FROM messages 
      AND json_valid(metadata) \
      AND json_extract(metadata, '$.task_id') = ? \
      AND json_extract(metadata, '$.subtype') IN \
-         ('task_create','task_claim','task_unclaim','task_status','task_edit') \
+         ('task_create','task_claim','task_assign','task_unclaim','task_status','task_edit') \
      ORDER BY seq";
 
 impl TaskHistoryRead for SqliteTaskStore {

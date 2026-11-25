@@ -172,6 +172,7 @@ export const messages: Translation<typeof en> = {
   taskVerb: {
     created: "创建了",
     claimed: "认领了",
+    assigned: "指派了",
     edited: "编辑了",
     unclaimed: "放弃了",
   },

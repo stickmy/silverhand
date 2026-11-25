@@ -1,5 +1,5 @@
 //! The human (session-authenticated) task-WRITE faces that key off a canonical
-//! `:taskId` path segment: `POST /api/tasks/:taskId/{claim,unclaim,status,edit}`.
+//! `:taskId` path segment: `POST /api/tasks/:taskId/{assign,claim,unclaim,status,edit}`.
 //!
 //! These are the human counterparts of the internal agent writes, but far thinner:
 //! a human write has NO by-number arm, NO workspace selector, NO board resolver, and
@@ -135,7 +135,8 @@ where
 }
 
 // ---------------------------------------------------------------------------
-// claim (assign a chosen agent) / unclaim (clear)
+// assign (a chosen participant) / unclaim (clear). `/claim` is the same assign,
+// kept for desktops that predate `/assign`.
 // ---------------------------------------------------------------------------
 
 pub struct HumanClaimState<W, AF, E> {
@@ -163,7 +164,8 @@ where
     E: AgentExistenceReader + Send + Sync + 'static,
 {
     Router::new()
-        .route("/api/tasks/{taskId}/claim", post(claim_route::<W, AF, E>))
+        .route("/api/tasks/{taskId}/assign", post(assign_route::<W, AF, E>))
+        .route("/api/tasks/{taskId}/claim", post(assign_route::<W, AF, E>))
         .route(
             "/api/tasks/{taskId}/unclaim",
             post(unclaim_route::<W, AF, E>),
@@ -171,7 +173,7 @@ where
         .with_state(Arc::new(state))
 }
 
-async fn claim_route<W, AF, E>(
+async fn assign_route<W, AF, E>(
     State(state): State<Arc<HumanClaimState<W, AF, E>>>,
     Path(task_id): Path<String>,
     principal: Option<axum::extract::Extension<UserId>>,
@@ -1126,25 +1128,21 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn claim_applied_is_200_without_status() {
-        let calls = Arc::new(AtomicUsize::new(0));
-        let router = human_claim_router(HumanClaimState {
-            write: fake(&calls),
-            aftermath: aftermath(),
-            assignees: ExistingAssignee,
-        });
-        let (status, body) = send(
-            router,
-            "/api/tasks/task-1/claim",
-            Some(r#"{"agent_id":"agent-9"}"#),
-            true,
-        )
-        .await;
-        assert_eq!(status, StatusCode::OK);
-        assert_eq!(body["success"], true);
-        assert_eq!(body["id"], "task-1");
-        assert_eq!(body["task_number"], 7);
-        assert!(body.get("status").is_none());
+    async fn assign_and_legacy_claim_are_the_same_write() {
+        for path in ["/api/tasks/task-1/assign", "/api/tasks/task-1/claim"] {
+            let calls = Arc::new(AtomicUsize::new(0));
+            let router = human_claim_router(HumanClaimState {
+                write: fake(&calls),
+                aftermath: aftermath(),
+                assignees: ExistingAssignee,
+            });
+            let (status, body) = send(router, path, Some(r#"{"agent_id":"agent-9"}"#), true).await;
+            assert_eq!(status, StatusCode::OK, "{path}");
+            assert_eq!(body["success"], true);
+            assert_eq!(body["id"], "task-1");
+            assert_eq!(body["task_number"], 7);
+            assert!(body.get("status").is_none());
+        }
     }
 
     #[tokio::test]

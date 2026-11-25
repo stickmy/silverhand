@@ -419,7 +419,12 @@ export function useTaskBoardRealtime(): void {
       }
       const payload = frame.payload as TaskChangedEvent;
       const outcome = applyTaskChangedToProjections(qc, payload);
-      if (payload.kind === "create" || payload.kind === "claim" || payload.kind === "unclaim") {
+      if (
+        payload.kind === "create" ||
+        payload.kind === "claim" ||
+        payload.kind === "assign" ||
+        payload.kind === "unclaim"
+      ) {
         // Facets are keyed per container, so refresh EVERY container's menus:
         // the changed task belongs to exactly one, but this listener does not
         // resolve which, and the prefix match covers them all (including the

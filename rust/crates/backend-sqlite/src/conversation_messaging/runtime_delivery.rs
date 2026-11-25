@@ -2320,7 +2320,7 @@ fn task_header(metadata: Option<&serde_json::Value>) -> Option<(i64, &str)> {
     let subtype = object.get("subtype")?.as_str()?;
     if !matches!(
         subtype,
-        "task_create" | "task_claim" | "task_unclaim" | "task_status" | "task_edit"
+        "task_create" | "task_claim" | "task_assign" | "task_unclaim" | "task_status" | "task_edit"
     ) {
         return None;
     }

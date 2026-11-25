@@ -158,6 +158,7 @@ impl TaskAftermathTrigger {
             kind,
             TaskEventKind::Create
                 | TaskEventKind::Claim
+                | TaskEventKind::Assign
                 | TaskEventKind::Unclaim
                 | TaskEventKind::Status
         );

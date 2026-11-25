@@ -119,9 +119,9 @@ function describe(meta: TaskSystemMetadata, actor: JSX.Element): React.ReactNode
     case "task_edit":
       return tRich("tasks.history.edited", { actor });
     case "task_claim":
+    case "task_assign":
     case "task_unclaim": {
-      // A claim naming someone other than its actor is an assignment; a human
-      // unclaim is an unassignment from the board.
+      // Ownership writes by someone else read as assign / unassign.
       if (!isTaskAssignmentEvent(meta)) {
         return tRich(
           meta.subtype === "task_claim" ? "tasks.history.claimed" : "tasks.history.unclaimed",
@@ -129,7 +129,7 @@ function describe(meta: TaskSystemMetadata, actor: JSX.Element): React.ReactNode
         );
       }
       const assignee = meta.task_assignee;
-      if (meta.subtype === "task_claim" && assignee) {
+      if (meta.subtype !== "task_unclaim" && assignee) {
         return tRich("tasks.history.assigned", {
           actor,
           assignee: (
@@ -144,7 +144,9 @@ function describe(meta: TaskSystemMetadata, actor: JSX.Element): React.ReactNode
         });
       }
       return tRich(
-        meta.subtype === "task_claim" ? "tasks.history.assignedNobody" : "tasks.history.unassigned",
+        meta.subtype === "task_unclaim"
+          ? "tasks.history.unassigned"
+          : "tasks.history.assignedNobody",
         { actor },
       );
     }

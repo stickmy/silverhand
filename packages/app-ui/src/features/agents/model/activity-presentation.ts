@@ -160,7 +160,7 @@ function findSilverhandCommand(
   return null;
 }
 
-const TASK_NUMBER_VERBS = new Set(["detail", "status", "claim", "unclaim", "edit"]);
+const TASK_NUMBER_VERBS = new Set(["detail", "status", "claim", "assign", "unclaim", "edit"]);
 
 /**
  * Extract the task number a `silverhand task <verb> …` action targets, given

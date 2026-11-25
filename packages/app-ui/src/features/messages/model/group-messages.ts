@@ -4,6 +4,7 @@ import { type CachedMessage, isCommittedMessage } from "@/features/channels/pend
 export const CLUSTERABLE_SUBTYPES: ReadonlySet<SystemSubtype> = new Set<SystemSubtype>([
   "task_create",
   "task_claim",
+  "task_assign",
   "task_unclaim",
   "task_status",
   "task_edit",

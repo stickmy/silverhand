@@ -78,12 +78,11 @@ function TaskEventMeta({
       </>
     );
   }
-  // `task_claim` is a self-claim when it names its actor and an assignment
-  // otherwise; a human `task_unclaim` is an unassignment. Saying "claimed by
-  // shiki" for an assignment to someone else states the wrong fact.
+  // An assignment names its assignee; saying "claimed by shiki" for an
+  // assignment to someone else states the wrong fact.
   if (isTaskAssignmentEvent(meta)) {
     const assignee = meta.task_assignee;
-    if (meta.subtype === "task_claim" && assignee) {
+    if (meta.subtype !== "task_unclaim" && assignee) {
       return (
         <>
           {tRich("messages.taskEvent.assigned", {
@@ -104,9 +103,9 @@ function TaskEventMeta({
     return (
       <>
         {tRich(
-          meta.subtype === "task_claim"
-            ? "messages.taskEvent.assignedNobody"
-            : "messages.taskEvent.unassigned",
+          meta.subtype === "task_unclaim"
+            ? "messages.taskEvent.unassigned"
+            : "messages.taskEvent.assignedNobody",
           { actor: actorNode },
         )}
       </>
@@ -178,6 +177,8 @@ function TaskEventRowDegraded({ meta }: { meta: TaskSystemMetadataPartial }): JS
           t("messages.taskVerb.created")
         ) : meta.subtype === "task_claim" ? (
           t("messages.taskVerb.claimed")
+        ) : meta.subtype === "task_assign" ? (
+          t("messages.taskVerb.assigned")
         ) : meta.subtype === "task_edit" ? (
           t("messages.taskVerb.edited")
         ) : (

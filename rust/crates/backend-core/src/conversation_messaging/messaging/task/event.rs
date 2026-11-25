@@ -24,6 +24,8 @@ use crate::foundation::identity::{AgentId, UserId};
 pub enum TaskEventKind {
     Create,
     Claim,
+    /// Someone made a participant the assignee; status unchanged.
+    Assign,
     Unclaim,
     Status,
     Edit,
@@ -61,6 +63,7 @@ impl TaskEventKind {
         match self {
             TaskEventKind::Create => "task_create",
             TaskEventKind::Claim => "task_claim",
+            TaskEventKind::Assign => "task_assign",
             TaskEventKind::Unclaim => "task_unclaim",
             TaskEventKind::Status => "task_status",
             TaskEventKind::Edit => "task_edit",
@@ -304,8 +307,7 @@ pub fn compose_claim_event(facts: &TaskEventFacts) -> TaskEventMessage {
     }
 }
 
-/// Compose the `task_claim` event of an assignment, which names the assignee. A
-/// self-claim uses [`compose_claim_event`].
+/// Compose the `task_assign` event, which names the assignee.
 pub fn compose_assign_event(facts: &TaskEventFacts) -> TaskEventMessage {
     let assignee = assignee_label(&facts.assignee);
     let content = match &facts.actor {
@@ -323,7 +325,7 @@ pub fn compose_assign_event(facts: &TaskEventFacts) -> TaskEventMessage {
     };
     TaskEventMessage {
         content,
-        metadata: metadata_json(TaskEventKind::Claim, facts, &Map::new()).to_string(),
+        metadata: metadata_json(TaskEventKind::Assign, facts, &Map::new()).to_string(),
     }
 }
 
@@ -437,6 +439,9 @@ mod tests {
             compose_assign_event(&user_actor(agent_facts())).content,
             "task #7 assigned to @norman (by user)"
         );
+        let metadata: Value =
+            serde_json::from_str(&compose_assign_event(&agent_facts()).metadata).unwrap();
+        assert_eq!(metadata["subtype"], "task_assign");
     }
 
     #[test]

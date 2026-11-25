@@ -112,6 +112,7 @@ const systemMessageRenderers: Record<SystemSubtype, SystemMessageRenderer> = {
   // muted narration without the structured chip/pill presentation.
   task_create: TaskEventRow,
   task_claim: TaskEventRow,
+  task_assign: TaskEventRow,
   task_unclaim: TaskEventRow,
   task_status: TaskEventRow,
   // task_edit (#task:1531): a title/content definition change — same row

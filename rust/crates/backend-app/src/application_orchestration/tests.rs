@@ -2548,7 +2548,7 @@ async fn the_composition_mounts_every_declared_route() {
     // The 114 human-perimeter product doors. Anonymous (no bearer) → the human
     // session perimeter's `401` envelope, never a `404`: each path IS mounted and
     // guarded. (`.layer` runs the perimeter for any matched human route.)
-    const HUMAN_PERIMETER_DOORS: [(&str, &str); 114] = [
+    const HUMAN_PERIMETER_DOORS: [(&str, &str); 115] = [
         ("POST", "/api/hosts"),
         // #2219 CP4 host-custody batch B — the three perimeter-guarded custody doors.
         // `GET /api/hosts` shares the path node with the invite POST above, so its anon
@@ -2771,6 +2771,7 @@ async fn the_composition_mounts_every_declared_route() {
             "/api/conversations/conv000000000001/members/users/user-1",
         ),
         ("POST", "/api/tasks"),
+        ("POST", "/api/tasks/task-1/assign"),
         ("POST", "/api/tasks/task-1/claim"),
         ("POST", "/api/tasks/task-1/unclaim"),
         ("POST", "/api/tasks/task-1/status"),
@@ -2781,7 +2782,7 @@ async fn the_composition_mounts_every_declared_route() {
         ("GET", "/api/tasks/by-number"),
         ("GET", "/api/tasks/task-1"),
     ];
-    assert_eq!(HUMAN_PERIMETER_DOORS.len(), 114);
+    assert_eq!(HUMAN_PERIMETER_DOORS.len(), 115);
     for (method, path) in HUMAN_PERIMETER_DOORS {
         let (status, body) = request(&router, method, path, None).await;
         assert_eq!(status, StatusCode::UNAUTHORIZED, "{method} {path}: {body}");

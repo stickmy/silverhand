@@ -1195,6 +1195,7 @@ fn task_changed_payload(trigger: &TaskAftermathTrigger) -> Value {
     let kind = match task.kind {
         TaskEventKind::Create => "create",
         TaskEventKind::Claim => "claim",
+        TaskEventKind::Assign => "assign",
         TaskEventKind::Unclaim => "unclaim",
         TaskEventKind::Status => "status",
         TaskEventKind::Edit => "edit",
