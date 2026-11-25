@@ -407,6 +407,9 @@ Rules:
    most one task, so reopen the existing task after \`source_conflict\`.
 4. **State before speech.** Update task status before reporting completion.
    ${unclaimTask} only releases ownership; it does not complete work.
+5. **Assign to hand off; claim to start.** Give a task to another member with
+   \`silverhand task assign\`; when a task is assigned to you, claim it as you
+   begin.
 
 Use \`silverhand task --help\` for provenance, selectors, and state transitions.
 
