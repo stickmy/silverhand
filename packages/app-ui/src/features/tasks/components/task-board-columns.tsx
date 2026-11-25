@@ -22,9 +22,8 @@ import { absoluteTime, RelativeTime } from "@/features/messages/components/relat
 import { ChannelIcon } from "@/components/channel-icon";
 import { EventPerson } from "@/features/tasks/components/task-event-person";
 import {
-  StatusPicker,
   TaskCardContextMenu,
-  taskStatusLabel,
+  TaskStatusButton,
 } from "@/features/tasks/components/task-status-badge";
 import { t } from "@/lib/i18n";
 
@@ -351,20 +350,9 @@ function TaskRow({
         >
           <RelativeTime epochMs={task.created_at} />
         </span>
-        <StatusPicker current={task.status} onChange={onStatusChange}>
-          <button
-            type="button"
-            data-task-row-status
-            aria-label={t("tasks.changeStatusCurrent", { status: taskStatusLabel(task.status) })}
-            className="relative z-(--z-raised) inline-flex h-6 cursor-pointer items-center gap-1.5 rounded-(--control-radius) border-[length:var(--control-border-width)] border-border-subtle px-2 text-text-secondary transition-colors hover:border-border hover:bg-bg-hover hover:text-text-primary focus-outline"
-          >
-            <span data-task-cube data-task-ref-tone={task.status} aria-hidden />
-            <span className="min-w-0 flex-1 truncate text-left">
-              {taskStatusLabel(task.status)}
-            </span>
-            <ChevronDownIcon className="size-3 shrink-0 text-text-muted" aria-hidden />
-          </button>
-        </StatusPicker>
+        <span data-task-row-status className="relative z-(--z-raised) flex">
+          <TaskStatusButton status={task.status} onChange={onStatusChange} className="w-full" />
+        </span>
       </div>
     </TaskCardContextMenu>
   );

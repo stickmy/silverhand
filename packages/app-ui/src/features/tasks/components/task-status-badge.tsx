@@ -1,6 +1,7 @@
+import "./task-status-badge.css";
 import { useState, type ReactElement, type ReactNode } from "react";
 import * as Popover from "@radix-ui/react-popover";
-import { ArrowRightIcon } from "@/icons";
+import { ArrowRightIcon, ChevronDownIcon } from "@/icons";
 import type { TaskStatus } from "@silverhand/shared";
 import { cn } from "@/lib/cn";
 import { AppContextMenu, AppContextMenuItem } from "@/components/menus/app-context-menu";
@@ -102,6 +103,41 @@ export function TaskStatusBadge({
         )}
       >
         {statusLabels()[status]}
+      </button>
+    </StatusPicker>
+  );
+}
+
+/**
+ * The status control on the task board and in task detail: cube, label and a
+ * chevron that opens the {@link StatusPicker}.
+ */
+export function TaskStatusButton({
+  status,
+  onChange,
+  disabled = false,
+  className,
+}: {
+  status: TaskStatus;
+  onChange: (next: TaskStatus) => void;
+  /** Another edit on the task is in flight; the control holds still. */
+  disabled?: boolean;
+  className?: string;
+}): JSX.Element {
+  return (
+    <StatusPicker current={status} onChange={onChange}>
+      <button
+        type="button"
+        disabled={disabled}
+        aria-label={t("tasks.changeStatusCurrent", { status: statusLabels()[status] })}
+        className={cn(
+          "inline-flex h-6 cursor-pointer items-center gap-1.5 rounded-(--control-radius) border-[length:var(--control-border-width)] border-border-subtle px-2 text-text-secondary transition-colors hover:border-border hover:bg-bg-hover hover:text-text-primary focus-outline disabled:cursor-default",
+          className,
+        )}
+      >
+        <span data-task-cube data-task-ref-tone={status} aria-hidden />
+        <span className="min-w-0 flex-1 truncate text-left">{statusLabels()[status]}</span>
+        <ChevronDownIcon className="size-3 shrink-0 text-text-muted" aria-hidden />
       </button>
     </StatusPicker>
   );

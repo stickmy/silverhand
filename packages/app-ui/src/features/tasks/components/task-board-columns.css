@@ -53,22 +53,6 @@
   white-space: nowrap;
 }
 
-/* The status cube (group header and row status button): the task card / inline reference recipe, its hue
-   from the shared `--task-ref-tone` map. */
-[data-tasks-board] [data-task-cube] {
-  display: block;
-  width: 10px;
-  height: 10px;
-  flex-shrink: 0;
-  border-radius: var(--task-ref-cube-radius);
-  background-color: var(--task-ref-tone, var(--text-muted));
-}
-
-[data-tasks-board] [data-task-cube][data-task-ref-tone="todo"] {
-  background-color: transparent;
-  box-shadow: inset 0 0 0 1.5px var(--task-ref-tone);
-}
-
 /* Sized for the cube plus the longest label ("in progress") so every row's
    button is the same width and the column stays straight. */
 [data-task-row] > [data-task-row-status] {

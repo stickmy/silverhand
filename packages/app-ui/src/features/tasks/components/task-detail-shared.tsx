@@ -11,7 +11,7 @@ import {
   usePersonDirectory,
   type PersonDirectory,
 } from "@/features/tasks/components/person-avatar";
-import { TaskStatusBadge } from "@/features/tasks/components/task-status-badge";
+import { TaskStatusButton } from "@/features/tasks/components/task-status-badge";
 import {
   type TaskAssigneeRef,
   useAssignTask,
@@ -175,7 +175,15 @@ export function useTaskMetaRows({
       error: statusFailed ? t("tasks.couldntUpdateStatus") : null,
       value: (
         <span className="flex items-center gap-1.5">
-          <TaskStatusBadge status={view.status} {...(busy ? {} : { onChange: onStatusChange })} />
+          {/* The meta grid lines up 16px rows by their first line; the 24px
+              button overhangs its row by 4px each way so its label centres on
+              the row label like every other value. */}
+          <TaskStatusButton
+            status={view.status}
+            onChange={onStatusChange}
+            disabled={busy}
+            className="-my-1"
+          />
           {statusPending ? <PendingSpinner /> : null}
         </span>
       ),
