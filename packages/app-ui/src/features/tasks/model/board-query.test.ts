@@ -14,7 +14,7 @@ import { COLUMN_PAGE_SIZE } from "./column-window";
 import { DEFAULT_TASK_FILTERS, type TaskFilters } from "./task-filters";
 
 function filters(overrides: Partial<TaskFilters>): TaskFilters {
-  return { ...DEFAULT_TASK_FILTERS, ...overrides };
+  return { ...DEFAULT_TASK_FILTERS, created: "all", ...overrides };
 }
 
 /** Query params as the server will actually receive them. */
@@ -42,8 +42,16 @@ describe("boardFilterParams", () => {
     });
   });
 
-  it("omits every axis at its default", () => {
-    expect(boardFilterParams(DEFAULT_TASK_FILTERS)).toEqual({});
+  it("omits every axis when nothing narrows", () => {
+    expect(boardFilterParams(filters({ created: "all" }))).toEqual({});
+  });
+
+  it("sends the creation window as a canonical epoch-ms lower bound", () => {
+    const p = boardFilterParams(filters({ created: "week" }));
+    expect(p.created_after).toMatch(/^[1-9][0-9]*$/);
+    expect(boardFilterKey(filters({ created: "week" }))).not.toEqual(
+      boardFilterKey(filters({ created: "all" })),
+    );
   });
 
   it("sends the unassigned assignee axis with no id", () => {
@@ -157,7 +165,7 @@ describe("boardFilterKey", () => {
   // or both surfaces fetch the identical page twice under two keys.
   it("collapses states that narrow identically", () => {
     expect(boardFilterKey(filters({ creator: { kind: "unassigned" } }))).toBe(
-      boardFilterKey(DEFAULT_TASK_FILTERS),
+      boardFilterKey(filters({})),
     );
   });
 

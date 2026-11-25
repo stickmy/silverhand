@@ -10,6 +10,7 @@ describe("parseTaskFilters", () => {
       channelId: "dp-1",
       assignee: { kind: "person", person: { type: "agent", id: "a-1" } },
       creator: { kind: "person", person: { type: "user", id: "u-1" } },
+      created: "month",
     };
     expect(parseTaskFilters(JSON.stringify(filters))).toEqual(filters);
   });
@@ -27,6 +28,7 @@ describe("parseTaskFilters", () => {
       channelId: 7,
       assignee: { kind: "person", person: { type: "robot", id: "x" } },
       creator: { kind: "unassigned" },
+      created: "year",
     });
     expect(parseTaskFilters(raw)).toEqual(DEFAULT_TASK_FILTERS);
   });

@@ -6,7 +6,7 @@ import {
   type TaskStatus,
 } from "@silverhand/shared";
 import { COLUMN_PAGE_SIZE } from "./column-window";
-import { type TaskFilters } from "./task-filters";
+import { createdWindowStart, type TaskFilters } from "./task-filters";
 
 /**
  * Wire mapping for the board read faces (#task:1884) — the pure half of the
@@ -35,6 +35,7 @@ export interface BoardFilterParams {
   assignee_id?: string;
   creator_type?: TaskBoardCreatorFilterType;
   creator_id?: string;
+  created_after?: string;
 }
 
 /**
@@ -65,6 +66,8 @@ export function boardFilterParams(filters: TaskFilters): BoardFilterParams {
     params.creator_type = filters.creator.person.type;
     params.creator_id = filters.creator.person.id;
   }
+  const createdAfter = createdWindowStart(filters.created);
+  if (createdAfter !== null) params.created_after = String(createdAfter);
   return params;
 }
 
@@ -94,9 +97,14 @@ export function boardFilterKey(filters: TaskFilters): string {
   // Container is APPENDED, not prepended: `filterKeyConstrainsAssignee` reads
   // segment [2], and every other positional reader is anchored the same way, so
   // a new axis must land past the existing ones.
-  return [p.workspace_id ?? "*", p.channel_id ?? "*", assignee, creator, p.container ?? "*"].join(
-    "|",
-  );
+  return [
+    p.workspace_id ?? "*",
+    p.channel_id ?? "*",
+    assignee,
+    creator,
+    p.container ?? "*",
+    p.created_after ?? "*",
+  ].join("|");
 }
 
 /**

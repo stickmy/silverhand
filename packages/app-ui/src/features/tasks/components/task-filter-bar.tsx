@@ -11,6 +11,7 @@ import * as Popover from "@radix-ui/react-popover";
 import {
   CheckIcon,
   ChevronDownIcon,
+  ClockIcon,
   CreatedByIcon,
   LayersIcon,
   SearchIcon,
@@ -41,13 +42,16 @@ import {
   applyBoardScopeSelection,
   boardScopeGroups,
   channelAxisScope,
+  createdWindowLabel,
   personFilterKey,
+  TASK_CREATED_WINDOWS,
   taskFiltersEqual,
   workspaceBoardContainer,
   type BoardScopeSelection,
   type ChannelSourceGroup,
   type PersonFilter,
   type PersonOption,
+  type TaskCreatedWindow,
   type TaskFilters,
 } from "@/features/tasks/model/task-filters";
 import { t, useLocale } from "@/lib/i18n";
@@ -299,6 +303,10 @@ export function TaskFilterBar({
         value={filters.creator}
         onChange={(creator) => onChange({ ...filters, creator })}
         {...personDirectory}
+      />
+      <CreatedFilter
+        value={filters.created}
+        onChange={(created) => onChange({ ...filters, created })}
       />
       {dirty ? (
         <button
@@ -830,6 +838,69 @@ function BoardScopeFilter({
 }
 
 // ── Person (assignee / creator) ────────────────────────────────────
+
+// ── Created (fixed windows) ─────────────────────────────────────────
+
+function CreatedFilter({
+  value,
+  onChange,
+}: {
+  value: TaskCreatedWindow;
+  onChange: (next: TaskCreatedWindow) => void;
+}): JSX.Element {
+  const [open, setOpen] = useState(false);
+  const listId = useId();
+  const optionId = (index: number): string => `${listId}-opt-${index}`;
+
+  const choose = (next: TaskCreatedWindow): void => {
+    onChange(next);
+    setOpen(false);
+  };
+  const roving = useRovingList({
+    count: TASK_CREATED_WINDOWS.length,
+    open,
+    onSelect: (index) => {
+      const next = TASK_CREATED_WINDOWS[index];
+      if (next) {
+        choose(next);
+      }
+    },
+  });
+
+  return (
+    <Popover.Root open={open} onOpenChange={setOpen}>
+      <Popover.Trigger asChild>
+        <FilterTrigger
+          icon={<ClockIcon className="size-3.5" />}
+          active={value !== "all"}
+          aria-label={t("tasks.createdFilter")}
+        >
+          {value === "all" ? t("tasks.createdFilter") : createdWindowLabel(value)}
+        </FilterTrigger>
+      </Popover.Trigger>
+      <FilterPanel
+        id={listId}
+        activeDescendant={optionId(roving.activeIndex)}
+        onKeyDown={roving.onKeyDown}
+      >
+        {TASK_CREATED_WINDOWS.map((window, index) => (
+          <OptionRow
+            key={window}
+            selected={value === window}
+            neutral={window === "all"}
+            active={roving.activeIndex === index}
+            id={optionId(index)}
+            optionRef={(el) => roving.registerItem(index, el)}
+            onHover={() => roving.setActiveIndex(index)}
+            onSelect={() => choose(window)}
+          >
+            {createdWindowLabel(window)}
+          </OptionRow>
+        ))}
+      </FilterPanel>
+    </Popover.Root>
+  );
+}
 
 function PersonFilterControl({
   icon,

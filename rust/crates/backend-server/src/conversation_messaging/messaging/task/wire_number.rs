@@ -19,3 +19,8 @@ pub(super) fn parse_canonical_limit(raw: &str, max: usize) -> Option<usize> {
     let value = usize::try_from(value).ok()?;
     (value <= max).then_some(value)
 }
+
+/// An epoch-millisecond instant in the same canonical decimal spelling.
+pub(super) fn parse_canonical_epoch_ms(raw: &str) -> Option<i64> {
+    parse_canonical_task_number(raw).map(TaskNumber::get)
+}

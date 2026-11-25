@@ -15,6 +15,7 @@ fn filters() -> TaskBoardFilters {
         container: None,
         assignee: None,
         creator: None,
+        created_after: None,
     }
 }
 
@@ -69,6 +70,24 @@ async fn viewer_gate_precedes_window_counts_and_facets() {
     let counts = store.counts(&filters()).await.unwrap();
     assert_eq!(counts.todo.get(), 2);
     assert_eq!(counts.done.get(), 0);
+
+    // The creation window narrows the column and its counts alike.
+    let recent = TaskBoardFilters {
+        created_after: Some(2),
+        ..filters()
+    };
+    let recent_page = store
+        .column(&TaskBoardColumnRequest {
+            filters: recent.clone(),
+            status: TaskStatus::Todo,
+            cursor: None,
+            limit: 10,
+        })
+        .await
+        .unwrap();
+    assert_eq!(recent_page.rows.len(), 1);
+    assert_eq!(recent_page.rows[0].task().id().as_str(), "visible-2");
+    assert_eq!(store.counts(&recent).await.unwrap().todo.get(), 1);
 
     let facets = store
         .facets(&UserId::parse("user-1").unwrap(), None)

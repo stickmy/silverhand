@@ -19,11 +19,14 @@ import { mapBoardAuthority, personMenuState, type BoardAuthority } from "../mode
 import {
   applyBoardScopeSelection,
   channelAxisScope,
+  createdWindowLabel,
   personFilterKey,
+  TASK_CREATED_WINDOWS,
   taskFiltersEqual,
   workspaceBoardContainer,
   type PersonFilter,
   type PersonOption,
+  type TaskCreatedWindow,
   type TaskFilters,
 } from "../model/task-filters";
 
@@ -155,6 +158,10 @@ function applyPick(
       return { ...filters, assignee: personFilter(option) };
     case "creator":
       return { ...filters, creator: personFilter(option) };
+    case "created":
+      return TASK_CREATED_WINDOWS.includes(option as TaskCreatedWindow)
+        ? { ...filters, created: option as TaskCreatedWindow }
+        : null;
     default:
       return null;
   }
@@ -279,6 +286,15 @@ function sheetState(
       directory,
     }),
   );
+  fields.push({
+    id: "created",
+    label: t("tasks.createdFilter"),
+    options: TASK_CREATED_WINDOWS.map((window) => ({
+      id: window,
+      label: createdWindowLabel(window),
+    })),
+    selected: filters.created,
+  });
 
   return {
     title: t("tasks.filterTasks"),

@@ -306,6 +306,8 @@ const taskBoardFilterFields = {
   assignee_id: z.string().min(1).optional(),
   creator_type: TaskBoardCreatorFilterTypeSchema.optional(),
   creator_id: z.string().min(1).optional(),
+  /** Only tasks created at or after this epoch-millisecond instant. */
+  created_after: CanonicalPositiveIntegerQuerySchema.optional(),
 } as const;
 
 /** `{type,id}` is one value split across two query params, so the pairing is

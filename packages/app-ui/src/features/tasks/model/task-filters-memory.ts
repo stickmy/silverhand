@@ -1,4 +1,10 @@
-import { DEFAULT_TASK_FILTERS, type PersonFilter, type TaskFilters } from "./task-filters";
+import {
+  DEFAULT_TASK_FILTERS,
+  TASK_CREATED_WINDOWS,
+  type PersonFilter,
+  type TaskCreatedWindow,
+  type TaskFilters,
+} from "./task-filters";
 
 /**
  * The global task board's last filters, kept per renderer like the other
@@ -62,6 +68,9 @@ export function parseTaskFilters(raw: string | null): TaskFilters {
     channelId: parseId(v.channelId),
     assignee: parsePerson(v.assignee, true),
     creator: parsePerson(v.creator, false),
+    created: TASK_CREATED_WINDOWS.includes(v.created as TaskCreatedWindow)
+      ? (v.created as TaskCreatedWindow)
+      : DEFAULT_TASK_FILTERS.created,
   };
 }
 

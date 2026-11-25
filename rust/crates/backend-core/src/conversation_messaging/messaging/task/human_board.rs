@@ -36,6 +36,8 @@ pub struct TaskBoardFilters {
     pub container: Option<TaskBoardContainer>,
     pub assignee: Option<TaskBoardAssigneeFilter>,
     pub creator: Option<TaskBoardCreatorFilter>,
+    /// Only tasks created at or after this epoch-millisecond instant.
+    pub created_after: Option<i64>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

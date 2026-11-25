@@ -72,6 +72,9 @@ fn push_population(builder: &mut QueryBuilder<Sqlite>, filters: &TaskBoardFilter
         }
         None => {}
     }
+    if let Some(created_after) = filters.created_after {
+        builder.push(" AND t.created_at>=").push_bind(created_after);
+    }
 }
 
 fn facet_filters(
@@ -85,6 +88,7 @@ fn facet_filters(
         container,
         assignee: None,
         creator: None,
+        created_after: None,
     }
 }
 

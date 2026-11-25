@@ -1,5 +1,6 @@
 import type { TaskBoardContainer as TaskBoardContainerAxis } from "@silverhand/shared";
 import { isAgentSpace, type WorkspaceOwnership } from "@/features/workspaces/workspace-ownership";
+import dayjs from "dayjs";
 import { t } from "@/lib/i18n";
 
 export type { TaskBoardContainerAxis };
@@ -19,6 +20,45 @@ export type PersonFilter =
   | { kind: "any" }
   | { kind: "unassigned" }
   | { kind: "person"; person: PersonRef };
+
+/** How far back the board reaches by task creation time. */
+export type TaskCreatedWindow = "week" | "two_weeks" | "month" | "all";
+
+export const TASK_CREATED_WINDOWS: readonly TaskCreatedWindow[] = [
+  "week",
+  "two_weeks",
+  "month",
+  "all",
+];
+
+/** Epoch ms the window starts at, or null for no bound. Anchored to local
+ *  midnight so the value (and the board's cache key) holds for the whole day. */
+export function createdWindowStart(window: TaskCreatedWindow, now = dayjs()): number | null {
+  const today = now.startOf("day");
+  switch (window) {
+    case "week":
+      return today.subtract(7, "day").valueOf();
+    case "two_weeks":
+      return today.subtract(14, "day").valueOf();
+    case "month":
+      return today.subtract(1, "month").valueOf();
+    case "all":
+      return null;
+  }
+}
+
+export function createdWindowLabel(window: TaskCreatedWindow): string {
+  switch (window) {
+    case "week":
+      return t("tasks.createdPastWeek");
+    case "two_weeks":
+      return t("tasks.createdPastTwoWeeks");
+    case "month":
+      return t("tasks.createdPastMonth");
+    case "all":
+      return t("tasks.createdAnyTime");
+  }
+}
 
 export interface TaskFilters {
   /** The board's TOP-LEVEL container axis (#task:2041): which KIND of
@@ -50,6 +90,7 @@ export interface TaskFilters {
   channelId: string | null;
   assignee: PersonFilter;
   creator: PersonFilter;
+  created: TaskCreatedWindow;
 }
 
 export const DEFAULT_TASK_FILTERS: TaskFilters = {
@@ -58,6 +99,7 @@ export const DEFAULT_TASK_FILTERS: TaskFilters = {
   channelId: null,
   assignee: { kind: "any" },
   creator: { kind: "any" },
+  created: "two_weeks",
 };
 
 /** Structural equality across all dimensions — drives the "filters differ
@@ -68,7 +110,8 @@ export function taskFiltersEqual(a: TaskFilters, b: TaskFilters): boolean {
     a.workspaceId === b.workspaceId &&
     a.channelId === b.channelId &&
     personFilterKey(a.assignee) === personFilterKey(b.assignee) &&
-    personFilterKey(a.creator) === personFilterKey(b.creator)
+    personFilterKey(a.creator) === personFilterKey(b.creator) &&
+    a.created === b.created
   );
 }
 

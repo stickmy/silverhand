@@ -56,6 +56,7 @@ async fn column<R: HumanTaskBoardRead + Send + Sync + 'static>(
             "assignee_id",
             "creator_type",
             "creator_id",
+            "created_after",
             "status",
             "cursor",
             "limit",
@@ -145,6 +146,7 @@ async fn counts<R: HumanTaskBoardRead + Send + Sync + 'static>(
             "assignee_id",
             "creator_type",
             "creator_id",
+            "created_after",
         ],
     );
     let filters = match filters(&values, viewer) {
@@ -262,6 +264,10 @@ fn filters(values: &HashMap<String, String>, viewer: UserId) -> Result<TaskBoard
         )),
         _ => return Err(()),
     };
+    let created_after = values
+        .get("created_after")
+        .map(|raw| super::wire_number::parse_canonical_epoch_ms(raw).ok_or(()))
+        .transpose()?;
     Ok(TaskBoardFilters {
         viewer,
         workspace,
@@ -269,6 +275,7 @@ fn filters(values: &HashMap<String, String>, viewer: UserId) -> Result<TaskBoard
         container,
         assignee,
         creator,
+        created_after,
     })
 }
 
@@ -395,6 +402,25 @@ mod tests {
         assert_eq!(values.get("status").map(String::as_str), Some("todo"));
         assert_eq!(values.get("limit").map(String::as_str), Some("40"));
         assert!(!values.contains_key("future"));
+    }
+
+    #[test]
+    fn created_after_takes_a_canonical_epoch_ms() {
+        let viewer = UserId::parse("viewer").unwrap();
+        let parse = |raw: &str| filters(&query_map(Some(raw), &["created_after"]), viewer.clone());
+        assert_eq!(
+            parse("created_after=1700000000000").unwrap().created_after,
+            Some(1_700_000_000_000)
+        );
+        assert_eq!(parse("").unwrap().created_after, None);
+        for raw in [
+            "created_after=-1",
+            "created_after=0",
+            "created_after=01",
+            "created_after=1e3",
+        ] {
+            assert!(parse(raw).is_err(), "{raw}");
+        }
     }
 
     #[test]
