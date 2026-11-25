@@ -222,7 +222,7 @@ describe("theme markdown token cascade contract", () => {
     //              (NOT `:root`). Every consumer reads `var(--pane-bg, var(--bg-base))`,
     //              so other themes paint panes with their own `--bg-base`.
     //  --flat-chip-selected-bg / -fg
-    //              poster ink selection for the task board's flat filter chips,
+    //              poster ink fill for a task filter trigger that holds a value,
     //              declared in its `[data-theme]` block. The consumer reads
     //              `var(--flat-chip-selected-bg, var(--bg-inset))`, so other themes
     //              keep the neutral inset fill.

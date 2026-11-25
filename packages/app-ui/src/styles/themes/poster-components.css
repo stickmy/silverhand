@@ -170,12 +170,6 @@
   color: var(--poster-ink);
 }
 
-[data-theme="poster"] [data-channel-icon].task-filter-channel-hash {
-  width: 12px;
-  height: 12px;
-  padding: 0;
-}
-
 [data-theme="poster"] [data-workspace-icon] {
   font-size: 11px;
 }
@@ -235,12 +229,11 @@
   opacity: 0.7;
 }
 
-/* Option rows and the channel filter trigger print the channel glyph without
+/* Option rows print the channel glyph without
    its sticker body, so the selected value is the loudest thing in the list.
    The transparent frame keeps the sticker's footprint. Ink-selected surfaces
    print the glyph yellow straight onto the ink and invert sublabels to paper. */
-[data-theme="poster"] [data-option-row] [data-sticker-tone="channel"],
-[data-theme="poster"] .task-filter-channel-hash[data-sticker-tone="channel"] {
+[data-theme="poster"] [data-option-row] [data-sticker-tone="channel"] {
   --sticker-bg: transparent;
   --sticker-fg: currentColor;
   --sticker-frame: transparent;

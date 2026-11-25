@@ -20,13 +20,11 @@ import {
 import { cn } from "@/lib/cn";
 import { WorkspaceIcon } from "@/components/workspace-icon";
 import { ChannelIcon } from "@/components/channel-icon";
-import { useCompactLayout } from "@/navigation/layout";
 import { AVATAR_PX } from "@/components/avatar-scale";
 import { useDirectPairs } from "@/features/direct-pairs/hooks";
 import { directLinePairVisibleInSidebar } from "@/features/direct-pairs/direct-line-rows";
 import { presentCounterpart } from "@/features/direct-pairs/counterpart-presentation";
 import { AuthorAvatarView } from "@/features/messages/components/author-avatar-view";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   PersonAvatar,
   usePersonDirectory,
@@ -41,7 +39,6 @@ import {
 } from "@/features/tasks/model/board-authority";
 import {
   applyBoardScopeSelection,
-  applyWorkspaceCascade,
   boardScopeGroups,
   channelAxisScope,
   personFilterKey,
@@ -51,7 +48,6 @@ import {
   type ChannelSourceGroup,
   type PersonFilter,
   type PersonOption,
-  type TaskBoardContainerAxis,
   type TaskFilters,
 } from "@/features/tasks/model/task-filters";
 import { t, useLocale } from "@/lib/i18n";
@@ -258,101 +254,33 @@ export function TaskFilterBar({
     return (channelId: string): string | null => byId.get(channelId) ?? null;
   }, [channelOptions]);
 
-  // On a wide pane the two axes people switch most, project and assignee, lie
-  // flat so one click applies them; channel and creator stay behind dropdowns.
-  const compact = useCompactLayout();
   const selectScope = (selection: BoardScopeSelection): void => {
     onChange(applyBoardScopeSelection(filters, selection, channelWorkspaceId));
   };
 
-  const channelControl =
-    !scopeLocked && scope.show && visibleChannelOptions.length > 0 ? (
-      <ChannelFilter
-        options={visibleChannelOptions}
-        allChannelsLabel={allChannelsLabel}
-        value={filters.channelId}
-        onChange={(channelId) => onChange({ ...filters, channelId })}
-      />
-    ) : null;
-  const creatorControl = (
-    <PersonFilterControl
-      icon={<CreatedByIcon className="size-3.5" />}
-      label={t("tasks.from")}
-      anyLabel={t("tasks.all")}
-      population={mapBoardAuthority(people, (f) => f.creators)}
-      value={filters.creator}
-      onChange={(creator) => onChange({ ...filters, creator })}
-      {...personDirectory}
-    />
-  );
-  const resetControl = dirty ? (
-    <button
-      type="button"
-      onClick={() => onChange(baselineFilters)}
-      aria-label={t("tasks.resetFilters")}
-      title={t("tasks.resetFilters")}
-      className={cn(
-        "inline-flex shrink-0 items-center justify-center rounded-(--control-radius) p-1.5",
-        "text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary",
-      )}
-    >
-      <UndoIcon className="size-3.5" />
-    </button>
-  ) : null;
-
-  if (!compact) {
-    return (
-      <div
-        data-task-filter-bar
-        // The bar sizes to its content so New task follows the filters instead of
-        // jumping to the far end; it shrinks (project chips scroll) when narrow.
-        className={cn("flex min-w-0 items-center gap-1.5", className)}
-      >
-        {scopeLocked ? null : (
-          <ScopeStrip
-            workspaceOptions={workspaceOptions}
-            filters={filters}
-            onSelect={selectScope}
-            {...personDirectory}
-          />
-        )}
-        <AssigneeAvatars
-          population={mapBoardAuthority(people, (f) => f.assignees)}
-          allowUnassigned={people.known && people.value.hasUnassigned}
-          value={filters.assignee}
-          onChange={(assignee) => onChange({ ...filters, assignee })}
-          {...personDirectory}
-        />
-        <span aria-hidden className="mx-1 h-4 w-px shrink-0 bg-border-subtle" />
-        {channelControl}
-        {creatorControl}
-        {resetControl}
-      </div>
-    );
-  }
-
+  // One row of uniform dropdowns, coarsest axis first: where a task lives
+  // (project), then its channel, then the people on it.
   return (
-    <div data-task-filter-bar className={cn("flex flex-wrap items-center gap-1.5", className)}>
-      {/* Coarsest axis first: WHICH container a task lives in. One grouped
-          dropdown (#task:2041, shiki 2026-08-17) — an "All" row over two sections
-          (Workspaces / Agent Spaces), each listing the concrete objects — so a
-          pick names the container KIND and the object together instead of the old
-          pick-kind-then-object two-step. DM is never a selectable scope here
-          (contract §5): its tasks reach the board through "All" or their own
-          locked Tasks tab. It leads the row because it reshapes what the downstream
-          channel menu even describes, and reads left-to-right as narrowing. Hidden
-          entirely in a locked direct_pair context (§5), where there is no scope to
-          switch to. */}
+    <div
+      data-task-filter-bar
+      className={cn("flex min-w-0 flex-wrap items-center gap-1.5", className)}
+    >
       {scopeLocked ? null : (
         <BoardScopeFilter
+          filters={filters}
           workspaceOptions={workspaceOptions}
-          containerValue={filters.container}
-          workspaceValue={filters.workspaceId}
           onSelect={selectScope}
           {...personDirectory}
         />
       )}
-      {channelControl}
+      {!scopeLocked && scope.show && visibleChannelOptions.length > 0 ? (
+        <ChannelFilter
+          options={visibleChannelOptions}
+          allChannelsLabel={allChannelsLabel}
+          value={filters.channelId}
+          onChange={(channelId) => onChange({ ...filters, channelId })}
+        />
+      ) : null}
       <PersonFilterControl
         icon={<UserIcon className="size-3.5" />}
         label={t("tasks.assignee")}
@@ -363,8 +291,29 @@ export function TaskFilterBar({
         onChange={(assignee) => onChange({ ...filters, assignee })}
         {...personDirectory}
       />
-      {creatorControl}
-      {resetControl}
+      <PersonFilterControl
+        icon={<CreatedByIcon className="size-3.5" />}
+        label={t("tasks.from")}
+        anyLabel={t("tasks.all")}
+        population={mapBoardAuthority(people, (f) => f.creators)}
+        value={filters.creator}
+        onChange={(creator) => onChange({ ...filters, creator })}
+        {...personDirectory}
+      />
+      {dirty ? (
+        <button
+          type="button"
+          onClick={() => onChange(baselineFilters)}
+          aria-label={t("tasks.resetFilters")}
+          title={t("tasks.resetFilters")}
+          className={cn(
+            "inline-flex shrink-0 items-center justify-center rounded-(--control-radius) p-1.5",
+            "text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary",
+          )}
+        >
+          <UndoIcon className="size-3.5" />
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -412,9 +361,11 @@ const FilterTrigger = forwardRef<
       data-filter-trigger
       data-active={active || undefined}
       className={cn(
-        "flex max-w-50 items-center gap-1.5 rounded-(--control-radius)",
-        "border-(length:--control-border-width) border-transparent px-2 py-1 text-(length:--text-meta) transition-colors",
-        flatChipTone(active),
+        "flex max-w-50 shrink-0 items-center gap-1.5 rounded-(--control-radius)",
+        "border-(length:--control-border-width) border-border px-2 py-1 text-(length:--text-meta) transition-colors focus-outline",
+        active
+          ? "bg-(--flat-chip-selected-bg,var(--bg-inset)) text-(--flat-chip-selected-fg,var(--text-primary))"
+          : "text-text-secondary hover:bg-bg-hover hover:text-text-primary",
         className,
       )}
       {...props}
@@ -652,11 +603,11 @@ function ChannelFilter({
           // of inflating to ~18px — identity AND alignment (shiki #task:1441
           // review). warm/slack carry no box chrome, so `md` (14px) is untouched
           // there.
-          icon={<ChannelIcon variant="sticker" density="md" className="task-filter-channel-hash" />}
+          icon={<ChannelIcon variant="utility" density="md" />}
           active={value !== null}
           aria-label={t("tasks.channel")}
         >
-          {t("tasks.channelFilter", { value: selected?.label ?? allChannelsLabel })}
+          {selected?.label ?? t("tasks.channel")}
         </FilterTrigger>
       </Popover.Trigger>
       <Popover.Portal>
@@ -717,123 +668,117 @@ function ChannelFilter({
   );
 }
 
-// ── Board scope (container × concrete object) ─────────────────────
+// ── Project (board scope) ──────────────────────────────────────────
 
-/** One selectable row in the board-scope dropdown — a workspace whose pick stamps
- *  the container matching its OWNERSHIP (people-owned → `workspace`, agent space →
- *  `agent_space`). A DM is never a row here (contract §5). */
 interface ScopeRow {
   id: string;
   label: string;
-  ws: WorkspaceOption;
+  icon: (size?: number) => JSX.Element;
+  selection: BoardScopeSelection;
 }
 
 /**
- * The board-scope filter — the coarsest axis, as ONE grouped dropdown
- * (#task:2041, shiki 2026-08-17). An "All" row (the union of every container the
- * viewer can see, DM tasks included) sits above two sections that list the
- * CONCRETE objects the viewer can narrow to: Workspaces (people-owned) and Agent
- * Spaces. Picking a leaf names the board container and the object together —
- * `applyBoardScopeSelection` stamps both — so the old pick-container-then-object
- * two-step is gone, and with it the bare "all agent spaces" pick (a container with
- * no object): the "All" row covers the union, and every listed row is a
- * concrete scope. A workspace row wears its own icon (an agent space = its agent's
- * avatar), resolved from the directory the person menus already
- * loaded (no extra fetch). Direct Messages are not a section: a DM is never a
- * selectable global scope (contract §5) — its tasks reach the board through the
- * "All" union or the direct line's own locked Tasks tab, which hides this
- * trigger entirely.
+ * Where a task lives: an All row over Projects, Agent Spaces and Direct
+ * Messages, each listing concrete objects, so one pick names the container and
+ * the object together (`applyBoardScopeSelection` stamps both). Sections with
+ * no rows are left out.
  */
 function BoardScopeFilter({
+  filters,
   workspaceOptions,
-  containerValue,
-  workspaceValue,
   onSelect,
   agentsById,
   agentAvatarUrls,
+  userAvatarUrls,
 }: {
+  filters: TaskFilters;
   workspaceOptions: WorkspaceOption[];
-  containerValue: TaskBoardContainerAxis | null;
-  workspaceValue: string | null;
   onSelect: (selection: BoardScopeSelection) => void;
 } & PersonDirectory): JSX.Element {
   const [open, setOpen] = useState(false);
+  const pairs = useDirectPairs();
 
-  // The two sections come from the pure `boardScopeGroups` seam (ownership →
-  // section and the show-iff-rows rule live there, tested without a DOM); this memo
-  // only projects each section's workspaces into the ScopeRow shape the list renders
-  // and roves over.
-  const groups = useMemo(
-    () =>
-      boardScopeGroups<WorkspaceOption>({ workspaces: workspaceOptions }).map((g) => ({
-        key: g.key,
-        label: g.label,
-        rows: g.workspaces.map((ws): ScopeRow => ({ id: ws.id, label: ws.label, ws })),
-      })),
-    [workspaceOptions],
-  );
-
-  // Flatten for roving focus: index 0 is the All row, then every selectable row
-  // in section order.
-  const flatRows = useMemo(() => groups.flatMap((g) => g.rows), [groups]);
-  const optionIndex = useMemo(() => {
-    const m = new Map<string, number>();
-    flatRows.forEach((r, i) => m.set(r.id, i + 1)); // +1: All occupies 0
-    return m;
-  }, [flatRows]);
-
-  const selectionFor = (row: ScopeRow): BoardScopeSelection => ({
-    kind: "workspace",
-    workspaceId: row.ws.id,
-    container: workspaceBoardContainer(row.ws),
+  // A handful of rows, rebuilt per render so section labels follow the locale.
+  const workspaceGroups = boardScopeGroups<WorkspaceOption>({
+    workspaces: workspaceOptions,
+  }).map((g) => ({
+    key: g.key,
+    label: g.label,
+    rows: g.workspaces.map((ws): ScopeRow => ({
+      id: ws.id,
+      label: ws.label,
+      icon: (size) => (
+        <WorkspaceIcon
+          ownerAgentId={ws.owner_agent_id}
+          agentsById={agentsById}
+          ownerAgentAvatarUrls={agentAvatarUrls}
+          size={size}
+        />
+      ),
+      selection: {
+        kind: "workspace",
+        workspaceId: ws.id,
+        container: workspaceBoardContainer(ws),
+      },
+    })),
+  }));
+  const directRows = pairs.filter(directLinePairVisibleInSidebar).map((pair): ScopeRow => {
+    const { label, avatar } = presentCounterpart(pair.counterpart);
+    return {
+      id: pair.conversation_id,
+      label,
+      icon: (size = AVATAR_PX.xs) => (
+        <AuthorAvatarView
+          avatar={avatar}
+          size={size}
+          label={label}
+          agentAvatarUrls={agentAvatarUrls}
+          humanAvatarUrls={userAvatarUrls}
+        />
+      ),
+      selection: { kind: "direct_messages", conversationId: pair.conversation_id },
+    };
   });
+  const groups =
+    directRows.length > 0
+      ? [
+          ...workspaceGroups,
+          { key: "direct-messages", label: t("tasks.directMessages"), rows: directRows },
+        ]
+      : workspaceGroups;
+
+  // Roving order: All at 0, then every row in section order.
+  const flatRows = groups.flatMap((g) => g.rows);
+  const selectedId =
+    filters.container === "direct_messages" ? filters.channelId : filters.workspaceId;
+  const selected =
+    filters.container === null ? null : (flatRows.find((r) => r.id === selectedId) ?? null);
 
   const listId = useId();
   const optionId = (index: number): string => `${listId}-opt-${index}`;
-  const roving = useRovingList({
-    count: flatRows.length + 1,
-    open,
-    onSelect: (index) => {
-      if (index === 0) onSelect({ kind: "all" });
-      else {
-        const row = flatRows[index - 1];
-        if (row) onSelect(selectionFor(row));
+  const pick = (index: number): void => {
+    if (index === 0) {
+      onSelect({ kind: "all" });
+    } else {
+      const row = flatRows[index - 1];
+      if (row) {
+        onSelect(row.selection);
       }
-      setOpen(false);
-    },
-  });
+    }
+    setOpen(false);
+  };
+  const roving = useRovingList({ count: flatRows.length + 1, open, onSelect: pick });
 
-  // Trigger identity mirrors the selection: a workspace's own icon, or the generic
-  // Layers for All — sized to the shared 14px control-glyph box so the trigger
-  // never drifts taller than the row (#task:1437).
-  const selectedWs = flatRows.find((r) => r.ws.id === workspaceValue);
-  const triggerIcon = selectedWs ? (
-    <WorkspaceIcon
-      ownerAgentId={selectedWs.ws.owner_agent_id}
-      agentsById={agentsById}
-      ownerAgentAvatarUrls={agentAvatarUrls}
-      size={TRIGGER_GLYPH_PX}
-    />
-  ) : (
-    <LayersIcon className="size-3.5" />
-  );
-
+  let index = 0;
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
         <FilterTrigger
-          icon={triggerIcon}
-          // Active = a concrete scope is chosen (container ≠ null): the lime chip
-          // signals the board is narrowed, same vocabulary as the sibling
-          // triggers. All is the neutral default.
-          active={containerValue !== null}
-          aria-label={t("tasks.boardScope")}
+          icon={selected ? selected.icon(TRIGGER_GLYPH_PX) : <LayersIcon className="size-3.5" />}
+          active={selected !== null}
+          aria-label={t("tasks.project")}
         >
-          {t("tasks.projectFilter", {
-            value:
-              selectedWs?.label ??
-              (containerValue === "direct_messages" ? t("tasks.directMessages") : t("tasks.all")),
-          })}
+          {selected?.label ?? t("tasks.project")}
         </FilterTrigger>
       </Popover.Trigger>
       <FilterPanel
@@ -842,16 +787,13 @@ function BoardScopeFilter({
         onKeyDown={roving.onKeyDown}
       >
         <OptionRow
-          selected={containerValue === null}
+          selected={selected === null}
           neutral
           active={roving.activeIndex === 0}
           id={optionId(0)}
           optionRef={(el) => roving.registerItem(0, el)}
           onHover={() => roving.setActiveIndex(0)}
-          onSelect={() => {
-            onSelect({ kind: "all" });
-            setOpen(false);
-          }}
+          onSelect={() => pick(0)}
         >
           {t("tasks.all")}
         </OptionRow>
@@ -861,28 +803,20 @@ function BoardScopeFilter({
               {group.label}
             </div>
             {group.rows.map((row) => {
-              const index = optionIndex.get(row.id) ?? -1;
+              index += 1;
+              const at = index;
               return (
                 <OptionRow
                   key={row.id}
-                  selected={row.ws.id === workspaceValue}
-                  active={roving.activeIndex === index}
-                  id={optionId(index)}
-                  optionRef={(el) => roving.registerItem(index, el)}
-                  onHover={() => roving.setActiveIndex(index)}
-                  onSelect={() => {
-                    onSelect(selectionFor(row));
-                    setOpen(false);
-                  }}
+                  selected={row === selected}
+                  active={roving.activeIndex === at}
+                  id={optionId(at)}
+                  optionRef={(el) => roving.registerItem(at, el)}
+                  onHover={() => roving.setActiveIndex(at)}
+                  onSelect={() => pick(at)}
                 >
                   <span className="flex min-w-0 items-center gap-1.5">
-                    <span className="shrink-0">
-                      <WorkspaceIcon
-                        ownerAgentId={row.ws.owner_agent_id}
-                        agentsById={agentsById}
-                        ownerAgentAvatarUrls={agentAvatarUrls}
-                      />
-                    </span>
+                    <span className="shrink-0">{row.icon()}</span>
                     <span className="truncate">{row.label}</span>
                   </span>
                 </OptionRow>
@@ -972,7 +906,7 @@ function PersonFilterControl({
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
         <FilterTrigger icon={icon} active={value.kind !== "any"} aria-label={label}>
-          {`${label}:${valuePart}`}
+          {value.kind === "any" ? label : valuePart}
         </FilterTrigger>
       </Popover.Trigger>
       <FilterPanel
@@ -1040,437 +974,6 @@ function PersonFilterControl({
                 : t("tasks.noneYet")}
           </p>
         )}
-      </FilterPanel>
-    </Popover.Root>
-  );
-}
-
-// ── Scope strip (wide layout) ──────────────────────────────────────
-
-const FLAT_CHIP =
-  "flex h-6 shrink-0 items-center gap-1.5 rounded-(--control-radius) px-2 text-(length:--text-meta) transition-colors focus-outline";
-
-/** Selection here is a utility state, so it takes a neutral ink fill rather than
- *  the theme's selected-row colour, which spends the accent. A theme whose
- *  selection is ink rather than accent (poster) repaints it through the tokens. */
-function flatChipTone(selected: boolean): string {
-  return selected
-    ? "bg-(--flat-chip-selected-bg,var(--bg-inset)) text-(--flat-chip-selected-fg,var(--text-primary))"
-    : "text-text-secondary hover:bg-bg-hover hover:text-text-primary";
-}
-
-function FlatChip({
-  selected,
-  onSelect,
-  children,
-}: {
-  selected: boolean;
-  onSelect: () => void;
-  children: ReactNode;
-}): JSX.Element {
-  return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={selected}
-      onClick={onSelect}
-      className={cn(FLAT_CHIP, "max-w-40", flatChipTone(selected))}
-    >
-      <span className="truncate">{children}</span>
-    </button>
-  );
-}
-
-/**
- * The board scope laid flat: All, each project, and Direct Messages are one
- * click; agent spaces read like people's names beside projects, so they sit
- * behind one picker that shows the chosen space in place.
- */
-function ScopeStrip({
-  workspaceOptions,
-  filters,
-  onSelect,
-  agentsById,
-  agentAvatarUrls,
-  userAvatarUrls,
-}: {
-  workspaceOptions: WorkspaceOption[];
-  filters: TaskFilters;
-  onSelect: (selection: BoardScopeSelection) => void;
-} & PersonDirectory): JSX.Element {
-  const projects = workspaceOptions.filter((w) => workspaceBoardContainer(w) === "workspace");
-  const workspaceIcon = (ws: WorkspaceOption, size?: number): JSX.Element => (
-    <WorkspaceIcon
-      ownerAgentId={ws.owner_agent_id}
-      agentsById={agentsById}
-      ownerAgentAvatarUrls={agentAvatarUrls}
-      size={size}
-    />
-  );
-  const agentSpaces = workspaceOptions
-    .filter((w) => workspaceBoardContainer(w) === "agent_space")
-    .map((ws): ScopePickerOption => ({
-      id: ws.id,
-      label: ws.label,
-      icon: (size) => workspaceIcon(ws, size),
-    }));
-
-  const pairs = useDirectPairs();
-  const directLines = pairs
-    .filter(directLinePairVisibleInSidebar)
-    .map((pair): ScopePickerOption => {
-      const { label, avatar } = presentCounterpart(pair.counterpart);
-      return {
-        id: pair.conversation_id,
-        label,
-        icon: (size = AVATAR_PX.xs) => (
-          <AuthorAvatarView
-            avatar={avatar}
-            size={size}
-            label={label}
-            agentAvatarUrls={agentAvatarUrls}
-            humanAvatarUrls={userAvatarUrls}
-          />
-        ),
-      };
-    });
-
-  return (
-    <div
-      role="radiogroup"
-      aria-label={t("tasks.boardScope")}
-      className="flex min-w-0 items-center gap-0.5"
-    >
-      <FlatChip selected={filters.container === null} onSelect={() => onSelect({ kind: "all" })}>
-        {t("tasks.all")}
-      </FlatChip>
-      <div className="scrollbar-hide flex min-w-0 items-center gap-0.5 overflow-x-auto">
-        {projects.map((ws) => (
-          <FlatChip
-            key={ws.id}
-            selected={filters.container === "workspace" && filters.workspaceId === ws.id}
-            onSelect={() =>
-              onSelect({ kind: "workspace", workspaceId: ws.id, container: "workspace" })
-            }
-          >
-            {ws.label}
-          </FlatChip>
-        ))}
-      </div>
-      {agentSpaces.length > 0 ? (
-        <ScopePicker
-          label={t("tasks.agentSpaces")}
-          options={agentSpaces}
-          value={filters.container === "agent_space" ? filters.workspaceId : null}
-          onSelect={(id) =>
-            onSelect({ kind: "workspace", workspaceId: id, container: "agent_space" })
-          }
-        />
-      ) : null}
-      {directLines.length > 0 ? (
-        <ScopePicker
-          label={t("tasks.directMessages")}
-          options={directLines}
-          value={filters.container === "direct_messages" ? filters.channelId : null}
-          onSelect={(id) => onSelect({ kind: "direct_messages", conversationId: id })}
-        />
-      ) : null}
-    </div>
-  );
-}
-
-interface ScopePickerOption {
-  id: string;
-  label: string;
-  icon: (size?: number) => JSX.Element;
-}
-
-/** A scope family with many members (agent spaces, direct lines) behind one chip
- *  that shows the chosen member in place. */
-function ScopePicker({
-  label,
-  options,
-  value,
-  onSelect,
-}: {
-  label: string;
-  options: ScopePickerOption[];
-  value: string | null;
-  onSelect: (id: string) => void;
-}): JSX.Element {
-  const [open, setOpen] = useState(false);
-  const selected = options.find((o) => o.id === value) ?? null;
-  const listId = useId();
-  const optionId = (index: number): string => `${listId}-opt-${index}`;
-  const pick = (index: number): void => {
-    const o = options[index];
-    if (o) {
-      onSelect(o.id);
-    }
-    setOpen(false);
-  };
-  const roving = useRovingList({ count: options.length, open, onSelect: pick });
-
-  return (
-    <Popover.Root open={open} onOpenChange={setOpen}>
-      <Popover.Trigger asChild>
-        <button
-          type="button"
-          aria-label={label}
-          className={cn(FLAT_CHIP, "max-w-40", flatChipTone(selected !== null))}
-        >
-          {selected ? selected.icon(TRIGGER_GLYPH_PX) : null}
-          <span className="truncate">{selected?.label ?? label}</span>
-          <ChevronDownIcon className="size-3 shrink-0 opacity-70" />
-        </button>
-      </Popover.Trigger>
-      <FilterPanel
-        id={listId}
-        activeDescendant={optionId(roving.activeIndex)}
-        onKeyDown={roving.onKeyDown}
-      >
-        {options.map((o, index) => (
-          <OptionRow
-            key={o.id}
-            selected={o.id === value}
-            active={roving.activeIndex === index}
-            id={optionId(index)}
-            optionRef={(el) => roving.registerItem(index, el)}
-            onHover={() => roving.setActiveIndex(index)}
-            onSelect={() => pick(index)}
-          >
-            <span className="flex min-w-0 items-center gap-1.5">
-              <span className="shrink-0">{o.icon()}</span>
-              <span className="truncate">{o.label}</span>
-            </span>
-          </OptionRow>
-        ))}
-      </FilterPanel>
-    </Popover.Root>
-  );
-}
-
-// ── Assignee (flat avatars) ────────────────────────────────────────
-
-/** Avatars shown flat before the rest fold into a "+N" menu. */
-const FLAT_ASSIGNEE_LIMIT = 6;
-
-/**
- * The assignee axis laid flat: one avatar per person, click to narrow, click the
- * selected one again to clear. Order follows the facet read, never the selection,
- * so an avatar does not move under the pointer. Until the population is known the
- * row holds nothing; a failed or empty read falls back to the dropdown, whose
- * footer says which of those it is.
- */
-function AssigneeAvatars({
-  population,
-  allowUnassigned,
-  value,
-  onChange,
-  ...directory
-}: {
-  population: BoardAuthority<PersonOption[]>;
-  allowUnassigned: boolean;
-  value: PersonFilter;
-  onChange: (next: PersonFilter) => void;
-} & PersonDirectory): JSX.Element | null {
-  const state = personMenuState(population);
-  if (state === "loading") {
-    return null;
-  }
-  if (state !== "ready" && !allowUnassigned) {
-    return (
-      <PersonFilterControl
-        icon={<UserIcon className="size-3.5" />}
-        label={t("tasks.assignee")}
-        anyLabel={t("tasks.all")}
-        population={population}
-        value={value}
-        onChange={onChange}
-        {...directory}
-      />
-    );
-  }
-
-  const options = population.known ? population.value : NO_PEOPLE;
-  const flat = options.slice(0, FLAT_ASSIGNEE_LIMIT);
-  const folded = options.slice(FLAT_ASSIGNEE_LIMIT);
-  const selectedKey = personFilterKey(value);
-  const toggle = (next: PersonFilter): void => {
-    onChange(personFilterKey(next) === selectedKey ? { kind: "any" } : next);
-  };
-
-  return (
-    <TooltipProvider>
-      <div
-        role="radiogroup"
-        aria-label={t("tasks.assignee")}
-        data-assignee-avatars
-        className="flex shrink-0 items-center gap-0.5"
-      >
-        {flat.map((o) => {
-          const next: PersonFilter = { kind: "person", person: o.person };
-          return (
-            <AvatarToggle
-              key={personFilterKey(next)}
-              label={o.name}
-              selected={personFilterKey(next) === selectedKey}
-              onToggle={() => toggle(next)}
-            >
-              <PersonAvatar person={o.person} name={o.name} size={AVATAR_PX.sm} {...directory} />
-            </AvatarToggle>
-          );
-        })}
-        {folded.length > 0 ? (
-          <FoldedAssignees
-            options={folded}
-            value={value}
-            onSelect={(next) => toggle(next)}
-            {...directory}
-          />
-        ) : null}
-        {allowUnassigned ? (
-          <AvatarToggle
-            label={t("tasks.noAssignee")}
-            selected={value.kind === "unassigned"}
-            onToggle={() => toggle({ kind: "unassigned" })}
-            nameWhenSelected={false}
-          >
-            <span
-              className={cn(
-                "flex size-5 shrink-0 items-center justify-center rounded-(--avatar-radius) border border-dashed",
-                // Selected inherits the chip's foreground: Poster paints the
-                // selected chip ink, where the muted grey disappears.
-                value.kind === "unassigned"
-                  ? "border-current"
-                  : "border-text-muted text-text-muted",
-              )}
-            >
-              <UserIcon className="size-3" />
-            </span>
-          </AvatarToggle>
-        ) : null}
-      </div>
-    </TooltipProvider>
-  );
-}
-
-const AVATAR_TOGGLE_BOX =
-  "flex h-7 shrink-0 items-center justify-center rounded-(--control-radius) transition-colors focus-outline";
-
-/** One assignee avatar; a selected person also spells their name, so the narrowed
- *  state reads without hovering. */
-function AvatarToggle({
-  label,
-  selected,
-  onToggle,
-  nameWhenSelected = true,
-  children,
-}: {
-  label: string;
-  selected: boolean;
-  onToggle: () => void;
-  /** Off for No assignee: its dashed glyph already says it, and the name adds width. */
-  nameWhenSelected?: boolean;
-  children: ReactNode;
-}): JSX.Element {
-  const named = selected && nameWhenSelected;
-  const button = (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={selected}
-      aria-label={label}
-      onClick={onToggle}
-      className={cn(
-        AVATAR_TOGGLE_BOX,
-        named ? "max-w-40 gap-1.5 pl-1 pr-2" : "w-7",
-        flatChipTone(selected),
-      )}
-    >
-      {children}
-      {named ? <span className="truncate text-(length:--text-meta)">{label}</span> : null}
-    </button>
-  );
-  if (named) {
-    return button;
-  }
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>{button}</TooltipTrigger>
-      <TooltipContent side="bottom">{label}</TooltipContent>
-    </Tooltip>
-  );
-}
-
-function FoldedAssignees({
-  options,
-  value,
-  onSelect,
-  ...directory
-}: {
-  options: PersonOption[];
-  value: PersonFilter;
-  onSelect: (next: PersonFilter) => void;
-} & PersonDirectory): JSX.Element {
-  const [open, setOpen] = useState(false);
-  const selectedKey = personFilterKey(value);
-  const holdsSelection = options.some(
-    (o) => personFilterKey({ kind: "person", person: o.person }) === selectedKey,
-  );
-  const listId = useId();
-  const optionId = (index: number): string => `${listId}-opt-${index}`;
-  const pick = (index: number): void => {
-    const o = options[index];
-    if (o) {
-      onSelect({ kind: "person", person: o.person });
-    }
-    setOpen(false);
-  };
-  const roving = useRovingList({ count: options.length, open, onSelect: pick });
-
-  return (
-    <Popover.Root open={open} onOpenChange={setOpen}>
-      <Popover.Trigger asChild>
-        <button
-          type="button"
-          aria-label={t("tasks.assignee")}
-          className={cn(
-            AVATAR_TOGGLE_BOX,
-            "min-w-7 px-1 text-(length:--text-meta)",
-            flatChipTone(holdsSelection),
-          )}
-        >
-          {`+${options.length}`}
-        </button>
-      </Popover.Trigger>
-      <FilterPanel
-        id={listId}
-        activeDescendant={optionId(roving.activeIndex)}
-        onKeyDown={roving.onKeyDown}
-      >
-        {options.map((o, index) => {
-          const key = personFilterKey({ kind: "person", person: o.person });
-          return (
-            <OptionRow
-              key={key}
-              selected={key === selectedKey}
-              active={roving.activeIndex === index}
-              id={optionId(index)}
-              optionRef={(el) => roving.registerItem(index, el)}
-              onHover={() => roving.setActiveIndex(index)}
-              onSelect={() => pick(index)}
-            >
-              <span className="flex min-w-0 items-center gap-1.5">
-                <span className="shrink-0">
-                  <PersonAvatar person={o.person} name={o.name} {...directory} />
-                </span>
-                <span className="truncate">{o.name}</span>
-              </span>
-            </OptionRow>
-          );
-        })}
       </FilterPanel>
     </Popover.Root>
   );

@@ -1,16 +1,6 @@
 import { describe, expect, it } from "vitest";
-import React from "react";
-import { renderToStaticMarkup } from "react-dom/server";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-import {
-  buildChannelFilterOptions,
-  TaskFilterBar,
-  type ChannelFilterCandidate,
-  type ChannelOption,
-  type WorkspaceOption,
-} from "./task-filter-bar";
-import { DEFAULT_TASK_FILTERS } from "@/features/tasks/model/task-filters";
+import { buildChannelFilterOptions, type ChannelFilterCandidate } from "./task-filter-bar";
 import { workspaceChannelCandidates } from "@/features/tasks/hooks/use-task-filter-options";
 
 function candidate(over: Partial<ChannelFilterCandidate> & { id: string }): ChannelFilterCandidate {
@@ -134,52 +124,5 @@ describe("workspaceChannelCandidates — channel picker label/subtitle rule", ()
       [ch("c1", "Onboarding")],
     );
     expect(out[0]).toMatchObject({ title: "Onboarding", sublabel: "Judy" });
-  });
-});
-
-describe("TaskFilterBar — trigger glyphs stay height-uniform (#task:1437)", () => {
-  const workspaceOptions: WorkspaceOption[] = [
-    { id: "ws-1", label: "Engineering", owner_agent_id: null },
-  ];
-  const channelOptions: ChannelOption[] = [
-    { id: "c-1", workspaceId: "ws-1", label: "general", group: "workspace" },
-  ];
-
-  function renderBar(): string {
-    const client = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
-    return renderToStaticMarkup(
-      React.createElement(
-        QueryClientProvider,
-        { client },
-        React.createElement(TaskFilterBar, {
-          filters: DEFAULT_TASK_FILTERS,
-          onChange: () => {},
-          baselineFilters: DEFAULT_TASK_FILTERS,
-          workspaceOptions,
-          channelOptions,
-          allChannelsLabel: "All channels",
-          people: {
-            known: true,
-            value: { assignees: [], creators: [], hasUnassigned: false },
-          },
-        }),
-      ),
-    );
-  }
-
-  it("channel trigger uses the sticker `#` identity hook (#task:1441)", () => {
-    // #task:1437 originally kept the channel trigger on the UTILITY `#` (no
-    // `data-channel-icon` hook) so the poster sticker recipe couldn't inflate
-    // it past its 14px siblings. #task:1441 SUPERSEDES that: now that the
-    // poster `#` sticker is FLAT at rest (no drop-shadow), shiki wants the
-    // selected-label `#` to carry the same yellow poster identity as the
-    // dropdown rows + the rest of the app — so the trigger DOES wear the hook.
-    // (The slight poster border/padding inflation is CSS-only, out of SSR
-    // scope, and an accepted trade-off for identity consistency.)
-    const html = renderBar();
-    expect(html).toContain('aria-label="Channel"');
-    expect(html).toContain("data-channel-icon");
   });
 });
