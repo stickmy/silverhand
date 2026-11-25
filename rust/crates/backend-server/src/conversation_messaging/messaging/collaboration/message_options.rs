@@ -17,9 +17,9 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use silverhand_backend_core::{
     conversation_messaging::messaging::collaboration::message_options::{
-        AnswerCommand, AnswerRefusal, AnsweredFact, InvalidOptions, MessageAnswer, MessageOptions,
-        MessageOptionsAftermath, MessageOptionsPort, MessageOptionsState, OptionsActor,
-        UpdateOptionsCommand,
+        AnswerCommand, AnswerEventMessage, AnswerRefusal, InvalidOptions, MessageAnswer,
+        MessageOptions, MessageOptionsAftermath, MessageOptionsPort, MessageOptionsState,
+        OptionsActor, QuestionCoordinates, UpdateOptionsCommand, WithdrawAnswerCommand,
     },
     conversation_messaging::messaging::{MessageId, PrincipalIdentity},
     foundation::identity::{AgentId, UserId},
@@ -54,7 +54,10 @@ where
     A: MessageOptionsAftermath + Send + Sync + 'static,
 {
     Router::new()
-        .route(HUMAN_ANSWER_PATH, post(human_answer::<P, A>))
+        .route(
+            HUMAN_ANSWER_PATH,
+            post(human_answer::<P, A>).delete(human_withdraw::<P, A>),
+        )
         .with_state(OptionsState(Arc::new(Inner { port, aftermath })))
 }
 
@@ -64,7 +67,10 @@ where
     A: MessageOptionsAftermath + Send + Sync + 'static,
 {
     Router::new()
-        .route(AGENT_ANSWER_PATH, post(agent_answer::<P, A>))
+        .route(
+            AGENT_ANSWER_PATH,
+            post(agent_answer::<P, A>).delete(agent_withdraw::<P, A>),
+        )
         .route(AGENT_OPTIONS_PATH, post(agent_update::<P, A>))
         .with_state(OptionsState(Arc::new(Inner { port, aftermath })))
 }
@@ -99,6 +105,12 @@ struct AgentAnswerBody {
     #[serde(default)]
     #[garde(skip)]
     other: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Validate)]
+struct AgentWithdrawBody {
+    #[garde(skip)]
+    message_id: String,
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -137,6 +149,77 @@ where
         body.other,
     )
     .await
+}
+
+async fn human_withdraw<P, A>(
+    State(state): State<OptionsState<P, A>>,
+    principal: Option<Extension<UserId>>,
+    Path(path): Path<MessagePath>,
+) -> Response
+where
+    P: MessageOptionsPort,
+    A: MessageOptionsAftermath,
+{
+    let Some(Extension(viewer)) = principal else {
+        return internal_error("message answer route reached without human principal");
+    };
+    let Ok(message) = MessageId::parse(path.id) else {
+        return not_found();
+    };
+    withdraw(&state.0, OptionsActor::Human(viewer), message).await
+}
+
+async fn agent_withdraw<P, A>(
+    State(state): State<OptionsState<P, A>>,
+    principal: Option<Extension<RuntimePrincipal>>,
+    Path(path): Path<AgentPath>,
+    body: Result<ValidatedJson<AgentWithdrawBody>, ValidatedJsonRejection>,
+) -> Response
+where
+    P: MessageOptionsPort,
+    A: MessageOptionsAftermath,
+{
+    let Some(Extension(principal)) = principal else {
+        return internal_error("message options route reached without runtime principal");
+    };
+    let Some(actor) = agent_actor(principal, path.aid) else {
+        return not_found();
+    };
+    let body = match body {
+        Ok(ValidatedJson(body)) => body,
+        Err(rejection) => return rejection.into_response(),
+    };
+    let Ok(message) = MessageId::parse(body.message_id) else {
+        return invalid_input();
+    };
+    withdraw(&state.0, actor, message).await
+}
+
+async fn withdraw<P, A>(state: &Inner<P, A>, actor: OptionsActor, message: MessageId) -> Response
+where
+    P: MessageOptionsPort,
+    A: MessageOptionsAftermath,
+{
+    let Some(occurred_at_ms) = now_ms() else {
+        return internal_error("system time is outside message answer range");
+    };
+    let command = WithdrawAnswerCommand {
+        actor,
+        message,
+        occurred_at_ms,
+    };
+    match state.port.withdraw_answer(command).await {
+        Ok(Ok(fact)) => {
+            log_failures(state.aftermath.answer_withdrawn(&fact).await);
+            Json(json!({
+                "message_id": fact.question.message.as_str(),
+                "event_message_id": fact.event.id.as_str(),
+            }))
+            .into_response()
+        }
+        Ok(Err(refusal)) => refusal_response(refusal),
+        Err(error) => store_failure(&error),
+    }
 }
 
 /// `None` is a path agent other than the credential: an indistinguishable 404.
@@ -297,10 +380,7 @@ pub fn attach_to_message(dto: &mut Value, state: Option<&MessageOptionsState>) {
 }
 
 /// The `message_options_changed` payload: absolute post-change state.
-pub fn changed_payload(
-    question: &silverhand_backend_core::conversation_messaging::messaging::collaboration::message_options::QuestionCoordinates,
-    state: &MessageOptionsState,
-) -> Value {
+pub fn changed_payload(question: &QuestionCoordinates, state: &MessageOptionsState) -> Value {
     json!({
         "message_id": question.message.as_str(),
         "conversation_id": question.conversation.as_str(),
@@ -311,22 +391,25 @@ pub fn changed_payload(
 }
 
 /// The answer event as a wire `MessageDto`.
-pub fn answer_event_message(fact: &AnsweredFact) -> Result<Value, serde_json::Error> {
-    let metadata: Value = serde_json::from_str(&fact.event.metadata)?;
+pub fn answer_event_message(
+    question: &QuestionCoordinates,
+    event: &AnswerEventMessage,
+) -> Result<Value, serde_json::Error> {
+    let metadata: Value = serde_json::from_str(&event.metadata)?;
     Ok(json!({
-        "id": fact.event.id.as_str(),
-        "conversation_id": fact.question.conversation.as_str(),
+        "id": event.id.as_str(),
+        "conversation_id": question.conversation.as_str(),
         "from_kind": "system",
         "from_agent_id": Value::Null,
         "from_user_id": Value::Null,
         "author": Value::Null,
-        "content": fact.event.content,
+        "content": event.content,
         "metadata": metadata,
         "attachments": Value::Null,
         "reactions": Value::Null,
-        "seq": fact.event.seq,
-        "created_at": fact.event.created_at_ms,
-        "thread_root_id": fact.question.thread_root.as_ref().map(|id| id.as_str()),
+        "seq": event.seq,
+        "created_at": event.created_at_ms,
+        "thread_root_id": question.thread_root.as_ref().map(|id| id.as_str()),
         "linked_task": Value::Null,
     }))
 }
@@ -392,6 +475,16 @@ fn refusal_response(refusal: AnswerRefusal) -> Response {
             "not_author",
         ),
         AnswerRefusal::InvalidOptions => return invalid_input(),
+        AnswerRefusal::NoAnswer => (
+            StatusCode::CONFLICT,
+            "message has no answer to withdraw",
+            "no_answer",
+        ),
+        AnswerRefusal::NotAnswerer => (
+            StatusCode::FORBIDDEN,
+            "only the current answerer may withdraw the answer",
+            "not_answerer",
+        ),
     };
     (status, Json(json!({ "error": error, "code": code }))).into_response()
 }

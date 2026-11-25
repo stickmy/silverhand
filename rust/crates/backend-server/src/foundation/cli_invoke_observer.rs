@@ -49,6 +49,7 @@ pub const CLI_INVOKE_PRODUCTION_PERIMETER: &[(CliInvokeMethod, &str)] = &[
     (CliInvokeMethod::Post, REACTION_PATH),
     (CliInvokeMethod::Delete, REACTION_PATH),
     (CliInvokeMethod::Post, ANSWER_PATH),
+    (CliInvokeMethod::Delete, ANSWER_PATH),
     (CliInvokeMethod::Post, OPTIONS_PATH),
     (CliInvokeMethod::Post, ATTACHMENTS_PATH),
     (CliInvokeMethod::Patch, ATTACHMENT_PATH),
@@ -163,6 +164,14 @@ const ROUTES: &[RouteDescriptor] = &[
     ),
     route(
         CliInvokeMethod::Post,
+        ANSWER_PATH,
+        "message",
+        "answer",
+        "answer-message",
+        &[],
+    ),
+    route(
+        CliInvokeMethod::Delete,
         ANSWER_PATH,
         "message",
         "answer",
@@ -864,7 +873,7 @@ mod tests {
                 left.path
             );
         }
-        assert_eq!(ROUTES.len(), 35);
+        assert_eq!(ROUTES.len(), 36);
         let mut accounted: Vec<_> = ROUTES
             .iter()
             .map(|route| (route.method, route.path))

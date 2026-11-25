@@ -1746,8 +1746,50 @@ impl silverhand_backend_core::conversation_messaging::messaging::collaboration::
     }
 }
 
-/// Answer options post-commit: publish the event message and the absolute options
-/// state, then wake the question's author when it is an agent.
+impl<U, A, G, D, S> LaneEffects<U, A, G, D, S>
+where
+    D: LiveConversationRuntimeDelivery,
+{
+    /// Publish the answer event message and the absolute options state, then wake
+    /// the question's author when it is an agent.
+    async fn answer_event_effects(
+        &self,
+        question: &silverhand_backend_core::conversation_messaging::messaging::collaboration::message_options::QuestionCoordinates,
+        state: &silverhand_backend_core::conversation_messaging::messaging::collaboration::message_options::MessageOptionsState,
+        event: &silverhand_backend_core::conversation_messaging::messaging::collaboration::message_options::AnswerEventMessage,
+    ) -> Vec<String> {
+        use silverhand_backend_server::conversation_messaging::messaging::collaboration::message_options as wire;
+        let mut failures = Vec::new();
+        let conversation = &question.conversation;
+        match wire::answer_event_message(question, event) {
+            Ok(message) => {
+                if let Err(error) = self.hub.publish_system_message(conversation, message) {
+                    failures.push(error.to_string());
+                }
+            }
+            Err(error) => failures.push(error.to_string()),
+        }
+        if let Err(error) = self
+            .hub
+            .publish_message_options_changed(conversation, wire::changed_payload(question, state))
+        {
+            failures.push(error.to_string());
+        }
+        if let silverhand_backend_core::conversation_messaging::messaging::PrincipalIdentity::Agent(
+            agent,
+        ) = &question.author
+            && let Err(error) = self
+                .delivery
+                .deliver_to_live_recipient(conversation, agent, &event.id)
+                .await
+        {
+            failures.push(error.to_string());
+        }
+        failures
+    }
+}
+
+/// Answer options post-commit effects.
 impl<U, A, G, D, S> silverhand_backend_core::conversation_messaging::messaging::collaboration::message_options::MessageOptionsAftermath
     for LaneEffects<U, A, G, D, S>
 where
@@ -1761,33 +1803,14 @@ where
         &self,
         fact: &silverhand_backend_core::conversation_messaging::messaging::collaboration::message_options::AnsweredFact,
     ) -> Vec<String> {
-        use silverhand_backend_server::conversation_messaging::messaging::collaboration::message_options as wire;
-        let mut failures = Vec::new();
-        let conversation = &fact.question.conversation;
-        match wire::answer_event_message(fact) {
-            Ok(message) => {
-                if let Err(error) = self.hub.publish_system_message(conversation, message) {
-                    failures.push(error.to_string());
-                }
-            }
-            Err(error) => failures.push(error.to_string()),
-        }
-        if let Err(error) = self
-            .hub
-            .publish_message_options_changed(conversation, wire::changed_payload(&fact.question, &fact.state))
-        {
-            failures.push(error.to_string());
-        }
-        if let silverhand_backend_core::conversation_messaging::messaging::PrincipalIdentity::Agent(agent) =
-            &fact.question.author
-            && let Err(error) = self
-                .delivery
-                .deliver_to_live_recipient(conversation, agent, &fact.event.id)
-                .await
-        {
-            failures.push(error.to_string());
-        }
-        failures
+        self.answer_event_effects(&fact.question, &fact.state, &fact.event).await
+    }
+
+    async fn answer_withdrawn(
+        &self,
+        fact: &silverhand_backend_core::conversation_messaging::messaging::collaboration::message_options::AnswerWithdrawnFact,
+    ) -> Vec<String> {
+        self.answer_event_effects(&fact.question, &fact.state, &fact.event).await
     }
 
     async fn options_updated(

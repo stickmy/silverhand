@@ -5,10 +5,11 @@ use std::collections::HashMap;
 
 use silverhand_backend_core::{
     conversation_messaging::messaging::collaboration::message_options::{
-        AnswerCommand, AnswerEventMessage, AnswerRefusal, AnsweredFact, Answerer, MessageAnswer,
-        MessageOptions, MessageOptionsPort, MessageOptionsState, NamedPrincipal, OptionMode,
-        OptionsActor, OptionsUpdatedFact, QuestionCoordinates, UpdateOptionsCommand, answer_event,
-        decide_answer, decide_update,
+        AnswerCommand, AnswerEventMessage, AnswerRefusal, AnswerWithdrawnFact, AnsweredFact,
+        Answerer, MessageAnswer, MessageOptions, MessageOptionsPort, MessageOptionsState,
+        NamedPrincipal, OptionMode, OptionsActor, OptionsUpdatedFact, QuestionCoordinates,
+        UpdateOptionsCommand, WithdrawAnswerCommand, answer_event, decide_answer, decide_update,
+        decide_withdraw, withdraw_event,
     },
     conversation_messaging::messaging::collaboration::reaction::ReactionActor,
     conversation_messaging::messaging::{MessageId, PrincipalIdentity},
@@ -291,6 +292,59 @@ fn principal_columns(principal: &PrincipalIdentity) -> (&'static str, &str) {
     }
 }
 
+/// Append a system event in the question's stream: reserve seq, insert, bump head.
+async fn append_event(
+    tx: &mut Transaction<'_, Sqlite>,
+    question: &QuestionCoordinates,
+    content: String,
+    metadata: String,
+    created_at_ms: i64,
+) -> Result<AnswerEventMessage, MessageOptionsStoreError> {
+    let event_id = new_message_id()?;
+    let conversation = &question.conversation;
+    let thread_root = question
+        .thread_root
+        .as_ref()
+        .map(|root| {
+            silverhand_backend_core::conversation_messaging::messaging::ThreadRootId::parse(
+                root.as_str(),
+            )
+        })
+        .transpose()
+        .map_err(|_| MessageOptionsStoreError::Malformed)?;
+    let seq = reserve_next_seq_on(tx, conversation)
+        .await
+        .map_err(|fault| match fault {
+            ReserveSeqFault::Driver(error) => MessageOptionsStoreError::Sql(error),
+            ReserveSeqFault::Ordinal(_) => MessageOptionsStoreError::Ordinal,
+        })?;
+    sqlx::query(INSERT_MESSAGE)
+        .bind(&event_id)
+        .bind(conversation.as_str())
+        .bind(FROM_KIND_SYSTEM)
+        .bind(None::<&str>)
+        .bind(None::<&str>)
+        .bind(&content)
+        .bind(&metadata)
+        .bind(seq.get())
+        .bind(created_at_ms)
+        .bind(thread_root.as_ref().map(|root| root.as_str()))
+        .bind(None::<&str>)
+        .bind(None::<&str>)
+        .bind(None::<&str>)
+        .bind(None::<&str>)
+        .execute(&mut **tx)
+        .await?;
+    bump_stream_head_on(tx, conversation, thread_root.as_ref(), seq).await?;
+    Ok(AnswerEventMessage {
+        id: MessageId::parse(event_id).map_err(|_| MessageOptionsStoreError::Malformed)?,
+        content,
+        metadata,
+        seq: seq.get(),
+        created_at_ms,
+    })
+}
+
 async fn rollback<T>(
     tx: Transaction<'_, Sqlite>,
     refusal: AnswerRefusal,
@@ -356,57 +410,70 @@ impl MessageOptionsPort for SqliteMessageOptionsStore {
             other.as_deref(),
             changed,
         );
-        let event_id = new_message_id()?;
-        let conversation = &question.coordinates.conversation;
-        let thread_root = question
-            .coordinates
-            .thread_root
-            .as_ref()
-            .map(|root| {
-                silverhand_backend_core::conversation_messaging::messaging::ThreadRootId::parse(
-                    root.as_str(),
-                )
-            })
-            .transpose()
-            .map_err(|_| MessageOptionsStoreError::Malformed)?;
-        let seq =
-            reserve_next_seq_on(&mut tx, conversation)
-                .await
-                .map_err(|fault| match fault {
-                    ReserveSeqFault::Driver(error) => MessageOptionsStoreError::Sql(error),
-                    ReserveSeqFault::Ordinal(_) => MessageOptionsStoreError::Ordinal,
-                })?;
-        sqlx::query(INSERT_MESSAGE)
-            .bind(&event_id)
-            .bind(conversation.as_str())
-            .bind(FROM_KIND_SYSTEM)
-            .bind(None::<&str>)
-            .bind(None::<&str>)
-            .bind(&content)
-            .bind(&metadata)
-            .bind(seq.get())
-            .bind(command.occurred_at_ms)
-            .bind(thread_root.as_ref().map(|root| root.as_str()))
-            .bind(None::<&str>)
-            .bind(None::<&str>)
-            .bind(None::<&str>)
-            .bind(None::<&str>)
-            .execute(&mut *tx)
-            .await?;
-        bump_stream_head_on(&mut tx, conversation, thread_root.as_ref(), seq).await?;
+        let event = append_event(
+            &mut tx,
+            &question.coordinates,
+            content,
+            metadata,
+            command.occurred_at_ms,
+        )
+        .await?;
         tx.commit().await?;
 
         let answer = MessageAnswer::stored(by, picked_ids, other, command.occurred_at_ms);
         Ok(Ok(AnsweredFact {
             state: MessageOptionsState::new(question.state.options().clone(), Some(answer)),
             question: question.coordinates,
-            event: AnswerEventMessage {
-                id: MessageId::parse(event_id).map_err(|_| MessageOptionsStoreError::Malformed)?,
-                content,
-                metadata,
-                seq: seq.get(),
-                created_at_ms: command.occurred_at_ms,
+            event,
+        }))
+    }
+
+    async fn withdraw_answer(
+        &self,
+        command: WithdrawAnswerCommand,
+    ) -> Result<Result<AnswerWithdrawnFact, AnswerRefusal>, Self::Error> {
+        let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
+        let question = match locate(&mut tx, &command.actor, &command.message).await? {
+            Located::Found(question) => question,
+            Located::Refused(refusal) => return rollback(tx, refusal).await,
+        };
+        let principal = command.actor.principal();
+        if let Err(refusal) = decide_withdraw(&question.state, &principal) {
+            return rollback(tx, refusal).await;
+        }
+        let by = answerer(&mut tx, &command.actor).await?;
+        sqlx::query(
+            "UPDATE message_options SET answer_by_kind = NULL, answer_by_id = NULL, \
+             answer_by_name = NULL, answer_by_display = NULL, answer_option_ids = NULL, \
+             answer_other = NULL, answered_at = NULL WHERE message_id = ?",
+        )
+        .bind(command.message.as_str())
+        .execute(&mut *tx)
+        .await?;
+        let (content, metadata) = withdraw_event(
+            &command.message,
+            &NamedPrincipal {
+                principal: question.coordinates.author.clone(),
+                name: question.author_name.clone(),
             },
+            &NamedPrincipal {
+                principal,
+                name: by.name().to_owned(),
+            },
+        );
+        let event = append_event(
+            &mut tx,
+            &question.coordinates,
+            content,
+            metadata,
+            command.occurred_at_ms,
+        )
+        .await?;
+        tx.commit().await?;
+        Ok(Ok(AnswerWithdrawnFact {
+            state: MessageOptionsState::new(question.state.options().clone(), None),
+            question: question.coordinates,
+            event,
         }))
     }
 

@@ -311,6 +311,13 @@ pub struct AnswerCommand {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct WithdrawAnswerCommand {
+    pub actor: OptionsActor,
+    pub message: MessageId,
+    pub occurred_at_ms: i64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UpdateOptionsCommand {
     pub actor: OptionsActor,
     pub message: MessageId,
@@ -343,6 +350,22 @@ pub enum AnswerRefusal {
     NotAuthor,
     #[error("message options are outside the published grammar")]
     InvalidOptions,
+    #[error("message has no answer to withdraw")]
+    NoAnswer,
+    #[error("only the current answerer may withdraw the answer")]
+    NotAnswerer,
+}
+
+/// Only the current answerer may clear the answer.
+pub fn decide_withdraw(
+    state: &MessageOptionsState,
+    actor: &PrincipalIdentity,
+) -> Result<(), AnswerRefusal> {
+    match state.answer() {
+        None => Err(AnswerRefusal::NoAnswer),
+        Some(answer) if answer.by().principal() != actor => Err(AnswerRefusal::NotAnswerer),
+        Some(_) => Ok(()),
+    }
 }
 
 /// Decide an answer against the stored state: who may answer and what they may pick.
@@ -407,6 +430,14 @@ pub struct AnsweredFact {
     pub event: AnswerEventMessage,
 }
 
+/// The question is unanswered again; `event` is the withdrawal system message.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AnswerWithdrawnFact {
+    pub question: QuestionCoordinates,
+    pub state: MessageOptionsState,
+    pub event: AnswerEventMessage,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct OptionsUpdatedFact {
     pub question: QuestionCoordinates,
@@ -421,6 +452,11 @@ pub trait MessageOptionsPort {
         command: AnswerCommand,
     ) -> impl Future<Output = Result<Result<AnsweredFact, AnswerRefusal>, Self::Error>> + Send;
 
+    fn withdraw_answer(
+        &self,
+        command: WithdrawAnswerCommand,
+    ) -> impl Future<Output = Result<Result<AnswerWithdrawnFact, AnswerRefusal>, Self::Error>> + Send;
+
     fn update_options(
         &self,
         command: UpdateOptionsCommand,
@@ -431,6 +467,10 @@ pub trait MessageOptionsPort {
 /// question's author. Failures are reported, never turned into a refusal.
 pub trait MessageOptionsAftermath {
     fn answered(&self, fact: &AnsweredFact) -> impl Future<Output = Vec<String>> + Send;
+    fn answer_withdrawn(
+        &self,
+        fact: &AnswerWithdrawnFact,
+    ) -> impl Future<Output = Vec<String>> + Send;
     fn options_updated(
         &self,
         fact: &OptionsUpdatedFact,
@@ -494,6 +534,25 @@ pub fn answer_event(
     (content, metadata.to_string())
 }
 
+/// The `message_answer_withdrawn` system event: content line and metadata JSON.
+pub fn withdraw_event(
+    question: &MessageId,
+    question_author: &NamedPrincipal,
+    answerer: &NamedPrincipal,
+) -> (String, String) {
+    let content = format!(
+        "@{} withdrew the answer to @{}'s question",
+        answerer.name, question_author.name
+    );
+    let metadata = serde_json::json!({
+        "subtype": "message_answer_withdrawn",
+        "answer_to": question.as_str(),
+        "question_author": principal_json(question_author),
+        "answerer": principal_json(answerer),
+    });
+    (content, metadata.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -508,6 +567,33 @@ mod tests {
             ],
         )
         .unwrap()
+    }
+
+    #[test]
+    fn only_the_current_answerer_may_withdraw() {
+        let alice =
+            PrincipalIdentity::Human(crate::foundation::identity::UserId::parse("alice").unwrap());
+        let bob =
+            PrincipalIdentity::Human(crate::foundation::identity::UserId::parse("bob").unwrap());
+        let unanswered = MessageOptionsState::new(options(OptionMode::Single), None);
+        assert_eq!(
+            decide_withdraw(&unanswered, &alice),
+            Err(AnswerRefusal::NoAnswer)
+        );
+        let answered = MessageOptionsState::new(
+            options(OptionMode::Single),
+            Some(MessageAnswer::stored(
+                Answerer::new(alice.clone(), "alice".into(), "Alice".into()),
+                vec!["a".into()],
+                None,
+                1,
+            )),
+        );
+        assert_eq!(
+            decide_withdraw(&answered, &bob),
+            Err(AnswerRefusal::NotAnswerer)
+        );
+        assert_eq!(decide_withdraw(&answered, &alice), Ok(()));
     }
 
     #[test]

@@ -2548,7 +2548,7 @@ async fn the_composition_mounts_every_declared_route() {
     // The 114 human-perimeter product doors. Anonymous (no bearer) → the human
     // session perimeter's `401` envelope, never a `404`: each path IS mounted and
     // guarded. (`.layer` runs the perimeter for any matched human route.)
-    const HUMAN_PERIMETER_DOORS: [(&str, &str); 116] = [
+    const HUMAN_PERIMETER_DOORS: [(&str, &str); 117] = [
         ("POST", "/api/hosts"),
         // #2219 CP4 host-custody batch B — the three perimeter-guarded custody doors.
         // `GET /api/hosts` shares the path node with the invite POST above, so its anon
@@ -2625,6 +2625,7 @@ async fn the_composition_mounts_every_declared_route() {
         ("POST", "/api/messages/msg000000000000001/save"),
         ("DELETE", "/api/messages/msg000000000000001/save"),
         ("POST", "/api/messages/msg000000000000001/answer"),
+        ("DELETE", "/api/messages/msg000000000000001/answer"),
         // #2218/#task:2321: `/api/runtimes`, the local runtime-catalog face that is
         // authenticated (under
         // the product's `/api/*` bearer gate with no allowlist entry). Anon → 401.
@@ -2783,7 +2784,7 @@ async fn the_composition_mounts_every_declared_route() {
         ("GET", "/api/tasks/by-number"),
         ("GET", "/api/tasks/task-1"),
     ];
-    assert_eq!(HUMAN_PERIMETER_DOORS.len(), 116);
+    assert_eq!(HUMAN_PERIMETER_DOORS.len(), 117);
     for (method, path) in HUMAN_PERIMETER_DOORS {
         let (status, body) = request(&router, method, path, None).await;
         assert_eq!(status, StatusCode::UNAUTHORIZED, "{method} {path}: {body}");
@@ -2799,7 +2800,7 @@ async fn the_composition_mounts_every_declared_route() {
     // doors. All ride the
     // ONE `require_runtime_credential` layer, so anon
     // on any listed method is the same bodiless 401.
-    assert_eq!(CLI_INVOKE_PRODUCTION_PERIMETER.len(), 38);
+    assert_eq!(CLI_INVOKE_PRODUCTION_PERIMETER.len(), 39);
     for (method, path_template) in CLI_INVOKE_PRODUCTION_PERIMETER {
         let path = path_template.replace("{aid}", "agent-1");
         let method = (*method).as_str();
@@ -11581,6 +11582,85 @@ async fn mounted_message_options_round_trip_through_send_answer_and_window() {
             .iter()
             .all(|m| m["id"] == message_id.as_str() || m.get("options").is_none())
     );
+
+    // Agent search carries the same options and answer.
+    let (status, body) = json_request_with_body(
+        &router,
+        "POST",
+        "/internal/agents/asker/search-messages",
+        Some(&agent_bearer),
+        Body::from(format!(
+            r#"{{"q":"Ship which","conversation_id":"{CONVERSATION_ID}"}}"#
+        )),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let search: serde_json::Value = serde_json::from_str(&body).unwrap();
+    let hit = search["hits"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|h| h["message_ref"]["id"] == message_id.as_str())
+        .unwrap();
+    assert_eq!(hit["options"]["mode"], "single");
+    assert_eq!(hit["answer"]["option_ids"], serde_json::json!(["b"]));
+
+    // Only the current answerer may withdraw.
+    let (status, body) = json_request_with_body(
+        &router,
+        "DELETE",
+        "/internal/agents/asker/answer-message",
+        Some(&agent_bearer),
+        Body::from(format!(r#"{{"message_id":"{message_id}"}}"#)),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+    assert!(body.contains("not_answerer"), "{body}");
+
+    let (status, body) = request(&router, "DELETE", &answer_path, Some(&human_bearer)).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let ack: serde_json::Value = serde_json::from_str(&body).unwrap();
+    let withdrawn_id = ack["event_message_id"].as_str().unwrap().to_owned();
+
+    let (status, body) = request(&router, "DELETE", &answer_path, Some(&human_bearer)).await;
+    assert_eq!(status, StatusCode::CONFLICT, "{body}");
+    assert!(body.contains("no_answer"), "{body}");
+
+    let (status, body) = request(
+        &router,
+        "GET",
+        &format!("/api/channels/{CONVERSATION_ID}/messages"),
+        Some(&human_bearer),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let window: serde_json::Value = serde_json::from_str(&body).unwrap();
+    let messages = window["messages"].as_array().unwrap();
+    let question = messages
+        .iter()
+        .find(|m| m["id"] == message_id.as_str())
+        .unwrap();
+    assert_eq!(question["answer"], serde_json::Value::Null);
+    let event = messages
+        .iter()
+        .find(|m| m["id"] == withdrawn_id.as_str())
+        .unwrap();
+    assert_eq!(event["metadata"]["subtype"], "message_answer_withdrawn");
+    assert_eq!(event["metadata"]["answer_to"], message_id.as_str());
+    assert_eq!(event["metadata"]["answerer"]["kind"], "user");
+
+    // Unanswered again: the author may edit the options.
+    let (status, body) = json_request_with_body(
+        &router,
+        "POST",
+        "/internal/agents/asker/message-options",
+        Some(&agent_bearer),
+        Body::from(format!(
+            r#"{{"message_id":"{message_id}","options":{{"mode":"multi","items":[{{"id":"a","label":"A"}},{{"id":"c","label":"C"}}]}}}}"#
+        )),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
     app.close_connections().await;
 }
 
