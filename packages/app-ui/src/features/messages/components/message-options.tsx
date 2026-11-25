@@ -214,8 +214,8 @@ function OptionRow({
       className={cn(
         "flex w-full items-center gap-2 rounded-(--control-radius) border-(length:--control-border-width) px-2.5 py-1.5 text-left text-sm transition-colors focus-outline disabled:cursor-default",
         on
-          ? "border-text-primary bg-bg-hover text-text-primary"
-          : "border-border text-text-secondary enabled:hover:bg-bg-hover enabled:hover:text-text-primary",
+          ? "border-text-primary bg-(--bg-base) text-text-primary"
+          : "border-border bg-(--bg-base) text-text-secondary enabled:hover:border-text-muted enabled:hover:text-text-primary",
       )}
     >
       <OptionMark multi={multi} on={on} />
