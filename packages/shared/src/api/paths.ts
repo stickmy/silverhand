@@ -594,6 +594,7 @@ export const internalPaths = {
   agentListConversationTasks: (aid: string) => `/internal/agents/${aid}/tasks`,
   agentCreateConversationTasks: (aid: string) => `/internal/agents/${aid}/tasks/create`,
   agentClaimConversationTasks: (aid: string) => `/internal/agents/${aid}/tasks/claim`,
+  agentAssignConversationTask: (aid: string) => `/internal/agents/${aid}/tasks/assign`,
   agentUnclaimConversationTask: (aid: string) => `/internal/agents/${aid}/tasks/unclaim`,
   agentUpdateConversationTaskStatus: (aid: string) => `/internal/agents/${aid}/tasks/update-status`,
   /** Agent edits a task's title/content (optimistic-concurrency CAS). */

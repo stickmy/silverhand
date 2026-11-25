@@ -30,18 +30,19 @@ use axum::{
 use serde::Deserialize;
 use serde_json::{Value, json};
 use silverhand_backend_core::conversation_messaging::messaging::task::{
-    AgentExistenceReader, CreatePlacement, HumanClaimOutcome, HumanStatusWriteOutcome,
-    HumanTaskStatusWrite, ReadViewer, TaskClaimWrite, TaskContent, TaskConversationBoardRead,
-    TaskCreateAdmissionFailure, TaskCreateAdmissionReads, TaskCreateBatch, TaskCreateOutcome,
-    TaskCreatePlan, TaskCreateWrite, TaskCreatedWitness, TaskCreator, TaskEditWrite,
-    TaskEditWriteOutcome, TaskEditor, TaskId, TaskMutationWitness, TaskParticipationReads,
-    TaskStatus, TaskSystemActor, TaskTitle, UnclaimOutcome, admit_task_create,
+    AgentExistenceReader, AssignOutcome, AssignTarget, CreatePlacement, HumanStatusWriteOutcome,
+    HumanTaskStatusWrite, ReadViewer, TaskAssigner, TaskClaimWrite, TaskContent,
+    TaskConversationBoardRead, TaskCreateAdmissionFailure, TaskCreateAdmissionReads,
+    TaskCreateBatch, TaskCreateOutcome, TaskCreatePlan, TaskCreateWrite, TaskCreatedWitness,
+    TaskCreator, TaskEditWrite, TaskEditWriteOutcome, TaskEditor, TaskId, TaskMutationWitness,
+    TaskParticipationReads, TaskStatus, TaskSystemActor, TaskTitle, UnclaimOutcome,
+    admit_task_create,
 };
 use silverhand_backend_core::foundation::identity::{AgentId, ConversationId, UserId};
 use silverhand_backend_core::foundation::persistence::PersistenceFailure;
 
 use crate::conversation_messaging::messaging::task::aftermath::{
-    TaskMutationAftermath, run_human_aftermath,
+    TaskAftermathTrigger, TaskMutationAftermath, run_aftermath, run_human_aftermath,
 };
 use crate::foundation::http_error::{plain_500 as composition_500, plain_500 as safe_500};
 use crate::foundation::wire_admission::{ValidatedJson, ValidatedJsonRejection, invalid_input};
@@ -148,7 +149,11 @@ pub struct HumanClaimState<W, AF, E> {
 #[derive(Debug, Deserialize, garde::Validate)]
 pub(crate) struct HumanClaimBody {
     #[garde(skip)]
-    agent_id: String,
+    #[serde(default)]
+    agent_id: RequiredPatchField<String>,
+    #[garde(skip)]
+    #[serde(default)]
+    user_id: RequiredPatchField<String>,
 }
 
 pub fn human_claim_router<W, AF, E>(state: HumanClaimState<W, AF, E>) -> Router
@@ -184,25 +189,34 @@ where
         Ok(ValidatedJson(body)) => body,
         Err(rejection) => return rejection.into_response(),
     };
-    // `agent_id` is required and non-empty; an empty/invalid id is a semantic 422.
-    let Ok(assignee) = AgentId::parse(body.agent_id) else {
-        return invalid_input();
+    // Exactly one of `agent_id` / `user_id`, non-empty; anything else is a 422.
+    let target = match (body.agent_id.into_option(), body.user_id.into_option()) {
+        (Some(agent), None) => match AgentId::parse(agent) {
+            Ok(agent) => AssignTarget::Agent(agent),
+            Err(_) => return invalid_input(),
+        },
+        (None, Some(user)) => match UserId::parse(user) {
+            Ok(user) => AssignTarget::User(user),
+            Err(_) => return invalid_input(),
+        },
+        _ => return invalid_input(),
     };
     // Current TS resolves the chosen agent before looking up the task. Preserve
     // that observable precedence without treating this async hint as a write
-    // credential: the SQLite UoW rechecks fresh participation after its task,
-    // viewer, read-only, and terminal gates.
-    match state.assignees.agent_exists(&assignee).await {
-        Ok(true) => {}
-        Ok(false) => {
-            return refusal(
-                StatusCode::CONFLICT,
-                "assignee_not_conversation_member",
-                "agent not found",
-                json!({}),
-            );
+    // credential: the SQLite UoW rechecks fresh participation under its lock.
+    if let AssignTarget::Agent(agent) = &target {
+        match state.assignees.agent_exists(agent).await {
+            Ok(true) => {}
+            Ok(false) => {
+                return refusal(
+                    StatusCode::CONFLICT,
+                    "assignee_not_conversation_member",
+                    "agent not found",
+                    json!({}),
+                );
+            }
+            Err(_) => return safe_500(),
         }
-        Err(_) => return safe_500(),
     }
     let Ok(task_id) = TaskId::parse(task_id) else {
         return refusal(
@@ -213,53 +227,57 @@ where
         );
     };
 
-    // The assignee's display name is resolved by the write's snapshot join; the
-    // door passes the id as the name fallback (a human claim UI supplies the id).
-    match state.write.human_claim(&task_id, &actor, &assignee).await {
-        Ok(HumanClaimOutcome::Claimed { status: _, witness }) => {
-            run_human_aftermath(&state.aftermath, (*witness).clone(), &actor).await;
-            // Wire parity: current TS returns {success, task_number, id}.
+    let assigner = TaskAssigner::User(actor.clone());
+    match state.write.assign(&task_id, &assigner, &target).await {
+        Ok(AssignOutcome::Assigned { witness, notice }) => {
             let entry = json!({
                 "success": true,
                 "task_number": witness.task_number.get(),
                 "id": witness.task_id.as_str(),
             });
+            run_aftermath(
+                &state.aftermath,
+                &TaskAftermathTrigger::for_human(*witness, actor).with_assignee_notice(notice),
+            )
+            .await;
             ok(entry)
         }
-        Ok(HumanClaimOutcome::NotFound) => refusal(
+        Ok(AssignOutcome::Unchanged {
+            task_id,
+            task_number,
+        }) => ok(json!({
+            "success": true,
+            "task_number": task_number.get(),
+            "id": task_id.as_str(),
+        })),
+        Ok(AssignOutcome::NotFound) => refusal(
             StatusCode::CONFLICT,
             "task_not_found",
             "task not found",
             json!({}),
         ),
-        Ok(HumanClaimOutcome::ConversationReadonly) => refusal(
+        Ok(AssignOutcome::ConversationReadonly) => refusal(
             StatusCode::CONFLICT,
             "conversation_readonly",
             "the conversation is read-only: a direct-pair endpoint is gone",
             json!({}),
         ),
-        Ok(HumanClaimOutcome::TaskDone) => {
+        Ok(AssignOutcome::TaskDone) => {
             refusal(StatusCode::CONFLICT, "task_done", "task is done", json!({}))
         }
-        Ok(HumanClaimOutcome::TaskClosed) => refusal(
+        Ok(AssignOutcome::TaskClosed) => refusal(
             StatusCode::CONFLICT,
             "task_closed",
             "task is closed",
             json!({}),
         ),
-        Ok(HumanClaimOutcome::AlreadyClaimed) => refusal(
-            StatusCode::CONFLICT,
-            "already_claimed",
-            "task is already assigned",
-            json!({}),
-        ),
-        Ok(HumanClaimOutcome::AssigneeNotConversationMember) => refusal(
+        Ok(AssignOutcome::AssigneeNotConversationMember) => refusal(
             StatusCode::CONFLICT,
             "assignee_not_conversation_member",
-            "agent is not a member of this task's conversation",
+            "assignee is not a member of this task's conversation",
             json!({}),
         ),
-        Err(_) => safe_500(),
+        Ok(AssignOutcome::AgentNotFound) | Err(_) => safe_500(),
     }
 }
 
@@ -875,7 +893,8 @@ mod tests {
     #[derive(Clone)]
     struct FakeWrite {
         status: HumanStatusWriteOutcome,
-        claim: HumanClaimOutcome,
+        claim: AssignOutcome,
+        target: Arc<std::sync::Mutex<Option<AssignTarget>>>,
         unclaim: UnclaimOutcome,
         edit: TaskEditWriteOutcome,
         calls: Arc<AtomicUsize>,
@@ -900,13 +919,14 @@ mod tests {
         ) -> Result<AgentClaimOutcome, PersistenceFailure> {
             unreachable!("human face never agent-claims")
         }
-        async fn human_claim(
+        async fn assign(
             &self,
             _id: &TaskId,
-            _actor: &UserId,
-            _assignee: &AgentId,
-        ) -> Result<HumanClaimOutcome, PersistenceFailure> {
+            _actor: &TaskAssigner,
+            target: &AssignTarget,
+        ) -> Result<AssignOutcome, PersistenceFailure> {
             self.calls.fetch_add(1, Ordering::SeqCst);
+            *self.target.lock().unwrap() = Some(target.clone());
             Ok(self.claim.clone())
         }
         async fn agent_unclaim(
@@ -944,10 +964,11 @@ mod tests {
     fn fake(calls: &Arc<AtomicUsize>) -> FakeWrite {
         FakeWrite {
             status: HumanStatusWriteOutcome::Applied(Box::new(witness())),
-            claim: HumanClaimOutcome::Claimed {
-                status: TaskStatus::InProgress,
+            claim: AssignOutcome::Assigned {
                 witness: Box::new(witness()),
+                notice: None,
             },
+            target: Arc::default(),
             unclaim: UnclaimOutcome::Unclaimed(Box::new(witness())),
             edit: applied_witness(),
             calls: Arc::clone(calls),
@@ -1148,8 +1169,8 @@ mod tests {
     #[tokio::test]
     async fn missing_assignee_precedes_unknown_or_terminal_task_and_never_reaches_writer() {
         for (task_id, outcome) in [
-            ("unknown-task", HumanClaimOutcome::NotFound),
-            ("task-1", HumanClaimOutcome::TaskDone),
+            ("unknown-task", AssignOutcome::NotFound),
+            ("task-1", AssignOutcome::TaskDone),
         ] {
             let calls = Arc::new(AtomicUsize::new(0));
             let mut write = fake(&calls);
@@ -1180,10 +1201,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn claim_already_claimed_is_409() {
+    async fn claim_to_the_current_assignee_is_a_success_no_op() {
         let calls = Arc::new(AtomicUsize::new(0));
         let mut f = fake(&calls);
-        f.claim = HumanClaimOutcome::AlreadyClaimed;
+        f.claim = AssignOutcome::Unchanged {
+            task_id: TaskId::parse("task-1").unwrap(),
+            task_number:
+                silverhand_backend_core::conversation_messaging::messaging::task::TaskNumber::new(7)
+                    .unwrap(),
+        };
         let router = human_claim_router(HumanClaimState {
             write: f,
             aftermath: aftermath(),
@@ -1196,15 +1222,57 @@ mod tests {
             true,
         )
         .await;
-        assert_eq!(status, StatusCode::CONFLICT);
-        assert_eq!(body["code"], "already_claimed");
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(
+            body,
+            json!({ "success": true, "task_number": 7, "id": "task-1" })
+        );
+    }
+
+    #[tokio::test]
+    async fn claim_takes_exactly_one_of_agent_id_and_user_id() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let f = fake(&calls);
+        let target = Arc::clone(&f.target);
+        let router = human_claim_router(HumanClaimState {
+            write: f,
+            aftermath: aftermath(),
+            assignees: ExistingAssignee,
+        });
+        let (status, _b) = send(
+            router,
+            "/api/tasks/task-1/claim",
+            Some(r#"{"user_id":"user-2"}"#),
+            true,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(
+            *target.lock().unwrap(),
+            Some(AssignTarget::User(UserId::parse("user-2").unwrap()))
+        );
+        for body in [
+            r#"{}"#,
+            r#"{"agent_id":"a","user_id":"u"}"#,
+            r#"{"user_id":""}"#,
+        ] {
+            let calls = Arc::new(AtomicUsize::new(0));
+            let router = human_claim_router(HumanClaimState {
+                write: fake(&calls),
+                aftermath: aftermath(),
+                assignees: ExistingAssignee,
+            });
+            let (status, _b) = send(router, "/api/tasks/task-1/claim", Some(body), true).await;
+            assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
+            assert_eq!(calls.load(Ordering::SeqCst), 0, "{body}");
+        }
     }
 
     #[tokio::test]
     async fn claim_assignee_not_member_is_409() {
         let calls = Arc::new(AtomicUsize::new(0));
         let mut f = fake(&calls);
-        f.claim = HumanClaimOutcome::AssigneeNotConversationMember;
+        f.claim = AssignOutcome::AssigneeNotConversationMember;
         let router = human_claim_router(HumanClaimState {
             write: f,
             aftermath: aftermath(),
@@ -1223,7 +1291,7 @@ mod tests {
             json!({
                 "success": false,
                 "code": "assignee_not_conversation_member",
-                "reason": "agent is not a member of this task's conversation",
+                "reason": "assignee is not a member of this task's conversation",
             })
         );
     }
@@ -1232,7 +1300,7 @@ mod tests {
     async fn claim_task_done_has_the_exact_ts_reason() {
         let calls = Arc::new(AtomicUsize::new(0));
         let mut f = fake(&calls);
-        f.claim = HumanClaimOutcome::TaskDone;
+        f.claim = AssignOutcome::TaskDone;
         let router = human_claim_router(HumanClaimState {
             write: f,
             aftermath: aftermath(),

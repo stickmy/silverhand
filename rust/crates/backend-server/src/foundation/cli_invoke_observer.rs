@@ -70,6 +70,7 @@ pub const CLI_INVOKE_PRODUCTION_PERIMETER: &[(CliInvokeMethod, &str)] = &[
     (CliInvokeMethod::Post, "/internal/agents/{aid}/members"),
     (CliInvokeMethod::Post, "/internal/agents/{aid}/tasks/create"),
     (CliInvokeMethod::Post, "/internal/agents/{aid}/tasks/claim"),
+    (CliInvokeMethod::Post, "/internal/agents/{aid}/tasks/assign"),
     (
         CliInvokeMethod::Post,
         "/internal/agents/{aid}/tasks/unclaim",
@@ -274,6 +275,14 @@ const ROUTES: &[RouteDescriptor] = &[
         "task",
         "claim",
         "tasks/claim",
+        &[],
+    ),
+    route(
+        CliInvokeMethod::Post,
+        "/internal/agents/{aid}/tasks/assign",
+        "task",
+        "assign",
+        "tasks/assign",
         &[],
     ),
     route(
@@ -835,7 +844,7 @@ mod tests {
                 left.path
             );
         }
-        assert_eq!(ROUTES.len(), 32);
+        assert_eq!(ROUTES.len(), 33);
         let mut accounted: Vec<_> = ROUTES
             .iter()
             .map(|route| (route.method, route.path))

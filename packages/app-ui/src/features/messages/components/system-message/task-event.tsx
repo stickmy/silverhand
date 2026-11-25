@@ -3,6 +3,7 @@ import {
   type TaskSystemMetadata,
   type TaskSystemMetadataPartial,
   readTaskSystemMetadata,
+  isTaskAssignmentEvent,
   readTaskSystemMetadataPartial,
 } from "@silverhand/shared";
 import { formatUserDisplayName } from "@/features/session/current-user";
@@ -77,16 +78,10 @@ function TaskEventMeta({
       </>
     );
   }
-  // `task_claim` / `task_unclaim` mean two different things depending on WHO
-  // acted (`docs/tasks-design.md` §4.4): an AGENT takes or releases the job,
-  // while a HUMAN assigns or unassigns from the board. Saying "claimed by shiki"
-  // for an assignment to someone else states the wrong fact. The cube shows the
-  // after-state the server settled on (an assign may also start the task), so
-  // this surface never predicts a status.
-  const humanAssignmentWrite =
-    meta.actor.kind === "user" &&
-    (meta.subtype === "task_claim" || meta.subtype === "task_unclaim");
-  if (humanAssignmentWrite) {
+  // `task_claim` is a self-claim when it names its actor and an assignment
+  // otherwise; a human `task_unclaim` is an unassignment. Saying "claimed by
+  // shiki" for an assignment to someone else states the wrong fact.
+  if (isTaskAssignmentEvent(meta)) {
     const assignee = meta.task_assignee;
     if (meta.subtype === "task_claim" && assignee) {
       return (

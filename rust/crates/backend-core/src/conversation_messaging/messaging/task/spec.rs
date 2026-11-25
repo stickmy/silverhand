@@ -249,9 +249,7 @@ pub enum Creator {
 }
 
 /// A task's assignee. "Unassigned" is *both* assignee columns null; the CHECK
-/// permits at most one non-null, which this type makes unrepresentable. Live
-/// mutations only ever set the agent arm — a `User` assignee is a legacy
-/// migration fact that decode must still round-trip.
+/// permits at most one non-null, which this type makes unrepresentable.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub enum Assignee {
     #[default]

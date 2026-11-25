@@ -207,12 +207,14 @@ export function useDirectPairPane(conversationId: string | null): DirectPairPane
   });
 }
 
-/** One agent the DM task-assignee picker can offer. `isCurrent` marks the
+/** One participant the DM task-assignee picker can offer. `isCurrent` marks the
  *  counterpart when it is ALREADY this task's assignee: it stays in the domain
- *  (so the picker always shows the DM's agent — shiki 2026-08-17) and is rendered
- *  selected / no-op, rather than being dropped, which was the empty-dropdown bug
- *  (a DM assigned to its one counterpart had its only candidate filtered out). */
+ *  (so the picker always shows the DM's counterpart — shiki 2026-08-17) and is
+ *  rendered selected / no-op, rather than being dropped, which was the
+ *  empty-dropdown bug (a DM assigned to its one counterpart had its only candidate
+ *  filtered out). */
 export interface DirectPairAssigneeCandidate {
+  type: "agent" | "user";
   id: string;
   /** The `@`-handle shown on the row. */
   name: string;
@@ -232,7 +234,7 @@ export type DirectPairAssigneeView =
 
 export function projectDirectPairAssignee(
   pane: DirectPairPaneState,
-  currentAgentId: string | null,
+  current: { type: "agent" | "user"; id: string } | null,
 ): DirectPairAssigneeView {
   switch (pane.kind) {
     case "idle":
@@ -244,18 +246,20 @@ export function projectDirectPairAssignee(
       return { status: "ready", candidates: [] };
     case "ready": {
       const cp = pane.pair.counterpart;
-      if (cp.status !== "active" || cp.kind !== "agent") {
-        // A human counterpart is never assignable; a `deleted` one is gone.
+      if (cp.status !== "active") {
+        // A `deleted` counterpart is gone.
         return { status: "ready", candidates: [] };
       }
+      const type = cp.kind === "agent" ? "agent" : "user";
       return {
         status: "ready",
         candidates: [
           {
+            type,
             id: cp.id,
             name: cp.name,
             displayName: cp.display_name || cp.name,
-            isCurrent: cp.id === currentAgentId,
+            isCurrent: current?.type === type && current.id === cp.id,
           },
         ],
       };

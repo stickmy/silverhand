@@ -73,6 +73,7 @@ describe('command catalogue', () => {
       'file upload', // <abs_path> (alias of --path)
       'file view', // <attachment_id> (alias of --attachment-id)
       'message search', // free-text query
+      'task assign', // <task_number> (exactly-one)
       'task claim', // <task_number> ... (one-or-more)
       'task detail', // <task_number> (exactly-one)
       'task edit',
@@ -88,7 +89,7 @@ describe('command catalogue', () => {
     // leave two ways to say the same required argument — the redundancy
     // this cut removes — so the flag must be `removedFlags` (an
     // actionable `flag_removed` hint), never an accepted alias.
-    const byNumberVerbs = ['claim', 'unclaim', 'status', 'edit', 'detail'];
+    const byNumberVerbs = ['claim', 'assign', 'unclaim', 'status', 'edit', 'detail'];
     for (const verb of byNumberVerbs) {
       const cmd = findCommand('task', verb)!;
       expect(cmd.flags, `task ${verb} still accepts --task-number`).not.toContain('task-number');

@@ -428,6 +428,10 @@ async fn claim_outcome_id<AF: TaskMutationAftermath>(
             .await;
             entry
         }
+        AgentClaimOutcome::AlreadyYours {
+            task_id,
+            task_number,
+        } => claimed_entry(&task_id, task_number),
         AgentClaimOutcome::AgentNotFound => {
             fail_id("agent_not_found", "agent not found", id.as_str(), json!({}))
         }
@@ -476,6 +480,10 @@ async fn claim_outcome_number<AF: TaskMutationAftermath>(
             .await;
             entry
         }
+        AgentClaimOutcome::AlreadyYours {
+            task_id,
+            task_number,
+        } => claimed_entry(&task_id, task_number),
         AgentClaimOutcome::AgentNotFound => {
             fail_number("agent_not_found", "agent not found", number, json!({}))
         }
@@ -523,11 +531,11 @@ fn number_refusal_for_all(numbers: &[i64], code: &str, reason: &str, extra: Valu
 fn claimed(
     witness: &silverhand_backend_core::conversation_messaging::messaging::task::TaskMutationWitness,
 ) -> Value {
-    json!({
-        "success": true,
-        "task_number": witness.task_number.get(),
-        "id": witness.task_id.as_str(),
-    })
+    claimed_entry(&witness.task_id, witness.task_number)
+}
+
+fn claimed_entry(id: &TaskId, number: TaskNumber) -> Value {
+    json!({ "success": true, "task_number": number.get(), "id": id.as_str() })
 }
 
 fn fail_id(code: &str, reason: &str, id: &str, extra: Value) -> Value {
@@ -689,16 +697,16 @@ mod tests {
             self.calls.fetch_add(1, Ordering::SeqCst);
             Ok(self.outcome.clone())
         }
-        async fn human_claim(
+        async fn assign(
             &self,
             _id: &TaskId,
-            _actor: &silverhand_backend_core::foundation::identity::UserId,
-            _assignee: &AgentId,
+            _actor: &silverhand_backend_core::conversation_messaging::messaging::task::TaskAssigner,
+            _target: &silverhand_backend_core::conversation_messaging::messaging::task::AssignTarget,
         ) -> Result<
-            silverhand_backend_core::conversation_messaging::messaging::task::HumanClaimOutcome,
+            silverhand_backend_core::conversation_messaging::messaging::task::AssignOutcome,
             PersistenceFailure,
         > {
-            unreachable!("agent face never calls human_claim")
+            unreachable!("claim face never assigns")
         }
         async fn agent_unclaim(
             &self,

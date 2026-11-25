@@ -317,19 +317,31 @@ describe("projectDirectPairAssignee — the DM task-assignee domain (#task:2041,
 
   it("offers the active counterpart when it is NOT the current assignee", () => {
     expect(
-      projectDirectPairAssignee(activeAgentPane("a-1", "alice", "Alice"), "someone-else"),
+      projectDirectPairAssignee(activeAgentPane("a-1", "alice", "Alice"), {
+        type: "agent",
+        id: "someone-else",
+      }),
     ).toEqual({
       status: "ready",
-      candidates: [{ id: "a-1", name: "alice", displayName: "Alice", isCurrent: false }],
+      candidates: [
+        { type: "agent", id: "a-1", name: "alice", displayName: "Alice", isCurrent: false },
+      ],
     });
   });
 
   it("P1: STILL offers the counterpart when it is already the assignee, marked isCurrent", () => {
     // The empty-dropdown regression: excluding the current agent left a DM assigned
     // to its one counterpart with no candidate at all.
-    expect(projectDirectPairAssignee(activeAgentPane("a-1", "alice", "Alice"), "a-1")).toEqual({
+    expect(
+      projectDirectPairAssignee(activeAgentPane("a-1", "alice", "Alice"), {
+        type: "agent",
+        id: "a-1",
+      }),
+    ).toEqual({
       status: "ready",
-      candidates: [{ id: "a-1", name: "alice", displayName: "Alice", isCurrent: true }],
+      candidates: [
+        { type: "agent", id: "a-1", name: "alice", displayName: "Alice", isCurrent: true },
+      ],
     });
   });
 
@@ -339,7 +351,7 @@ describe("projectDirectPairAssignee — the DM task-assignee domain (#task:2041,
     ).toMatchObject({ displayName: "alice" });
   });
 
-  it("offers nothing for a HUMAN counterpart (the write path takes agent_id only)", () => {
+  it("offers a HUMAN counterpart as a user candidate", () => {
     const humanPane: DirectPairPaneState = {
       kind: "ready",
       pair: {
@@ -358,7 +370,12 @@ describe("projectDirectPairAssignee — the DM task-assignee domain (#task:2041,
         created_at: 1,
       },
     };
-    expect(projectDirectPairAssignee(humanPane, null)).toEqual({ status: "ready", candidates: [] });
+    expect(projectDirectPairAssignee(humanPane, null)).toEqual({
+      status: "ready",
+      candidates: [
+        { type: "user", id: "u-1", name: "shiki", displayName: "shiki", isCurrent: false },
+      ],
+    });
   });
 
   it("offers nothing for a DELETED counterpart", () => {

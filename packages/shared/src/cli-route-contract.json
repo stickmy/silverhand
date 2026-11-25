@@ -55,6 +55,12 @@
   },
   {
     "method": "POST",
+    "suffix": "tasks/assign",
+    "noun": "task",
+    "verb": "assign"
+  },
+  {
+    "method": "POST",
     "suffix": "tasks/unclaim",
     "noun": "task",
     "verb": "unclaim"

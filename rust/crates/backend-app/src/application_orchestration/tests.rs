@@ -2788,7 +2788,7 @@ async fn the_composition_mounts_every_declared_route() {
         assert_eq!(body, unauthorized, "{method} {path}");
     }
 
-    // The 35 runtime-perimeter internal doors. Anonymous → the runtime credential
+    // The 36 runtime-perimeter internal doors. Anonymous → the runtime credential
     // perimeter's `401` on the matched route, never `404`. The original three (#2226-era
     // send/tasks/stale), the #2234 CP7a self-scope profile family (`/profile` GET+POST,
     // `/avatar` POST+DELETE, `/peer-profile` GET), the #2234 CP7b profile-MCP family
@@ -2796,7 +2796,7 @@ async fn the_composition_mounts_every_declared_route() {
     // cli-trace door, and #2262's six reaction/attachment doors. All eighteen ride the
     // ONE `require_runtime_credential` layer, so anon
     // on any listed method is the same bodiless 401.
-    assert_eq!(CLI_INVOKE_PRODUCTION_PERIMETER.len(), 35);
+    assert_eq!(CLI_INVOKE_PRODUCTION_PERIMETER.len(), 36);
     for (method, path_template) in CLI_INVOKE_PRODUCTION_PERIMETER {
         let path = path_template.replace("{aid}", "agent-1");
         let method = (*method).as_str();

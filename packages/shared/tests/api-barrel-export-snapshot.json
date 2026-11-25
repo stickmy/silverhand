@@ -81,6 +81,7 @@
   "ArchivedChannelListItemDtoSchema",
   "ArchivedChannelsDtoSchema",
   "ArchivedChannelsQueryInputSchema",
+  "AssignTaskInputSchema",
   "AttachmentChangedEventSchema",
   "AttachmentDtoSchema",
   "AttachmentLabelSchema",

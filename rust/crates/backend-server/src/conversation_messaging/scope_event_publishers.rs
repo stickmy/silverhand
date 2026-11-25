@@ -27,6 +27,7 @@ use silverhand_backend_core::{
             DirectLineInvalidation, EffectFailure, LatestPublication, MessagePublication,
             UnreadPublication, ViewerNotification,
         },
+        task::{AssigneeNotice, TaskMutationWitness},
         unread::{
             ConversationHumanAudience, LatestUnread as CoreLatestUnread, UnreadAudience,
             UnreadReadModel, ViewerUnread,
@@ -281,6 +282,37 @@ impl ScopeEventHub {
         self.publish(
             EventScope::Viewer(viewer.clone()),
             ProductEvent::TaskChanged(payload),
+        )
+    }
+
+    /// Tell a human assignee about their committed notice: the `notification`
+    /// frame refreshes Activity and the badge, the alert interrupts like a mention.
+    pub fn publish_task_assignee_notice(
+        &self,
+        notice: &AssigneeNotice,
+        task: &TaskMutationWitness,
+    ) -> Result<(), ScopeEventHubError> {
+        let event = &task.event_message;
+        self.publish(
+            EventScope::Viewer(notice.viewer.clone()),
+            ProductEvent::Notification(NotificationEvent {
+                kind: NotificationKind::MentionSelf,
+                conversation_id: Some(event.conversation_id.as_str().to_owned()),
+                message_id: Some(event.id.as_str().to_owned()),
+            }),
+        )?;
+        self.publish(
+            EventScope::Viewer(notice.viewer.clone()),
+            ProductEvent::MessageAlert(json!({
+                "conversation_id": event.conversation_id.as_str(),
+                "workspace_id": notice.workspace_id.as_ref().map(|id| id.as_str()),
+                "conversation_title": notice.conversation_title,
+                "message_id": event.id.as_str(),
+                "thread_root_id": event.thread_root_id.as_ref().map(|id| id.as_str()),
+                "reason": AlertReason::Mention.as_str(),
+                "sender": serde_json::Value::Null,
+                "excerpt": mention_excerpt(&event.message.content),
+            })),
         )
     }
 

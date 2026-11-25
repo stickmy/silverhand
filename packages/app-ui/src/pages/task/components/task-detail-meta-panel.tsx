@@ -3,6 +3,7 @@ import {
   useTaskMetaRows,
   type TaskMetaWriteProps,
 } from "@/features/tasks/components/task-detail-shared";
+import type { TaskAssigneeRef } from "@/features/tasks/hooks/hooks";
 import { t } from "@/lib/i18n";
 
 export interface TaskDetailMetaPanelProps {
@@ -14,7 +15,7 @@ export interface TaskDetailMetaPanelProps {
   assignPending: boolean;
   assignFailed: boolean;
   /** `null` clears the assignee. */
-  onAssign: (agentId: string | null) => void;
+  onAssign: (assignee: TaskAssigneeRef | null) => void;
 }
 
 export function TaskDetailMetaPanel(props: TaskDetailMetaPanelProps): JSX.Element {

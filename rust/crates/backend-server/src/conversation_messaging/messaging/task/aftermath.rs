@@ -12,7 +12,7 @@
 //! delivery failure is observable but cannot turn the durable mutation into 500.
 
 use silverhand_backend_core::conversation_messaging::messaging::task::{
-    BoardKey, TaskEventKind, TaskMutationWitness, TaskWriteDoorReads,
+    AssigneeNotice, BoardKey, TaskEventKind, TaskMutationWitness, TaskWriteDoorReads,
 };
 use silverhand_backend_core::foundation::identity::{AgentId, ConversationId, UserId, WorkspaceId};
 use silverhand_backend_core::foundation::persistence::PersistenceFailure;
@@ -143,6 +143,7 @@ pub struct TaskAftermathTrigger {
     actor: TaskAftermathActor,
     plan: TaskEffectPlan,
     cross_operation_audit: Option<TaskCrossOperationAudit>,
+    assignee_notice: Option<AssigneeNotice>,
 }
 
 impl TaskAftermathTrigger {
@@ -181,6 +182,7 @@ impl TaskAftermathTrigger {
                 excluded_wake_agent,
             },
             cross_operation_audit,
+            assignee_notice: None,
         }
     }
 
@@ -197,7 +199,14 @@ impl TaskAftermathTrigger {
                 excluded_wake_agent: None,
             },
             cross_operation_audit: None,
+            assignee_notice: None,
         }
+    }
+
+    /// Attach the human assignee's committed notice so the effects tell them.
+    pub fn with_assignee_notice(mut self, notice: Option<AssigneeNotice>) -> Self {
+        self.assignee_notice = notice;
+        self
     }
 
     pub fn committed(&self) -> &TaskMutationWitness {
@@ -211,6 +220,9 @@ impl TaskAftermathTrigger {
     }
     pub fn cross_operation_audit(&self) -> Option<&TaskCrossOperationAudit> {
         self.cross_operation_audit.as_ref()
+    }
+    pub fn assignee_notice(&self) -> Option<&AssigneeNotice> {
+        self.assignee_notice.as_ref()
     }
 }
 

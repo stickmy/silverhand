@@ -40,6 +40,7 @@ import {
   type TaskDetailDto,
   type TaskEditResult,
   type TaskMutationResult,
+  type AssignTaskInput,
   type TaskStatus,
   type TaskSummaryDto,
 } from '@silverhand/shared';
@@ -242,6 +243,10 @@ export class BackendClient {
 
   claimTasks(input: ClaimTasksInput): Promise<ClaimTasksResult> {
     return this.request('POST', internalPaths.agentClaimConversationTasks(this.env.agentId), input);
+  }
+
+  assignTask(input: AssignTaskInput): Promise<TaskMutationResult> {
+    return this.request('POST', internalPaths.agentAssignConversationTask(this.env.agentId), input);
   }
 
   unclaimTask(input: {

@@ -83,8 +83,8 @@ pub use aggregate::{
 pub use edit::{EditPlan, TaskEditChange, plan_edit};
 pub use event::{
     AgentEventNames, CreatePlacement, TaskEventAssignee, TaskEventFacts, TaskEventKind,
-    TaskEventMessage, TaskSystemActor, compose_claim_event, compose_create_event,
-    compose_edit_event, compose_status_event, compose_unclaim_event,
+    TaskEventMessage, TaskSystemActor, compose_assign_event, compose_claim_event,
+    compose_create_event, compose_edit_event, compose_status_event, compose_unclaim_event,
 };
 pub use human_board::{
     HumanTaskBoardRead, TaskBoardAssigneeFilter, TaskBoardColumnPage, TaskBoardColumnRequest,
@@ -116,13 +116,13 @@ pub use status::{
     claim_status_change, human_status_change,
 };
 pub use write::{
-    AgentClaimOutcome, AgentStatusWriteOutcome, ExistingSourceTask, HumanClaimOutcome,
-    HumanStatusWriteOutcome, HumanTaskStatusWrite, TaskClaimWrite, TaskCommittedEventMessage,
-    TaskCreateAdmissionFailure, TaskCreateAdmissionReads, TaskCreateBatch,
-    TaskCreateConversationState, TaskCreateOutcome, TaskCreatePlan, TaskCreateSourceRef,
-    TaskCreateWrite, TaskCreatedWitness, TaskCreator, TaskEditSuccess, TaskEditWitness,
-    TaskEditWrite, TaskEditWriteOutcome, TaskEditor, TaskMutationWitness, TaskStatusWrite,
-    TaskWriteClock, UnclaimOutcome, admit_task_create,
+    AgentClaimOutcome, AgentStatusWriteOutcome, AssignOutcome, AssignTarget, AssigneeNotice,
+    ExistingSourceTask, HumanStatusWriteOutcome, HumanTaskStatusWrite, TaskAssigner,
+    TaskClaimWrite, TaskCommittedEventMessage, TaskCreateAdmissionFailure,
+    TaskCreateAdmissionReads, TaskCreateBatch, TaskCreateConversationState, TaskCreateOutcome,
+    TaskCreatePlan, TaskCreateSourceRef, TaskCreateWrite, TaskCreatedWitness, TaskCreator,
+    TaskEditSuccess, TaskEditWitness, TaskEditWrite, TaskEditWriteOutcome, TaskEditor,
+    TaskMutationWitness, TaskStatusWrite, TaskWriteClock, UnclaimOutcome, admit_task_create,
 };
 pub use write_door::{
     AgentDisplayNameReader, AgentExistenceReader, TaskByIdCapability, TaskNumberResolver,

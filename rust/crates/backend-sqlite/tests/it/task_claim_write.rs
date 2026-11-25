@@ -4,12 +4,16 @@
 //! task (todo -> in_progress); an already-taken task is AlreadyClaimed; a terminal
 //! task is TaskDone/TaskClosed; a non-participant is NotFound. Agent unclaim is a
 //! workflow release (clear assignee + rewind to todo), while human unclaim is an
-//! assignment-only override; both refuse terminal. Plus the concurrency control: two agents racing to claim a
+//! assignment-only override; both refuse terminal. Assignment overrides the
+//! assignee, keeps status, and notifies a human assignee. Plus the concurrency control: two agents racing to claim a
 //! free task settle as exactly one Claimed and one AlreadyClaimed.
 
 use silverhand_backend_core::conversation_messaging::messaging::task::{
-    AgentClaimOutcome, AgentEventNames, HumanClaimOutcome, TaskClaimWrite, TaskId, TaskStatus,
-    UnclaimOutcome,
+    AgentClaimOutcome, AgentEventNames, AssignOutcome, AssignTarget, TaskAssigner, TaskClaimWrite,
+    TaskId, TaskStatus, UnclaimOutcome,
+};
+use silverhand_backend_core::conversation_messaging::messaging::{
+    ParticipantHandle, PrincipalKind,
 };
 use silverhand_backend_core::foundation::identity::{AgentId, UserId};
 use silverhand_backend_sqlite::conversation_messaging::messaging::task::SqliteTaskClaimWrite;
@@ -276,75 +280,138 @@ async fn agent_and_human_unclaim_keep_their_distinct_workflow_rules() {
     }
 }
 
-#[tokio::test]
-async fn a_human_claim_assigns_a_participant_agent() {
-    let (_dir, path) = open_db("todo", None).await;
-    let writer = SqliteTaskClaimWrite::open(&path).await.unwrap();
-    let outcome = writer
-        .human_claim(&task_id(), &UserId::parse(HUMAN).unwrap(), &other())
+fn human() -> UserId {
+    UserId::parse(HUMAN).unwrap()
+}
+fn by_user() -> TaskAssigner {
+    TaskAssigner::User(human())
+}
+fn by_owner() -> TaskAssigner {
+    TaskAssigner::Agent {
+        id: owner(),
+        names: AgentEventNames::new(OWNER, "Owner"),
+    }
+}
+fn handle(raw: &str, kind: Option<PrincipalKind>) -> AssignTarget {
+    AssignTarget::Handle {
+        handle: ParticipantHandle::parse(raw).unwrap(),
+        kind,
+    }
+}
+
+async fn read_user_assignee(path: &Path) -> Option<String> {
+    let mut connection = SqliteConnection::connect(&format!("sqlite://{}", path.display()))
         .await
         .unwrap();
-    assert!(matches!(
-        outcome,
-        HumanClaimOutcome::Claimed {
-            status: TaskStatus::InProgress,
-            ..
-        }
-    ));
-    assert_eq!(read_assignment(&path).await.1.as_deref(), Some(OTHER));
+    sqlx::query_scalar("SELECT assignee_user_id FROM tasks WHERE id = ?")
+        .bind(TASK)
+        .fetch_one(&mut connection)
+        .await
+        .unwrap()
+}
+
+async fn mention_rows(path: &Path) -> Vec<(String, String)> {
+    let mut connection = SqliteConnection::connect(&format!("sqlite://{}", path.display()))
+        .await
+        .unwrap();
+    sqlx::query_as("SELECT user_id, message_id FROM notifications WHERE kind = 'mention_self'")
+        .fetch_all(&mut connection)
+        .await
+        .unwrap()
 }
 
 #[tokio::test]
-async fn human_claim_overwrites_agent_and_user_assignments_without_rewinding_workflow() {
-    for status in ["in_progress", "in_review"] {
-        let (_dir, path) = open_db(status, Some(OWNER)).await;
+async fn assigning_keeps_status_for_both_actors() {
+    for (actor, status) in [(by_user(), "todo"), (by_owner(), "in_review")] {
+        let (_dir, path) = open_db(status, None).await;
         let writer = SqliteTaskClaimWrite::open(&path).await.unwrap();
         let outcome = writer
-            .human_claim(&task_id(), &UserId::parse(HUMAN).unwrap(), &other())
+            .assign(&task_id(), &actor, &AssignTarget::Agent(other()))
             .await
             .unwrap();
-        let HumanClaimOutcome::Claimed {
-            status: committed_status,
-            witness,
-        } = outcome
-        else {
-            panic!("human dispatch must overwrite an agent assignment");
+        let AssignOutcome::Assigned { witness, notice } = outcome else {
+            panic!("expected an assignment, got {outcome:?}");
         };
-        assert_eq!(committed_status.as_str(), status);
         assert_eq!(witness.status.as_str(), status);
+        assert!(notice.is_none());
         assert_eq!(
             read_assignment(&path).await,
             (status.into(), Some(OTHER.into()))
         );
     }
+}
 
-    let (_dir, path) = open_db("in_progress", None).await;
-    let mut connection = SqliteConnection::connect(&format!("sqlite://{}", path.display()))
-        .await
-        .unwrap();
-    sqlx::query("UPDATE tasks SET assignee_user_id=? WHERE id=?")
-        .bind(HUMAN)
-        .bind(TASK)
-        .execute(&mut connection)
-        .await
-        .unwrap();
-    connection.close().await.unwrap();
+#[tokio::test]
+async fn assignment_overrides_an_existing_assignee() {
+    let (_dir, path) = open_db("in_progress", Some(OTHER)).await;
     let writer = SqliteTaskClaimWrite::open(&path).await.unwrap();
     let outcome = writer
-        .human_claim(&task_id(), &UserId::parse(HUMAN).unwrap(), &other())
+        .assign(&task_id(), &by_owner(), &handle(OWNER, None))
         .await
         .unwrap();
-    assert!(matches!(outcome, HumanClaimOutcome::Claimed { .. }));
+    assert!(matches!(outcome, AssignOutcome::Assigned { .. }));
     assert_eq!(
         read_assignment(&path).await,
-        ("in_progress".into(), Some(OTHER.into()))
+        ("in_progress".into(), Some(OWNER.into()))
+    );
+    let again = writer
+        .assign(&task_id(), &by_owner(), &AssignTarget::Agent(owner()))
+        .await
+        .unwrap();
+    assert!(matches!(again, AssignOutcome::Unchanged { .. }));
+}
+
+#[tokio::test]
+async fn assigning_a_human_writes_their_mention_on_the_event_message() {
+    let (_dir, path) = open_db("todo", Some(OWNER)).await;
+    let writer = SqliteTaskClaimWrite::open(&path).await.unwrap();
+    let outcome = writer
+        .assign(
+            &task_id(),
+            &by_owner(),
+            &handle(HUMAN, Some(PrincipalKind::Human)),
+        )
+        .await
+        .unwrap();
+    let AssignOutcome::Assigned { witness, notice } = outcome else {
+        panic!("expected an assignment, got {outcome:?}");
+    };
+    let notice = notice.expect("a human assignee is notified");
+    assert_eq!(notice.viewer, human());
+    assert_eq!(notice.conversation_title.as_deref(), Some("general"));
+    assert_eq!(
+        witness.event_message.message.content,
+        "@agent-1 assigned task #1 to @User One"
+    );
+    assert_eq!(read_assignment(&path).await, ("todo".into(), None));
+    assert_eq!(read_user_assignee(&path).await.as_deref(), Some(HUMAN));
+    assert_eq!(
+        mention_rows(&path).await,
+        vec![(
+            HUMAN.to_owned(),
+            witness.event_message.id.as_str().to_owned()
+        )]
     );
 }
 
 #[tokio::test]
-async fn a_human_claim_to_a_non_participant_agent_is_refused() {
+async fn a_human_assigning_themselves_is_not_notified() {
     let (_dir, path) = open_db("todo", None).await;
-    // Remove OTHER's membership so it is not a valid assignee.
+    let writer = SqliteTaskClaimWrite::open(&path).await.unwrap();
+    let outcome = writer
+        .assign(&task_id(), &by_user(), &AssignTarget::User(human()))
+        .await
+        .unwrap();
+    assert!(matches!(
+        outcome,
+        AssignOutcome::Assigned { notice: None, .. }
+    ));
+    assert!(mention_rows(&path).await.is_empty());
+}
+
+#[tokio::test]
+async fn assignee_must_participate_and_match_a_typed_kind() {
+    let (_dir, path) = open_db("todo", None).await;
     {
         let mut c = SqliteConnection::connect(&format!("sqlite://{}", path.display()))
             .await
@@ -358,12 +425,52 @@ async fn a_human_claim_to_a_non_participant_agent_is_refused() {
         .unwrap();
     }
     let writer = SqliteTaskClaimWrite::open(&path).await.unwrap();
+    for target in [
+        AssignTarget::Agent(other()),
+        handle(OTHER, None),
+        handle("nobody", None),
+        handle(OWNER, Some(PrincipalKind::Human)),
+        handle(HUMAN, Some(PrincipalKind::Agent)),
+    ] {
+        let outcome = writer
+            .assign(&task_id(), &by_user(), &target)
+            .await
+            .unwrap();
+        assert_eq!(
+            outcome,
+            AssignOutcome::AssigneeNotConversationMember,
+            "{target:?}"
+        );
+    }
+    assert_eq!(read_assignment(&path).await.1, None);
+}
+
+#[tokio::test]
+async fn claiming_a_task_assigned_to_you_starts_it_or_is_a_no_op() {
+    let (_dir, path) = open_db("todo", Some(OWNER)).await;
+    let writer = SqliteTaskClaimWrite::open(&path).await.unwrap();
+    let names = AgentEventNames::new(OWNER, "Owner");
     let outcome = writer
-        .human_claim(&task_id(), &UserId::parse(HUMAN).unwrap(), &other())
+        .agent_claim(&task_id(), &owner(), &names)
         .await
         .unwrap();
-    assert_eq!(outcome, HumanClaimOutcome::AssigneeNotConversationMember);
-    assert_eq!(read_assignment(&path).await.1, None);
+    assert!(matches!(
+        outcome,
+        AgentClaimOutcome::Claimed {
+            status: TaskStatus::InProgress,
+            ..
+        }
+    ));
+    let again = writer
+        .agent_claim(&task_id(), &owner(), &names)
+        .await
+        .unwrap();
+    assert!(matches!(again, AgentClaimOutcome::AlreadyYours { .. }));
+    let other_claim = writer
+        .agent_claim(&task_id(), &other(), &AgentEventNames::new(OTHER, "Other"))
+        .await
+        .unwrap();
+    assert_eq!(other_claim, AgentClaimOutcome::AlreadyClaimed);
 }
 
 /// Concurrency control: two agents race to claim the SAME free task. The guarded

@@ -205,23 +205,25 @@ export function useUpdateTaskStatus() {
   });
 }
 
+/** Who an assignment names. */
+export interface TaskAssigneeRef {
+  type: "agent" | "user";
+  id: string;
+}
+
 /**
- * Assign / re-assign / clear a task's assignee — `agentId: null` clears.
- * `POST /api/tasks/:taskId/claim` `{agent_id}` for a named agent,
- * `POST /api/tasks/:taskId/unclaim` for the clear. Backs the detail modal's
- * Assignee row.
+ * Assign / re-assign / clear a task's assignee — `assignee: null` clears.
+ * `POST /api/tasks/:taskId/claim` `{agent_id}` or `{user_id}` for a named
+ * participant, `POST /api/tasks/:taskId/unclaim` for the clear. Backs the detail
+ * modal's Assignee row.
  *
  * ONE hook for both because it is ONE product action ("who owns this"), and both
  * arms need the identical three-projection invalidation and the same error exit;
  * two hooks would let those drift.
  *
- * The renderer never predicts what the write does to the STATUS, and never
- * implies one: assigning a `todo` task DISPATCHES it (the server starts it in the
- * same write — `todo + assignee` has no legal exit), reassigning a running or
- * in-review task only changes hands, and clearing the assignee never rewinds the
- * workflow (backend contract in `docs/tasks-design.md` §4.4, shiki 2026-08-06).
- * Either way the surface re-reads and shows what the server settled on —
- * invalidate, never patch.
+ * Neither arm changes the status: a `todo` task stays `todo` until its assignee
+ * claims it, and clearing never rewinds the workflow. The surface still re-reads
+ * and shows what the server settled on — invalidate, never patch.
  *
  * `done` / `closed` refuse BOTH arms (409): assignment on a terminal task is
  * frozen server-side, which is why the surface offers the control only on a
@@ -231,14 +233,19 @@ export function useUpdateTaskStatus() {
 export function useAssignTask() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (args: { taskId: string; agentId: string | null }) => {
+    mutationFn: async (args: { taskId: string; assignee: TaskAssigneeRef | null }) => {
+      const { assignee } = args;
       const res = await api<{ success: boolean; reason?: string }>(
-        args.agentId === null
-          ? `/api/tasks/${args.taskId}/unclaim`
-          : `/api/tasks/${args.taskId}/claim`,
+        assignee === null ? `/api/tasks/${args.taskId}/unclaim` : `/api/tasks/${args.taskId}/claim`,
         {
           method: "POST",
-          ...(args.agentId === null ? {} : { body: JSON.stringify({ agent_id: args.agentId }) }),
+          ...(assignee === null
+            ? {}
+            : {
+                body: JSON.stringify(
+                  assignee.type === "agent" ? { agent_id: assignee.id } : { user_id: assignee.id },
+                ),
+              }),
         },
       );
       if (!res.success) throw new Error(res.reason ?? "assign failed");
@@ -248,9 +255,9 @@ export function useAssignTask() {
       // The `['tasks']` ROOT, deliberately — this is the one write that has to be
       // that wide, and each of the three reasons is enough on its own: FACETS are
       // the assignee population and this write changes it (`boardFacetsKey` is
-      // refreshed by prefix, one entry per container); the DESTINATION column is
-      // not this client's to name, because assigning a `todo` task dispatches it
-      // in the same write; and a scope that narrows the assignee axis
+      // refreshed by prefix, one entry per container); an older server may still
+      // move a `todo` task to `in_progress` on assignment, so the destination
+      // column is not this client's to name; and a scope that narrows the assignee axis
       // (`filterKeyConstrainsAssignee`) can GAIN the row in a column this client
       // never held it in, which no content scan can locate.
       void qc.invalidateQueries({ queryKey: ["tasks"] });

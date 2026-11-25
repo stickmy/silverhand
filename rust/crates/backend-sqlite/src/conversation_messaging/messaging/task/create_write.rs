@@ -60,7 +60,7 @@ const BACKFILL_CREATED_EVENT: &str = "UPDATE tasks SET created_event_message_id 
 /// A random base64url id (12 bytes, mirroring `randomBytes(12).base64url`).
 const ID_BYTES: usize = 12;
 
-fn new_id() -> Result<String, PersistenceFailure> {
+pub(super) fn new_id() -> Result<String, PersistenceFailure> {
     let mut bytes = [0_u8; ID_BYTES];
     getrandom::fill(&mut bytes)
         .map_err(|error| PersistenceFailure::from_source(TaskStoreError::Entropy(error)))?;

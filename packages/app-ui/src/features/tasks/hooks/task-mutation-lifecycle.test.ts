@@ -92,9 +92,9 @@ describe("task mutation lifecycle", () => {
     expect(harness.close).not.toHaveBeenCalled();
   });
 
-  it.each(["agent-a", null])(
-    "assignment %s invalidates boards but scopes detail/chips to the task",
-    async (agentId) => {
+  it.each([{ type: "agent" as const, id: "agent-a" }, null])(
+    "assignment %o invalidates boards but scopes detail/chips to the task",
+    async (assignee) => {
       const qc = harness.qc!;
       const keys = [
         ["tasks", "board", "facets"],
@@ -103,14 +103,14 @@ describe("task mutation lifecycle", () => {
         ["task-by-number", "other"],
       ];
       for (const key of keys) qc.setQueryData(key, "cached");
-      await useAssignTask().mutateAsync({ taskId: "task-a", agentId });
+      await useAssignTask().mutateAsync({ taskId: "task-a", assignee });
       expect(qc.getQueryState(keys[0]!)?.isInvalidated).toBe(true);
       expect(qc.getQueryState(keys[1]!)?.isInvalidated).toBe(true);
       expect(qc.getQueryState(keys[2]!)?.isInvalidated).toBe(false);
       expect(qc.getQueryState(keys[3]!)?.isInvalidated).toBe(false);
       expect(harness.points).toHaveBeenCalledExactlyOnceWith(qc, "task-a");
       expect(harness.api.mock.calls[0]?.[0]).toBe(
-        `/api/tasks/task-a/${agentId ? "claim" : "unclaim"}`,
+        `/api/tasks/task-a/${assignee ? "claim" : "unclaim"}`,
       );
     },
   );

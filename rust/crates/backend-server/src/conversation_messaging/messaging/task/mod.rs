@@ -26,6 +26,7 @@ pub use aftermath::{
     TaskMutationAftermath, TaskSourcePlacementSnapshot,
 };
 pub use internal_detail::{TaskDetailState, task_detail_router};
+pub use internal_write::assign::{TaskAssignState, task_assign_router};
 pub use internal_write::claim::{TaskClaimState, task_claim_router};
 pub use internal_write::create::{
     ResolvedPlacement, ResolvedTaskTarget, TaskCreatePairAllocation, TaskCreateState,

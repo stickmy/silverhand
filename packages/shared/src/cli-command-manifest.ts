@@ -59,11 +59,11 @@ export const SILVERHAND_COMMAND_DOMAINS = [
     nouns: [
       {
         noun: 'task',
-        summary: 'View, create, claim, release, and update task board entries.',
+        summary: 'View, create, claim, assign, release, and update task board entries.',
         guidance:
           'Claim substantive untracked work before starting. A failed claim means ' +
           'stop, and task state must be updated before reporting completion.',
-        verbs: ['list', 'create', 'claim', 'unclaim', 'status', 'edit', 'detail'],
+        verbs: ['list', 'create', 'claim', 'assign', 'unclaim', 'status', 'edit', 'detail'],
       },
     ],
   },

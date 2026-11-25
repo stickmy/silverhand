@@ -222,6 +222,19 @@ export const TaskSystemMetadataSchema = z.object({
 });
 export type TaskSystemMetadata = z.infer<typeof TaskSystemMetadataSchema>;
 
+/** A `task_claim` that names someone other than its actor is an assignment, as
+ *  is any human claim/unclaim; an agent's own claim/unclaim is not. */
+export function isTaskAssignmentEvent(meta: TaskSystemMetadata): boolean {
+  if (meta.subtype !== 'task_claim' && meta.subtype !== 'task_unclaim') return false;
+  if (meta.actor.kind === 'user') return true;
+  const assignee = meta.task_assignee;
+  return (
+    meta.subtype === 'task_claim' &&
+    !!assignee &&
+    !(assignee.type === 'agent' && assignee.id === meta.actor.id)
+  );
+}
+
 /** TS alias to flag the `task_status` field as the after-state snapshot.
  *  Read sites can write `const status: TaskStatusAfterMutation = m.task_status`
  *  to make the semantic explicit at the call site. */

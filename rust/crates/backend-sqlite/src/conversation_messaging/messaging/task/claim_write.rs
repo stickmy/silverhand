@@ -6,23 +6,26 @@
 //!
 //! The commands are deliberately actor-specific so a concurrent write cannot be
 //! clobbered and human override semantics cannot leak into agent self-service:
-//!  - `assign_self` sets the assignee only WHERE both assignee columns are NULL and
-//!    the status is not terminal, and moves `todo → in_progress`; 0 rows affected is
-//!    re-classified from the fresh row (already-claimed vs done vs closed);
-//!  - human dispatch overwrites either assignee kind on a non-terminal task;
+//!  - agent self-claim sets the assignee only WHERE both assignee columns are NULL
+//!    (or already the actor) and the status is not terminal, and moves
+//!    `todo → in_progress`; 0 rows affected is re-classified from the fresh row;
+//!  - `assign` overwrites either assignee kind on a non-terminal task and leaves
+//!    status alone;
 //!  - agent release clears assignment, rewinds status to `todo`, and clears
 //!    `closed_at`; human unassign clears assignment only and preserves workflow.
 
 use std::{path::Path, sync::Arc, time::Duration};
 
+use silverhand_backend_core::conversation_messaging::messaging::PrincipalKind;
 use silverhand_backend_core::conversation_messaging::messaging::task::{
-    AgentClaimOutcome, AgentEventNames, Assignee, AssignmentRefusal, HumanClaimOutcome,
-    TaskClaimWrite, TaskEventAssignee, TaskEventFacts, TaskEventKind, TaskEventMessage, TaskId,
-    TaskMutationWitness, TaskStatus, TaskStatusChange, TaskSystemActor, TaskWriteClock,
-    UnclaimOutcome, agent_release_status_change, assignment_open, claim_status_change,
-    compose_claim_event, compose_unclaim_event,
+    AgentClaimOutcome, AgentEventNames, AssignOutcome, AssignTarget, Assignee, AssigneeNotice,
+    AssignmentRefusal, TaskAssigner, TaskClaimWrite, TaskEventAssignee, TaskEventFacts,
+    TaskEventKind, TaskEventMessage, TaskId, TaskMutationWitness, TaskNumber, TaskStatus,
+    TaskStatusChange, TaskSystemActor, TaskWriteClock, UnclaimOutcome, agent_release_status_change,
+    assignment_open, claim_status_change, compose_assign_event, compose_claim_event,
+    compose_unclaim_event,
 };
-use silverhand_backend_core::foundation::identity::{AgentId, ConversationId, UserId};
+use silverhand_backend_core::foundation::identity::{AgentId, ConversationId, UserId, WorkspaceId};
 use silverhand_backend_core::foundation::persistence::PersistenceFailure;
 use sqlx::{QueryBuilder, Row, Sqlite};
 
@@ -38,20 +41,44 @@ const WRITE_BEGIN: &str = "BEGIN IMMEDIATE";
 
 /// The conversation + the columns the claim/unclaim classification reads under the
 /// lock: assignment (already-taken / ownership) and status (terminal / promotion).
-const SELECT_CLAIM_ROW: &str = "SELECT conversation_id, status, assignee_agent_id, \
+const SELECT_CLAIM_ROW: &str = "SELECT conversation_id, task_number, status, assignee_agent_id, \
      assignee_user_id FROM tasks WHERE id = ?";
 
-/// Assign the agent to a FREE task. Status and `closed_at` come from the planner's
-/// [`TaskStatusChange`]; the `status = ?` guard is the status it planned from, so 0
-/// rows affected means taken.
+/// Self-claim a task that is free or already the actor's. Status and `closed_at`
+/// come from the planner's [`TaskStatusChange`]; the `status = ?` guard is the
+/// status it planned from, so 0 rows affected means taken.
 const ASSIGN_TO_AGENT: &str = "UPDATE tasks \
-     SET assignee_agent_id = ?, assignee_user_id = NULL, status = ?, closed_at = ? \
-     WHERE id = ? AND status = ? AND assignee_agent_id IS NULL AND assignee_user_id IS NULL";
+     SET assignee_agent_id = ?1, assignee_user_id = NULL, status = ?2, closed_at = ?3 \
+     WHERE id = ?4 AND status = ?5 AND assignee_user_id IS NULL \
+     AND (assignee_agent_id IS NULL OR assignee_agent_id = ?1)";
 
-/// Human dispatch is an override: assign or reassign regardless of the current assignee.
-const DISPATCH_TO_AGENT: &str = "UPDATE tasks \
-     SET assignee_agent_id = ?, assignee_user_id = NULL, status = ?, closed_at = ? \
+/// Assignment overrides any current assignee and keeps the status.
+const ASSIGN_OVERRIDE: &str = "UPDATE tasks SET assignee_agent_id = ?, assignee_user_id = ? \
      WHERE id = ? AND status = ?";
+
+/// The participant of the conversation holding `handle` (at most one: agent and user
+/// names are unique across both tables).
+const SELECT_PARTICIPANT_BY_HANDLE: &str = "SELECT 'agent' AS kind, a.id AS id FROM agents a \
+     JOIN conversations c ON c.id = ?1 WHERE a.name = ?2 AND \
+     ((c.placement_kind = 'workspace' AND EXISTS (SELECT 1 FROM conversation_agents ca WHERE \
+     ca.conversation_id = c.id AND ca.agent_id = a.id)) OR (c.placement_kind = 'direct_pair' AND \
+     ((c.endpoint_a_kind = 'agent' AND c.endpoint_a_id = a.id) OR (c.endpoint_b_kind = 'agent' \
+     AND c.endpoint_b_id = a.id)))) \
+     UNION ALL SELECT 'user' AS kind, u.id AS id FROM users u JOIN conversations c ON c.id = ?1 \
+     WHERE u.name = ?2 AND ((c.placement_kind = 'workspace' AND EXISTS (SELECT 1 FROM \
+     conversation_users cu WHERE cu.conversation_id = c.id AND cu.user_id = u.id) AND EXISTS \
+     (SELECT 1 FROM workspace_users wu WHERE wu.workspace_id = c.workspace_id AND \
+     wu.user_id = u.id)) OR (c.placement_kind = 'direct_pair' AND ((c.endpoint_a_kind = 'human' \
+     AND c.endpoint_a_id = u.id) OR (c.endpoint_b_kind = 'human' AND c.endpoint_b_id = u.id))))";
+
+const SELECT_NOTICE_PLACE: &str =
+    "SELECT workspace_id, roster_policy, title FROM conversations WHERE id = ?";
+
+/// The human assignee's notice: a `mention_self` row anchored on the event message,
+/// so it rides the existing directed-mention badge, Activity and read clearing.
+const INSERT_ASSIGNEE_NOTICE: &str = "INSERT INTO notifications (id, kind, user_id, workspace_id, \
+     conversation_id, message_id, source_workspace_id, source_conversation_id, source_message_id, \
+     payload, created_at) VALUES (?1, 'mention_self', ?2, ?3, ?4, ?5, ?3, ?4, ?5, ?6, ?7)";
 
 /// Agent release clears assignment and applies the planned rewind; ownership-guarded.
 const RELEASE_TO_TODO_AGENT: &str = "UPDATE tasks SET assignee_agent_id = NULL, \
@@ -101,6 +128,7 @@ impl SqliteTaskClaimWrite {
 /// The decision-relevant assignment/status facts read under the lock.
 struct ClaimRow {
     conversation_id: ConversationId,
+    task_number: TaskNumber,
     status: TaskStatus,
     assignee_agent_id: Option<String>,
     assignee_user_id: Option<String>,
@@ -130,6 +158,8 @@ async fn fetch_claim_row(
     Ok(Some(ClaimRow {
         conversation_id: ConversationId::parse(conversation_id_raw)
             .map_err(|_| corrupt("tasks.conversation_id"))?,
+        task_number: TaskNumber::new(row.try_get("task_number").map_err(driver)?)
+            .map_err(|_| corrupt("tasks.task_number"))?,
         status: TaskStatus::parse(&status_token).map_err(|_| corrupt("tasks.status"))?,
         assignee_agent_id: row.try_get("assignee_agent_id").map_err(driver)?,
         assignee_user_id: row.try_get("assignee_user_id").map_err(driver)?,
@@ -249,6 +279,14 @@ impl TaskClaimWrite for SqliteTaskClaimWrite {
             GateVerdict::Admit => {}
         }
         // Terminal check first (TS order), then the guarded assign-if-free CAS.
+        let own = row.assignee_agent_id.as_deref() == Some(actor.as_str());
+        if own && row.status != TaskStatus::Todo && assignment_open(row.status).is_ok() {
+            tx.rollback().await.map_err(driver)?;
+            return Ok(AgentClaimOutcome::AlreadyYours {
+                task_id: task_id.clone(),
+                task_number: row.task_number,
+            });
+        }
         let change = match claim_status_change(row.status) {
             Ok(change) => change,
             Err(refusal) => {
@@ -299,70 +337,89 @@ impl TaskClaimWrite for SqliteTaskClaimWrite {
         })
     }
 
-    async fn human_claim(
+    async fn assign(
         &self,
         task_id: &TaskId,
-        actor: &UserId,
-        assignee: &AgentId,
-    ) -> Result<HumanClaimOutcome, PersistenceFailure> {
+        actor: &TaskAssigner,
+        target: &AssignTarget,
+    ) -> Result<AssignOutcome, PersistenceFailure> {
         let mut tx = self.pool.begin_with(WRITE_BEGIN).await.map_err(driver)?;
         let now = self.clock.now();
         let Some(row) = fetch_claim_row(&mut tx, task_id).await? else {
             tx.rollback().await.map_err(driver)?;
-            return Ok(HumanClaimOutcome::NotFound);
+            return Ok(AssignOutcome::NotFound);
         };
-        match user_gate(&mut tx, &row.conversation_id, actor).await? {
-            GateVerdict::AgentNotFound => return Err(corrupt("task.user_gate.agent")),
-            GateVerdict::NotFound => {
-                tx.rollback().await.map_err(driver)?;
-                return Ok(HumanClaimOutcome::NotFound);
+        let verdict = match actor {
+            TaskAssigner::Agent { id, .. } => {
+                agent_task_gate(
+                    &mut tx,
+                    &row.conversation_id,
+                    id,
+                    AgentTaskCapabilityGate::Write,
+                )
+                .await?
             }
-            GateVerdict::ReadOnly => {
-                tx.rollback().await.map_err(driver)?;
-                return Ok(HumanClaimOutcome::ConversationReadonly);
-            }
-            GateVerdict::Admit => {}
-        }
-        let change = match claim_status_change(row.status) {
-            Ok(change) => change,
-            Err(refusal) => {
-                tx.rollback().await.map_err(driver)?;
-                return Ok(match refusal {
-                    AssignmentRefusal::TaskDone => HumanClaimOutcome::TaskDone,
-                    AssignmentRefusal::TaskClosed => HumanClaimOutcome::TaskClosed,
-                });
-            }
+            TaskAssigner::User(user) => match user_gate(&mut tx, &row.conversation_id, user).await?
+            {
+                GateVerdict::AgentNotFound => return Err(corrupt("task.user_gate.agent")),
+                verdict => verdict,
+            },
         };
-        // The chosen assignee agent must itself participate (a fire dispatches to
-        // it). Judged on the same connection via the shared agent participation.
-        if agent_gate(&mut tx, &row.conversation_id, assignee).await? == GateVerdict::NotFound {
-            tx.rollback().await.map_err(driver)?;
-            return Ok(HumanClaimOutcome::AssigneeNotConversationMember);
-        }
-        let affected = bind_change(
-            sqlx::query(DISPATCH_TO_AGENT).bind(assignee.as_str()),
-            change,
-        )
-        .bind(task_id.as_str())
-        .bind(row.status.as_str())
-        .execute(&mut *tx)
-        .await
-        .map_err(driver)?
-        .rows_affected();
-        if affected == 0 {
-            let cur = fetch_claim_row(&mut tx, task_id).await?;
-            let outcome = match cur {
-                Some(cur) if cur.status == TaskStatus::Closed => HumanClaimOutcome::TaskClosed,
-                Some(_) => HumanClaimOutcome::TaskDone,
-                None => HumanClaimOutcome::NotFound,
-            };
+        let refused = match verdict {
+            GateVerdict::Admit => None,
+            GateVerdict::AgentNotFound => Some(AssignOutcome::AgentNotFound),
+            GateVerdict::NotFound => Some(AssignOutcome::NotFound),
+            GateVerdict::ReadOnly => Some(AssignOutcome::ConversationReadonly),
+        };
+        if let Some(outcome) = refused.or_else(|| match assignment_open(row.status) {
+            Ok(()) => None,
+            Err(AssignmentRefusal::TaskDone) => Some(AssignOutcome::TaskDone),
+            Err(AssignmentRefusal::TaskClosed) => Some(AssignOutcome::TaskClosed),
+        }) {
             tx.rollback().await.map_err(driver)?;
             return Ok(outcome);
         }
-        // Same-tx `task_claim` event: `task #N assigned to @<assignee> (by user)`.
-        let actor_pill = TaskSystemActor::User {
-            id: actor.clone(),
-            name: "user".to_owned(),
+        let assignee = match resolve_assignee(&mut tx, &row.conversation_id, target).await? {
+            Ok(assignee) => assignee,
+            Err(outcome) => {
+                tx.rollback().await.map_err(driver)?;
+                return Ok(outcome);
+            }
+        };
+        let unchanged = match &assignee {
+            Assignee::Agent(id) => row.assignee_agent_id.as_deref() == Some(id.as_str()),
+            Assignee::User(id) => row.assignee_user_id.as_deref() == Some(id.as_str()),
+            Assignee::Unassigned => false,
+        };
+        if unchanged {
+            tx.rollback().await.map_err(driver)?;
+            return Ok(AssignOutcome::Unchanged {
+                task_id: task_id.clone(),
+                task_number: row.task_number,
+            });
+        }
+        let (agent, user) = match &assignee {
+            Assignee::Agent(id) => (Some(id.as_str()), None),
+            Assignee::User(id) => (None, Some(id.as_str())),
+            Assignee::Unassigned => return Err(corrupt("task.assign.unassigned")),
+        };
+        sqlx::query(ASSIGN_OVERRIDE)
+            .bind(agent)
+            .bind(user)
+            .bind(task_id.as_str())
+            .bind(row.status.as_str())
+            .execute(&mut *tx)
+            .await
+            .map_err(driver)?;
+        let actor_pill = match actor {
+            TaskAssigner::Agent { id, names } => TaskSystemActor::Agent {
+                id: id.clone(),
+                names: names.clone(),
+            },
+            TaskAssigner::User(id) => TaskSystemActor::User {
+                id: id.clone(),
+                name: "user".to_owned(),
+            },
         };
         let witness = append_assignment_event(
             &mut tx,
@@ -370,13 +427,19 @@ impl TaskClaimWrite for SqliteTaskClaimWrite {
             actor_pill,
             TaskEventKind::Claim,
             now,
-            compose_claim_event,
+            compose_assign_event,
         )
         .await?;
+        let notice = match &assignee {
+            Assignee::User(viewer) if !matches!(actor, TaskAssigner::User(a) if a == viewer) => {
+                Some(write_assignee_notice(&mut tx, viewer, &witness, actor, now).await?)
+            }
+            _ => None,
+        };
         tx.commit().await.map_err(driver)?;
-        Ok(HumanClaimOutcome::Claimed {
-            status: change.target(),
+        Ok(AssignOutcome::Assigned {
             witness: Box::new(witness),
+            notice,
         })
     }
 
@@ -506,6 +569,110 @@ impl TaskClaimWrite for SqliteTaskClaimWrite {
         tx.commit().await.map_err(driver)?;
         Ok(UnclaimOutcome::Unclaimed(Box::new(witness)))
     }
+}
+
+/// Resolve the request's target to a participating assignee, judged on the write
+/// transaction so a removal racing the request cannot be assigned.
+async fn resolve_assignee(
+    tx: &mut sqlx::Transaction<'_, Sqlite>,
+    conversation: &ConversationId,
+    target: &AssignTarget,
+) -> Result<Result<Assignee, AssignOutcome>, PersistenceFailure> {
+    match target {
+        AssignTarget::Agent(id) => Ok(match agent_gate(tx, conversation, id).await? {
+            GateVerdict::NotFound => Err(AssignOutcome::AssigneeNotConversationMember),
+            _ => Ok(Assignee::Agent(id.clone())),
+        }),
+        AssignTarget::User(id) => Ok(match user_gate(tx, conversation, id).await? {
+            GateVerdict::NotFound => Err(AssignOutcome::AssigneeNotConversationMember),
+            _ => Ok(Assignee::User(id.clone())),
+        }),
+        AssignTarget::Handle { handle, kind } => {
+            let rows = sqlx::query(SELECT_PARTICIPANT_BY_HANDLE)
+                .bind(conversation.as_str())
+                .bind(handle.as_str())
+                .fetch_all(&mut **tx)
+                .await
+                .map_err(driver)?;
+            let mut found = None;
+            for row in rows {
+                let row_kind: String = row.try_get("kind").map_err(driver)?;
+                let id: String = row.try_get("id").map_err(driver)?;
+                let assignee = match row_kind.as_str() {
+                    "agent" => {
+                        Assignee::Agent(AgentId::parse(id).map_err(|_| corrupt("agents.id"))?)
+                    }
+                    _ => Assignee::User(UserId::parse(id).map_err(|_| corrupt("users.id"))?),
+                };
+                let wanted = matches!(
+                    (kind, &assignee),
+                    (None, _)
+                        | (Some(PrincipalKind::Agent), Assignee::Agent(_))
+                        | (Some(PrincipalKind::Human), Assignee::User(_))
+                );
+                if wanted {
+                    found = Some(assignee);
+                }
+            }
+            Ok(found.ok_or(AssignOutcome::AssigneeNotConversationMember))
+        }
+    }
+}
+
+async fn write_assignee_notice(
+    tx: &mut sqlx::Transaction<'_, Sqlite>,
+    viewer: &UserId,
+    witness: &TaskMutationWitness,
+    actor: &TaskAssigner,
+    now: i64,
+) -> Result<AssigneeNotice, PersistenceFailure> {
+    let place = sqlx::query(SELECT_NOTICE_PLACE)
+        .bind(witness.conversation_id.as_str())
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(driver)?;
+    let workspace: Option<String> = place.try_get("workspace_id").map_err(driver)?;
+    let workspace_id = workspace
+        .map(WorkspaceId::parse)
+        .transpose()
+        .map_err(|_| corrupt("conversations.workspace_id"))?;
+    let fixed = place
+        .try_get::<String, _>("roster_policy")
+        .map_err(driver)?
+        == "fixed";
+    let conversation_title = if fixed {
+        None
+    } else {
+        place.try_get("title").map_err(driver)?
+    };
+    let trigger_name = match actor {
+        TaskAssigner::Agent { names, .. } => names.display_name().to_owned(),
+        TaskAssigner::User(_) => "user".to_owned(),
+    };
+    let payload = serde_json::json!({
+        "conversation_title": conversation_title,
+        "trigger_name": trigger_name,
+        "mention_excerpt": witness.event_message.message.content,
+    })
+    .to_string();
+    let notification_id = super::create_write::new_id()?;
+    sqlx::query(INSERT_ASSIGNEE_NOTICE)
+        .bind(&notification_id)
+        .bind(viewer.as_str())
+        .bind(workspace_id.as_ref().map(WorkspaceId::as_str))
+        .bind(witness.conversation_id.as_str())
+        .bind(witness.event_message.id.as_str())
+        .bind(payload)
+        .bind(now)
+        .execute(&mut **tx)
+        .await
+        .map_err(driver)?;
+    Ok(AssigneeNotice {
+        viewer: viewer.clone(),
+        notification_id,
+        workspace_id,
+        conversation_title,
+    })
 }
 
 /// The pre-clear assignee agent's display name for the unclaim event's `was @<prev>`

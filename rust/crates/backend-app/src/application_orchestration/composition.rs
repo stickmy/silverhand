@@ -905,6 +905,13 @@ pub(super) async fn compose_after_audit(
         names: lane_task_door.clone(),
         aftermath: PublishingTaskAftermath::new(lane_effects.clone()),
     }))
+    .merge(task_assign_router(TaskAssignState {
+        door: lane_task_door.clone(),
+        numbers: task_store.clone(),
+        write: task_claim_write.clone(),
+        names: lane_task_door.clone(),
+        aftermath: PublishingTaskAftermath::new(lane_effects.clone()),
+    }))
     .merge(task_unclaim_router(TaskUnclaimState {
         door: lane_task_door.clone(),
         numbers: task_store.clone(),

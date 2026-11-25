@@ -1,6 +1,10 @@
 import { useMemo, useState, useSyncExternalStore } from "react";
 import dayjs from "dayjs";
-import type { TaskStatus, TaskSystemMetadata } from "@silverhand/shared";
+import {
+  type TaskStatus,
+  type TaskSystemMetadata,
+  isTaskAssignmentEvent,
+} from "@silverhand/shared";
 import { ChevronDownIcon, ChevronRightIcon } from "@/icons";
 import { formatUserDisplayName } from "@/features/session/current-user";
 import { makeUserNameResolver, useUsersById } from "@/features/users/hooks";
@@ -116,9 +120,9 @@ function describe(meta: TaskSystemMetadata, actor: JSX.Element): React.ReactNode
       return tRich("tasks.history.edited", { actor });
     case "task_claim":
     case "task_unclaim": {
-      // A human claim/unclaim is an assignment from the board, not taking the
-      // job (`docs/tasks-design.md` §4.4).
-      if (meta.actor.kind !== "user") {
+      // A claim naming someone other than its actor is an assignment; a human
+      // unclaim is an unassignment from the board.
+      if (!isTaskAssignmentEvent(meta)) {
         return tRich(
           meta.subtype === "task_claim" ? "tasks.history.claimed" : "tasks.history.unclaimed",
           { actor },

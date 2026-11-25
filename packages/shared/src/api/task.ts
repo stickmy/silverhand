@@ -800,6 +800,8 @@ export const TaskMutationErrorCodeSchema = z.enum([
    *  (P0-e survivor-readonly); mutations would write a system event into the
    *  pair. Proven inside the write transaction. */
   'conversation_readonly',
+  /** `task assign` named nobody participating in the task's conversation. */
+  'assignee_not_conversation_member',
 ]);
 export type TaskMutationErrorCode = z.infer<typeof TaskMutationErrorCodeSchema>;
 
@@ -824,15 +826,32 @@ export const HumanUpdateTaskStatusInputSchema = z.object({
 });
 export type HumanUpdateTaskStatusInput = z.infer<typeof HumanUpdateTaskStatusInputSchema>;
 
-// Human UI — POST /api/tasks/:taskId/claim (assign to a target agent).
-// `agent_id` is REQUIRED: assignment and un-assignment are two writes with two
-// meanings, and clearing the assignee is `POST /unclaim` — the single entry for
-// that. An omitted `agent_id` used to fall through to "clear the assignee",
-// which additionally advanced a `todo` task to `in_progress` (an unassigned
-// task marked in progress); one meaning does not get two write paths.
-export const HumanClaimTaskInputSchema = z.object({
-  agent_id: z.string().min(1),
-});
+// Human UI — POST /api/tasks/:taskId/claim (assign to a participant). Exactly
+// one of `agent_id` / `user_id`; clearing the assignee is `POST /unclaim`.
+// Assignment never changes the status.
+export const HumanClaimTaskInputSchema = z
+  .object({
+    agent_id: z.string().min(1).optional(),
+    user_id: z.string().min(1).optional(),
+  })
+  .refine((v) => (v.agent_id !== undefined) !== (v.user_id !== undefined), {
+    message: 'provide exactly one of agent_id or user_id',
+  });
+
+// Agent CLI — POST /internal/agents/:agentId/tasks/assign. `assignee` is a
+// member reference or handle; the status never changes.
+export const AssignTaskInputSchema = z
+  .object({
+    task_number: z.number().int().positive().optional(),
+    task_id: z.string().min(1).optional(),
+    assignee: z.string().min(1),
+    workspace_id: z.string().optional(),
+    workspace_name: z.string().optional(),
+  })
+  .refine((v) => (v.task_number !== undefined) !== (v.task_id !== undefined), {
+    message: 'provide exactly one of task_number or task_id',
+  });
+export type AssignTaskInput = z.infer<typeof AssignTaskInputSchema>;
 export type HumanClaimTaskInput = z.infer<typeof HumanClaimTaskInputSchema>;
 
 // ── Edit (title / content) ────────────────────────────────────────────

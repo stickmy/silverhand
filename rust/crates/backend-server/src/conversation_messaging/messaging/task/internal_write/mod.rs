@@ -9,6 +9,7 @@
 //! capability token, and dispatches to the core write UoW. No face re-implements
 //! the state machine or SQL: the five UoWs are the exact denominator.
 
+pub(crate) mod assign;
 pub(crate) mod claim;
 pub(crate) mod create;
 pub(crate) mod edit;

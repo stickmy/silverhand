@@ -304,6 +304,29 @@ pub fn compose_claim_event(facts: &TaskEventFacts) -> TaskEventMessage {
     }
 }
 
+/// Compose the `task_claim` event of an assignment, which names the assignee. A
+/// self-claim uses [`compose_claim_event`].
+pub fn compose_assign_event(facts: &TaskEventFacts) -> TaskEventMessage {
+    let assignee = assignee_label(&facts.assignee);
+    let content = match &facts.actor {
+        TaskSystemActor::Agent { names, .. } => format!(
+            "@{} assigned task #{} to @{}",
+            names.content_name(),
+            facts.task_number.get(),
+            assignee
+        ),
+        TaskSystemActor::User { .. } => format!(
+            "task #{} assigned to @{} (by user)",
+            facts.task_number.get(),
+            assignee
+        ),
+    };
+    TaskEventMessage {
+        content,
+        metadata: metadata_json(TaskEventKind::Claim, facts, &Map::new()).to_string(),
+    }
+}
+
 /// Compose an `unclaim` event. An AGENT unclaim is `task #N unclaimed (was
 /// @<prev>)` where `prev` is the assignee the clear removed; a HUMAN unclaim is
 /// `task #N unassigned (by user)`. `prior_assignee_name` carries the removed agent's
@@ -401,6 +424,18 @@ mod tests {
         assert_eq!(
             compose_status_event(&facts).content,
             "task #7 → in_progress (by @alice)"
+        );
+    }
+
+    #[test]
+    fn assign_names_the_assignee_for_either_actor() {
+        assert_eq!(
+            compose_assign_event(&agent_facts()).content,
+            "@alice assigned task #7 to @norman"
+        );
+        assert_eq!(
+            compose_assign_event(&user_actor(agent_facts())).content,
+            "task #7 assigned to @norman (by user)"
         );
     }
 

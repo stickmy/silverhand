@@ -1,5 +1,5 @@
 /**
- * `silverhand task` — list, create, claim, unclaim, status, edit, detail.
+ * `silverhand task` — list, create, claim, assign, unclaim, status, edit, detail.
  */
 import type { TaskStatus } from '@silverhand/shared';
 import {
@@ -250,7 +250,7 @@ const TASK_NUMBER_FLAG_REMOVED: RemovedFlagSpec = {
  * missing / mistyped / over-supplied operand costs no round trip and can
  * never be half-applied. Two arities:
  *
- *   'exactly-one'  detail | edit | unclaim — a point operation
+ *   'exactly-one'  detail | edit | assign | unclaim — a point operation
  *   'one-or-more'  claim | status — batch; each task reports its own
  *                  success/failure
  *
@@ -322,7 +322,7 @@ function parseTaskNumberOperands(
 }
 
 /**
- * Resolve the ONE-task selector for detail | edit | status | unclaim: either
+ * Resolve the ONE-task selector for detail | edit | status | assign | unclaim: either
  * the positional `<task_number>` (a board-local number — may pair with the
  * workspace selector naming that board) or the explicit `--id <task_id>` (the
  * task's GLOBAL identity, the `id` field on `task list` / `task detail`
@@ -818,7 +818,9 @@ Atomic claim of tasks that ALREADY exist. If a task is already claimed by
 someone else, the result entry has success=false with a reason. Always
 move on when a claim fails — do not retry.
 
-Claiming a "todo" task auto-advances it to "in_progress".
+Claiming a "todo" task auto-advances it to "in_progress". A task assigned
+to you is claimable: claiming it is how you start it (an already-started
+one reports success unchanged).
 
   silverhand task claim 42          # one task
   silverhand task claim 42 43 44    # batch; per-task success in the result
@@ -899,6 +901,56 @@ stdout: ClaimTasksResult JSON.`,
       task_numbers: taskNumbers,
       ...selector,
     });
+  },
+};
+
+const assignCommand: Command = {
+  verb: 'assign',
+  summary: 'Assign a task to another participant (agent or human).',
+  help: `silverhand task assign <task_number> --to <assignee>
+                          [--workspace-id <id> | --workspace <name>]
+       silverhand task assign --id <task_id> --to <assignee>
+
+Sets the task's assignee to a participant of the task's conversation,
+replacing any current assignee. The status does not change: a "todo" task
+stays "todo" until the assignee runs \`silverhand task claim\` to start it.
+An assigned human is notified like a mention. Done and closed tasks
+cannot be reassigned.
+
+Flags:
+  --to    Required. The assignee: a reference copied from the member list
+          (\`<silverhand://agent/<name>>\`, \`<silverhand://human/<name>>\`)
+          or a bare handle (\`alice\` / \`@alice\`).
+
+Selector forms — see \`silverhand task detail --help\`. Workspace
+selector — see \`silverhand task claim --help\`.
+
+Errors:
+  assignee_not_conversation_member   --to names nobody participating in the
+                                     task's conversation
+  task_done / task_closed            the task is terminal
+
+stdout: TaskMutationResult JSON.`,
+  flags: ['workspace-id', 'workspace', 'id', 'to'] as const,
+  removedFlags: { 'task-number': TASK_NUMBER_FLAG_REMOVED },
+  allowPositional: true,
+  async run({ client, args }) {
+    const assignee = flagString(args, 'to');
+    if (!assignee) {
+      throw new CliError({
+        code: 'validation_error',
+        subkind: 'missing_required_flag',
+        message: 'task assign requires --to <assignee>',
+        retriable: false,
+        details: { command: 'task assign', flag: 'to' },
+      });
+    }
+    const selector = resolveSingleTaskSelector(args, 'assign');
+    if ('taskId' in selector) {
+      return client.assignTask({ task_id: selector.taskId, assignee });
+    }
+    const workspace = resolveWorkspaceSelector(args);
+    return client.assignTask({ task_number: selector.taskNumber, assignee, ...workspace });
   },
 };
 
@@ -1189,6 +1241,7 @@ export const taskCommands: readonly Command[] = [
   listCommand,
   createCommand,
   claimCommand,
+  assignCommand,
   unclaimCommand,
   statusCommand,
   editCommand,

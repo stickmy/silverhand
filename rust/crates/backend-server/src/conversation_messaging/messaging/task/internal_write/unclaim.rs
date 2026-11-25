@@ -317,7 +317,7 @@ mod tests {
     use axum::http::Request;
     use serde_json::Value;
     use silverhand_backend_core::conversation_messaging::messaging::task::{
-        AgentClaimOutcome, BoardKey, HumanClaimOutcome, PairKey, WorkspaceMembership,
+        AgentClaimOutcome, BoardKey, PairKey, WorkspaceMembership,
     };
     use silverhand_backend_core::foundation::identity::{
         ConversationId, DaemonInstanceId, UserId, WorkspaceId,
@@ -445,13 +445,16 @@ mod tests {
         ) -> Result<AgentClaimOutcome, PersistenceFailure> {
             unreachable!("unclaim face never claims")
         }
-        async fn human_claim(
+        async fn assign(
             &self,
             _id: &TaskId,
-            _actor: &UserId,
-            _assignee: &AgentId,
-        ) -> Result<HumanClaimOutcome, PersistenceFailure> {
-            unreachable!("agent face never calls human_claim")
+            _actor: &silverhand_backend_core::conversation_messaging::messaging::task::TaskAssigner,
+            _target: &silverhand_backend_core::conversation_messaging::messaging::task::AssignTarget,
+        ) -> Result<
+            silverhand_backend_core::conversation_messaging::messaging::task::AssignOutcome,
+            PersistenceFailure,
+        > {
+            unreachable!("unclaim face never assigns")
         }
         async fn agent_unclaim(
             &self,

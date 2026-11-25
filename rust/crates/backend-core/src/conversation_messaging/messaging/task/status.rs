@@ -48,7 +48,7 @@ use crate::foundation::identity::AgentId;
 impl TaskStatus {
     /// The `status`-verb transitions the AGENT door permits from `self` — the
     /// `VALID_TRANSITIONS` table verbatim. Note `todo → in_progress` is absent:
-    /// that edge is produced only by claim/dispatch, never this verb.
+    /// that edge is produced only by self-claim, never this verb.
     ///
     /// Private on purpose: exposing the table would let a consumer check
     /// legality here and then write a `closed_at` decided somewhere else, which
@@ -166,7 +166,7 @@ pub fn assignment_open(from: TaskStatus) -> Result<(), AssignmentRefusal> {
     }
 }
 
-/// Claim or dispatch: the only producer of `todo → in_progress`; other open statuses
+/// Self-claim: the only producer of `todo → in_progress`; other open statuses
 /// keep their status.
 pub fn claim_status_change(from: TaskStatus) -> Result<TaskStatusChange, AssignmentRefusal> {
     assignment_open(from)?;

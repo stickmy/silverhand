@@ -31,7 +31,8 @@
 
 use std::future::Future;
 
-use crate::foundation::identity::{AgentId, ConversationId, UserId};
+use crate::conversation_messaging::messaging::{ParticipantHandle, PrincipalKind};
+use crate::foundation::identity::{AgentId, ConversationId, UserId, WorkspaceId};
 use crate::foundation::persistence::PersistenceFailure;
 
 use super::aggregate::{BoardKey, CreatedEventMessageId, SourceMessageId, ThreadRootId};
@@ -418,23 +419,66 @@ pub enum AgentClaimOutcome {
     TaskClosed,
     /// The task already has an assignee (agent or user). No row written.
     AlreadyClaimed,
+    /// The actor already holds the task and it is past `todo`: claiming is a no-op
+    /// success. No row written.
+    AlreadyYours {
+        task_id: TaskId,
+        task_number: TaskNumber,
+    },
 }
 
-/// A HUMAN `claim` assigns a chosen AGENT to a task. Same gate as the agent path
-/// plus the assignee-agent must itself participate in the task's conversation
-/// (`assignee_not_conversation_member`), because a fire dispatches to that agent.
+/// Who an assignment names, as the request named it. `Handle` is resolved under the
+/// write lock against the task conversation's participants (agent and user handles
+/// share one namespace); `kind` narrows it when the caller used a typed reference.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum HumanClaimOutcome {
-    Claimed {
-        status: TaskStatus,
-        witness: Box<TaskMutationWitness>,
+pub enum AssignTarget {
+    Agent(AgentId),
+    User(UserId),
+    Handle {
+        handle: ParticipantHandle,
+        kind: Option<PrincipalKind>,
     },
+}
+
+/// Who performs an assignment. An agent actor also needs `write_tasks` on the
+/// task's workspace; a user actor needs only participation.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum TaskAssigner {
+    Agent { id: AgentId, names: AgentEventNames },
+    User(UserId),
+}
+
+/// The in-app notice owed to a human assignee, written in the assignment's
+/// transaction as a `mention_self` notification on the event message.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AssigneeNotice {
+    pub viewer: UserId,
+    pub notification_id: String,
+    pub workspace_id: Option<WorkspaceId>,
+    /// The channel title; `None` for a direct pair.
+    pub conversation_title: Option<String>,
+}
+
+/// An assignment sets or replaces the assignee of an open task and never changes
+/// its status: `todo` stays `todo` until the assignee claims it.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum AssignOutcome {
+    Assigned {
+        witness: Box<TaskMutationWitness>,
+        notice: Option<AssigneeNotice>,
+    },
+    /// The task already has exactly this assignee. No row written.
+    Unchanged {
+        task_id: TaskId,
+        task_number: TaskNumber,
+    },
+    /// Agent actor only: the actor aggregate is gone.
+    AgentNotFound,
     NotFound,
     ConversationReadonly,
     TaskDone,
     TaskClosed,
-    AlreadyClaimed,
-    /// The chosen assignee agent is not a participant of the task's conversation.
+    /// The named assignee does not participate in the task's conversation.
     AssigneeNotConversationMember,
 }
 
@@ -477,14 +521,14 @@ pub trait TaskClaimWrite {
         actor_names: &AgentEventNames,
     ) -> impl Future<Output = Result<AgentClaimOutcome, PersistenceFailure>> + Send;
 
-    /// HUMAN claim: assign or reassign the chosen participating `assignee` agent on
-    /// a non-terminal task the acting user participates in.
-    fn human_claim(
+    /// Assign or reassign an open task to a participant of its conversation,
+    /// overriding any current assignee. Status is unchanged.
+    fn assign(
         &self,
         task_id: &TaskId,
-        actor: &UserId,
-        assignee: &AgentId,
-    ) -> impl Future<Output = Result<HumanClaimOutcome, PersistenceFailure>> + Send;
+        actor: &TaskAssigner,
+        target: &AssignTarget,
+    ) -> impl Future<Output = Result<AssignOutcome, PersistenceFailure>> + Send;
 
     /// AGENT unclaim: if the actor IS the assignee and the task is non-terminal,
     /// clear assignment, rewind to `todo`, and clear `closed_at` atomically.

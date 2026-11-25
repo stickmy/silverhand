@@ -1318,6 +1318,11 @@ where
                 Err(error) => failures.push(error.to_string()),
             }
         }
+        if let Some(notice) = trigger.assignee_notice()
+            && let Err(error) = self.hub.publish_task_assignee_notice(notice, task)
+        {
+            failures.push(error.to_string());
+        }
         if trigger.plan().cross_operation_audit()
             && let Some(audit) = trigger.cross_operation_audit()
         {
