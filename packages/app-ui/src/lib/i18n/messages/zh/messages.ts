@@ -52,6 +52,14 @@ export const messages: Translation<typeof en> = {
   unsave: "取消收藏",
   saveMessage: "收藏消息",
   unfollowThread: "取消关注话题",
+  optionOtherAnswer: "其他：{text}",
+  optionOtherEllipsis: "其他…",
+  optionOtherPlaceholder: "你的回答",
+  optionSubmit: "提交",
+  optionPickFirst: "请至少选择一项",
+  optionSubmitCount: {
+    other: "提交 ({count})",
+  },
   imageCount: {
     other: "{count} 张图片",
   },

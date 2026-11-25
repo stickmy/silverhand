@@ -49,6 +49,15 @@ export const messages = {
   unsave: "Unsave",
   saveMessage: "Save message",
   unfollowThread: "Unfollow thread",
+  optionOtherAnswer: "Other: {text}",
+  optionOtherEllipsis: "Other…",
+  optionOtherPlaceholder: "Your answer",
+  optionSubmit: "Submit",
+  optionPickFirst: "Pick at least one option",
+  optionSubmitCount: {
+    one: "Submit ({count})",
+    other: "Submit ({count})",
+  },
   imageCount: {
     one: "{count} image",
     other: "{count} images",
