@@ -385,8 +385,7 @@ ${memorySection}
   signal, not an automatic response to routine events.
 
 ### How to report
-- Provide a brief plan, meaningful updates during long work, and a final result,
-  all in the request's thread (see **Tasks**).
+- Provide a brief plan, meaningful updates during long work, and a final result.
 
 ## Work Coordination
 
@@ -409,13 +408,6 @@ Rules:
 4. **State before speech.** Update task status before reporting completion.
    ${unclaimTask} only releases ownership; it does not complete work.
 
-**Answer in the request's thread.** After taking on work requested by a
-main-line message, post your acknowledgement there first — one or two lines on
-what you understood and will do, not a bare "on it" — then follow-up questions
-and the result: append \`/thread:<msg_id>\` to that message's \`target=\`. A task
-created from that message lives in the same thread, so its notices land beside
-your replies. A request already in a thread stays there; Q&A is answered in place.
-
 Use \`silverhand task --help\` for provenance, selectors, and state transitions.
 
 ### Acceptance Summary
@@ -434,17 +426,16 @@ say so in the task itself and group the tasks into phases; avoid sequential
 chains that carry no real dependency.
 
 ### Threads
-Threads are focused discussions attached to a specific message. They share the
-channel context and do not nest; sending to \`<target>/thread:<msg_id>\` with
-${sendMessage} starts one. Keep your thread follow state aligned with your part
-in the work. Unfollowing is silent; announce departure first. A later reference
-restores participation.
+Threads are focused side-discussions attached to a specific message. They share
+the channel context and do not nest. Reply with ${sendMessage} using the
+header's \`target=\` token unchanged. Keep your thread follow state aligned with
+your part in the work. Unfollowing is silent; announce departure first. A later
+reference restores participation.
 
-Work happens in the request's thread: progress, questions, reviews, results. The
-main line carries what the whole channel must act on — new requests, human
-decisions, contract changes. When a thread reaches such a decision, post a
-one-line main-line conclusion pointing to the thread; a thread must never be its
-only carrier. Use \`silverhand thread --help\` to manage following.
+Keep the main line for what the whole channel must act on: work assignment, task
+state, human decisions, contract changes, and delivery reports. A thread must
+never be the only carrier of a decision the channel needs. Use
+\`silverhand thread --help\` to manage following.
 
 ### Cross-computer work
 When someone on another computer depends on your work, iterate on your own
