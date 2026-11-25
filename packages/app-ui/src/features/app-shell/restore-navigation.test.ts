@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import type { Panes } from "@/navigation/panes";
 import { resolveRestoreNavigation, type RestoreNavigationInputs } from "./restore-navigation";
 
 function inputs(overrides: Partial<RestoreNavigationInputs> = {}): RestoreNavigationInputs {
@@ -11,7 +10,6 @@ function inputs(overrides: Partial<RestoreNavigationInputs> = {}): RestoreNaviga
     jumpTargetChannelId: null,
     excludeId: null,
     rememberedChannelId: null,
-    rememberedPanes: null,
     ...overrides,
   };
 }
@@ -60,7 +58,7 @@ describe("resolveRestoreNavigation — honored jump wins", () => {
   it("a jump target that no longer exists is ignored (falls through)", () => {
     expect(
       resolveRestoreNavigation(inputs({ jumpTargetChannelId: "gone", rememberedChannelId: "c-2" })),
-    ).toEqual({ kind: "open-remembered", channelId: "c-2", panes: null });
+    ).toEqual({ kind: "open-remembered", channelId: "c-2" });
   });
 
   it("an EXPLICIT jump may still land on an archived channel (#task:1413)", () => {
@@ -80,12 +78,11 @@ describe("resolveRestoreNavigation — honored jump wins", () => {
 });
 
 describe("resolveRestoreNavigation — remembered channel", () => {
-  const panes: Panes = [{ kind: "threads", of: "c-2", thread: null }];
-
-  it("restores the remembered panes when no fresh unread", () => {
-    expect(
-      resolveRestoreNavigation(inputs({ rememberedChannelId: "c-2", rememberedPanes: panes })),
-    ).toEqual({ kind: "open-remembered", channelId: "c-2", panes });
+  it("opens the remembered channel when no fresh unread", () => {
+    expect(resolveRestoreNavigation(inputs({ rememberedChannelId: "c-2" }))).toEqual({
+      kind: "open-remembered",
+      channelId: "c-2",
+    });
   });
 
   it("skips the remembered channel when it is the just-archived primary", () => {

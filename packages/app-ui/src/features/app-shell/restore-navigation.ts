@@ -35,7 +35,6 @@
  * while every side effect stays in the effect.
  */
 
-import type { Panes } from "@/navigation/panes";
 import { pickDefaultChannel } from "@/features/app-shell/archive-fallback";
 
 export interface RestoreNavigationInputs {
@@ -60,17 +59,15 @@ export interface RestoreNavigationInputs {
   excludeId: string | null;
   /** Per-workspace last-viewed channel (`null` if none remembered). */
   rememberedChannelId: string | null;
-  /** Remembered panes of the remembered channel. */
-  rememberedPanes: Panes | null;
 }
 
 export type RestoreNavigation =
   | { kind: "none" }
-  /** Navigate to a bare channel URL. `reason` is for tests; the caller
-   *  builds the same URL either way. */
+  /** Open the channel. `reason` is for tests; the caller opens it the same
+   *  way either way. */
   | { kind: "open-channel"; channelId: string; reason: "jump" | "fallback" }
-  /** Navigate to the remembered channel restoring its panes. */
-  | { kind: "open-remembered"; channelId: string; panes: Panes | null };
+  /** Open the remembered channel. */
+  | { kind: "open-remembered"; channelId: string };
 
 export function resolveRestoreNavigation(inputs: RestoreNavigationInputs): RestoreNavigation {
   const {
@@ -81,7 +78,6 @@ export function resolveRestoreNavigation(inputs: RestoreNavigationInputs): Resto
     jumpTargetChannelId,
     excludeId,
     rememberedChannelId,
-    rememberedPanes,
   } = inputs;
 
   if (!workspaceId) return { kind: "none" };
@@ -110,7 +106,7 @@ export function resolveRestoreNavigation(inputs: RestoreNavigationInputs): Resto
     rememberedChannelId !== excludeId &&
     isActiveChannel(rememberedChannelId)
   ) {
-    return { kind: "open-remembered", channelId: rememberedChannelId, panes: rememberedPanes };
+    return { kind: "open-remembered", channelId: rememberedChannelId };
   }
 
   // 3. Default: first active top-level, excluding a just-archived primary.

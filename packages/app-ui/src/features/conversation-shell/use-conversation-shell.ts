@@ -11,8 +11,7 @@ import { useNotificationToasts } from "@/features/attention/notifications";
 import { useSavedMessages } from "@/features/messages/saved";
 import type { AdvancedSearchSeed } from "@/features/search/advanced-search-seed";
 import { useLayoutSettings } from "@/features/conversation-shell/use-layout-settings";
-import { getChannelPanes } from "@/features/app-shell/place-memory";
-import { channelUrlKeeping, paneUrl, routes, useNav, useRouteState } from "@/router";
+import { channelUrlKeeping, routes, useNav, useRouteState } from "@/router";
 import { useCallback, useDeferredValue, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { channelWorkspaceOf } from "@/features/channels/channel-workspace-index";
@@ -148,10 +147,6 @@ export function useConversationShell({
     if (!workspaceId) {
       return;
     }
-    if (compact) {
-      nav.toChannel(workspaceId, id);
-      return;
-    }
     const sameWorkspace = workspaceId === selectedWorkspaceId;
     // A=Activity-follows-channel (#task:1189): while an agent pane is open,
     // switching channel keeps it and just re-points the locked Activity
@@ -159,15 +154,15 @@ export function useConversationShell({
     // the agent pane). Only
     // same-workspace: a cross-workspace open switches workspace anyway and the
     // docked agent panel can't follow it.
-    if (sameWorkspace && agentPanelId) {
+    if (!compact && sameWorkspace && agentPanelId) {
       nav.go(channelUrlKeeping(workspaceId, id, { agent: agentPanelId }));
       return;
     }
     // Pane visibility effects advance read cursors. Keeping
     // this handler side-effect free avoids duplicate mark-read/refetch storms.
-    // A channel opens in the layout it was left in; an unread thread reply is
-    // signalled on its row and the Threads tab, and never reopens a pane.
-    nav.go(paneUrl(routes.chatChannel(workspaceId, id), getChannelPanes(id) ?? []));
+    // An unread thread reply is signalled on its row and the Threads tab, and
+    // never reopens a pane.
+    nav.toChannel(workspaceId, id);
   };
 
   const qc = useQueryClient();

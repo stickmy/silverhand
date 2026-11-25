@@ -10,6 +10,7 @@ const h = vi.hoisted(() => ({
   effects: [] as Array<() => void>,
   removal: undefined as undefined | ((id: string) => void),
   go: vi.fn(),
+  navigate: vi.fn(),
   toChannel: vi.fn(),
   toWorkspace: vi.fn(),
   persist: vi.fn(),
@@ -27,7 +28,12 @@ vi.mock("react", async (importOriginal) => ({
 vi.mock("@/router", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/router")>()),
   useRouteState: () => h.route,
-  useNav: () => ({ go: h.go, toChannel: h.toChannel, toWorkspace: h.toWorkspace }),
+  useNav: () => ({
+    go: h.go,
+    navigate: h.navigate,
+    toChannel: h.toChannel,
+    toWorkspace: h.toWorkspace,
+  }),
 }));
 vi.mock("@/features/channels/use-viewer-channel-removal-sync", () => ({
   useViewerChannelRemovalSync: (p: { onVisibilityLoss: (id: string) => void }) => {
@@ -43,8 +49,6 @@ vi.mock("@/features/app-shell/place-memory", () => ({
   persistLastChannel: h.persist,
   getLastWorkspaceId: () => null,
   getLastChatPlace: () => null,
-  getChannelPanes: () => null,
-  recordChannelPanes: vi.fn(),
 }));
 import { useConversationInvalidation } from "./use-conversation-invalidation";
 import { useChatRouteRecovery } from "@/features/app-shell/use-chat-route-recovery";
@@ -165,6 +169,9 @@ describe("Chat recovery boundary", () => {
     h.route.channelId = null;
     recover({ current: null });
     h.effects.forEach((e) => e());
-    expect(h.go).toHaveBeenCalledExactlyOnceWith("/chat/w/w/c/c", { replace: true });
+    expect(h.navigate).toHaveBeenCalledExactlyOnceWith(
+      { kind: "conversation", workspaceId: "w", conversationId: "c" },
+      { replace: true },
+    );
   });
 });

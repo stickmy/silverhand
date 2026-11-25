@@ -32,7 +32,6 @@ const {
   LAST_CHANNEL_KEY,
   LAST_WORKSPACE_KEY,
   LAST_CHAT_PLACE_KEY,
-  PANES_KEY,
   CLOSE_WATERMARK_KEY,
   CONVERSATION_TABS_KEY,
   FUNCTIONAL_TABS_KEY,
@@ -41,17 +40,14 @@ const {
   recordConversationActiveTab,
   subscribeConversationTabs,
   clearPlaceMemory,
-  getChannelPanes,
   getConversationTabs,
   getLastChatPlace,
   getLastWorkspaceId,
   lastChannelByWorkspace,
-  panesByChannel,
   persistLastChannel,
   recordConversationTabs,
   recordLastChatPlace,
   recordLastWorkspace,
-  recordChannelPanes,
   tabsByConversation,
 } = await import("./place-memory");
 
@@ -171,7 +167,6 @@ describe("place-memory", () => {
       expect(lastChannelByWorkspace.size).toBe(0);
       expect(localStorage.getItem(LAST_CHANNEL_KEY)).toBeNull();
       expect(getLastWorkspaceId()).toBeNull();
-      expect(panesByChannel.has("c-dm")).toBe(false);
     });
 
     it("clearPlaceMemory wipes the place + its localStorage key", () => {
@@ -216,47 +211,6 @@ describe("place-memory", () => {
         const fresh = await import("./place-memory");
         expect(fresh.getLastChatPlace()).toBeNull();
       }
-      vi.resetModules();
-    });
-  });
-
-  describe("per-channel pane memory", () => {
-    it("records panes and reads them back in order", () => {
-      const panes = [
-        { kind: "files", of: "ch-A", attachment: null },
-        { kind: "threads", of: "ch-A", thread: "m-1" },
-      ] as const;
-      recordChannelPanes("ch-A", panes);
-      expect(getChannelPanes("ch-A")).toEqual(panes);
-    });
-
-    it("returns null for an unknown channel", () => {
-      expect(getChannelPanes("nope")).toBeNull();
-    });
-
-    it("keeps an empty list so a deliberate close survives re-entry", () => {
-      recordChannelPanes("ch-A", [{ kind: "threads", of: "ch-A", thread: null }]);
-      recordChannelPanes("ch-A", []);
-      expect(getChannelPanes("ch-A")).toEqual([]);
-    });
-
-    it("clearPlaceMemory wipes the pane map + its localStorage key", () => {
-      recordChannelPanes("ch-A", [{ kind: "threads", of: "ch-A", thread: "m-1" }]);
-      expect(localStorage.getItem(PANES_KEY)).not.toBeNull();
-
-      clearPlaceMemory();
-
-      expect(panesByChannel.size).toBe(0);
-      expect(localStorage.getItem(PANES_KEY)).toBeNull();
-    });
-
-    it("drops malformed entries on load through the URL parser", async () => {
-      memoryStore.set(PANES_KEY, JSON.stringify({ "ch-A": "pane=wat&pane=threads.m-1" }));
-      vi.resetModules();
-      const fresh = await import("./place-memory");
-      expect(fresh.getChannelPanes("ch-A")).toEqual([
-        { kind: "threads", of: "ch-A", thread: "m-1" },
-      ]);
       vi.resetModules();
     });
   });

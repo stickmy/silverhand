@@ -5,13 +5,12 @@ import { type ChannelListItem } from "@/features/workspaces/hooks";
 
 import { type MessageJumpTarget } from "@/features/channels/use-message-jump-controller";
 
-import { paneUrl, routes, useNav, useRouteState } from "@/router";
+import { useNav, useRouteState } from "@/router";
+import { rememberPanes } from "@/navigation/pane-memory";
 import {
-  getChannelPanes,
   getLastChatPlace,
   getLastWorkspaceId,
   lastChannelByWorkspace,
-  recordChannelPanes,
 } from "@/features/app-shell/place-memory";
 import {
   resolveChatPlaceRestore,
@@ -85,7 +84,10 @@ export function useChatRouteRecovery({
       return;
     }
     if (restore.kind === "open-direct") {
-      nav.go(routes.chatDirect(restore.conversationId), { replace: true });
+      nav.navigate(
+        { kind: "conversation", conversationId: restore.conversationId },
+        { replace: true },
+      );
       return;
     }
     if (workspaces.length === 0) {
@@ -105,6 +107,7 @@ export function useChatRouteRecovery({
     directPairAuthority,
     workspaces,
     nav.go,
+    nav.navigate,
   ]);
 
   useEffect(() => {
@@ -149,25 +152,14 @@ export function useChatRouteRecovery({
       jumpTargetChannelId: jumpTarget?.channelId ?? null,
       excludeId,
       rememberedChannelId,
-      rememberedPanes: rememberedChannelId ? getChannelPanes(rememberedChannelId) : null,
     });
-    switch (action.kind) {
-      case "none":
-        return;
-      case "open-channel":
-        nav.go(`/chat/w/${selectedWorkspaceId}/c/${action.channelId}`, {
-          replace: true,
-        });
-        return;
-      case "open-remembered":
-        nav.go(
-          paneUrl(routes.chatChannel(selectedWorkspaceId, action.channelId), action.panes ?? []),
-          {
-            replace: true,
-          },
-        );
-        return;
+    if (action.kind === "none") {
+      return;
     }
+    nav.navigate(
+      { kind: "conversation", workspaceId: selectedWorkspaceId, conversationId: action.channelId },
+      { replace: true },
+    );
   }, [
     compact,
     appSection,
@@ -176,7 +168,7 @@ export function useChatRouteRecovery({
     channels,
     memberActiveChannels,
     jumpTarget,
-    nav.go,
+    nav.navigate,
   ]);
 
   useSelectionPersistenceEffects({
@@ -191,7 +183,7 @@ export function useChatRouteRecovery({
   });
 
   useEffect(() => {
-    if (!selectedChannelId || directConversationId !== null) return;
-    recordChannelPanes(selectedChannelId, panes);
-  }, [selectedChannelId, directConversationId, panes]);
+    if (!selectedChannelId) return;
+    rememberPanes(selectedChannelId, panes);
+  }, [selectedChannelId, panes]);
 }

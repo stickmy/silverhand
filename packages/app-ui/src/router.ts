@@ -13,6 +13,8 @@ import {
   type Panes,
 } from "@/navigation/panes";
 import { useNavigationDriver, useNavigationReader, type Driver } from "@/navigation/provider";
+import { readLayoutClass } from "@/navigation/layout";
+import { rememberedPanes } from "@/navigation/pane-memory";
 import type { DirectMessageTarget } from "@/features/direct-pairs/target";
 import { useCallback, useMemo } from "react";
 import { matchPath, useLocation } from "react-router-dom";
@@ -474,10 +476,16 @@ export function resolveNavigationTarget(
       return `/${target.tab}`;
     case "url":
       return target.url;
-    case "conversation":
-      return target.workspaceId
+    case "conversation": {
+      // Every way into a conversation opens the layout it was left in. A
+      // compact screen shows one page at a time, so it opens bare.
+      const base = target.workspaceId
         ? routes.chatChannel(target.workspaceId, target.conversationId)
         : routes.chatDirect(target.conversationId);
+      return readLayoutClass() === "compact"
+        ? base
+        : paneUrl(base, rememberedPanes(target.conversationId));
+    }
     case "thread":
       return open((routeId, panes) => {
         const id = of(target.of)(routeId, panes);

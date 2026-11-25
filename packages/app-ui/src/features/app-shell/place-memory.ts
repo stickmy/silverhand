@@ -15,16 +15,16 @@
  * Besides the last workspace and last channel per workspace, we also remember
  * which ARM the Chat rail was last on ({@link getLastChatPlace}) so leaving the
  * rail and coming back restores a DIRECT line as faithfully as a workspace
- * channel, plus the **open panes per channel** ({@link panesByChannel}) so
- * switching away from a channel and back restores them. All place-memory
- * state is wiped together on logout.
+ * channel (open panes per conversation live in
+ * `navigation/pane-memory`). All place-memory state, panes included, is wiped
+ * together on logout.
  *
  * Lives in `lib/` (not `app.tsx`) so `useLogout` in
  * `features/session/hooks.ts` can import it without taking a circular
  * dependency on the App module.
  */
 
-import { parsePanes, writePanes, type Panes } from "@/navigation/panes";
+import { clearPaneMemory } from "@/navigation/pane-memory";
 import {
   DEFAULT_TABS,
   firstTabKey,
@@ -39,7 +39,6 @@ import {
 export const LAST_CHANNEL_KEY = "silverhand:layout.last-channel-by-workspace";
 export const LAST_WORKSPACE_KEY = "silverhand:layout.last-workspace";
 export const LAST_CHAT_PLACE_KEY = "silverhand:layout.last-chat-place";
-export const PANES_KEY = "silverhand:layout.panes-by-channel";
 /** No longer written; still cleared on logout so an old value does not linger. */
 const SPLIT_PAIRS_KEY = "silverhand:layout.split-pairs";
 export const CLOSE_WATERMARK_KEY = "silverhand:layout.close-watermark-by-channel";
@@ -173,29 +172,6 @@ export function recordLastChatPlace(place: ChatPlace): void {
     return;
   lastChatPlace = place;
   saveStringValue(LAST_CHAT_PLACE_KEY, JSON.stringify(place));
-}
-
-/**
- * Per-channel open panes, stored as the channel URL's pane query so a stored
- * value is read back through the same parser as a URL.
- */
-export const panesByChannel = loadStringMap(PANES_KEY);
-
-/** A channel's remembered panes, or null when none are stored. */
-export function getChannelPanes(channelId: string): Panes | null {
-  const raw = panesByChannel.get(channelId);
-  return raw === undefined ? null : parsePanes(new URLSearchParams(raw), channelId);
-}
-
-/** Record a channel's open panes; an empty list is kept, so a deliberate close
- *  survives re-entry. */
-export function recordChannelPanes(channelId: string, panes: Panes): void {
-  const params = new URLSearchParams();
-  writePanes(params, panes, channelId);
-  const raw = params.toString();
-  if (panesByChannel.get(channelId) === raw) return;
-  panesByChannel.set(channelId, raw);
-  saveStringMap(PANES_KEY, panesByChannel);
 }
 
 /** Legacy mixed orders retain attachment positions; functional entries are shared. */
@@ -356,7 +332,7 @@ export function clearPlaceMemory(): void {
   lastWorkspaceId = null;
   lastChatPlace = null;
   lastChannelByWorkspace.clear();
-  panesByChannel.clear();
+  clearPaneMemory();
   tabsByConversation.clear();
   functionalTabs = [...DEFAULT_TABS];
   activeTabByConversation.clear();
@@ -365,7 +341,6 @@ export function clearPlaceMemory(): void {
     localStorage.removeItem(LAST_WORKSPACE_KEY);
     localStorage.removeItem(LAST_CHANNEL_KEY);
     localStorage.removeItem(LAST_CHAT_PLACE_KEY);
-    localStorage.removeItem(PANES_KEY);
     localStorage.removeItem(CLOSE_WATERMARK_KEY);
     localStorage.removeItem(SPLIT_PAIRS_KEY);
     localStorage.removeItem(CONVERSATION_TABS_KEY);
