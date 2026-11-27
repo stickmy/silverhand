@@ -33,7 +33,9 @@ Each build job has a 60-minute timeout, adjustable after hosted-runner evidence.
    matter. Mention platform support, packaging or signing only when it changes
    in this release. Finish with a GitHub comparison link between the two
    Desktop tags. See [0.5.3](../changelog/desktop/0.5.3.md).
-3. Tag that commit and push the Desktop tag using the established release
+3. Run `pnpm lint:frontend` locally from the repository root. Resolve any new
+   findings before tagging the release.
+4. Tag that commit and push the Desktop tag using the established release
    script. Tag builds check that the matching notes contain text before
    packaging. The release job uses the file from the tagged commit verbatim
    as the GitHub Release body. Manual artifact builds do not require notes.

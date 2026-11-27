@@ -8,7 +8,7 @@ lanes.
 ## Frontend lint
 
 Run `pnpm lint:frontend` for the shared React UI and the Desktop and iOS renderer entry points.
-PRs, pushes to main, and the full and app-ui test commands run this check.
+The local full and app-ui test commands also run this check.
 It checks the Rules of Hooks, dependency arrays, and array/object destructuring defaults
 used directly as hook dependencies. For example, `const { data: channels = [] } = query`
 creates a fresh array on every render while the query is disabled. A module-level
