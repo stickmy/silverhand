@@ -531,7 +531,7 @@ describe("RuntimeConfigEditor source invariants", () => {
     );
     // Save gates on the static product table via the pure helper (2-arg, no
     // host catalog threaded in).
-    expect(src).toMatch(/disabled=\{!canSaveRuntimeConfig\(agent,\s*draft\)\}/);
+    expect(src).toMatch(/canSaveRuntimeConfig\(agent,\s*draft\)/);
     // A readonly profile view must never fetch availability / the runtime
     // catalog — both are gated on `editing` at the query `enabled` and the
     // availability host list.

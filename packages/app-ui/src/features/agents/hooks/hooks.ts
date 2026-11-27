@@ -4,6 +4,8 @@ import type {
   AgentAvailability,
   AgentAvailabilityDto,
   AgentDto,
+  AgentEnvResponse,
+  AgentEnvVar,
   AgentGetResponse,
   AgentPresenceDto,
   AgentRuntimeStateDto,
@@ -537,6 +539,41 @@ export function projectGlobalPresence(
 }
 
 const agentProfileMcpKey = (id: string) => ["agents", id, "profile-mcp"] as const;
+const agentEnvKey = (id: string) => ["agents", id, "env"] as const;
+
+/**
+ * Owner-only per-agent custom environment variables (`GET /api/agents/:id/env`).
+ * Non-owners never enable this query; 4xx refusals are terminal (not retried).
+ */
+export function useAgentEnv(agentId: string | null, options?: { enabled?: boolean }) {
+  const enabled = Boolean(agentId) && (options?.enabled ?? true);
+  return useQuery({
+    queryKey: agentId ? agentEnvKey(agentId) : ["agents", "none", "env"],
+    enabled,
+    queryFn: async () => {
+      const res = await api<AgentEnvResponse>(apiPaths.agentEnv(agentId!));
+      return res.env_vars;
+    },
+    retry: (count, err) =>
+      !(err instanceof ApiError && err.status >= 400 && err.status < 500) && count < 2,
+  });
+}
+
+export function useUpdateAgentEnv(agentId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (envVars: AgentEnvVar[]) => {
+      const res = await api<AgentEnvResponse>(apiPaths.agentEnv(agentId), {
+        method: "PUT",
+        body: JSON.stringify({ env_vars: envVars }),
+      });
+      return res.env_vars;
+    },
+    onSuccess: (saved) => {
+      qc.setQueryData(agentEnvKey(agentId), saved);
+    },
+  });
+}
 
 /**
  * Read the agent's raw profile MCP config (`mcp.json`, or `null` when unset).

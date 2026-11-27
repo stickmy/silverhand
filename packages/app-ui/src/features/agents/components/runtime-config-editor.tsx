@@ -6,6 +6,7 @@ import { ChevronDownIcon, RefreshIcon } from "@/icons";
 import { toast } from "@/lib/toast";
 import type {
   AgentDto,
+  AgentEnvVar,
   ReasoningEffort,
   RuntimeAvailabilityState,
   RuntimeKind,
@@ -27,7 +28,21 @@ import { cn } from "@/lib/cn";
 import { describeApiError } from "@/lib/api-error-message";
 import { CancelButton, SaveButton } from "@/components/common/edit-toolbar-buttons";
 import { SwitchRuntimeConfirmDialog } from "./switch-runtime-confirm-dialog";
-import { useSwitchAgentRuntime, useUpdateAgent } from "../hooks/hooks";
+import {
+  AgentEnvEditList,
+  AgentEnvReadOnly,
+  envDraftFromVars,
+  envDraftIsDirty,
+  normalizeEnvDraft,
+  validateEnvDraft,
+  type EnvDraftRow,
+} from "./agent-env-editor";
+import {
+  useAgentEnv,
+  useSwitchAgentRuntime,
+  useUpdateAgent,
+  useUpdateAgentEnv,
+} from "../hooks/hooks";
 import { useHostAvailabilityMap, useHostRuntimeCatalog } from "@/features/computers/hooks/hooks";
 import { isComputerAvailable } from "@/features/computers/model/host-display";
 import {
@@ -236,8 +251,13 @@ export function describeSwitchToast(
   return { tone: "success", message: t("agents.switched", { runtime: label }) };
 }
 
+const EMPTY_ENV_VARS: readonly AgentEnvVar[] = [];
+
 interface RuntimeConfigEditorProps {
   agent: AgentDto;
+  /** Owner-only affordance gate: environment variables are fetched and shown
+   *  exclusively to the agent's human creator. */
+  canEdit: boolean;
   /** Editing state, owned by the parent so the section's header slot can
    *  render the pencil trigger next to the section title. */
   editing: boolean;
@@ -246,14 +266,22 @@ interface RuntimeConfigEditorProps {
 
 export function RuntimeConfigEditor({
   agent,
+  canEdit,
   editing,
   onExitEdit,
 }: RuntimeConfigEditorProps): JSX.Element {
   const [draft, setDraft] = useState<RuntimeConfigDraft>(() => draftFromAgent(agent));
   const [pendingSwitch, setPendingSwitch] = useState<SwitchAgentRuntimeInput | null>(null);
+  const envQuery = useAgentEnv(agent.id, { enabled: canEdit });
+  const savedEnvVars = envQuery.data ?? EMPTY_ENV_VARS;
+  const [envDraft, setEnvDraft] = useState<EnvDraftRow[]>(() => envDraftFromVars(savedEnvVars));
+  const [envHydratedForEdit, setEnvHydratedForEdit] = useState(false);
+
   const switchMut = useSwitchAgentRuntime(agent.id);
   const patchMut = useUpdateAgent(agent.id);
-  const pending = switchMut.isPending || patchMut.isPending;
+  const envMut = useUpdateAgentEnv(agent.id);
+  const pending = switchMut.isPending || patchMut.isPending || envMut.isPending;
+
   // Owned by the parent so the confirm dialog can restore focus here on
   // close — Radix Dialog has no `DialogTrigger` in the controlled open
   // pattern and would otherwise drop focus to `<body>`, breaking the
@@ -264,14 +292,32 @@ export function RuntimeConfigEditor({
   // realtime update, or agent switch). Only meaningful when NOT editing —
   // an in-flight edit shouldn't be clobbered by an unrelated invalidation.
   useEffect(() => {
-    if (!editing) setDraft(draftFromAgent(agent));
+    if (!editing) {
+      setDraft(draftFromAgent(agent));
+    }
   }, [agent, editing]);
+
+  // Keep env draft aligned with server state while read-only, or hydrate once
+  // if the initial owner env query finishes after entering edit mode.
+  useEffect(() => {
+    if (!editing) {
+      setEnvDraft(envDraftFromVars(savedEnvVars));
+      setEnvHydratedForEdit(envQuery.isSuccess);
+      return;
+    }
+    if (!envHydratedForEdit && envQuery.isSuccess) {
+      setEnvDraft(envDraftFromVars(savedEnvVars));
+      setEnvHydratedForEdit(true);
+    }
+  }, [editing, envHydratedForEdit, envQuery.isSuccess, savedEnvVars]);
 
   // Enter-edit: pull focus into the Runtime Select trigger so the parent
   // capture handler receives Escape (otherwise the section pencil retains
   // focus and Esc fires on `<body>`).
   useEffect(() => {
-    if (editing) runtimeTriggerRef.current?.focus({ preventScroll: true });
+    if (editing) {
+      runtimeTriggerRef.current?.focus({ preventScroll: true });
+    }
   }, [editing]);
 
   // Reset in-flight mutation state whenever the parent enters edit. The
@@ -285,12 +331,22 @@ export function RuntimeConfigEditor({
     if (editing) {
       switchMut.reset();
       patchMut.reset();
+      envMut.reset();
       setPendingSwitch(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing]);
 
   const targets = useMemo(() => RUNTIME_CATALOG.filter((entry) => entry.selectable), []);
+  const envValidation = useMemo(() => validateEnvDraft(envDraft), [envDraft]);
+  const envReady = canEdit && envQuery.isSuccess;
+  const envDirty = envReady && envDraftIsDirty(savedEnvVars, envDraft);
+  const runtimeDirty = draftIsDirty(agent, draft);
+  const runtimeCanSave = canSaveRuntimeConfig(agent, draft);
+  const canSave =
+    (runtimeDirty || envDirty) &&
+    (!runtimeDirty || runtimeCanSave) &&
+    (!envDirty || envValidation.ok);
 
   // The host runtime catalog + availability are fetched HERE (the parent that
   // owns Save/canSave) and passed to EditForm for the runtime install display.
@@ -307,13 +363,21 @@ export function RuntimeConfigEditor({
   function cancel() {
     if (pending) return;
     setDraft(draftFromAgent(agent));
+    setEnvDraft(envDraftFromVars(savedEnvVars));
     switchMut.reset();
     patchMut.reset();
+    envMut.reset();
     setPendingSwitch(null);
     onExitEdit();
   }
+
   async function runSwitch(payload: SwitchAgentRuntimeInput) {
     try {
+      // Save env changes before switching so restarted runtimes on the new
+      // CLI immediately spawn with the updated environment variables.
+      if (envDirty) {
+        await envMut.mutateAsync(normalizeEnvDraft(envDraft));
+      }
       const result = await switchMut.mutateAsync(payload);
       const t = describeSwitchToast(payload.runtime, result.restart_failures);
       if (t.tone === "warning") toast.warning(t.message);
@@ -325,21 +389,27 @@ export function RuntimeConfigEditor({
       // error surfaces inline inside the dialog for retry or Cancel.
     }
   }
+
   async function onSave() {
     const route = routeRuntimeConfigSave(agent, draft);
-    if (route.kind === "nothing") {
-      onExitEdit();
-      return;
-    }
     if (route.kind === "switch") {
       setPendingSwitch(route.payload);
       return;
     }
+    if (route.kind === "nothing" && !envDirty) {
+      onExitEdit();
+      return;
+    }
     try {
-      await patchMut.mutateAsync(route.payload);
+      if (route.kind === "patch") {
+        await patchMut.mutateAsync(route.payload);
+      }
+      if (envDirty) {
+        await envMut.mutateAsync(normalizeEnvDraft(envDraft));
+      }
       onExitEdit();
     } catch {
-      // Error surfaces inline via `patchMut.error` below.
+      // Error surfaces inline via `patchMut.error` / `envMut.error` below.
     }
   }
 
@@ -349,7 +419,13 @@ export function RuntimeConfigEditor({
         fallbackMessage: t("agents.failedToSwitchRuntime"),
         actionLabel: t("agents.switchRuntime"),
       })
-    : null;
+    : envMut.error && pendingSwitch !== null
+      ? describeApiError(envMut.error, {
+          backendUnreachableMessage: t("agents.saveFailedCannotReach"),
+          fallbackMessage: t("agents.failedToSaveEnv"),
+          actionLabel: t("common.save"),
+        })
+      : null;
 
   return (
     <div
@@ -366,18 +442,42 @@ export function RuntimeConfigEditor({
       }}
     >
       {editing ? (
-        <EditForm
-          agent={agent}
-          draft={draft}
-          onDraft={setDraft}
-          targets={targets}
-          triggerRef={runtimeTriggerRef}
-          allSettled={allSettled}
-          hostAvailable={hostAvailable}
-          runtimeCatalog={runtimeCatalog}
-        />
+        <>
+          <EditForm
+            agent={agent}
+            draft={draft}
+            onDraft={setDraft}
+            targets={targets}
+            triggerRef={runtimeTriggerRef}
+            allSettled={allSettled}
+            hostAvailable={hostAvailable}
+            runtimeCatalog={runtimeCatalog}
+          />
+          {canEdit ? (
+            <AgentEnvEditList
+              rows={envDraft}
+              onChange={setEnvDraft}
+              validation={envValidation}
+              loading={envQuery.isPending}
+              error={envQuery.isError}
+              onRetry={() => void envQuery.refetch()}
+              disabled={pending}
+            />
+          ) : null}
+        </>
       ) : (
-        <ReadOnlyGrid agent={agent} />
+        <>
+          <ReadOnlyGrid agent={agent} />
+          {canEdit ? (
+            <AgentEnvReadOnly
+              key={agent.id}
+              vars={savedEnvVars}
+              loading={envQuery.isPending}
+              error={envQuery.isError}
+              onRetry={() => void envQuery.refetch()}
+            />
+          ) : null}
+        </>
       )}
 
       {editing && patchMut.error ? (
@@ -390,14 +490,20 @@ export function RuntimeConfigEditor({
         </div>
       ) : null}
 
+      {editing && envMut.error && pendingSwitch === null ? (
+        <div className="text-xs text-error">
+          {describeApiError(envMut.error, {
+            backendUnreachableMessage: t("agents.saveFailedCannotReach"),
+            fallbackMessage: t("agents.failedToSaveEnv"),
+            actionLabel: t("common.save"),
+          })}
+        </div>
+      ) : null}
+
       {editing ? (
         <div className="flex items-center justify-end gap-1.5">
           <CancelButton onClick={cancel} disabled={pending} />
-          <SaveButton
-            onClick={() => void onSave()}
-            disabled={!canSaveRuntimeConfig(agent, draft)}
-            pending={pending}
-          />
+          <SaveButton onClick={() => void onSave()} disabled={!canSave} pending={pending} />
         </div>
       ) : null}
 
@@ -407,6 +513,7 @@ export function RuntimeConfigEditor({
           if (!next && !pending) {
             setPendingSwitch(null);
             switchMut.reset();
+            envMut.reset();
           }
         }}
         targetRuntime={pendingSwitch?.runtime ?? draft.runtime}

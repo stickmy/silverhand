@@ -216,6 +216,7 @@ export function AgentProfileCard({ agent }: AgentProfileCardProps): JSX.Element 
         {full ? (
           <RuntimeConfigEditor
             agent={full}
+            canEdit={canEdit}
             editing={runtimeEditing}
             onExitEdit={() => setRuntimeEditing(false)}
           />
