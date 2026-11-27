@@ -1,0 +1,23 @@
+/* Inset hairlines between consecutive rows inside a settings group. */
+[data-settings-group] {
+  --settings-divider-inset: 16px;
+}
+
+[data-settings-group] > [data-settings-row],
+[data-settings-group] > [data-settings-row-wrap] {
+  position: relative;
+}
+
+[data-settings-group] > [data-settings-row] + [data-settings-row]::before,
+[data-settings-group] > [data-settings-row] + [data-settings-row-wrap]::before,
+[data-settings-group] > [data-settings-row-wrap] + [data-settings-row]::before,
+[data-settings-group] > [data-settings-row-wrap] + [data-settings-row-wrap]::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: var(--settings-divider-inset);
+  right: var(--settings-divider-inset);
+  height: 1px;
+  background-color: var(--border-subtle);
+  pointer-events: none;
+}

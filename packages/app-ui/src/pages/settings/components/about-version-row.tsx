@@ -81,11 +81,14 @@ export function AboutVersionRow({ version }: { version: string }): JSX.Element {
   const busy = state?.status === "installing";
 
   return (
-    <div className="flex flex-col gap-2 px-3 py-2.5 text-sm">
+    <div
+      data-settings-row
+      className="flex min-h-12 flex-col justify-center gap-2 px-4 py-2.5 text-sm"
+    >
       <div className="flex min-h-6 items-center justify-between gap-3">
-        <span className="text-text-secondary">{t("settings.about.version")}</span>
-        <div className="flex items-center gap-2">
-          <span className="tabular-nums text-text-primary select-text">{version}</span>
+        <span className="font-semibold text-text-primary">{t("settings.about.version")}</span>
+        <div className="flex items-center gap-2.5">
+          <span className="tabular-nums text-text-muted select-text">{version}</span>
           {state ? <UpdateActions state={state} /> : null}
         </div>
       </div>

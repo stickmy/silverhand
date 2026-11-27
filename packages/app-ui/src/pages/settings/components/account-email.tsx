@@ -9,11 +9,15 @@ export function AccountEmail({ userId }: { userId: string }): JSX.Element | null
     queryKey: ["me-email", userId],
     queryFn: async () => SelfEmailSchema.parse(await api(apiPaths.me)).email ?? null,
   });
-  if (!email.data) return null;
+
+  if (!email.data) {
+    return null;
+  }
+
   return (
-    <div className="flex flex-col gap-1.5">
-      <p className="text-xs font-medium text-text-secondary">{t("appShell.email")}</p>
-      <p className="truncate text-sm text-text-primary">{email.data}</p>
+    <div className="flex flex-col gap-1">
+      <p className="text-sm font-semibold leading-snug text-text-primary">{t("appShell.email")}</p>
+      <p className="truncate text-sm text-text-muted">{email.data}</p>
     </div>
   );
 }

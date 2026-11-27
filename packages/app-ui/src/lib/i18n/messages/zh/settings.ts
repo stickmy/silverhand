@@ -4,11 +4,13 @@ import type { Translation } from "../../translate";
 export const settings: Translation<typeof en> = {
   language: {
     title: "语言",
+    displayLanguage: "界面语言",
     system: "跟随系统",
     en: "English",
     zh: "简体中文",
   },
   about: {
+    app: "Silverhand",
     privacy: "隐私政策",
     support: "支持",
     version: "版本",
@@ -21,6 +23,9 @@ export const settings: Translation<typeof en> = {
     appearance: "外观",
   },
   account: {
+    profile: "个人资料",
+    signIn: "登录与安全",
+    session: "登录状态",
     email: "邮箱",
     loading: "正在加载账号",
     displayName: "显示名称",
@@ -43,6 +48,7 @@ export const settings: Translation<typeof en> = {
   saving: "正在保存…",
   connection: {
     connecting: "正在连接…",
+    status: "状态",
     statusLabel: "桌面端到服务器:{status}",
     savedReconnecting: "已保存，正在重新连接…",
     using: "正在使用 {url}。",
@@ -87,6 +93,8 @@ export const settings: Translation<typeof en> = {
   sectionsLabel: "设置分区",
   title: "设置",
   appearance: {
+    theme: "主题",
+    layout: "布局",
     currentTheme: "当前主题",
     markdownText: "Markdown 文本",
     prose: "正文",

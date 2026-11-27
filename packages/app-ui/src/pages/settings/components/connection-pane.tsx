@@ -1,12 +1,12 @@
 import { getPlatform, requireLocalHost } from "@/platform";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { SaveIcon, ServerIcon, SpinnerIcon } from "@/icons";
+import { SaveIcon, SpinnerIcon } from "@/icons";
 import type { ProfileSaveWithTestResult } from "@silverhand/client";
 import { Button } from "@/components/ui/button";
-import { Input, Label } from "@/components/ui/input";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/cn";
-import { SettingsHeading } from "./settings-heading";
+import { SettingsGroup, SettingsPage, SettingsRow, SettingsSection } from "./settings-section";
 import {
   backendInfoKey,
   hostsKey,
@@ -50,34 +50,43 @@ const statusLabel = (): Record<Exclude<DesktopServerConnectionStatus, "unknown">
   offline: computerCopy().availabilityOffline,
 });
 
-const STATUS_TONE_CLASS: Record<Exclude<DesktopServerConnectionStatus, "unknown">, string> = {
-  connected: "border-success text-success",
-  connecting: "border-border-subtle text-text-secondary",
-  offline: "border-warning text-warning",
+const STATUS_DOT_CLASS: Record<Exclude<DesktopServerConnectionStatus, "unknown">, string> = {
+  connected: "bg-success",
+  connecting: "bg-text-muted",
+  offline: "bg-warning",
 };
 
-function ServerStatusPill({
+function ServerStatusRow({
   status,
 }: {
   status: DesktopServerConnectionStatus;
 }): JSX.Element | null {
-  // `unknown` = no BackendInfo observed yet. Render no pill rather than a
+  // `unknown` = no BackendInfo observed yet. Render no status row rather than a
   // status word we have not earned: every candidate ("Connecting…",
   // "Offline") is a claim about a connection nobody has looked at, and a
   // word that later walks backwards reads as a glitch (`#task:1630`
   // review).
-  if (status === "unknown") return null;
+  if (status === "unknown") {
+    return null;
+  }
+
   return (
-    <span
-      role="status"
-      aria-label={t("settings.connection.statusLabel", { status: statusLabel()[status] })}
-      className={cn(
-        "inline-flex shrink-0 items-center gap-1 rounded-(--control-radius) border bg-bg-floating px-2 py-0.5 text-(length:--text-badge) font-medium",
-        STATUS_TONE_CLASS[status],
-      )}
-    >
-      {statusLabel()[status]}
-    </span>
+    <SettingsRow
+      label={t("settings.connection.status")}
+      control={
+        <span
+          role="status"
+          aria-label={t("settings.connection.statusLabel", { status: statusLabel()[status] })}
+          className="inline-flex shrink-0 items-center gap-2 text-sm text-text-primary"
+        >
+          <span
+            aria-hidden
+            className={cn("size-2 shrink-0 rounded-full", STATUS_DOT_CLASS[status])}
+          />
+          {statusLabel()[status]}
+        </span>
+      }
+    />
   );
 }
 
@@ -302,20 +311,13 @@ export function ConnectionPane(): JSX.Element {
     save.mutate(saveCommand);
   };
 
-  return (
-    <section className="flex min-w-0 flex-1 flex-col gap-6 px-5 py-5">
-      <SettingsHeading
-        icon={<ServerIcon className="size-4" />}
-        title={t("settings.sections.connection")}
-      />
-
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col items-start gap-1">
-          <h3 className="text-sm font-semibold text-text-primary">{t("appShell.server.label")}</h3>
-          <ServerStatusPill status={connectionStatus} />
-        </div>
-
-        {banner && (
+  const footer =
+    classification.kind === "reject" || banner ? (
+      <div className="flex flex-col gap-2">
+        {classification.kind === "reject" ? (
+          <p className="text-(length:--text-meta) text-error">{classification.message}</p>
+        ) : null}
+        {banner ? (
           <div
             role="status"
             className={cn(
@@ -329,53 +331,71 @@ export function ConnectionPane(): JSX.Element {
             )}
           >
             <div className="font-medium">{banner.title}</div>
-            {banner.description && <div className="mt-1 text-text-muted">{banner.description}</div>}
+            {banner.description ? (
+              <div className="mt-1 text-text-muted">{banner.description}</div>
+            ) : null}
           </div>
-        )}
-
-        <form onSubmit={onSubmit} className="flex flex-col gap-2">
-          <Label htmlFor="settings-server-url">{t("settings.connection.address")}</Label>
-          <div className="flex items-center gap-2">
-            <Input
-              id="settings-server-url"
-              type="url"
-              autoComplete="off"
-              spellCheck={false}
-              inputMode="url"
-              placeholder="http://127.0.0.1:8765"
-              value={draft}
-              onChange={(e) => updateDraft(e.target.value)}
-              disabled={save.isPending}
-              className="max-w-md font-mono text-xs"
-            />
-            <Button
-              type="submit"
-              variant="primary"
-              className="shrink-0"
-              disabled={saveDisabled}
-              title={
-                classification.kind === "reject"
-                  ? classification.message
-                  : isUnchanged
-                    ? t("appShell.unreachable.alreadySet")
-                    : classification.kind === "empty"
-                      ? t("appShell.unreachable.enterAddress")
-                      : undefined
-              }
-            >
-              {save.isPending ? (
-                <SpinnerIcon className="mr-1 size-3.5 animate-spin" />
-              ) : (
-                <SaveIcon className="mr-1 size-3.5" />
-              )}
-              {t("common.save")}
-            </Button>
-          </div>
-          {classification.kind === "reject" && (
-            <p className="text-(length:--text-meta) text-error">{classification.message}</p>
-          )}
-        </form>
+        ) : null}
       </div>
-    </section>
+    ) : null;
+
+  return (
+    <SettingsPage>
+      <SettingsSection label={t("appShell.server.label")} footer={footer}>
+        <SettingsGroup>
+          <ServerStatusRow status={connectionStatus} />
+
+          <form
+            data-settings-row
+            onSubmit={onSubmit}
+            className="flex min-w-0 flex-col gap-2 px-4 py-3"
+          >
+            <label
+              htmlFor="settings-server-url"
+              className="text-sm font-semibold text-text-primary"
+            >
+              {t("settings.connection.address")}
+            </label>
+            <div className="flex min-w-0 items-center gap-2">
+              <Input
+                id="settings-server-url"
+                type="url"
+                autoComplete="off"
+                spellCheck={false}
+                inputMode="url"
+                placeholder="http://127.0.0.1:8765"
+                value={draft}
+                onChange={(e) => updateDraft(e.target.value)}
+                disabled={save.isPending}
+                className="h-8 min-w-0 flex-1 font-mono text-xs"
+              />
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                className="shrink-0"
+                disabled={saveDisabled}
+                title={
+                  classification.kind === "reject"
+                    ? classification.message
+                    : isUnchanged
+                      ? t("appShell.unreachable.alreadySet")
+                      : classification.kind === "empty"
+                        ? t("appShell.unreachable.enterAddress")
+                        : undefined
+                }
+              >
+                {save.isPending ? (
+                  <SpinnerIcon className="size-3.5 animate-spin" />
+                ) : (
+                  <SaveIcon className="size-3.5" />
+                )}
+                {t("common.save")}
+              </Button>
+            </div>
+          </form>
+        </SettingsGroup>
+      </SettingsSection>
+    </SettingsPage>
   );
 }

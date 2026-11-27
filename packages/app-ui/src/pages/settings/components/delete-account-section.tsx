@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { t } from "@/lib/i18n";
+import { SettingsRow } from "./settings-section";
 
 interface Blocker {
   id: string;
@@ -65,32 +66,36 @@ export function DeleteAccountSection({ handle }: { handle: string }): JSX.Elemen
     enabled: offered,
   });
 
-  if (!offered) return null;
+  if (!offered) {
+    return null;
+  }
+
   return (
-    <div className="flex items-center justify-between gap-3">
-      <div className="min-w-0">
-        <p className="text-xs font-medium text-text-secondary">{t("settings.delete.title")}</p>
-        <p className="text-(length:--text-meta) text-text-muted">
-          {t("settings.delete.permanent")}
-        </p>
-      </div>
-      <Button
-        type="button"
-        variant="destructive-outline"
-        onClick={() => {
-          void preflight.refetch();
-          setOpen(true);
-        }}
-      >
-        {t("settings.delete.title")}
-      </Button>
+    <>
+      <SettingsRow
+        label={t("settings.delete.title")}
+        description={t("settings.delete.permanent")}
+        control={
+          <Button
+            type="button"
+            variant="destructive-outline"
+            size="sm"
+            onClick={() => {
+              void preflight.refetch();
+              setOpen(true);
+            }}
+          >
+            {t("settings.delete.title")}
+          </Button>
+        }
+      />
       <DeleteAccountDialog
         open={open}
         onOpenChange={setOpen}
         handle={handle}
         blockers={preflight.data?.blockers ?? null}
       />
-    </div>
+    </>
   );
 }
 

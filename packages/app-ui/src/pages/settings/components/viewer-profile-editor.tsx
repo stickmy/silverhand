@@ -1,4 +1,4 @@
-import { useId, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useId, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import { SpinnerIcon, UserIcon } from "@/icons";
 import { validateAvatarFile, type UserDto } from "@silverhand/shared";
 import { ApiError } from "@/lib/api";
@@ -6,7 +6,7 @@ import { AvatarMakerGlyph } from "@/features/avatar-maker/components/avatar-make
 import { AvatarPickerButton } from "@/components/avatar-picker-button";
 import { AVATAR_PX } from "@/components/avatar-scale";
 import { Button } from "@/components/ui/button";
-import { Input, Label } from "@/components/ui/input";
+import { Input } from "@/components/ui/input";
 import { AvatarMakerSheet } from "@/features/avatar-maker/components/avatar-maker-sheet";
 import { avatarDesignField } from "@/features/avatar-maker/model/avatar-design-wire";
 import { readDisplayNameDraft } from "@/features/identity/display-name";
@@ -16,8 +16,15 @@ import {
   useViewerAvatarObjectUrl,
 } from "../../../features/session/hooks";
 import { t } from "@/lib/i18n";
+import { SettingsGroup, SettingsSection } from "./settings-section";
 
-export function ViewerProfileEditor({ user }: { user: UserDto }): JSX.Element {
+export function ViewerProfileEditor({
+  user,
+  email,
+}: {
+  user: UserDto;
+  email?: ReactNode;
+}): JSX.Element {
   const update = useUpdateProfile();
   const upload = useUploadAvatar();
   const avatarObjectUrl = useViewerAvatarObjectUrl();
@@ -77,100 +84,101 @@ export function ViewerProfileEditor({ user }: { user: UserDto }): JSX.Element {
   const hasAvatar = user.avatar_url != null;
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-3">
-          <AvatarPickerButton
-            size={AVATAR_PX["3xl"]}
-            onPick={(file) => void onPickAvatar(file)}
-            onMake={() => setMakerOpen(true)}
-            makeIcon={<AvatarMakerGlyph />}
-            disabled={upload.isPending}
-            ariaLabel={
-              hasAvatar ? t("settings.profile.changeAvatar") : t("settings.profile.addAvatar")
-            }
-            className="border border-border-subtle"
-          >
-            <span data-avatar-ground className="grid size-full place-items-center">
-              {avatarObjectUrl ? (
-                <img
-                  src={avatarObjectUrl}
-                  alt={t("settings.profile.yourAvatar")}
-                  className="size-full object-cover"
-                />
-              ) : (
-                <UserIcon className="size-7 text-text-muted" />
-              )}
-            </span>
-          </AvatarPickerButton>
-          <div className="min-w-0">
-            <p className="truncate font-serif text-base font-semibold leading-tight text-text-primary">
-              {user.display_name}
-            </p>
-            <p className="truncate font-mono text-xs text-text-muted">@{user.name}</p>
+    <form onSubmit={(event) => void onSubmit(event)}>
+      <SettingsSection label={t("settings.account.profile")}>
+        <SettingsGroup className="gap-4 p-4">
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-3.5">
+              <AvatarPickerButton
+                size={AVATAR_PX["3xl"]}
+                onPick={(file) => void onPickAvatar(file)}
+                onMake={() => setMakerOpen(true)}
+                makeIcon={<AvatarMakerGlyph />}
+                disabled={upload.isPending}
+                ariaLabel={
+                  hasAvatar ? t("settings.profile.changeAvatar") : t("settings.profile.addAvatar")
+                }
+                className="border border-border-subtle"
+              >
+                <span data-avatar-ground className="grid size-full place-items-center">
+                  {avatarObjectUrl ? (
+                    <img
+                      src={avatarObjectUrl}
+                      alt={t("settings.profile.yourAvatar")}
+                      className="size-full object-cover"
+                    />
+                  ) : (
+                    <UserIcon className="size-7 text-text-muted" />
+                  )}
+                </span>
+              </AvatarPickerButton>
+              <div className="min-w-0">
+                <p className="truncate font-serif text-base font-semibold leading-tight text-text-primary">
+                  {user.display_name}
+                </p>
+                <p className="mt-0.5 truncate font-mono text-xs text-text-muted">@{user.name}</p>
+              </div>
+            </div>
+            <AvatarMakerSheet
+              subject="me"
+              open={makerOpen}
+              onOpenChange={setMakerOpen}
+              onSave={async ({ config, png }) => {
+                setAvatarError(null);
+                await upload.mutateAsync({ file: png, design: avatarDesignField(config) });
+              }}
+            />
+            {avatarError ? (
+              <p
+                role="alert"
+                className="text-(length:--text-meta) leading-snug text-error"
+                data-testid="human-avatar-error"
+              >
+                {avatarError}
+              </p>
+            ) : null}
           </div>
-        </div>
-        <AvatarMakerSheet
-          subject="me"
-          open={makerOpen}
-          onOpenChange={setMakerOpen}
-          onSave={async ({ config, png }) => {
-            setAvatarError(null);
-            await upload.mutateAsync({ file: png, design: avatarDesignField(config) });
-          }}
-        />
-        {avatarError ? (
-          <p
-            role="alert"
-            className="text-(length:--text-meta) leading-snug text-error"
-            data-testid="human-avatar-error"
-          >
-            {avatarError}
-          </p>
-        ) : null}
-      </div>
 
-      <form
-        onSubmit={(event) => void onSubmit(event)}
-        className="flex flex-col gap-4 border-t border-border-subtle pt-5"
-      >
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor={nameFieldId}>{t("appShell.displayName")}</Label>
-          <Input
-            id={nameFieldId}
-            value={nameValue}
-            disabled={update.isPending}
-            aria-invalid={nameRejection ? true : undefined}
-            aria-describedby={nameRejection ? nameErrorId : undefined}
-            onChange={(event) => setDraftName(event.target.value)}
-            onKeyDown={onNameKeyDown}
-          />
-          {nameRejection ? (
-            <p id={nameErrorId} role="alert" className="text-xs text-error">
-              {nameRejection}
-            </p>
-          ) : null}
-        </div>
+          <div className="flex flex-col gap-1.5">
+            <label
+              htmlFor={nameFieldId}
+              className="text-sm font-semibold leading-snug text-text-primary"
+            >
+              {t("appShell.displayName")}
+            </label>
+            <Input
+              id={nameFieldId}
+              value={nameValue}
+              disabled={update.isPending}
+              aria-invalid={nameRejection ? true : undefined}
+              aria-describedby={nameRejection ? nameErrorId : undefined}
+              onChange={(event) => setDraftName(event.target.value)}
+              onKeyDown={onNameKeyDown}
+              className="h-8"
+            />
+            {nameRejection ? (
+              <p id={nameErrorId} role="alert" className="text-xs text-error">
+                {nameRejection}
+              </p>
+            ) : null}
+          </div>
 
-        <div className="flex flex-col gap-2">
-          <Button
-            type="submit"
-            variant="primary"
-            size="sm"
-            className="self-start"
-            disabled={!canSave}
-          >
-            {update.isPending ? <SpinnerIcon className="size-3.5 animate-spin" /> : null}
-            {t("settings.profile.save")}
-          </Button>
-          {saveError ? (
-            <p role="alert" className="text-xs text-error">
-              {saveError}
-            </p>
-          ) : null}
-        </div>
-      </form>
-    </div>
+          {email}
+
+          <div className="flex flex-col items-start gap-2 pt-1">
+            <Button type="submit" variant="primary" size="sm" disabled={!canSave}>
+              {update.isPending ? <SpinnerIcon className="size-3.5 animate-spin" /> : null}
+              {t("settings.profile.save")}
+            </Button>
+            {saveError ? (
+              <p role="alert" className="text-xs text-error">
+                {saveError}
+              </p>
+            ) : null}
+          </div>
+        </SettingsGroup>
+      </SettingsSection>
+    </form>
   );
 }
 

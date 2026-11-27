@@ -1,11 +1,13 @@
 export const settings = {
   language: {
     title: "Language",
+    displayLanguage: "Display language",
     system: "System",
     en: "English",
     zh: "简体中文",
   },
   about: {
+    app: "Silverhand",
     privacy: "Privacy Policy",
     support: "Support",
     version: "Version",
@@ -18,6 +20,9 @@ export const settings = {
     appearance: "Appearance",
   },
   account: {
+    profile: "Profile",
+    signIn: "Sign-in",
+    session: "Session",
     email: "Email",
     loading: "Loading account",
     displayName: "Display name",
@@ -40,6 +45,7 @@ export const settings = {
   saving: "Saving…",
   connection: {
     connecting: "Connecting…",
+    status: "Status",
     statusLabel: "Desktop to server: {status}",
     savedReconnecting: "Saved. Reconnecting…",
     using: "Using {url}.",
@@ -84,6 +90,8 @@ export const settings = {
   sectionsLabel: "Settings sections",
   title: "SETTINGS",
   appearance: {
+    theme: "Theme",
+    layout: "Layout",
     currentTheme: "Current theme",
     markdownText: "Markdown Text",
     prose: "Prose",

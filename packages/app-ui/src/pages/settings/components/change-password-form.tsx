@@ -9,8 +9,9 @@ import {
 } from "@silverhand/shared";
 import { api, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Input, Label } from "@/components/ui/input";
+import { Input } from "@/components/ui/input";
 import { t } from "@/lib/i18n";
+import { SettingsGroup, SettingsSection } from "./settings-section";
 
 export function ChangePasswordForm({ userId }: { userId: string }): JSX.Element | null {
   const id = useId();
@@ -77,72 +78,101 @@ export function ChangePasswordForm({ userId }: { userId: string }): JSX.Element 
   }
 
   return (
-    <div className="flex max-w-sm flex-col">
-      <button
-        type="button"
-        onClick={() => setOpen((prev) => !prev)}
-        aria-expanded={open}
-        className="flex items-center gap-1.5 self-start text-xs font-medium text-text-secondary transition-colors hover:text-text-primary"
-      >
-        {open ? (
-          <ChevronDownIcon className="size-3.5" />
-        ) : (
-          <ChevronRightIcon className="size-3.5" />
-        )}
-        {t("settings.password.change")}
-      </button>
-      {open ? (
-        <form onSubmit={(event) => void submit(event)} className="mt-3 flex flex-col gap-3">
-          <Label htmlFor={`${id}-current`}>{t("settings.password.current")}</Label>
-          <Input
-            id={`${id}-current`}
-            type="password"
-            autoComplete="current-password"
-            value={current}
-            onChange={(e) => setCurrent(e.target.value)}
-            disabled={pending || uncertain}
-            required
-            maxLength={1024}
-          />
-          <Label htmlFor={`${id}-new`}>{t("appShell.recovery.newPassword")}</Label>
-          <Input
-            id={`${id}-new`}
-            type="password"
-            autoComplete="new-password"
-            value={next}
-            onChange={(e) => setNext(e.target.value)}
-            disabled={pending || uncertain}
-            required
-            minLength={8}
-            maxLength={1024}
-          />
-          <Label htmlFor={`${id}-confirm`}>{t("settings.password.confirmNew")}</Label>
-          <Input
-            id={`${id}-confirm`}
-            type="password"
-            autoComplete="new-password"
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-            disabled={pending || uncertain}
-            required
-            maxLength={1024}
-          />
-          {error && (
-            <p role="alert" className="text-xs text-red-500">
-              {error}
-            </p>
-          )}
-          <Button
-            type="submit"
-            variant="primary"
-            size="sm"
-            className="self-start"
-            disabled={pending || uncertain || !current || !next || !confirm}
+    <SettingsSection label={t("settings.account.signIn")}>
+      <SettingsGroup>
+        <div data-settings-row-wrap>
+          <button
+            type="button"
+            onClick={() => setOpen((prev) => !prev)}
+            aria-expanded={open}
+            className="flex min-h-12 w-full items-center justify-between gap-4 px-4 py-2.5 text-left text-sm font-semibold text-text-primary transition-colors hover:bg-bg-hover focus-outline"
           >
-            {pending ? t("settings.saving") : t("settings.password.change")}
-          </Button>
-        </form>
-      ) : null}
-    </div>
+            <span>{t("settings.password.change")}</span>
+            {open ? (
+              <ChevronDownIcon className="size-4 shrink-0 text-text-muted" />
+            ) : (
+              <ChevronRightIcon className="size-4 shrink-0 text-text-muted" />
+            )}
+          </button>
+          {open ? (
+            <form
+              onSubmit={(event) => void submit(event)}
+              className="flex flex-col gap-3.5 border-t border-border-subtle bg-bg-base/55 px-4 py-3.5"
+            >
+              <div className="flex flex-col gap-1.5">
+                <label
+                  htmlFor={`${id}-current`}
+                  className="text-sm font-semibold text-text-primary"
+                >
+                  {t("settings.password.current")}
+                </label>
+                <Input
+                  id={`${id}-current`}
+                  type="password"
+                  autoComplete="current-password"
+                  value={current}
+                  onChange={(e) => setCurrent(e.target.value)}
+                  disabled={pending || uncertain}
+                  required
+                  maxLength={1024}
+                  className="h-8"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor={`${id}-new`} className="text-sm font-semibold text-text-primary">
+                  {t("appShell.recovery.newPassword")}
+                </label>
+                <Input
+                  id={`${id}-new`}
+                  type="password"
+                  autoComplete="new-password"
+                  value={next}
+                  onChange={(e) => setNext(e.target.value)}
+                  disabled={pending || uncertain}
+                  required
+                  minLength={8}
+                  maxLength={1024}
+                  className="h-8"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label
+                  htmlFor={`${id}-confirm`}
+                  className="text-sm font-semibold text-text-primary"
+                >
+                  {t("settings.password.confirmNew")}
+                </label>
+                <Input
+                  id={`${id}-confirm`}
+                  type="password"
+                  autoComplete="new-password"
+                  value={confirm}
+                  onChange={(e) => setConfirm(e.target.value)}
+                  disabled={pending || uncertain}
+                  required
+                  maxLength={1024}
+                  className="h-8"
+                />
+              </div>
+              {error ? (
+                <p role="alert" className="text-xs text-error">
+                  {error}
+                </p>
+              ) : null}
+              <div className="flex justify-end">
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  disabled={pending || uncertain || !current || !next || !confirm}
+                >
+                  {pending ? t("settings.saving") : t("settings.password.change")}
+                </Button>
+              </div>
+            </form>
+          ) : null}
+        </div>
+      </SettingsGroup>
+    </SettingsSection>
   );
 }
