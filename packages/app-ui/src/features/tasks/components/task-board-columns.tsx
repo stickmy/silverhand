@@ -2,7 +2,7 @@ import "./task-board-columns.css";
 import { TaskRowsSkeleton } from "./task-body-skeleton";
 import { taskChannelLabel } from "../model/task-place.js";
 import { useLayoutEffect, useRef, useState, type RefObject } from "react";
-import { ChevronDownIcon, ChevronRightIcon } from "@/icons";
+import { ChevronRightIcon } from "@/icons";
 import type { TaskStatus, TaskSummaryDto } from "@silverhand/shared";
 import { cn } from "@/lib/cn";
 import {
@@ -186,7 +186,6 @@ function StatusGroup({
       onToggleCollapse();
     }
   };
-  const Chevron = collapsed ? ChevronRightIcon : ChevronDownIcon;
   const canGrow = !collapsed && hasMore;
   const sentinelRef = useRef<HTMLLIElement>(null);
 
@@ -223,14 +222,25 @@ function StatusGroup({
         onClick={toggle}
         aria-expanded={!collapsed}
         aria-label={t(collapsed ? "tasks.expandColumn" : "tasks.collapseColumn", { title })}
-        className="group/header flex h-8 w-full shrink-0 cursor-pointer items-center gap-2 rounded-(--control-radius) bg-bg-elevated px-3 text-left transition-colors hover:bg-bg-hover"
+        className={cn(
+          "group/header flex h-8 w-full shrink-0 cursor-pointer items-center gap-2 rounded-(--control-radius) px-3 text-left transition-colors hover:bg-bg-hover",
+          collapsed ? "bg-bg-base" : "bg-bg-elevated",
+        )}
       >
+        <ChevronRightIcon
+          className={cn(
+            "size-3.5 shrink-0 transition-transform duration-150",
+            collapsed ? "text-text-muted" : "rotate-90 text-text-primary",
+          )}
+          aria-hidden
+        />
         <span data-task-cube data-task-ref-tone={status} aria-hidden />
         <span
           className={cn(
             "text-(length:--text-meta) font-semibold",
-            // Terminal and empty groups recede so the live ones lead.
-            empty || status === "done" || status === "closed"
+            // Collapsed terminal and empty groups recede; expanded headers read
+            // in primary ink so every open section stands out at a glance.
+            collapsed && (empty || status === "done" || status === "closed")
               ? "text-text-muted"
               : "text-text-primary",
           )}
@@ -240,7 +250,6 @@ function StatusGroup({
         <span className="text-(length:--text-meta) tabular-nums text-text-muted">
           {boardCountLabel(total)}
         </span>
-        <Chevron className="ml-auto size-3.5 shrink-0 text-text-muted" aria-hidden />
       </button>
       {collapsed ? null : (
         <div data-tasks-column-body className="pt-0.5">
