@@ -253,9 +253,10 @@ describe('Antigravity ACP driver', () => {
     // Must wait until the turn finishes (never send /compact mid-turn).
     expect(sent.filter((m) => m.method === 'session/prompt')).toHaveLength(0);
 
-    // Turn finishes → emits turn_end and immediately dispatches /compact.
+    // Turn finishes → emits turn_end + compaction_started and immediately dispatches /compact.
     expect(response(turn1.id, { stopReason: 'end_turn' })).toEqual([
       { kind: 'turn_end', sessionId: 's' },
+      { kind: 'compaction_started' },
     ]);
     const compactReq = sent.at(-1);
     expect(compactReq).toMatchObject({
@@ -267,8 +268,11 @@ describe('Antigravity ACP driver', () => {
     expect(driver.encodeStdinMessage('queued-by-supervisor')).toBeNull();
     expect(chunk(driver, 'internal compact output')).toEqual([]);
 
-    // Compaction completes without emitting a spurious turn_end and reopens readyToEncode.
-    expect(response(compactReq.id, { stopReason: 'end_turn' })).toEqual([]);
+    // Compaction completes → emits compaction_finished + turn_end and reopens readyToEncode.
+    expect(response(compactReq.id, { stopReason: 'end_turn' })).toEqual([
+      { kind: 'compaction_finished' },
+      { kind: 'turn_end', sessionId: 's' },
+    ]);
     expect(driver.readyToEncode()).toBe(true);
 
     // Staying above threshold must NOT loop compaction.
@@ -281,8 +285,88 @@ describe('Antigravity ACP driver', () => {
     const turn3 = JSON.parse(driver.encodeStdinMessage('after drop')!);
     usage(80_000);
     usage(205_000);
-    response(turn3.id, { stopReason: 'end_turn' });
+    expect(response(turn3.id, { stopReason: 'end_turn' })).toEqual([
+      { kind: 'turn_end', sessionId: 's' },
+      { kind: 'compaction_started' },
+    ]);
     expect(sent.filter((m) => m.params?.prompt?.[0]?.text === '/compact')).toHaveLength(2);
+  });
+
+  it('emits compaction lifecycle and error events on idle trigger, RPC failure, and model error chunk', async () => {
+    const warnings: Array<{ action: string; message: string }> = [];
+    const root = mkdtempSync(join(tmpdir(), 'silverhand-agy-compact-err-'));
+    roots.push(root);
+    const systemPromptPath = join(root, 'prompt.md');
+    writeFileSync(systemPromptPath, 'SILVERHAND IDENTITY');
+    const driver = new AntigravityDriver();
+    const sent: any[] = [];
+    driver.bindIO({
+      spawnCtx: {
+        agentId: 'a',
+        agentName: 'a',
+        workspacePath: root,
+        cliSessionId: null,
+        model: null,
+        reasoningEffort: null,
+        serviceTier: null,
+        systemPromptPath,
+        initialPrompt: '',
+        acpAutoCompactThreshold: '30k',
+      },
+      writeLine: async (line) => {
+        sent.push(JSON.parse(line));
+      },
+      onWarning: (ev) => warnings.push({ action: ev.action, message: ev.message }),
+    });
+    await Promise.resolve();
+    const response = (id: number, body: Record<string, unknown>) =>
+      driver.parseLine(JSON.stringify({ jsonrpc: '2.0', id, ...body }));
+    const usage = (used: number) =>
+      driver.parseLine(
+        JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'session/update',
+          params: {
+            sessionId: 's',
+            update: { sessionUpdate: 'usage_update', used, size: 1_048_576 },
+          },
+        }),
+      );
+
+    response(sent[0].id, { result: { protocolVersion: 1, agentCapabilities: CAPABILITIES } });
+    response(sent[1].id, { result: { sessionId: 's' } });
+
+    // Idle usage crossing emits compaction_started immediately.
+    expect(usage(35_000)).toEqual([{ kind: 'compaction_started' }]);
+    const firstCompact = sent.at(-1);
+    expect(
+      response(firstCompact.id, { error: { code: -32000, message: 'compact rpc failed' } }),
+    ).toEqual([
+      { kind: 'compaction_finished' },
+      { kind: 'error', message: 'compact rpc failed' },
+      { kind: 'turn_end', sessionId: 's' },
+    ]);
+    expect(warnings).toEqual([
+      { action: 'acp_auto_compact_failed', message: 'compact rpc failed' },
+    ]);
+    expect(driver.readyToEncode()).toBe(true);
+
+    // Re-arm and fail via an Antigravity model-error message chunk during /compact.
+    expect(usage(10_000)).toEqual([]);
+    expect(usage(32_000)).toEqual([{ kind: 'compaction_started' }]);
+    const secondCompact = sent.at(-1);
+    expect(
+      chunk(driver, '\n⚠ RESOURCE_EXHAUSTED (code 429): Quota exceeded while compacting.\n'),
+    ).toEqual([]);
+    expect(response(secondCompact.id, { result: { stopReason: 'end_turn' } })).toEqual([
+      { kind: 'compaction_finished' },
+      { kind: 'error', message: 'RESOURCE_EXHAUSTED (code 429): Quota exceeded while compacting.' },
+      { kind: 'turn_end', sessionId: 's' },
+    ]);
+    expect(warnings.at(-1)).toEqual({
+      action: 'acp_auto_compact_failed',
+      message: 'RESOURCE_EXHAUSTED (code 429): Quota exceeded while compacting.',
+    });
   });
 
   it('supports percentage thresholds against usage_update.size and logs a warning on invalid values', async () => {

@@ -143,6 +143,7 @@ export class AcpClient {
   private sessionFinalized = false;
   private activePromptRequestId: JsonRpcId | null = null;
   private compactRequestId: JsonRpcId | null = null;
+  private compactError: string | null = null;
   private autoCompactThreshold: AcpAutoCompactThreshold | null = null;
   private autoCompactArmed = true;
   private autoCompactPending = false;
@@ -285,13 +286,19 @@ export class AcpClient {
     }
 
     if (this.compactRequestId !== null && message.id === this.compactRequestId) {
+      const compactError = this.compactError;
       this.compactRequestId = null;
-      if (message.error) {
+      this.compactError = null;
+      events.push({ kind: 'compaction_finished' });
+      const error = message.error ? errorMessage(message, this.adapter) : compactError;
+      if (error) {
         this.io?.onWarning?.({
           action: 'acp_auto_compact_failed',
-          message: errorMessage(message, this.adapter),
+          message: error,
         });
+        events.push({ kind: 'error', message: error });
       }
+      events.push({ kind: 'turn_end', sessionId: this.sessionId ?? undefined });
       this.flushRedeliveries();
       return events;
     }
@@ -380,13 +387,13 @@ export class AcpClient {
   private endPrompt(events: ParsedEvent[]): void {
     this.activePromptRequestId = null;
     events.push({ kind: 'turn_end', sessionId: this.sessionId ?? undefined });
-    if (this.autoCompactPending && this.startAutoCompact()) {
+    if (this.autoCompactPending && this.startAutoCompact(events)) {
       return;
     }
     this.flushRedeliveries();
   }
 
-  private startAutoCompact(): boolean {
+  private startAutoCompact(events: ParsedEvent[]): boolean {
     if (
       !this.sessionAnnounced ||
       !this.sessionId ||
@@ -397,14 +404,16 @@ export class AcpClient {
       return false;
     }
     this.autoCompactPending = false;
+    this.compactError = null;
     this.compactRequestId = this.sendRequest('session/prompt', {
       sessionId: this.sessionId,
       prompt: [{ type: 'text', text: this.adapter.autoCompactCommand }],
     });
+    events.push({ kind: 'compaction_started' });
     return true;
   }
 
-  private handleUsageUpdate(update: Record<string, any>): void {
+  private handleUsageUpdate(update: Record<string, any>, events: ParsedEvent[]): void {
     if (!this.autoCompactThreshold || !this.adapter.autoCompactCommand) return;
     const used = update.used;
     if (typeof used !== 'number' || !Number.isFinite(used) || used < 0) return;
@@ -429,7 +438,7 @@ export class AcpClient {
       this.activePromptRequestId === null &&
       this.compactRequestId === null
     ) {
-      this.startAutoCompact();
+      this.startAutoCompact(events);
     }
   }
 
@@ -516,13 +525,19 @@ export class AcpClient {
     const events: ParsedEvent[] = [];
 
     if (kind === 'usage_update') {
-      this.handleUsageUpdate(update);
+      this.handleUsageUpdate(update, events);
       return events;
     }
 
     // Internal compaction runs as a hidden `session/prompt`; suppress its
-    // transient chunks so chat activity and run-state stay clean.
+    // transient chunks so summary text stays in the runtime session, while
+    // retaining adapter-recognized model error chunks for compaction finish.
     if (this.compactRequestId !== null) {
+      if (kind === 'agent_message_chunk') {
+        const text = textFromContent(update.content);
+        const error = text ? this.adapter.messageTextError?.(text) : null;
+        if (error) this.compactError = error;
+      }
       return events;
     }
 

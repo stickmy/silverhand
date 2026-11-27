@@ -12,7 +12,13 @@ import { createDaemonLogControl } from '../src/daemon/logger.js';
 import { testRuntimeStartResolveDeps, testStartOptions } from './_helpers/runtime-start-options.js';
 
 const tempDirs: string[] = [];
+const originalAutoCompactEnv = process.env[SILVERHAND_ACP_AUTO_COMPACT_ENV];
 afterEach(() => {
+  if (originalAutoCompactEnv === undefined) {
+    delete process.env[SILVERHAND_ACP_AUTO_COMPACT_ENV];
+  } else {
+    process.env[SILVERHAND_ACP_AUTO_COMPACT_ENV] = originalAutoCompactEnv;
+  }
   for (const dir of tempDirs.splice(0)) {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -69,6 +75,7 @@ async function waitUntil(predicate: () => boolean, timeoutMs = 2000): Promise<vo
 
 describe('Supervisor: agent user_env isolation, spawn-log redaction, and ACP auto-compact queuing', () => {
   it('isolates user_env to target agent, redacts marker from spawn logs, and queues messages delivered during /compact', async () => {
+    delete process.env[SILVERHAND_ACP_AUTO_COMPACT_ENV];
     const dir = mkdtempSync(join(tmpdir(), 'silverhand-sup-env-'));
     tempDirs.push(dir);
     const resolveDeps = testRuntimeStartResolveDeps({
@@ -78,10 +85,13 @@ describe('Supervisor: agent user_env isolation, spawn-log redaction, and ACP aut
     const spawnedEnvs = new Map<string, NodeJS.ProcessEnv>();
     const children = new Map<string, ReturnType<typeof createFakeChild>>();
     const infoLogs: Array<Record<string, unknown>> = [];
+    const emitted: Array<Record<string, any>> = [];
     let nextPid = 4100;
 
     const supervisor = new Supervisor({
-      emit: () => {},
+      emit: (event) => {
+        emitted.push(event as Record<string, any>);
+      },
       logger: {
         filePath: '/dev/null',
         logControl: createDaemonLogControl('info'),
@@ -211,6 +221,18 @@ describe('Supervisor: agent user_env isolation, spawn-log redaction, and ACP aut
     await waitUntil(() => fake.written.some((m) => m.params?.prompt?.[0]?.text === '/compact'));
     const compactMsg = fake.written.find((m) => m.params?.prompt?.[0]?.text === '/compact');
 
+    // Compaction emits compaction_started and surfaces compacting:true in run state.
+    const parsedForTarget = () =>
+      emitted
+        .filter((e) => e.event === 'runtime_parsed_event' && e.agent_id === 'agent-target')
+        .map((e) => e.parsed);
+    const statesForTarget = () =>
+      emitted
+        .filter((e) => e.event === 'runtime_state' && e.agent_id === 'agent-target')
+        .map((e) => e.state);
+    expect(parsedForTarget()).toContainEqual({ kind: 'compaction_started' });
+    expect(statesForTarget().at(-1)).toMatchObject({ compacting: true });
+
     // Deliver two user messages while /compact is running: both must defer in FIFO order.
     const d2 = await supervisor.deliver(
       {
@@ -258,15 +280,67 @@ describe('Supervisor: agent user_env isolation, spawn-log redaction, and ACP aut
       false,
     );
 
-    // Finish /compact -> queued messages flush in order!
+    // Finish /compact -> emits compaction_finished, resolves the compaction run, and flushes queued messages in order.
     fake.sendStdout({ jsonrpc: '2.0', id: compactMsg.id, result: { stopReason: 'end_turn' } });
     await waitUntil(() =>
       fake.written.some((m) => m.params?.prompt?.[0]?.text === 'during compact 2'),
+    );
+    expect(parsedForTarget()).toContainEqual({ kind: 'compaction_finished' });
+    expect(statesForTarget()).toContainEqual(
+      expect.objectContaining({
+        status: 'idle',
+        compacting: false,
+        terminalReason: 'turn_ended',
+      }),
     );
     const promptTexts = fake.written
       .filter((m) => m.method === 'session/prompt')
       .map((m) => m.params.prompt[0].text);
     expect(promptTexts).toEqual(['first turn', '/compact', 'during compact 1', 'during compact 2']);
+
+    // Finish the flushed turns, drop below threshold, then trigger an idle /compact with no queued messages
+    // and verify the run settles back to idle (not stuck in thinking) after compaction_finished.
+    const flushed1 = fake.written.find((m) => m.params?.prompt?.[0]?.text === 'during compact 1');
+    const flushed2 = fake.written.find((m) => m.params?.prompt?.[0]?.text === 'during compact 2');
+    fake.sendStdout({ jsonrpc: '2.0', id: flushed1.id, result: { stopReason: 'end_turn' } });
+    fake.sendStdout({ jsonrpc: '2.0', id: flushed2.id, result: { stopReason: 'end_turn' } });
+    await waitUntil(() => parsedForTarget().filter((p) => p.kind === 'turn_end').length === 3);
+    fake.sendStdout({
+      jsonrpc: '2.0',
+      method: 'session/update',
+      params: {
+        sessionId: 'sess-1',
+        update: { sessionUpdate: 'usage_update', used: 50_000, size: 1_048_576 },
+      },
+    });
+    fake.sendStdout({
+      jsonrpc: '2.0',
+      method: 'session/update',
+      params: {
+        sessionId: 'sess-1',
+        update: { sessionUpdate: 'usage_update', used: 220_000, size: 1_048_576 },
+      },
+    });
+    await waitUntil(
+      () => fake.written.filter((m) => m.params?.prompt?.[0]?.text === '/compact').length === 2,
+    );
+    const secondCompact = fake.written
+      .filter((m) => m.params?.prompt?.[0]?.text === '/compact')
+      .at(-1);
+    fake.sendStdout({
+      jsonrpc: '2.0',
+      id: secondCompact.id,
+      error: { code: -32000, message: 'compact failed' },
+    });
+    await waitUntil(
+      () => parsedForTarget().filter((p) => p.kind === 'compaction_finished').length === 2,
+    );
+    expect(parsedForTarget()).toContainEqual({ kind: 'error', message: 'compact failed' });
+    expect(statesForTarget().at(-1)).toMatchObject({
+      status: 'idle',
+      compacting: false,
+      terminalReason: 'turn_ended',
+    });
 
     await supervisor.shutdown();
   });
