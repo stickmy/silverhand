@@ -287,6 +287,52 @@
   color: var(--text-on-brand);
 }
 
+/* Interactive options card uses Poster's ink frame and subtle hard shadow so
+   the 2px zero-radius box does not read as a faded grey wireframe; selected
+   rows follow Poster's ink-on-paper selection grammar and invert their marks. */
+[data-theme="poster"] [data-message-options] {
+  border-color: var(--poster-ink);
+  box-shadow: var(--poster-shadow-sm);
+}
+
+[data-theme="poster"] [data-message-options] textarea {
+  border-color: var(--poster-ink);
+}
+
+[data-theme="poster"] [data-message-options] [data-message-option-row][aria-checked="true"] {
+  background-color: var(--poster-ink);
+  color: var(--poster-paper);
+}
+
+[data-theme="poster"]
+  [data-message-options]
+  [data-message-option-row][aria-checked="true"]
+  [data-message-option-mark] {
+  border-color: var(--poster-paper);
+}
+
+[data-theme="poster"]
+  [data-message-options]
+  [data-message-option-row][aria-checked="true"]
+  [data-message-option-mark="multi"] {
+  background-color: var(--poster-paper);
+  color: var(--poster-ink);
+}
+
+[data-theme="poster"]
+  [data-message-options]
+  [data-message-option-row][aria-checked="true"]
+  [data-message-option-dot] {
+  background-color: var(--poster-paper);
+}
+
+[data-theme="poster"]
+  [data-message-options]
+  [data-message-option-row][aria-checked="true"]
+  [data-message-option-answerer] {
+  color: color-mix(in srgb, var(--poster-paper) 72%, transparent);
+}
+
 /* Hooks: Tasks */
 
 [data-theme="poster"] [data-tasks-num] {

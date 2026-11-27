@@ -22,3 +22,7 @@
   max-width: 100%;
   margin-left: auto;
 }
+
+[data-message-column][data-align="end"] [data-message-options] {
+  margin-left: auto;
+}
