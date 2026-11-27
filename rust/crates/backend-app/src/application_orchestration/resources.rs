@@ -34,6 +34,7 @@ pub(super) struct WorkspaceIdentityResources {
 pub(super) struct AgentIdentityResources {
     pub(super) availability_cold_read: SqliteAgentAvailabilityColdRead,
     pub(super) detail_cold_read: SqliteAgentDetailColdRead,
+    pub(super) env_store: SqliteAgentEnvStore,
     pub(super) list_cold_read: SqliteAgentListColdRead,
     pub(super) presence_cold_read: SqliteAgentPresenceColdRead,
     pub(super) profile_write: SqliteAgentProfileWrite,
@@ -133,6 +134,7 @@ impl PassiveResources {
         let workspace_cold_read = SqliteWorkspaceColdRead::from_pool(pool.clone());
         let availability_cold_read = SqliteAgentAvailabilityColdRead::from_pool(pool.clone());
         let detail_cold_read = SqliteAgentDetailColdRead::from_pool(pool.clone());
+        let env_store = SqliteAgentEnvStore::from_pool(pool.clone());
         let list_cold_read = SqliteAgentListColdRead::from_pool(pool.clone());
         let agent_presence_cold_read = SqliteAgentPresenceColdRead::from_pool(pool.clone());
         let profile_write = SqliteAgentProfileWrite::from_pool(pool.clone());
@@ -203,6 +205,7 @@ impl PassiveResources {
             agent_identity: AgentIdentityResources {
                 availability_cold_read,
                 detail_cold_read,
+                env_store,
                 list_cold_read,
                 presence_cold_read: agent_presence_cold_read,
                 profile_write,

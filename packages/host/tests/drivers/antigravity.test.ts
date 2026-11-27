@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AntigravityDriver } from '../../src/drivers/antigravity.js';
+import { parseAcpAutoCompactThreshold } from '../../src/drivers/acp.js';
 import type { DriverSpawnContext } from '../../src/drivers/index.js';
 
 const roots: string[] = [];
@@ -216,6 +217,116 @@ describe('Antigravity ACP driver', () => {
     expect(tool('6', 'other', { Foo: 1 }, 'Custom')).toMatchObject({
       name: 'Custom',
       input: { Foo: 1 },
+    });
+  });
+
+  it('parses SILVERHAND_ACP_AUTO_COMPACT formats matching agy', () => {
+    expect(parseAcpAutoCompactThreshold('700000')).toEqual({ kind: 'tokens', tokens: 700_000 });
+    expect(parseAcpAutoCompactThreshold('800K')).toEqual({ kind: 'tokens', tokens: 800_000 });
+    expect(parseAcpAutoCompactThreshold('0.5M')).toEqual({ kind: 'tokens', tokens: 500_000 });
+    expect(parseAcpAutoCompactThreshold('80%')).toEqual({ kind: 'percent', ratio: 0.8 });
+    expect(parseAcpAutoCompactThreshold(' 200k ')).toEqual({ kind: 'tokens', tokens: 200_000 });
+    expect(parseAcpAutoCompactThreshold('')).toBeNull();
+    expect(parseAcpAutoCompactThreshold('0')).toBeNull();
+    expect(parseAcpAutoCompactThreshold('-100')).toBeNull();
+    expect(parseAcpAutoCompactThreshold('101%')).toBeNull();
+    expect(parseAcpAutoCompactThreshold('abc')).toBeNull();
+  });
+
+  it('triggers /compact at the first idle point after usage crosses the threshold and re-arms only after dropping below', async () => {
+    const { driver, sent, response } = await setup({ acpAutoCompactThreshold: '200K' });
+    response(sent[1].id, { sessionId: 's' });
+
+    const usage = (used: number, size = 1_048_576) =>
+      driver.parseLine(
+        JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'session/update',
+          params: { sessionId: 's', update: { sessionUpdate: 'usage_update', used, size } },
+        }),
+      );
+
+    // Start turn 1 and cross the 200K threshold mid-turn.
+    const turn1 = JSON.parse(driver.encodeStdinMessage('hello')!);
+    expect(usage(198_000)).toEqual([]);
+    expect(usage(203_000)).toEqual([]);
+    // Must wait until the turn finishes (never send /compact mid-turn).
+    expect(sent.filter((m) => m.method === 'session/prompt')).toHaveLength(0);
+
+    // Turn finishes → emits turn_end and immediately dispatches /compact.
+    expect(response(turn1.id, { stopReason: 'end_turn' })).toEqual([
+      { kind: 'turn_end', sessionId: 's' },
+    ]);
+    const compactReq = sent.at(-1);
+    expect(compactReq).toMatchObject({
+      method: 'session/prompt',
+      params: { sessionId: 's', prompt: [{ type: 'text', text: '/compact' }] },
+    });
+    // While compacting, driver pauses new deliveries and suppresses transient chunks.
+    expect(driver.readyToEncode()).toBe(false);
+    expect(driver.encodeStdinMessage('queued-by-supervisor')).toBeNull();
+    expect(chunk(driver, 'internal compact output')).toEqual([]);
+
+    // Compaction completes without emitting a spurious turn_end and reopens readyToEncode.
+    expect(response(compactReq.id, { stopReason: 'end_turn' })).toEqual([]);
+    expect(driver.readyToEncode()).toBe(true);
+
+    // Staying above threshold must NOT loop compaction.
+    const turn2 = JSON.parse(driver.encodeStdinMessage('next')!);
+    usage(210_000);
+    response(turn2.id, { stopReason: 'end_turn' });
+    expect(sent.filter((m) => m.params?.prompt?.[0]?.text === '/compact')).toHaveLength(1);
+
+    // Dropping below threshold re-arms; next crossing compacts again.
+    const turn3 = JSON.parse(driver.encodeStdinMessage('after drop')!);
+    usage(80_000);
+    usage(205_000);
+    response(turn3.id, { stopReason: 'end_turn' });
+    expect(sent.filter((m) => m.params?.prompt?.[0]?.text === '/compact')).toHaveLength(2);
+  });
+
+  it('supports percentage thresholds against usage_update.size and logs a warning on invalid values', async () => {
+    const warnings: string[] = [];
+    const root = mkdtempSync(join(tmpdir(), 'silverhand-agy-warn-'));
+    roots.push(root);
+    const systemPromptPath = join(root, 'prompt.md');
+    writeFileSync(systemPromptPath, 'SILVERHAND IDENTITY');
+    const invalidDriver = new AntigravityDriver();
+    invalidDriver.bindIO({
+      spawnCtx: {
+        agentId: 'a',
+        agentName: 'a',
+        workspacePath: root,
+        cliSessionId: null,
+        model: null,
+        reasoningEffort: null,
+        serviceTier: null,
+        systemPromptPath,
+        initialPrompt: '',
+        acpAutoCompactThreshold: 'not-a-threshold',
+      },
+      writeLine: async () => {},
+      onWarning: (ev) => warnings.push(ev.action),
+    });
+    expect(warnings).toEqual(['acp_auto_compact_invalid_threshold']);
+
+    const { driver, sent, response } = await setup({ acpAutoCompactThreshold: '50%' });
+    response(sent[1].id, { sessionId: 's' });
+    const turn = JSON.parse(driver.encodeStdinMessage('hi')!);
+    driver.parseLine(
+      JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'session/update',
+        params: {
+          sessionId: 's',
+          update: { sessionUpdate: 'usage_update', used: 500_000, size: 1_000_000 },
+        },
+      }),
+    );
+    response(turn.id, { stopReason: 'end_turn' });
+    expect(sent.at(-1)).toMatchObject({
+      method: 'session/prompt',
+      params: { sessionId: 's', prompt: [{ type: 'text', text: '/compact' }] },
     });
   });
 });

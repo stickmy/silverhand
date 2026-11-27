@@ -57,6 +57,7 @@
  */
 import { z } from 'zod';
 import {
+  AgentEnvVarSchema,
   AgentRunStateSchema,
   AgentSendStaleResolutionReasonSchema,
   MessageOptionsSchema,
@@ -721,6 +722,9 @@ const RuntimeStartEnvPolicySchema = z.object({
   // server URL/token, while the daemon resolves how to launch its own
   // bundled CLI. Embedded backends may still send an explicit launcher.
   silverhand_cli: SilverhandCliLauncherSchema.optional(),
+  // Owner-configured custom environment variables for this agent. Applied
+  // before host-authoritative Silverhand keys and never persisted to logs.
+  user_env: z.array(AgentEnvVarSchema).optional(),
 });
 
 const FORBIDDEN_RUNTIME_START_OPTION_KEYS = new Set([

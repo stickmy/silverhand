@@ -12,6 +12,7 @@ pub mod agent_audit;
 pub mod agent_avatar;
 pub mod agent_avatar_write;
 pub mod agent_detail;
+pub mod agent_env;
 pub mod agent_list;
 pub mod agent_list_workspaces;
 pub mod agent_name_availability;

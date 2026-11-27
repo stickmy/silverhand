@@ -1442,3 +1442,12 @@ CREATE TABLE message_options (
         CHECK ((answered_at IS NULL) = (answer_option_ids IS NULL)),
         CHECK (answered_at IS NOT NULL OR answer_other IS NULL)
       );
+
+CREATE TABLE agent_env_vars (
+        agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+        position INTEGER NOT NULL,
+        name     TEXT NOT NULL,
+        value    TEXT NOT NULL,
+        PRIMARY KEY (agent_id, name),
+        UNIQUE (agent_id, position)
+      );

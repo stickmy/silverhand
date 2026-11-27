@@ -112,7 +112,7 @@ use silverhand_backend_server::{
         runtime_credential::{RuntimeCredentialAuthority, require_runtime_credential},
     },
     identity_access::{
-        access, agent_audit, agent_avatar, agent_avatar_write, agent_detail, agent_list,
+        access, agent_audit, agent_avatar, agent_avatar_write, agent_detail, agent_env, agent_list,
         agent_list_workspaces::{AgentListWorkspacesState, agent_list_workspaces_router},
         agent_name_availability, agent_patch,
         auth::{PublicJsonUnauthorized, require_human_session},
@@ -179,6 +179,7 @@ use silverhand_backend_sqlite::{
     identity_access::agent_audit_read::SqliteAgentAuditRead,
     identity_access::agent_avatar_read::SqliteAgentAvatarRead,
     identity_access::agent_detail_read::SqliteAgentDetailColdRead,
+    identity_access::agent_env::SqliteAgentEnvStore,
     identity_access::agent_list_read::SqliteAgentListColdRead,
     identity_access::agent_profile_read::SqliteAgentProfileRead,
     identity_access::agent_profile_write::SqliteAgentProfileWrite,

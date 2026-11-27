@@ -212,6 +212,51 @@ export const SwitchAgentRuntimeResponseSchema = z.object({
 });
 export type SwitchAgentRuntimeResponse = z.infer<typeof SwitchAgentRuntimeResponseSchema>;
 
+export const MAX_AGENT_ENV_VARS = 64;
+export const MAX_AGENT_ENV_VAR_NAME_LENGTH = 128;
+export const MAX_AGENT_ENV_VAR_VALUE_LENGTH = 8192;
+export const AGENT_ENV_VAR_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+export const AgentEnvVarSchema = z.object({
+  name: z
+    .string()
+    .min(1)
+    .max(MAX_AGENT_ENV_VAR_NAME_LENGTH)
+    .regex(AGENT_ENV_VAR_NAME_PATTERN, 'invalid environment variable name'),
+  value: z
+    .string()
+    .max(MAX_AGENT_ENV_VAR_VALUE_LENGTH)
+    .refine((v) => !v.includes('\0'), 'environment variable value cannot contain NUL'),
+});
+export type AgentEnvVar = z.infer<typeof AgentEnvVarSchema>;
+
+const UniqueAgentEnvVarListSchema = z
+  .array(AgentEnvVarSchema)
+  .max(MAX_AGENT_ENV_VARS)
+  .superRefine((items, ctx) => {
+    const seen = new Set<string>();
+    items.forEach((item, index) => {
+      if (seen.has(item.name)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [index, 'name'],
+          message: `duplicate environment variable '${item.name}'`,
+        });
+      }
+      seen.add(item.name);
+    });
+  });
+
+export const AgentEnvResponseSchema = z.object({
+  env_vars: z.array(AgentEnvVarSchema),
+});
+export type AgentEnvResponse = z.infer<typeof AgentEnvResponseSchema>;
+
+export const UpdateAgentEnvInputSchema = z.object({
+  env_vars: UniqueAgentEnvVarListSchema,
+});
+export type UpdateAgentEnvInput = z.infer<typeof UpdateAgentEnvInputSchema>;
+
 // ── Self-profile (`silverhand profile get|update`, #task:1178) ─────────
 //
 // The executing subject's view of its OWN profile metadata. This is a

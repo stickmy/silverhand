@@ -45,6 +45,7 @@ pub(super) async fn compose_after_audit(
             AgentIdentityResources {
                 availability_cold_read: agent_availability_cold_read,
                 detail_cold_read: agent_detail_cold_read,
+                env_store: agent_env_store,
                 list_cold_read: agent_list_cold_read,
                 presence_cold_read: agent_presence_cold_read,
                 profile_write: agent_profile_write,
@@ -1172,6 +1173,10 @@ pub(super) async fn compose_after_audit(
             .merge(public_profile_mcp::router(
                 agent_detail_cold_read.clone(),
                 mcp_data_plane,
+            ))
+            .merge(agent_env::router(
+                agent_detail_cold_read.clone(),
+                agent_env_store,
             ))
             .merge(channel_directory::router(channel_directory_read))
             .merge(channel_lifecycle::router(channel_detail_read))

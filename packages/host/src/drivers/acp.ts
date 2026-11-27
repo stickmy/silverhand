@@ -58,6 +58,9 @@ export interface AcpRuntimeAdapter {
   /** A `session/prompt` sent mid-turn joins the running turn: the earlier prompt
    *  answers at once, and the turn ends with the latest prompt's response. */
   readonly busyPromptJoinsTurn?: boolean;
+  /** Slash command sent in its own idle `session/prompt` when `usage_update`
+   *  crosses `SILVERHAND_ACP_AUTO_COMPACT` (opt-in per runtime). */
+  readonly autoCompactCommand?: string;
   /** Overrides the native `name`/`input` when the runtime's own are unusable as a
    *  tool name (the run state counts by `name`; older desktops render from it). */
   toolCall?(update: Record<string, any>): { name: string; input: unknown } | null;
@@ -86,6 +89,49 @@ export interface AcpRuntimeAdapter {
  * still sees ordinary Driver methods; ACP is only a reusable implementation
  * detail for runtimes whose process speaks JSON-RPC over stdio.
  */
+export type AcpAutoCompactThreshold =
+  | { kind: 'tokens'; tokens: number }
+  | { kind: 'percent'; ratio: number };
+
+const AUTO_COMPACT_THRESHOLD_RE = /^(\d+(?:\.\d+)?)\s*([km%])?$/i;
+
+/**
+ * Parse `SILVERHAND_ACP_AUTO_COMPACT` using the same grammar as agy's
+ * `AGY_CLI_AUTO_COMPACT_OVERRIDE`: `700000`, `800K`, `0.5M`, or `80%`.
+ */
+export function parseAcpAutoCompactThreshold(
+  raw: string | null | undefined,
+): AcpAutoCompactThreshold | null {
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+
+  const match = AUTO_COMPACT_THRESHOLD_RE.exec(trimmed);
+  if (!match) return null;
+
+  const value = Number(match[1]);
+  if (!Number.isFinite(value) || value <= 0) return null;
+
+  const unit = match[2]?.toLowerCase();
+  if (unit === '%') {
+    if (value > 100) return null;
+    return { kind: 'percent', ratio: value / 100 };
+  }
+  const multiplier = unit === 'k' ? 1_000 : unit === 'm' ? 1_000_000 : 1;
+  const tokens = Math.round(value * multiplier);
+  if (!Number.isSafeInteger(tokens) || tokens <= 0) return null;
+  return { kind: 'tokens', tokens };
+}
+
+export function resolveAcpAutoCompactLimit(
+  threshold: AcpAutoCompactThreshold,
+  windowSize: number | null,
+): number | null {
+  if (threshold.kind === 'tokens') return threshold.tokens;
+  if (windowSize === null || !Number.isFinite(windowSize) || windowSize <= 0) return null;
+  return Math.max(1, Math.floor(windowSize * threshold.ratio));
+}
+
 export class AcpClient {
   private io: DriverIO | null = null;
   private requestId = 0;
@@ -96,6 +142,10 @@ export class AcpClient {
   private sessionFinalizeRequestId: JsonRpcId | null = null;
   private sessionFinalized = false;
   private activePromptRequestId: JsonRpcId | null = null;
+  private compactRequestId: JsonRpcId | null = null;
+  private autoCompactThreshold: AcpAutoCompactThreshold | null = null;
+  private autoCompactArmed = true;
+  private autoCompactPending = false;
   private pendingBusyRequests = new Map<JsonRpcId, { text: string; promptId: JsonRpcId }>();
   private joinedPrompts = new Set<JsonRpcId>();
   private redeliveries: string[] = [];
@@ -108,6 +158,20 @@ export class AcpClient {
 
   bindIO(io: DriverIO): void {
     this.io = io;
+    if (this.adapter.autoCompactCommand) {
+      const rawThreshold = io.spawnCtx.acpAutoCompactThreshold;
+      if (typeof rawThreshold === 'string' && rawThreshold.trim().length > 0) {
+        const parsed = parseAcpAutoCompactThreshold(rawThreshold);
+        if (parsed) {
+          this.autoCompactThreshold = parsed;
+        } else {
+          io.onWarning?.({
+            action: 'acp_auto_compact_invalid_threshold',
+            message: 'Invalid SILVERHAND_ACP_AUTO_COMPACT value; ACP auto-compact disabled',
+          });
+        }
+      }
+    }
     queueMicrotask(() => {
       this.initializeRequestId = this.sendRequest(
         'initialize',
@@ -119,6 +183,7 @@ export class AcpClient {
   readyToEncode(): boolean {
     return (
       this.sessionAnnounced &&
+      this.compactRequestId === null &&
       (this.activePromptRequestId === null ||
         !!this.adapter.buildBusyRequest ||
         this.adapter.busyPromptJoinsTurn === true)
@@ -149,7 +214,12 @@ export class AcpClient {
   }
 
   encodeInterruptControl(): string | null {
-    if (!this.sessionId || this.activePromptRequestId === null) return null;
+    if (
+      !this.sessionId ||
+      (this.activePromptRequestId === null && this.compactRequestId === null)
+    ) {
+      return null;
+    }
     return serialize({
       jsonrpc: '2.0',
       method: 'session/cancel',
@@ -212,6 +282,18 @@ export class AcpClient {
 
     if (this.joinedPrompts.delete(message.id)) {
       return message.error ? [{ kind: 'error', message: errorMessage(message, this.adapter) }] : [];
+    }
+
+    if (this.compactRequestId !== null && message.id === this.compactRequestId) {
+      this.compactRequestId = null;
+      if (message.error) {
+        this.io?.onWarning?.({
+          action: 'acp_auto_compact_failed',
+          message: errorMessage(message, this.adapter),
+        });
+      }
+      this.flushRedeliveries();
+      return events;
     }
 
     if (message.error) {
@@ -298,12 +380,66 @@ export class AcpClient {
   private endPrompt(events: ParsedEvent[]): void {
     this.activePromptRequestId = null;
     events.push({ kind: 'turn_end', sessionId: this.sessionId ?? undefined });
+    if (this.autoCompactPending && this.startAutoCompact()) {
+      return;
+    }
     this.flushRedeliveries();
+  }
+
+  private startAutoCompact(): boolean {
+    if (
+      !this.sessionAnnounced ||
+      !this.sessionId ||
+      !this.adapter.autoCompactCommand ||
+      this.activePromptRequestId !== null ||
+      this.compactRequestId !== null
+    ) {
+      return false;
+    }
+    this.autoCompactPending = false;
+    this.compactRequestId = this.sendRequest('session/prompt', {
+      sessionId: this.sessionId,
+      prompt: [{ type: 'text', text: this.adapter.autoCompactCommand }],
+    });
+    return true;
+  }
+
+  private handleUsageUpdate(update: Record<string, any>): void {
+    if (!this.autoCompactThreshold || !this.adapter.autoCompactCommand) return;
+    const used = update.used;
+    if (typeof used !== 'number' || !Number.isFinite(used) || used < 0) return;
+    const size =
+      typeof update.size === 'number' && Number.isFinite(update.size) && update.size > 0
+        ? update.size
+        : null;
+    const limit = resolveAcpAutoCompactLimit(this.autoCompactThreshold, size);
+    if (limit === null) return;
+
+    if (used < limit) {
+      this.autoCompactArmed = true;
+      this.autoCompactPending = false;
+      return;
+    }
+
+    if (!this.autoCompactArmed) return;
+    this.autoCompactArmed = false;
+    this.autoCompactPending = true;
+    if (
+      this.sessionAnnounced &&
+      this.activePromptRequestId === null &&
+      this.compactRequestId === null
+    ) {
+      this.startAutoCompact();
+    }
   }
 
   /** Best effort: busy input refused because its turn ended joins the turn
    *  that has since started, or starts the next one. */
   private redeliver(busy: { text: string; promptId: JsonRpcId }): void {
+    if (this.compactRequestId !== null) {
+      this.redeliveries.push(busy.text);
+      return;
+    }
     if (this.activePromptRequestId === null) {
       this.redeliveries.push(busy.text);
       this.flushRedeliveries();
@@ -317,7 +453,7 @@ export class AcpClient {
   }
 
   private flushRedeliveries(): void {
-    if (this.redeliveries.length === 0) return;
+    if (this.compactRequestId !== null || this.redeliveries.length === 0) return;
     const line = this.encodeStdinMessage(this.redeliveries.join('\n\n'));
     this.redeliveries = [];
     if (line) void this.writeLine(line);
@@ -378,6 +514,17 @@ export class AcpClient {
     const update = recordField(recordField(params).update);
     const kind = stringField(update.sessionUpdate);
     const events: ParsedEvent[] = [];
+
+    if (kind === 'usage_update') {
+      this.handleUsageUpdate(update);
+      return events;
+    }
+
+    // Internal compaction runs as a hidden `session/prompt`; suppress its
+    // transient chunks so chat activity and run-state stay clean.
+    if (this.compactRequestId !== null) {
+      return events;
+    }
 
     switch (kind) {
       case 'agent_message_chunk': {

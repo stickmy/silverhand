@@ -71,6 +71,27 @@ pub fn can_view_agent_files(
     can_edit_agent(principal, subject, agent)
 }
 
+/// May this principal read or write this agent's custom environment variables?
+///
+/// Strictly human-creator only: unlike [`can_edit_agent`], an agent's own
+/// runtime token (`Principal::Agent`) must not read or mutate its stored env
+/// config through the management plane.
+pub fn can_manage_agent_env(
+    principal: &Principal,
+    agent: Option<&AgentAuthority>,
+) -> Decision<AuthorityRefused> {
+    match principal {
+        Principal::Human { user_id } => match agent {
+            None => Decision::Denied(AuthorityRefused::AgentAbsent),
+            Some(agent) if agent.created_by_user_id.as_ref() == Some(user_id) => Decision::Allow,
+            Some(_) => Decision::Denied(AuthorityRefused::NotTheCreator),
+        },
+        Principal::Agent { .. } | Principal::System => {
+            Decision::Denied(AuthorityRefused::NotTheCreator)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -140,6 +161,30 @@ mod tests {
                 Some(&ownerless)
             ),
             Decision::Denied(AuthorityRefused::NotTheCreator)
+        );
+    }
+
+    #[test]
+    fn manage_agent_env_allows_only_human_creator_and_refuses_self_and_others() {
+        let authority = created_by("owner");
+        assert!(
+            can_manage_agent_env(&Principal::human(user("owner")), Some(&authority)).is_allowed()
+        );
+        assert_eq!(
+            can_manage_agent_env(&Principal::human(user("teammate")), Some(&authority)),
+            Decision::Denied(AuthorityRefused::NotTheCreator)
+        );
+        assert_eq!(
+            can_manage_agent_env(&Principal::agent(agent_id("a1")), Some(&authority)),
+            Decision::Denied(AuthorityRefused::NotTheCreator)
+        );
+        assert_eq!(
+            can_manage_agent_env(&Principal::System, Some(&authority)),
+            Decision::Denied(AuthorityRefused::NotTheCreator)
+        );
+        assert_eq!(
+            can_manage_agent_env(&Principal::human(user("owner")), None),
+            Decision::Denied(AuthorityRefused::AgentAbsent)
         );
     }
 

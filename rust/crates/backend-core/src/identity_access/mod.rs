@@ -11,6 +11,7 @@ pub mod agent_audit_read;
 pub mod agent_avatar;
 pub mod agent_avatar_write;
 pub mod agent_detail_read;
+pub mod agent_env;
 pub mod agent_lifecycle;
 pub mod agent_list_read;
 pub mod agent_peer_profile;

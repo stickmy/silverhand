@@ -33,10 +33,20 @@ pub(crate) fn spawn_options(
     } else {
         driver["fast_mode"] = Value::Null;
     }
+    let mut env_policy = json!({ "silverhand": { "auth_token": token } });
+    if !plan.agent.env_vars.is_empty() {
+        env_policy["user_env"] = Value::Array(
+            plan.agent
+                .env_vars
+                .iter()
+                .map(|entry| json!({ "name": entry.name, "value": entry.value }))
+                .collect(),
+        );
+    }
     let common = json!({
         "agent": { "id": plan.agent.id.as_str(), "name": plan.agent.name },
         "driver": driver,
-        "env_policy": { "silverhand": { "auth_token": token } },
+        "env_policy": env_policy,
     });
     let mut object = common.as_object().cloned().expect("object literal");
     object.insert("runtime_scope".to_owned(), scope_wire(&plan.scope));
@@ -134,6 +144,7 @@ mod tests {
                 reasoning_effort: None,
                 service_tier: Some("ultrafast".to_owned()),
                 cli_session_id: None,
+                env_vars: Vec::new(),
             },
             workspace: None,
             workspace_memory_index: Vec::new(),
@@ -150,5 +161,42 @@ mod tests {
         let driver = &spawn_options(&plan, "t", DaemonFeatures::default())["driver"];
         assert_eq!(driver["fast_mode"], Value::Null);
         assert!(driver.get("service_tier").is_none());
+    }
+
+    #[test]
+    fn user_env_is_emitted_under_env_policy_only_when_non_empty() {
+        let agent = AgentId::parse("agent-a").unwrap();
+        let mut plan = RuntimeSpawnPlan {
+            scope: RuntimeScope::AgentSlot {
+                agent: agent.clone(),
+            },
+            agent: RuntimeAgentSpec {
+                id: agent,
+                name: "agent-a".to_owned(),
+                runtime: RuntimeKind::Antigravity,
+                model: None,
+                reasoning_effort: None,
+                service_tier: None,
+                cli_session_id: None,
+                env_vars: Vec::new(),
+            },
+            workspace: None,
+            workspace_memory_index: Vec::new(),
+            session: None,
+        };
+        let empty = spawn_options(&plan, "t", DaemonFeatures::default());
+        assert!(empty["env_policy"].get("user_env").is_none());
+
+        plan.agent.env_vars = vec![
+            silverhand_backend_core::identity_access::agent_env::AgentEnvVar {
+                name: "SILVERHAND_ACP_AUTO_COMPACT".to_owned(),
+                value: "200000".to_owned(),
+            },
+        ];
+        let populated = spawn_options(&plan, "t", DaemonFeatures::default());
+        assert_eq!(
+            populated["env_policy"]["user_env"],
+            json!([{ "name": "SILVERHAND_ACP_AUTO_COMPACT", "value": "200000" }])
+        );
     }
 }

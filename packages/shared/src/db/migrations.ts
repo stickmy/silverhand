@@ -4451,6 +4451,20 @@ export const migrations: Migration[] = [
       );
     `,
   },
+  {
+    version: 108,
+    name: 'agent_env_vars',
+    up: `
+      CREATE TABLE agent_env_vars (
+        agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+        position INTEGER NOT NULL,
+        name     TEXT NOT NULL,
+        value    TEXT NOT NULL,
+        PRIMARY KEY (agent_id, name),
+        UNIQUE (agent_id, position)
+      );
+    `,
+  },
 ];
 
 /**

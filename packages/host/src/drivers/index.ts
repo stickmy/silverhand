@@ -48,6 +48,8 @@ export interface DriverSpawnContext {
   initialPrompt: string;
   /** Validated additive profile layer for runtimes using a session protocol. */
   profileMcp?: McpConfig;
+  /** Raw `SILVERHAND_ACP_AUTO_COMPACT` threshold from the child's final spawn env. */
+  acpAutoCompactThreshold?: string | null;
 }
 
 /** Stdin writer + spawn context handed to drivers via `bindIO`. Codex
@@ -59,6 +61,8 @@ export interface DriverIO {
    * explicit, request-correlated runtime rejection may invoke this; silence,
    * transport success, and generic errors are not rejection evidence. */
   onInputRejected?(payloadUuid: string): void;
+  /** Structured non-fatal warning callback routed to the daemon logger. */
+  onWarning?(event: { action: string; message: string; details?: Record<string, unknown> }): void;
   spawnCtx: DriverSpawnContext;
 }
 

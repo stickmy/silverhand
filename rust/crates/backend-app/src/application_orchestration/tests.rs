@@ -11751,3 +11751,247 @@ async fn mounted_message_answer_publishes_event_then_options_frame() {
     shutdown_tx.send(()).unwrap();
     running.await.unwrap().unwrap();
 }
+
+/// #3148/#3151: agent env is strictly human-creator only (teammate 403, stranger 404,
+/// agent self token refused at human perimeter), absent from public/shared reads, and
+/// delivered only in the target agent's spawn plan (not a sibling agent on the same host).
+#[tokio::test]
+async fn mounted_agent_env_enforces_owner_only_and_targets_only_owning_agent_spawn() {
+    use silverhand_backend_core::{
+        conversation_messaging::runtime_delivery::RuntimeDispatchReadPort,
+        foundation::identity::{AgentId, ConversationId},
+    };
+    use silverhand_backend_sqlite::conversation_messaging::runtime_delivery::SqliteRuntimeDeliveryStore;
+
+    let fixture = fixture(true).await;
+    seed_human(&fixture.path).await;
+    seed_workspace_conversation(&fixture.path).await;
+    seed_runtime_agent(&fixture.path, "target-agent").await;
+
+    let teammate_token = ADMIN_TOKEN;
+    let teammate_hash = ADMIN_HASH;
+    let stranger_token = HOST_TOKEN;
+    let stranger_hash = HOST_TOKEN_HASH;
+    let now = i64::try_from(
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis(),
+    )
+    .unwrap();
+
+    let pool = SqlitePoolOptions::new()
+        .connect(fixture.path.to_str().unwrap())
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO users (id, name, display_name, created_at, updated_at) \
+         VALUES ('teammate-1', 'teammate', 'Teammate', 1, 1), \
+                ('stranger-1', 'stranger', 'Stranger', 1, 1)",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    for (sid, uid, hash) in [
+        ("session-teammate", "teammate-1", teammate_hash),
+        ("session-stranger", "stranger-1", stranger_hash),
+    ] {
+        sqlx::query(
+            "INSERT INTO auth_sessions (id, user_id, token_hash, created_at, last_used_at, \
+             revoked_at, user_agent, ip_first_seen) VALUES (?, ?, ?, ?, ?, NULL, NULL, NULL)",
+        )
+        .bind(sid)
+        .bind(uid)
+        .bind(hash)
+        .bind(now)
+        .bind(now)
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+    sqlx::query(
+        "INSERT INTO workspace_users (workspace_id, user_id, role, joined_at) \
+         VALUES (?, 'teammate-1', 'member', 1)",
+    )
+    .bind(WORKSPACE_ID)
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query(seed_agent!(
+        id = "sibling-agent",
+        name = "sibling-agent",
+        runtime = "antigravity",
+        host_id = "h-registry-probe",
+        created_by_user_id = "user-1",
+        session_scope = "agent",
+    ))
+    .execute(&pool)
+    .await
+    .unwrap();
+    for aid in ["target-agent", "sibling-agent"] {
+        sqlx::query(
+            "INSERT INTO workspace_members (workspace_id, agent_id, joined_at) VALUES (?, ?, 1)",
+        )
+        .bind(WORKSPACE_ID)
+        .bind(aid)
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO conversation_agents (conversation_id, agent_id, joined_at) VALUES (?, ?, 1)",
+        )
+        .bind(CONVERSATION_ID)
+        .bind(aid)
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+    pool.close().await;
+
+    let app = prepare(&config(fixture.path.clone())).await.unwrap();
+    let owner_bearer = format!("Bearer {TOKEN}");
+    let teammate_bearer = format!("Bearer {teammate_token}");
+    let stranger_bearer = format!("Bearer {stranger_token}");
+    let agent_self_bearer = mint_runtime_bearer(&app, "target-agent").await;
+    let router = app.router.clone();
+
+    let marker = "marker-accept-3148-only-target";
+    let put_body = format!(
+        r#"{{"env_vars":[{{"name":"SILVERHAND_ACP_AUTO_COMPACT","value":"200000"}},{{"name":"CUSTOM_MARKER","value":"{marker}"}}]}}"#
+    );
+
+    // Owner writes and reads back.
+    let (status, body) = json_request_with_body(
+        &router,
+        "PUT",
+        "/api/agents/target-agent/env",
+        Some(&owner_bearer),
+        Body::from(put_body),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body.contains(marker), "{body}");
+
+    let (status, body) = json_request_with_body(
+        &router,
+        "GET",
+        "/api/agents/target-agent/env",
+        Some(&owner_bearer),
+        Body::empty(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body.contains(marker), "{body}");
+    assert!(body.contains("SILVERHAND_ACP_AUTO_COMPACT"), "{body}");
+
+    // Co-workspace teammate gets 403 on both GET and PUT.
+    let (status, body) = json_request_with_body(
+        &router,
+        "GET",
+        "/api/agents/target-agent/env",
+        Some(&teammate_bearer),
+        Body::empty(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+    assert!(!body.contains(marker), "{body}");
+
+    let (status, _) = json_request_with_body(
+        &router,
+        "PUT",
+        "/api/agents/target-agent/env",
+        Some(&teammate_bearer),
+        Body::from(r#"{"env_vars":[]}"#),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    // Stranger gets 404 on both GET and PUT.
+    let (status, _) = json_request_with_body(
+        &router,
+        "GET",
+        "/api/agents/target-agent/env",
+        Some(&stranger_bearer),
+        Body::empty(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    let (status, _) = json_request_with_body(
+        &router,
+        "PUT",
+        "/api/agents/target-agent/env",
+        Some(&stranger_bearer),
+        Body::from(r#"{"env_vars":[]}"#),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    // Agent self runtime token is rejected on both GET and PUT.
+    let (status, body) = json_request_with_body(
+        &router,
+        "GET",
+        "/api/agents/target-agent/env",
+        Some(&agent_self_bearer),
+        Body::empty(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED, "{body}");
+    assert!(!body.contains(marker), "{body}");
+
+    let (status, _) = json_request_with_body(
+        &router,
+        "PUT",
+        "/api/agents/target-agent/env",
+        Some(&agent_self_bearer),
+        Body::from(r#"{"env_vars":[]}"#),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+    // Public/shared read surfaces never expose custom env values.
+    for path in [
+        "/api/agents/target-agent",
+        "/api/agents",
+        "/api/hosts/h-registry-probe/status",
+    ] {
+        let (status, body) =
+            json_request_with_body(&router, "GET", path, Some(&owner_bearer), Body::empty()).await;
+        assert_eq!(status, StatusCode::OK, "{path}: {body}");
+        assert!(!body.contains(marker), "{path} leaked env marker: {body}");
+    }
+
+    // Dispatch spawn plan includes env_vars ONLY for target-agent, never sibling-agent.
+    let db = silverhand_backend_sqlite::foundation::database::open_shared(&fixture.path)
+        .await
+        .unwrap();
+    let delivery_store = SqliteRuntimeDeliveryStore::from_pool(db);
+    let target_dispatch = delivery_store
+        .resolve_dispatch_target(
+            ConversationId::parse(CONVERSATION_ID).unwrap(),
+            AgentId::parse("target-agent").unwrap(),
+        )
+        .await
+        .unwrap()
+        .expect("target dispatch");
+    assert_eq!(target_dispatch.plan.agent.env_vars.len(), 2);
+    assert_eq!(
+        target_dispatch.plan.agent.env_vars[0].name,
+        "SILVERHAND_ACP_AUTO_COMPACT"
+    );
+    assert_eq!(target_dispatch.plan.agent.env_vars[0].value, "200000");
+    assert_eq!(target_dispatch.plan.agent.env_vars[1].name, "CUSTOM_MARKER");
+    assert_eq!(target_dispatch.plan.agent.env_vars[1].value, marker);
+
+    let sibling_dispatch = delivery_store
+        .resolve_dispatch_target(
+            ConversationId::parse(CONVERSATION_ID).unwrap(),
+            AgentId::parse("sibling-agent").unwrap(),
+        )
+        .await
+        .unwrap()
+        .expect("sibling dispatch");
+    assert!(sibling_dispatch.plan.agent.env_vars.is_empty());
+
+    app.close_connections().await;
+}

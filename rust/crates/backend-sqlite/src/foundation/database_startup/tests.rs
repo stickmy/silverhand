@@ -38,7 +38,7 @@ async fn snapshot(
     db: &mut SqliteConnection,
     omit_retired_preferences: bool,
 ) -> Vec<(String, Vec<String>)> {
-    let tables: Vec<String> = sqlx::query_scalar("SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT IN ('_migrations','avatar_designs','password_recovery_state','agent_runtime_credentials','message_options') ORDER BY name").fetch_all(&mut *db).await.unwrap();
+    let tables: Vec<String> = sqlx::query_scalar("SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT IN ('_migrations','avatar_designs','password_recovery_state','agent_runtime_credentials','message_options','agent_env_vars') ORDER BY name").fetch_all(&mut *db).await.unwrap();
     let mut result = vec![];
     for table in tables {
         let columns: Vec<String> =
@@ -951,6 +951,52 @@ async fn message_options_upgrade_adds_the_answer_table_with_answer_invariants() 
         .await
         .unwrap();
     let left: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM message_options")
+        .fetch_one(&mut db)
+        .await
+        .unwrap();
+    assert_eq!(left, 0);
+    db.close().await.unwrap();
+}
+
+#[tokio::test]
+async fn agent_env_vars_upgrade_adds_table_with_cascade_and_uniqueness() {
+    let root = isolated();
+    let path = root.path().join("data/database.sqlite");
+    fs::create_dir(path.parent().unwrap()).unwrap();
+    let mut previous = plan();
+    previous.steps.retain(|s| s.version <= 107);
+    let mut db = connect(&path).await;
+    prepare_connected(&mut db, &path, true, &previous)
+        .await
+        .unwrap();
+    db.close().await.unwrap();
+
+    prepare_database(&path, true).await.unwrap();
+    let mut db = connect(&path).await;
+    db.execute(sqlx::raw_sql(
+        "PRAGMA foreign_keys=OFF;
+         INSERT INTO agents(id,name,display_name,runtime,host_id,created_by_user_id,materialization_status,created_at,updated_at)
+         VALUES('a-env','a-env','A Env','antigravity','h1','u1','active',1,1);
+         PRAGMA foreign_keys=ON;",
+    ))
+    .await
+    .unwrap();
+    db.execute(
+        "INSERT INTO agent_env_vars(agent_id,position,name,value) VALUES('a-env',0,'SILVERHAND_ACP_AUTO_COMPACT','200000')",
+    )
+    .await
+    .unwrap();
+    assert!(
+        db.execute(
+            "INSERT INTO agent_env_vars(agent_id,position,name,value) VALUES('a-env',1,'SILVERHAND_ACP_AUTO_COMPACT','300000')"
+        )
+        .await
+        .is_err()
+    );
+    db.execute("DELETE FROM agents WHERE id='a-env'")
+        .await
+        .unwrap();
+    let left: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM agent_env_vars")
         .fetch_one(&mut db)
         .await
         .unwrap();

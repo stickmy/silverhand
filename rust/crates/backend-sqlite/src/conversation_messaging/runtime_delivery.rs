@@ -2567,6 +2567,8 @@ async fn project_dispatch(
     let runtime: String = agent_row.try_get("runtime").map_err(persistence)?;
     let runtime = RuntimeKind::parse(&runtime)
         .ok_or_else(|| PersistenceFailure::from_source(InvalidPersistedRuntimeKind))?;
+    let env_vars =
+        crate::identity_access::agent_env::read_agent_env_on_conn(&mut *conn, agent).await?;
     let agent_spec = RuntimeAgentSpec {
         id: agent.clone(),
         name: agent_row.try_get("name").map_err(persistence)?,
@@ -2577,6 +2579,7 @@ async fn project_dispatch(
             .try_get::<Option<String>, _>("service_tier")
             .map_err(persistence)?,
         cli_session_id: agent_row.try_get("cli_session_id").map_err(persistence)?,
+        env_vars,
     };
     let host_id: String = agent_row.try_get("host_id").map_err(persistence)?;
     if host_id.is_empty() {

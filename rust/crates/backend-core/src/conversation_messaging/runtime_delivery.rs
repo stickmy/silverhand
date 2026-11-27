@@ -253,6 +253,7 @@ pub struct RuntimeAgentSpec {
     pub reasoning_effort: Option<String>,
     pub service_tier: Option<String>,
     pub cli_session_id: Option<String>,
+    pub env_vars: Vec<crate::identity_access::agent_env::AgentEnvVar>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

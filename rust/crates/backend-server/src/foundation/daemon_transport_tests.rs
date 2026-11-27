@@ -2558,6 +2558,7 @@ async fn runtime_control_start_traverses_typed_codec_and_production_fifo() {
                 reasoning_effort: None,
                 service_tier: None,
                 cli_session_id: None,
+                env_vars: Vec::new(),
             },
             workspace: None,
             workspace_memory_index: Vec::new(),

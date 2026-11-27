@@ -27,6 +27,7 @@ pub mod account_deletion;
 pub mod agent_audit_read;
 pub mod agent_avatar_read;
 pub mod agent_detail_read;
+pub mod agent_env;
 pub mod agent_list_read;
 pub mod agent_profile_mcp_placement_read;
 pub mod agent_profile_read;

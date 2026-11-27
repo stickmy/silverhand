@@ -19,7 +19,7 @@
     {
       "epoch": 71,
       "firstStep": 100,
-      "lastStep": 107,
+      "lastStep": 108,
       "released": false
     }
   ],
@@ -29,8 +29,8 @@
     "packages/shared/src/conversation-title.ts": "5b8f0b3766618373619ea589e632d566e9a43e469d821de4298da76f1bb3b680",
     "packages/shared/src/db/baseline-schema.ts": "7e5b7e9a0aca9b79fa433dca341d68ef4f761c5a545069c6005a4519851130e6",
     "packages/shared/src/db/migration-contracts/task-title-v96.ts": "98b0881301cb959962489178aefca16aa4228c786f03b0b849a654d58504d583",
-    "packages/shared/src/db/migrations.ts": "51964a57deae89f871b8b21308fa6b89c94ae7a51224ab479cc2d540ae2df4fe",
-    "packages/shared/src/db/schema-epochs.ts": "1c610a1d49b10077f71f96c5f4c170ff480d9023460d60f3e4436588686c452b",
+    "packages/shared/src/db/migrations.ts": "6d1f7e9919d9b2b82d8746af9ea6a5e16d53e7117d42e65eb08af40fea867419",
+    "packages/shared/src/db/schema-epochs.ts": "b2921b8a90088c4ba1e6a08685ba321c79ea573594bdf05669c07e911e05933b",
     "packages/shared/src/display-name-charset.ts": "9d5b574480b3956f37d53bba816b7bff6d3e3edfc861e58c32b896a919f2f8ba",
     "packages/shared/src/unicode-case-fold.ts": "b5cb75d46582dc93b640434ad78fe8f0a741e5e1aa183adbb27368ce2aceb120",
     "packages/shared/src/unicode-name-charset.ts": "bbcda81d89d738fdfe6a9ff0dd4dad633a79a84cd8f82e203753910196967879",
@@ -483,6 +483,13 @@
       "version": 107,
       "name": "message_options",
       "up": "\n      CREATE TABLE message_options (\n        message_id            TEXT PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,\n        mode                  TEXT NOT NULL CHECK (mode IN ('single', 'multi')),\n        items                 TEXT NOT NULL,\n        answer_by_kind        TEXT CHECK (answer_by_kind IN ('user', 'agent')),\n        answer_by_id          TEXT,\n        answer_by_name        TEXT,\n        answer_by_display     TEXT,\n        answer_option_ids     TEXT,\n        answer_other          TEXT,\n        answered_at           INTEGER,\n        CHECK ((answered_at IS NULL) = (answer_by_kind IS NULL)),\n        CHECK ((answered_at IS NULL) = (answer_by_id IS NULL)),\n        CHECK ((answered_at IS NULL) = (answer_by_name IS NULL)),\n        CHECK ((answered_at IS NULL) = (answer_by_display IS NULL)),\n        CHECK ((answered_at IS NULL) = (answer_option_ids IS NULL)),\n        CHECK (answered_at IS NOT NULL OR answer_other IS NULL)\n      );\n    ",
+      "foreignKeyEscape": false,
+      "precondition": false
+    },
+    {
+      "version": 108,
+      "name": "agent_env_vars",
+      "up": "\n      CREATE TABLE agent_env_vars (\n        agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,\n        position INTEGER NOT NULL,\n        name     TEXT NOT NULL,\n        value    TEXT NOT NULL,\n        PRIMARY KEY (agent_id, name),\n        UNIQUE (agent_id, position)\n      );\n    ",
       "foreignKeyEscape": false,
       "precondition": false
     }

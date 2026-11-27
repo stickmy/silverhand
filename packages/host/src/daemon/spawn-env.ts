@@ -31,6 +31,65 @@ export interface DaemonSpawnEnvInput {
   baseProcessEnv?: NodeJS.ProcessEnv;
 }
 
+export interface HostAuthoritativeSpawnEnv {
+  runtimeScopeKind: StartOptions['runtime_scope']['kind'];
+  conversationId: string;
+  agentId: string;
+  serverUrl: string;
+  authToken: string;
+  daemonSocketPath?: string;
+  lastDeliveredSeqPath?: string;
+  binDir: string;
+}
+
+/**
+ * Re-apply every host-owned Silverhand key and enforce the shim PATH prefix on
+ * the final child env. Absent optional keys (agent-scope conversation id,
+ * unconfigured daemon socket or delivery cursor) are explicitly deleted so
+ * neither ambient daemon env nor user-configured env can spoof them.
+ */
+export function applyHostAuthoritativeSpawnEnv(
+  env: NodeJS.ProcessEnv,
+  authority: HostAuthoritativeSpawnEnv,
+): NodeJS.ProcessEnv {
+  const currentPath = env.PATH ?? '';
+  const pathPrefix = `${authority.binDir}${delimiter}`;
+  const path =
+    currentPath === authority.binDir || currentPath.startsWith(pathPrefix)
+      ? currentPath
+      : currentPath
+        ? `${authority.binDir}${delimiter}${currentPath}`
+        : authority.binDir;
+
+  const result: NodeJS.ProcessEnv = {
+    ...env,
+    [SILVERHAND_AGENT_ID_ENV]: authority.agentId,
+    [SILVERHAND_SERVER_URL_ENV]: authority.serverUrl,
+    [SILVERHAND_AUTH_TOKEN_ENV]: authority.authToken,
+    PATH: path,
+  };
+
+  if (authority.runtimeScopeKind === 'conversation') {
+    result[SILVERHAND_CONVERSATION_ID_ENV] = authority.conversationId;
+  } else {
+    delete result[SILVERHAND_CONVERSATION_ID_ENV];
+  }
+
+  if (authority.daemonSocketPath) {
+    result[SILVERHAND_DAEMON_SOCKET_ENV] = authority.daemonSocketPath;
+  } else {
+    delete result[SILVERHAND_DAEMON_SOCKET_ENV];
+  }
+
+  if (authority.lastDeliveredSeqPath) {
+    result[SILVERHAND_LAST_DELIVERED_SEQ_FILE_ENV] = authority.lastDeliveredSeqPath;
+  } else {
+    delete result[SILVERHAND_LAST_DELIVERED_SEQ_FILE_ENV];
+  }
+
+  return result;
+}
+
 export function buildDaemonSpawnEnv(input: DaemonSpawnEnvInput): NodeJS.ProcessEnv {
   const options = input.options;
   let env = input.driver.applyEnv(input.baseProcessEnv ?? process.env);
@@ -42,32 +101,34 @@ export function buildDaemonSpawnEnv(input: DaemonSpawnEnvInput): NodeJS.ProcessE
     if (proxyEnv) env = { ...env, ...proxyEnv };
   }
 
-  const currentPath = env.PATH ?? process.env.PATH ?? '';
+  const userEnv = options.env_policy.user_env;
+  if (userEnv && userEnv.length > 0) {
+    const userLayer: NodeJS.ProcessEnv = {};
+    for (const entry of userEnv) {
+      userLayer[entry.name] = entry.value;
+    }
+    env = { ...env, ...userLayer };
+  }
+
   const silverhandServerUrl = input.controlPlaneServerUrl;
   if (!silverhandServerUrl) {
     throw new Error(
       'runtime_start: no silverhand server URL supplied by server and no daemon-local control-plane URL is attached',
     );
   }
-  const result: NodeJS.ProcessEnv = {
-    ...env,
-    ...(options.runtime_scope.kind === 'conversation'
-      ? { [SILVERHAND_CONVERSATION_ID_ENV]: input.conversationId }
-      : {}),
-    [SILVERHAND_AGENT_ID_ENV]: input.agentId,
-    [SILVERHAND_SERVER_URL_ENV]: silverhandServerUrl,
-    [SILVERHAND_AUTH_TOKEN_ENV]: options.env_policy.silverhand.auth_token,
-    ...(input.daemonSocketPath ? { [SILVERHAND_DAEMON_SOCKET_ENV]: input.daemonSocketPath } : {}),
-    ...(input.lastDeliveredSeqPath
-      ? { [SILVERHAND_LAST_DELIVERED_SEQ_FILE_ENV]: input.lastDeliveredSeqPath }
-      : {}),
-    PATH: currentPath ? `${input.binDir}${delimiter}${currentPath}` : input.binDir,
-  };
-  // Omission from the additive layer is insufficient: the daemon itself may
-  // have been launched from a ConversationSlot and process.env would leak that
-  // ambient target into a later AgentSlot child. RuntimeScope owns this key.
-  if (options.runtime_scope.kind === 'agent') {
-    delete result[SILVERHAND_CONVERSATION_ID_ENV];
+
+  if (env.PATH === undefined && process.env.PATH !== undefined) {
+    env = { ...env, PATH: process.env.PATH };
   }
-  return result;
+
+  return applyHostAuthoritativeSpawnEnv(env, {
+    runtimeScopeKind: options.runtime_scope.kind,
+    conversationId: input.conversationId,
+    agentId: input.agentId,
+    serverUrl: silverhandServerUrl,
+    authToken: options.env_policy.silverhand.auth_token,
+    daemonSocketPath: input.daemonSocketPath,
+    lastDeliveredSeqPath: input.lastDeliveredSeqPath,
+    binDir: input.binDir,
+  });
 }

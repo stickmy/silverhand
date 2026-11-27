@@ -129,6 +129,7 @@ export const apiPaths = {
    *  against its own wall clock. Invalidated ONLY by `agent_presence_changed`. */
   agentPresence: (id: string) => `/api/agents/${id}/presence`,
   agentRuntime: (id: string) => `/api/agents/${id}/runtime`,
+  agentEnv: (id: string) => `/api/agents/${id}/env`,
   agentStop: (id: string) => `/api/agents/${id}/stop`,
   /** "Message this agent" — a human opens (or reuses) their DirectPair with an
    *  AGENT-SCOPED agent and posts a message, in one call (#task:2036). Keyed by

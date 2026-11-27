@@ -24,6 +24,7 @@ import {
   type ParsedEvent,
   ParsedEventSchema,
   type RuntimeKind,
+  SILVERHAND_ACP_AUTO_COMPACT_ENV,
   SILVERHAND_AGENT_ID_ENV,
   SILVERHAND_AUTH_TOKEN_ENV,
   SILVERHAND_CONVERSATION_ID_ENV,
@@ -89,7 +90,7 @@ import {
 } from '../runtime-start-resolve.js';
 import { bundleCwdUsable } from '../agent-materialize/index.js';
 import { unlinkRuntimePidfile, writeRuntimePidfile } from '../runtime-pidfiles.js';
-import { buildDaemonSpawnEnv } from '../spawn-env.js';
+import { applyHostAuthoritativeSpawnEnv, buildDaemonSpawnEnv } from '../spawn-env.js';
 import { readDaemonProxyConfig } from '../proxy-config.js';
 import { prepareSpawnFiles, type SilverhandCliLauncher } from '../spawn-prep.js';
 import { buildProfileMcpSpawnArgs } from '../mcp-spawn.js';
@@ -392,6 +393,9 @@ function strategyBoundaryOpen(handle: RuntimeHandle): boolean {
       // time, surfaced by the driver itself.
       return driverReadyToEncode(handle.driver);
     case 'native-steer':
+      // Open whenever the driver can encode; closes only during internal
+      // driver-owned turns such as ACP auto-compact.
+      return driverReadyToEncode(handle.driver);
     case 'one-shot':
       // Always open here — the write-in-flight slot and the oneShot
       // spawn path own their serialization.
@@ -1606,31 +1610,37 @@ export class Supervisor implements SupervisorContract {
       controlPlaneServerUrl,
       proxyConfig: readDaemonProxyConfig(this.proxyConfigPath(), this.logger),
     });
-    const env: NodeJS.ProcessEnv = {
-      ...daemonEnv,
-      // The profile-MCP env layer (opencode's OPENCODE_CONFIG_CONTENT) is
-      // authoritative for its own keys. The Silverhand identity/control-plane
-      // env is re-applied below because those four keys are the child CLI's
-      // integrity boundary and must not be shadowed by any additive layer.
-      ...(mcpSpawn.env ?? {}),
-      ...(startOptions.runtime_scope.kind === 'conversation'
-        ? {
-            [SILVERHAND_CONVERSATION_ID_ENV]: daemonEnv[SILVERHAND_CONVERSATION_ID_ENV],
-          }
-        : {}),
-      [SILVERHAND_AGENT_ID_ENV]: daemonEnv[SILVERHAND_AGENT_ID_ENV],
-      [SILVERHAND_SERVER_URL_ENV]: daemonEnv[SILVERHAND_SERVER_URL_ENV],
-      [SILVERHAND_AUTH_TOKEN_ENV]: daemonEnv[SILVERHAND_AUTH_TOKEN_ENV],
-    };
-    if (startOptions.runtime_scope.kind === 'agent') {
-      delete env[SILVERHAND_CONVERSATION_ID_ENV];
-    }
+    const env = applyHostAuthoritativeSpawnEnv(
+      {
+        ...daemonEnv,
+        // The profile-MCP env layer (opencode's OPENCODE_CONFIG_CONTENT) is
+        // authoritative for its own keys over user-configured env. Host-owned
+        // Silverhand keys (and their explicit absence) plus the shim PATH
+        // prefix are enforced on the final merged env below.
+        ...(mcpSpawn.env ?? {}),
+      },
+      {
+        runtimeScopeKind: startOptions.runtime_scope.kind,
+        conversationId: params.conversation_id,
+        agentId: params.agent_id,
+        serverUrl: controlPlaneServerUrl,
+        authToken: startOptions.env_policy.silverhand.auth_token,
+        daemonSocketPath: this.daemonSocketPath ?? undefined,
+        lastDeliveredSeqPath: spawnPrep.lastDeliveredSeqPath,
+        binDir: spawnPrep.binDir,
+      },
+    );
+    spawnCtx.acpAutoCompactThreshold = env[SILVERHAND_ACP_AUTO_COMPACT_ENV] ?? null;
+    const userEnvKeys = new Set(
+      (startOptions.env_policy.user_env ?? []).map((entry) => entry.name),
+    );
     const startedAt = this.now();
 
     // #task:1420 — pre-spawn diagnostics. Log-only: capture exactly what env
     // and which binary this daemon process is about to exec, so the next
     // runtime failure is legible without a repro. Secret-safe by construction
-    // (see spawn-diagnostics.ts): no token/secret/cert body is emitted.
+    // (see spawn-diagnostics.ts): no token/secret/cert body or user-configured
+    // env value is emitted.
     this.logger.info(
       {
         kind: 'process',
@@ -1646,8 +1656,14 @@ export class Supervisor implements SupervisorContract {
           : 'path_or_detected',
         argv: redactSpawnArgs(args),
         cwd: spawnCtx.workspacePath,
-        path_summary: summarizeSpawnPath(env.PATH),
-        env_summary: summarizeSpawnEnv(env),
+        path_summary: summarizeSpawnPath(
+          env.PATH,
+          userEnvKeys.has('PATH') ? { redactEntriesAfterDir: spawnPrep.binDir } : undefined,
+        ),
+        env_summary: summarizeSpawnEnv(
+          env,
+          userEnvKeys.size > 0 ? { redactedKeys: userEnvKeys } : undefined,
+        ),
         silverhand_env_presence: {
           child: summarizeSilverhandEnvPresence(env, {
             conversationIdRequired: startOptions.runtime_scope.kind === 'conversation',
@@ -1886,6 +1902,19 @@ export class Supervisor implements SupervisorContract {
         },
         spawnCtx,
         onInputRejected: (uuid) => this.observeInputRejected(handle, uuid),
+        onWarning: (event) => {
+          this.logger.warn(
+            {
+              kind: 'process',
+              action: event.action,
+              pid: handle.pid,
+              conversationId: handle.conversationId,
+              agent_id: handle.agentId,
+              ...(event.details ?? {}),
+            },
+            event.message,
+          );
+        },
       });
     }
 
@@ -2794,7 +2823,12 @@ export class Supervisor implements SupervisorContract {
       // `deferred` is a custody transfer, NOT an ack — `delivered_at` still
       // moves only on the async `runtime_delivery_consumed` the eventual
       // flush emits.
-      if (writeInFlight || handle.pullReservation !== null || (gated && !boundaryOpen)) {
+      if (
+        writeInFlight ||
+        handle.pullReservation !== null ||
+        (gated && !boundaryOpen) ||
+        !driverReadyToEncode(handle.driver)
+      ) {
         this.enqueueDeferred(handle, params, actionWorkdir, ctx.owner);
         this.scheduleReservationStallCheck(handle);
         return {

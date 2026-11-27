@@ -182,6 +182,43 @@ describe('summarizeSpawnEnv', () => {
     expect(serialized).not.toContain('/opt/tool');
     expect(serialized).not.toContain('registry.example');
   });
+
+  it('redacts user-configured env values even on value-bearing buckets and PATH', () => {
+    const marker = 'marker-must-not-appear-in-spawn-logs';
+    const userKeys = new Set([
+      'HOME',
+      'NODE_OPTIONS',
+      'NO_PROXY',
+      'SSL_CERT_FILE',
+      'BENIGN_VAR',
+      'PATH',
+    ]);
+    const envSummary = summarizeSpawnEnv(
+      {
+        HOME: `/tmp/${marker}`,
+        NODE_OPTIONS: `--title=${marker}`,
+        NO_PROXY: `${marker}.internal`,
+        SSL_CERT_FILE: `/tmp/${marker}.pem`,
+        BENIGN_VAR: marker,
+      },
+      { redactedKeys: userKeys },
+    );
+    expect(JSON.stringify(envSummary)).not.toContain(marker);
+    expect(envSummary.sensitive_keys_redacted).toEqual([
+      'BENIGN_VAR',
+      'HOME',
+      'NODE_OPTIONS',
+      'NO_PROXY',
+      'SSL_CERT_FILE',
+    ]);
+
+    const pathSummary = summarizeSpawnPath(`/tmp/shim-bin:/opt/${marker}/bin`, {
+      redactEntriesAfterDir: '/tmp/shim-bin',
+    });
+    expect(JSON.stringify(pathSummary)).not.toContain(marker);
+    expect(pathSummary.path_dirs).toEqual(['/tmp/shim-bin', '<redacted-user-path>']);
+    expect(pathSummary.path_dir_count).toBe(2);
+  });
 });
 
 describe('summarizeSilverhandEnvPresence', () => {

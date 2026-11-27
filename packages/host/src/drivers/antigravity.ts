@@ -23,6 +23,7 @@ export class AntigravityAcpAdapter implements AcpRuntimeAdapter {
   readonly permissionPolicy = { shouldAllow: () => true };
   readonly suppressPreSessionUpdates = true;
   readonly busyPromptJoinsTurn = true;
+  readonly autoCompactCommand = '/compact';
 
   buildInitializeParams(): Record<string, unknown> {
     return {

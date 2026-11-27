@@ -115,12 +115,30 @@ export interface SpawnPathSummary {
  * what a resolver-picked-the-wrong-binary or ephemeral-shim investigation
  * needs. Suspicious / missing / relative entries are called out separately.
  */
-export function summarizeSpawnPath(pathValue: string | undefined): SpawnPathSummary {
-  const dirs = (pathValue ?? '').split(delimiter).filter(Boolean);
+export interface SummarizeSpawnPathOptions {
+  /**
+   * When user-configured env overrides `PATH`, keep only the host shim prefix
+   * visible and redact the user-supplied remainder so custom env values never
+   * leak into `runtime_spawn_attempt` logs.
+   */
+  redactEntriesAfterDir?: string;
+}
+
+export function summarizeSpawnPath(
+  pathValue: string | undefined,
+  options?: SummarizeSpawnPathOptions,
+): SpawnPathSummary {
+  const rawDirs = (pathValue ?? '').split(delimiter).filter(Boolean);
+  const dirs = options?.redactEntriesAfterDir
+    ? rawDirs.map((dir, index) =>
+        index === 0 && dir === options.redactEntriesAfterDir ? dir : '<redacted-user-path>',
+      )
+    : rawDirs;
   const suspicious: string[] = [];
   const nonexistent: string[] = [];
   const relative: string[] = [];
   for (const dir of dirs) {
+    if (dir === '<redacted-user-path>') continue;
     if (SUSPICIOUS_PATH_MARKERS.some((marker) => dir.includes(marker))) {
       suspicious.push(dir);
     }
@@ -217,7 +235,15 @@ function maskProxyValue(value: string): string {
  * ever emitted. Identity/locale, loader-context, proxy (masked), and cert
  * *paths* carry values; everything else contributes its key name only.
  */
-export function summarizeSpawnEnv(env: NodeJS.ProcessEnv): SpawnEnvSummary {
+export interface SummarizeSpawnEnvOptions {
+  /** Extra keys whose values must never be logged (e.g. user-configured env). */
+  redactedKeys?: ReadonlySet<string>;
+}
+
+export function summarizeSpawnEnv(
+  env: NodeJS.ProcessEnv,
+  options?: SummarizeSpawnEnvOptions,
+): SpawnEnvSummary {
   const identity: Record<string, string> = {};
   const launchContext: Record<string, string> = {};
   const certFiles: Record<string, { path: string; exists: boolean }> = {};
@@ -231,10 +257,9 @@ export function summarizeSpawnEnv(env: NodeJS.ProcessEnv): SpawnEnvSummary {
     if (value === undefined) continue;
     totalKeys += 1;
 
-    // Sensitivity is checked first and wins over every other category, so a
-    // key like SILVERHAND_AUTH_TOKEN can never fall through to a value-bearing
-    // bucket.
-    if (SENSITIVE_ENV_PATTERN.test(key)) {
+    // Sensitivity (and any user-configured env key) is checked first and wins
+    // over every value-bearing bucket so custom values never reach spawn logs.
+    if (SENSITIVE_ENV_PATTERN.test(key) || options?.redactedKeys?.has(key)) {
       sensitiveKeys.push(key);
       continue;
     }
